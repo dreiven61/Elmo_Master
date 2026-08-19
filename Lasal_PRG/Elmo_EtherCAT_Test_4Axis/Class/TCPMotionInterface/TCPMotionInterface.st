@@ -328,6 +328,7 @@ END_FUNCTION
 #define LMC_OWNER_ADMISSION_LIFECYCLE 4
 #define LMC_OWNER_ADAPTER_ERROR_CONFLICT -9
 #define LMC_OWNER_SAFETY_DRAIN_PENDING -10
+#define LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE -12
 #define LMC_OWNER_SAFETY_PHASE_PREPARE 1
 #define LMC_OWNER_SAFETY_PHASE_RETAIN 2
 #define LMC_OWNER_SAFETY_PHASE_TERMINAL 3
@@ -1920,6 +1921,8 @@ END_FUNCTION
 FUNCTION TCPMotionInterface::MsgPaser
 	VAR
 		controlResponseSize : DINT;
+		setPositionCloseSocket : DINT;
+		callbackDisarmResult : DINT;
 		diagnosticsResponseSize : DINT;
 		controlAxisMask : UDINT;
 		controlEffectiveAxisMask : UDINT;
@@ -2221,7 +2224,8 @@ case CommandID of
   0x202E, 0x209F, 0x20A0, 0x20A2,
   0x20D2, 0x2047, 0x2048, 0x2049, 0x204A, 0x204B,
   0x2085, 0x20A4, 0x2045, 0x2051, 0x20E7,
-  0x7D00, 0x7D10, 0x7D12, 0x7D13, 0x7D18, 0x7D19,
+  0x7D00, 0x7D10, 0x7D12, 0x7D14, 0x7D1A,
+  0x7D13, 0x7D18, 0x7D19,
   0x7D20, 0x7D22:
     controlResponseSize := -1;
     controlAxisMask := 0;
@@ -2567,6 +2571,38 @@ case CommandID of
         OwnerGeneration:=controlOwnerGeneration);
     end_if;
 
+    // LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE_BEGIN
+    if (CommandID = 0x7D12) &
+       (controlResponseSize =
+        LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE) then
+      setPositionCloseSocket := ActiveRequest.Socket;
+      if (ActiveRequest.SessionEpoch <> 0) &
+         (PendingClosedSessionEpoch = 0) then
+        PendingClosedSessionEpoch := ActiveRequest.SessionEpoch;
+        callbackDisarmResult := DisarmRpcCallbackEndpoint();
+        SessionEpoch += 1;
+        if SessionEpoch = 0 then
+          SessionEpoch := 1;
+        end_if;
+      end_if;
+      IngressBlocked := TRUE;
+      IngressFaultPending := FALSE;
+      IngressFaultCloseRequired := TRUE;
+      RpcSocket := 0;
+      RpcInitialized := FALSE;
+      if setPositionCloseSocket <> 0 then
+        LastOwnerDisconnectRequestRet :=
+          _TCPIPServerInterface::SetSocketParameter(
+            dSock:=setPositionCloseSocket,
+            Cmd:=100,
+            SubCmd:=0,
+            ParaValue:=0
+          );
+      end_if;
+      RETURN;
+    end_if;
+    // LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE_END
+
     if controlResponseSize = LMC_OWNER_SAFETY_DRAIN_PENDING then
 		controlPendingResult := HandleControlSafetyDrainPending(
 		  Phase:=LMC_OWNER_SAFETY_PHASE_RETAIN,
@@ -2670,7 +2706,8 @@ FUNCTION TCPMotionInterface::DisarmRpcCallbackEndpoint
 	IF (RpcCallbackProtocolVersion <> 2) OR
 	   (RpcCallbackRegistered = FALSE) THEN
 		Result := 1;
-	ELSIF NOT IsClientConnected(#CallbackSender) THEN
+	// IsClientConnected returns an integer; NOT would bitwise-invert it.
+	ELSIF IsClientConnected(#CallbackSender) = 0 THEN
 		Result := -9;
 	ELSE
 		Result := CallbackSender.DisarmEndpoint(

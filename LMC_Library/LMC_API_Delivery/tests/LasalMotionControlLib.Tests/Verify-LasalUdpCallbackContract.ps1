@@ -39,6 +39,7 @@ $Utf8 = [Text.UTF8Encoding]::new($false, $true)
 $Latin1 = [Text.Encoding]::GetEncoding(28591)
 $DerivedCandidateApproved = $true
 $TerminalWakeBrokerExactPhysicalSnapshotApproved = $true
+$SyntheticGitBlobCache = @{}
 
 $TargetRootRelativePath = 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis'
 $TransceiverRelativePath =
@@ -127,6 +128,11 @@ $ProtectedGeneratedRecordContracts = @(
         Bytes = 22680
         Sha256 =
             '2339EB3663D28B6BAD53F02415823F839AD58A59AFC755CDEFB1B667E3C4CCF0'
+        SetPositionSha256 =
+            '38C364BF22E96FD46E09F24CEA0835D7C45E640F377084B15B9155682F4C3B6F'
+        SetPositionDeltas = @(
+            [ordered]@{ Offset = 101; Old = '303030313731'; New = '303030313732' },
+            [ordered]@{ Offset = 21374; Old = '303030313435'; New = '303030313436' })
     },
     [ordered]@{
         Name = 'CriticalSection'
@@ -137,6 +143,10 @@ $ProtectedGeneratedRecordContracts = @(
         Bytes = 3464
         Sha256 =
             'BEC8B29BB4D1D15532DDCB6711A1861829FC0FFFF502443D6A8E2A8AB84F614C'
+        SetPositionSha256 =
+            'FC7B8F9D022AC7963B950AC6037F711A7DD60B7ED57B351A1111A214E441DA7F'
+        SetPositionDeltas = @(
+            [ordered]@{ Offset = 109; Old = '303030313831'; New = '303030313832' })
     }
 )
 
@@ -155,6 +165,11 @@ $VendorGeneratedRecordContracts = @(
             'A261DD6045085695A92EFA69FC02E5343BFFA3C8BB115547C5DD831743E10526'
         TerminalWakeSha256 =
             'ABC81CB06DB50FFE34F6F663BB2B3CF1B73396335CFAFE53CE8A0659B48854EA'
+        SetPositionTerminalWakeSha256 =
+            'DD431D47FC5F766B2989CDB778AFDCACC7FD7419489250A8C230BF12816A7FBE'
+        SetPositionDeltas = @(
+            [ordered]@{ Offset = 477; Old = '303030323530'; New = '303030323531' },
+            [ordered]@{ Offset = 33169; Old = '06030000'; New = '0B030000' })
     },
     [ordered]@{
         Name = '_UDPTransceiverInterface'
@@ -168,6 +183,13 @@ $VendorGeneratedRecordContracts = @(
             '7FC931079DCFBB894D29EC1A92B291E67D21A01F250B0B1639B22A82BEB614EB'
         WiredSha256 =
             'C924322FBC9E42031AF4D31236B65668568418B209BA485FE168D42CEC542D9F'
+        SetPositionWiredSha256 =
+            'B916D7B00435793A34F4D3A106A5B9CB03804222A91C1E8F6CF1CD5E361B0CD7'
+        SetPositionDeltas = @(
+            [ordered]@{ Offset = 486; Old = '303030323531'; New = '303030323532' },
+            [ordered]@{ Offset = 18138; Old = '57020000'; New = '5C020000' },
+            [ordered]@{ Offset = 18171; Old = '01030000'; New = '06030000' },
+            [ordered]@{ Offset = 18204; Old = '06030000'; New = '0B030000' })
     }
 )
 
@@ -267,43 +289,34 @@ $ExpectedTerminalWakeLayout = [ordered]@{
         Objectsize = '(778,120)'
     }
     Classes = [ordered]@{
-        Bytes = 8549773
+        Bytes = 8600084
         Sha256 =
-            '24402BFA76F1989319381388D4354E1528052078BA08504CC5C967A6DE1AA861'
+            'CC5B7FD831616551117DB8260257362069DB51880C53250DBF3CEC35458A48E4'
     }
     CommNetwork = [ordered]@{
-        Bytes = 16540
+        Bytes = 17686
         Sha256 =
-            'FD632C27E2619E907097F599A4CEA1D6AA83E4D41F214E73A91E1C4127F1A1B7'
-        CanonicalLfBytes = 16117
+            '478D53FB082491FC47EF102044FDA2529D4ABA70D6838850DC317EAC7FE1C132'
+        CanonicalLfBytes = 17229
         CanonicalLfSha256 =
-            '06425749250E03BEF3548C40F6515E66DB953E3067D3C724353A92C6B35860FF'
+            '00E776CFB9A70A8FAC94FDA9A14CE94EA309C51F838689E2A4CAE38317CC620B'
         TransceiverPosition = '(1410,990)'
         SenderPosition = '(2610,990)'
     }
     NetworksDatabase = [ordered]@{
-        Bytes = 242363
+        Bytes = 243125
         Sha256 =
-            'C307547E097655AAE75BF1E8505B2A0C9DBFC998B3AF5BDD391BD8109604C23F'
+            '8A115291E96D25E00D0507B68F9DAD3CFB735CE26646C0155E4533FCC2D6EFA8'
     }
     FullNetwork = [ordered]@{
         Count = 23
         Sha256 =
-            '2AC04B56D1305FB2F894268598199136E406D3AFF04AF49B505055373547B621'
-        CleanCheckoutCount = 23
-        CleanCheckoutSha256 =
-            '0AA5BD15701BB05C689C883AC69829D90CDFCB48E836D24776A1105A460A4751'
-        PureGitCheckoutCount = 15
-        PureGitCheckoutSha256 =
-            '239F71DC2BD04491582735AB424BCFB71E87BC3E88F2D7F0BEC21C592363FA22'
+            '50F26CC4B5E4210985FB3474934F13B393979A564548F82589370EE8F0D3C0B9'
     }
     TrackedNetwork = [ordered]@{
         Count = 15
         Sha256 =
-            '2BBE21AE738AA99F2EB4CDD66CF865441AF3BB587FB1DB7478777082C395C153'
-        CleanCheckoutCount = 15
-        CleanCheckoutSha256 =
-            '6FF1BDAED41EE9F2AE017891BBF23CACBFA0FB510BEF07EAA4C7619DDA49DA38'
+            'BA304BFC820CDEB4B0027AAA506DE8D9E68498B6F522529BDBEF20FEB6070EC3'
     }
 }
 $TerminalWakeLayoutSelfTestOracle = [ordered]@{
@@ -330,43 +343,34 @@ $TerminalWakeLayoutSelfTestOracle = [ordered]@{
         Objectsize = '(778,120)'
     }
     Classes = [ordered]@{
-        Bytes = 8549773
+        Bytes = 8600084
         Sha256 =
-            '24402BFA76F1989319381388D4354E1528052078BA08504CC5C967A6DE1AA861'
+            'CC5B7FD831616551117DB8260257362069DB51880C53250DBF3CEC35458A48E4'
     }
     CommNetwork = [ordered]@{
-        Bytes = 16540
+        Bytes = 17686
         Sha256 =
-            'FD632C27E2619E907097F599A4CEA1D6AA83E4D41F214E73A91E1C4127F1A1B7'
-        CanonicalLfBytes = 16117
+            '478D53FB082491FC47EF102044FDA2529D4ABA70D6838850DC317EAC7FE1C132'
+        CanonicalLfBytes = 17229
         CanonicalLfSha256 =
-            '06425749250E03BEF3548C40F6515E66DB953E3067D3C724353A92C6B35860FF'
+            '00E776CFB9A70A8FAC94FDA9A14CE94EA309C51F838689E2A4CAE38317CC620B'
         TransceiverPosition = '(1410,990)'
         SenderPosition = '(2610,990)'
     }
     NetworksDatabase = [ordered]@{
-        Bytes = 242363
+        Bytes = 243125
         Sha256 =
-            'C307547E097655AAE75BF1E8505B2A0C9DBFC998B3AF5BDD391BD8109604C23F'
+            '8A115291E96D25E00D0507B68F9DAD3CFB735CE26646C0155E4533FCC2D6EFA8'
     }
     FullNetwork = [ordered]@{
         Count = 23
         Sha256 =
-            '2AC04B56D1305FB2F894268598199136E406D3AFF04AF49B505055373547B621'
-        CleanCheckoutCount = 23
-        CleanCheckoutSha256 =
-            '0AA5BD15701BB05C689C883AC69829D90CDFCB48E836D24776A1105A460A4751'
-        PureGitCheckoutCount = 15
-        PureGitCheckoutSha256 =
-            '239F71DC2BD04491582735AB424BCFB71E87BC3E88F2D7F0BEC21C592363FA22'
+            '50F26CC4B5E4210985FB3474934F13B393979A564548F82589370EE8F0D3C0B9'
     }
     TrackedNetwork = [ordered]@{
         Count = 15
         Sha256 =
-            '2BBE21AE738AA99F2EB4CDD66CF865441AF3BB587FB1DB7478777082C395C153'
-        CleanCheckoutCount = 15
-        CleanCheckoutSha256 =
-            '6FF1BDAED41EE9F2AE017891BBF23CACBFA0FB510BEF07EAA4C7619DDA49DA38'
+            'BA304BFC820CDEB4B0027AAA506DE8D9E68498B6F522529BDBEF20FEB6070EC3'
     }
 }
 $ExpectedBaselineTrackedNetworkCount = 15
@@ -401,6 +405,214 @@ $ExpectedVendorImportedProjectDefinitionCanonicalLfSha256 =
 $ExpectedProtectedTrackedNetworkCount = 11
 $ExpectedProtectedTrackedNetworkSha256 =
     'B2A4543FF2D900CC31C214EF73C99024B92C9E881A9AFF089AA36C3959841745'
+
+# Immutable pre-SetPosition Gate D blobs.  Synthetic fixtures are derived from
+# these objects and explicit deltas; they must never use the live worktree as
+# their oracle.
+$PreSetPositionGateD = [ordered]@{
+    Classes = [ordered]@{
+        ObjectId = '7b0faebb1450ff67b7dad44f081ad5c4ac141ee2'
+        Bytes = 8549773
+        Sha256 =
+            '24402BFA76F1989319381388D4354E1528052078BA08504CC5C967A6DE1AA861'
+    }
+    Project = [ordered]@{
+        ObjectId = 'f6857e81ea9633c7996577249e4292c42f91cbed'
+        Bytes = 634514
+        Sha256 =
+            'C0975BA573245BBDBA78F7586F65C08107706091C88278D089EEA5BFB556DB39'
+    }
+    ProjectDefinition = [ordered]@{
+        ObjectId = '6c88c0b7b3115655c505994c8d18cd3d21a15834'
+        CanonicalLfBytes = 24595
+        CanonicalLfSha256 =
+            'D252D8224DBD720984784150423F752A6A714F946223C8E57AE33AADB07A58E6'
+    }
+    ConfigObjects = [ordered]@{
+        ObjectId = '5a18363d1c059a24ad6bab83b16e97f8d7c3163f'
+        CanonicalLfBytes = 8547
+        CanonicalLfSha256 =
+            'AEDC1E6D0E09420CB15EB5D604B1B72FCA209496BA599BA879DA5EC082D64AD9'
+    }
+    CChannels = [ordered]@{
+        ObjectId = '088cf0e219e328db80355986beea226ab8b4664e'
+        CanonicalLfBytes = 24143
+        CanonicalLfSha256 =
+            '8E1AFE4D4F1AE8B899C5CC8ADE16B3FE54C8353954CDF01CFBCD7DFCF73A06C1'
+    }
+    StChannels = [ordered]@{
+        ObjectId = 'a9e207a5f8d6901f348b1564665f6587c966eef0'
+        CanonicalLfBytes = 20566
+        CanonicalLfSha256 =
+            'E207A218BBAB37E2FD96E92365294DDD21312463D1BF80449BC095318F8D95BA'
+    }
+    PublicTypes = [ordered]@{
+        ObjectId = '289c0dcc892911cf9ac989ded3265f906078e815'
+        CanonicalLfBytes = 61906
+        CanonicalLfSha256 =
+            '4DDCD07636E534D3B1A41B3FCCA55F76CC68EACAA413A24F9BBC14CC76820B24'
+    }
+    CommNetwork = [ordered]@{
+        ObjectId = '9c5d0e106dcc92a3c3fa79d75a5c5ba2ede701fe'
+        CanonicalLfBytes = 16117
+        CanonicalLfSha256 =
+            '06425749250E03BEF3548C40F6515E66DB953E3067D3C724353A92C6B35860FF'
+    }
+    CommTable = [ordered]@{
+        ObjectId = 'c44b70cdef9725dfcda41d8fb3cb6bb1fc5284a6'
+        CanonicalLfBytes = 11541
+        CanonicalLfSha256 =
+            '8078EF17A9DB5E15D55199E9754F417B4424B524E2ECE30D8F1514BB7CC02E10'
+    }
+    NetworksDatabase = [ordered]@{
+        ObjectId = '66a1f6674fb3c8698fe9058523c1e394c21cbced'
+        Bytes = 242363
+        Sha256 =
+            'C307547E097655AAE75BF1E8505B2A0C9DBFC998B3AF5BDD391BD8109604C23F'
+    }
+}
+
+$SetPositionAugmentedGateD = [ordered]@{
+    Classes = [ordered]@{
+        Bytes = 8600084
+        Sha256 =
+            'CC5B7FD831616551117DB8260257362069DB51880C53250DBF3CEC35458A48E4'
+        Delta = [ordered]@{
+            PrefixBytes = 33
+            HistoricalChangedBytes = 8533691
+            HistoricalChangedSha256 =
+                '0F002B6EA439F8CAD229619FA3E93F98C12A69735EE7ED1B950195A8C5DC42F5'
+            CurrentChangedBytes = 8584002
+            CurrentChangedSha256 =
+                'B752A4F988D31FDD3461978E17591BEEE5AB713F854E18A59E3EF255308E00BE'
+            SuffixBytes = 16049
+        }
+    }
+    Project = [ordered]@{
+        Bytes = 634865
+        Sha256 =
+            'B3F299086252A9C50C7D03672508A9BFE3CC7060E04AB4E2417672CFAAD9F38A'
+        Delta = [ordered]@{
+            PrefixBytes = 25
+            HistoricalChangedBytes = 621604
+            HistoricalChangedSha256 =
+                'A8C80BD192C9E2844ED96A4CC939E1ACECBDF611F41ECC2AF14DCF8F83884650'
+            CurrentChangedBytes = 621955
+            CurrentChangedSha256 =
+                '8BA55BC0592A48B4FF5F922538552F8C041DBFB0452F38D313B36868A3687E19'
+            SuffixBytes = 12885
+        }
+    }
+    ProjectDefinition = [ordered]@{
+        RawBytes = 25433
+        RawSha256 =
+            '96F5357FF18EA32C7A4783A7A8BF1B5D92EE6530879B1DCD0552575327ECE1AA'
+        CanonicalLfBytes = 24837
+        CanonicalLfSha256 =
+            '0E9126550AB9F5A40872FAC68A7B7297A5CF1C67F8F1282C6F4E5C27E29A3D18'
+    }
+    ConfigObjects = [ordered]@{
+        RawBytes = 8830
+        RawSha256 =
+            '4976C5C46F5647F55BAA54AF99D80A761A5C0648C74484939872AD277C13AC3F'
+        CanonicalLfBytes = 8585
+        CanonicalLfSha256 =
+            'F9DCC4C7A3F174E908539E038AE19BF8A56B94175F99BDB708D653AB442B6163'
+    }
+    CChannels = [ordered]@{
+        RawBytes = 25455
+        RawSha256 =
+            'D827E526A997A6595BDF2B8CFDF8539DCFBD836CD6802DBC5B2705DA3BBF5FAF'
+        CanonicalLfBytes = 24305
+        CanonicalLfSha256 =
+            '8DB54FBE3B59135960562E80EF59F9C54DE2A9136C5553C117B75AEEAA7A10BD'
+        LineBreakCount = 1150
+    }
+    StChannels = [ordered]@{
+        RawBytes = 21521
+        RawSha256 =
+            'F849B0E5F898C4C2D6269E3DF33B8F9EA93107AF0DD24A8933F75F9AB92B067F'
+        CanonicalLfBytes = 20697
+        CanonicalLfSha256 =
+            'A734FEBD1FE60AAB3B530AF56E738F9D77FFC952411B1A6DCAC035D161844B1D'
+        LineBreakCount = 824
+    }
+    PublicTypes = [ordered]@{
+        RawBytes = 64423
+        RawSha256 =
+            'EDD3F17794126577E17A841AD1D562F1CB6D41D03D7C7A7E3690146918E029AD'
+        CanonicalLfBytes = 61906
+        CanonicalLfSha256 =
+            '4DDCD07636E534D3B1A41B3FCCA55F76CC68EACAA413A24F9BBC14CC76820B24'
+        LineBreakCount = 2517
+    }
+    CommNetwork = [ordered]@{
+        RawBytes = 17686
+        RawSha256 =
+            '478D53FB082491FC47EF102044FDA2529D4ABA70D6838850DC317EAC7FE1C132'
+        CanonicalLfBytes = 17229
+        CanonicalLfSha256 =
+            '00E776CFB9A70A8FAC94FDA9A14CE94EA309C51F838689E2A4CAE38317CC620B'
+    }
+    CommTable = [ordered]@{
+        RawBytes = 12136
+        RawSha256 =
+            'E17E1EBF0C3171C8D52B7F70FB124078931FAB8D6089C1DE83257502186E7ECE'
+        CanonicalLfBytes = 11843
+        CanonicalLfSha256 =
+            'BDF3134A791F480915A8864B59193690B2881C1A5D7F5529822088FC60678AA1'
+        Delta = [ordered]@{
+            PrefixBytes = 3697
+            HistoricalChangedBytes = 7141
+            HistoricalChangedSha256 =
+                '6B95ADB30A00EB6760B5784D570C183419EB42F7B322BE1AC49F61D6E52E2D30'
+            CurrentChangedBytes = 7443
+            CurrentChangedSha256 =
+                'E8204E3B91C39748A4C2DB3332A33F8E416EEF34C8848FA6B4CE66F41BCEC81E'
+            SuffixBytes = 703
+        }
+    }
+    NetworksDatabase = [ordered]@{
+        Bytes = 243125
+        Sha256 =
+            '8A115291E96D25E00D0507B68F9DAD3CFB735CE26646C0155E4533FCC2D6EFA8'
+        Delta = [ordered]@{
+            PrefixBytes = 53
+            HistoricalChangedBytes = 11664
+            HistoricalChangedSha256 =
+                'FFE0911711335E27BB5A429DB4E665976D87519061187E1B83389770C24589A9'
+            CurrentChangedBytes = 12426
+            CurrentChangedSha256 =
+                '1DE1E719D734D5161F85697E84EC67432C137B75C6AA300D7052ECE1378E3C0D'
+            SuffixBytes = 230646
+        }
+    }
+}
+
+# Historical pre-Store checkout tuples are evidence only.  They are not
+# accepted for the SetPosition-augmented production layout until the Store
+# source directory is tracked and an isolated checkout is captured.
+$HistoricalPreSetPositionTerminalWakeNetworkIdentity = [ordered]@{
+    FullNetwork = [ordered]@{
+        PhysicalCount = 23
+        PhysicalSha256 =
+            '2AC04B56D1305FB2F894268598199136E406D3AFF04AF49B505055373547B621'
+        CleanCheckoutCount = 23
+        CleanCheckoutSha256 =
+            '0AA5BD15701BB05C689C883AC69829D90CDFCB48E836D24776A1105A460A4751'
+        PureGitCheckoutCount = 15
+        PureGitCheckoutSha256 =
+            '239F71DC2BD04491582735AB424BCFB71E87BC3E88F2D7F0BEC21C592363FA22'
+    }
+    TrackedNetwork = [ordered]@{
+        PhysicalCount = 15
+        PhysicalSha256 =
+            '2BBE21AE738AA99F2EB4CDD66CF865441AF3BB587FB1DB7478777082C395C153'
+        CleanCheckoutCount = 15
+        CleanCheckoutSha256 =
+            '6FF1BDAED41EE9F2AE017891BBF23CACBFA0FB510BEF07EAA4C7619DDA49DA38'
+    }
+}
 
 $GeneratedIncludeContracts = @(
     [ordered]@{
@@ -3615,7 +3827,7 @@ Result := 1;
 IF (RpcCallbackProtocolVersion <> 2) OR
    (RpcCallbackRegistered = FALSE) THEN
   Result := 1;
-ELSIF NOT IsClientConnected(#CallbackSender) THEN
+ELSIF IsClientConnected(#CallbackSender) = 0 THEN
   Result := -9;
 ELSE
   Result := CallbackSender.DisarmEndpoint(
@@ -3998,7 +4210,8 @@ function Assert-TcpDerivedClientContract {
             'DerivedWired',
             'DerivedCandidate',
             'TerminalWakeBrokerCandidate')]
-        [string]$State
+        [string]$State,
+        [switch]$LegacySyntheticSource
     )
 
     Assert-NoCustomSourceConditionalPreprocessor `
@@ -4006,9 +4219,12 @@ function Assert-TcpDerivedClientContract {
     Assert-NoUnexpectedTopLevelResidue `
         -Text $TcpSource `
         -ArtifactOwner 'TCPMotionInterface source' `
-        -ExpectedDirectiveCount 46 `
-        -ExpectedDirectiveSha256 `
-            'ECDB540F59D96F94B741BA69842D52F74F4BEF74E3B442F64F449C7F9F824BC2'
+        -ExpectedDirectiveCount $(if ($LegacySyntheticSource) { 46 } else { 47 }) `
+        -ExpectedDirectiveSha256 $(if ($LegacySyntheticSource) {
+                'ECDB540F59D96F94B741BA69842D52F74F4BEF74E3B442F64F449C7F9F824BC2'
+            } else {
+                '7ACAE3CC14818B83D2CE2C88EF4C27900CD3F0BD23CB215D88B32E968ACBC7F9'
+            })
     Assert-DeclaredSpanInventory `
         -Text $TcpSource `
         -ExpectedFunctionNames $(if (
@@ -4162,9 +4378,15 @@ function Assert-DerivedCommTablePhysicalContract {
 
     $tableCanonical = ConvertTo-CanonicalLf -Text $CommTableText
     $tableCanonicalBytes = $Utf8.GetBytes($tableCanonical)
-    if ($State -in @(
-            'DerivedCandidate',
-            'TerminalWakeBrokerCandidate')) {
+    if ($State -ceq 'TerminalWakeBrokerCandidate') {
+        $expectedTableBytes = $SetPositionAugmentedGateD.CommTable.RawBytes
+        $expectedTableSha256 = $SetPositionAugmentedGateD.CommTable.RawSha256
+        $expectedTableCanonicalLfBytes =
+            $SetPositionAugmentedGateD.CommTable.CanonicalLfBytes
+        $expectedTableCanonicalLfSha256 =
+            $SetPositionAugmentedGateD.CommTable.CanonicalLfSha256
+    }
+    elseif ($State -ceq 'DerivedCandidate') {
         $expectedTableBytes = $ExpectedDerivedCandidateCommTableBytes
         $expectedTableSha256 = $ExpectedDerivedCandidateCommTableSha256
         $expectedTableCanonicalLfBytes =
@@ -4488,6 +4710,27 @@ function Assert-DerivedNetworkContract {
             'ONE_Comm_Network_Table.st contains an unapproved top-level span.')
     }
     $tableBody = $tables[0].Groups['Body'].Value
+    $setPositionTerminal =
+        ($State -ceq 'TerminalWakeBrokerCandidate') -and
+        (-not $SyntheticFixture)
+    $udpDestinationRow = if ($setPositionTerminal) {
+        '(?m)^TO_UDINT\(8\), "_UDPTransceiver", ' +
+            'TO_UDINT\(2\), "sControl",[ \t]*$'
+    }
+    else {
+        '(?m)^TO_UDINT\(6\), "_UDPTransceiver", ' +
+            'TO_UDINT\(1\), "sControl",[ \t]*$'
+    }
+    $tcpCallbackRow = if ($setPositionTerminal) {
+        '(?m)^TO_UDINT\(16\), "CallbackSender", ' +
+            'TO_UDINT\(8\), "ClassSvr",[ \t]*$'
+    }
+    else {
+        '(?m)^TO_UDINT\(14\), "CallbackSender", ' +
+            'TO_UDINT\(6\), "ClassSvr",[ \t]*$'
+    }
+    $transceiverObjectIndex = if ($setPositionTerminal) { 2 } else { 1 }
+    $senderObjectIndex = if ($setPositionTerminal) { 8 } else { 6 }
     $requiredRows = [ordered]@{
         '_UDPTransceiver class' =
             '(?m)^TO_UDINT\([0-9]+\), "_UDPTransceiver", ' +
@@ -4503,21 +4746,23 @@ function Assert-DerivedNetworkContract {
         'sender object' =
             '(?m)^_NO_ATTR, TO_UDINT\([0-9]+\), "LMCUDPCALLBACKSENDER1",[ \t]*$'
         'UDP destination link' =
-            '(?m)^TO_UDINT\(6\), "_UDPTransceiver", ' +
-            'TO_UDINT\(1\), "sControl",[ \t]*$'
+            $udpDestinationRow
         'TCP callback link' =
-            '(?m)^TO_UDINT\(14\), "CallbackSender", ' +
-            'TO_UDINT\(6\), "ClassSvr",[ \t]*$'
+            $tcpCallbackRow
         'RX buffer value' =
-            '(?m)^TO_UDINT\(1\), "cSizeOfRXBuffer", ' +
+            '(?m)^TO_UDINT\(' + $transceiverObjectIndex +
+            '\), "cSizeOfRXBuffer", ' +
             'TO_UDINT\(512\),[ \t]*$'
         'TX buffer value' =
-            '(?m)^TO_UDINT\(1\), "cSizeOfTXBuffer", ' +
+            '(?m)^TO_UDINT\(' + $transceiverObjectIndex +
+            '\), "cSizeOfTXBuffer", ' +
             'TO_UDINT\(8 kb\),[ \t]*$'
         'transceiver cyclic task' =
-            '(?m)^TO_UDINT\(1\), \(10\)\$UDINT, 4194303\$DINT,[ \t]*$'
+            '(?m)^TO_UDINT\(' + $transceiverObjectIndex +
+            '\), \(10\)\$UDINT, 4194303\$DINT,[ \t]*$'
         'sender cyclic task' =
-            '(?m)^TO_UDINT\(6\), \(10\)\$UDINT, 4194303\$DINT,[ \t]*$'
+            '(?m)^TO_UDINT\(' + $senderObjectIndex +
+            '\), \(10\)\$UDINT, 4194303\$DINT,[ \t]*$'
     }
     foreach ($row in $requiredRows.GetEnumerator()) {
         if ([regex]::Matches($tableBody, $row.Value).Count -ne 1) {
@@ -4525,16 +4770,41 @@ function Assert-DerivedNetworkContract {
                 "ONE_Comm_Network_Table.st $($row.Key) row is not exact one.")
         }
     }
-    Assert-OrderedTokens `
-        -Text $tableBody `
-        -Tokens @(
+    $orderedRows = if ($setPositionTerminal) {
+        @(
+            'TO_UDINT(5), "SetPositionStore", TO_UDINT(7), "ClassSvr",',
+            'TO_UDINT(7), "CheckSum", TO_UDINT(0), "ClassSvr",',
+            'TO_UDINT(8), "_UDPTransceiver", TO_UDINT(2), "sControl",',
+            'TO_UDINT(16), "CallbackSender", TO_UDINT(8), "ClassSvr",',
+            'TO_UDINT(2), "cSizeOfTXBuffer", TO_UDINT(8 kb),',
+            'TO_UDINT(2), "cSizeOfRXBuffer", TO_UDINT(512),',
+            'TO_UDINT(2), (10)$UDINT, 4194303$DINT,',
+            'TO_UDINT(8), (10)$UDINT, 4194303$DINT,')
+    }
+    else {
+        @(
             'TO_UDINT(6), "_UDPTransceiver", TO_UDINT(1), "sControl",',
             'TO_UDINT(14), "CallbackSender", TO_UDINT(6), "ClassSvr",',
             'TO_UDINT(1), "cSizeOfTXBuffer", TO_UDINT(8 kb),',
             'TO_UDINT(1), "cSizeOfRXBuffer", TO_UDINT(512),',
             'TO_UDINT(1), (10)$UDINT, 4194303$DINT,',
-            'TO_UDINT(6), (10)$UDINT, 4194303$DINT,') `
+            'TO_UDINT(6), (10)$UDINT, 4194303$DINT,')
+    }
+    Assert-OrderedTokens `
+        -Text $tableBody `
+        -Tokens $orderedRows `
         -TokenOwner 'ONE_Comm_Network_Table.st B2 row order'
+    if ($setPositionTerminal) {
+        foreach ($storeRow in @(
+                'TO_UDINT(2393574248), "LMCSetPositionStore", 0$UINT, 0$UINT, 1$UINT,',
+                '_NO_ATTR, TO_UDINT(1739067253), "LMCSETPOSITIONCHECKSUM1",',
+                '_NO_ATTR, TO_UDINT(3225136598), "LMCSETPOSITIONSTORE1",')) {
+            if ((Get-OrdinalCount -Text $tableBody -Needle $storeRow) -ne 1) {
+                Throw-UdpCallbackBlocker (
+                    "ONE_Comm_Network_Table.st Store row drifted: $storeRow")
+            }
+        }
+    }
     foreach ($taskRow in @(
             '(?m)^\(0\)\$UDINT,[ \t]*//LMCUDPTRANSCEIVER1[ \t]*$',
             '(?m)^\(0\)\$UDINT,[ \t]*//LMCUDPCALLBACKSENDER1[ \t]*$')) {
@@ -4762,6 +5032,80 @@ function Test-ClassDatabaseByteSequence {
     return $true
 }
 
+function ConvertFrom-ExactHexBytes {
+    param(
+        [Parameter(Mandatory = $true)][string]$Hex,
+        [Parameter(Mandatory = $true)][string]$EvidenceOwner
+    )
+
+    if (($Hex.Length -eq 0) -or (($Hex.Length % 2) -ne 0) -or
+        ($Hex -notmatch '\A[0-9A-Fa-f]+\z')) {
+        Throw-UdpCallbackBlocker "$EvidenceOwner hex evidence is malformed."
+    }
+    $bytes = [byte[]]::new($Hex.Length / 2)
+    for ($index = 0; $index -lt $bytes.Count; $index++) {
+        $bytes[$index] = [Convert]::ToByte($Hex.Substring($index * 2, 2), 16)
+    }
+    return ,$bytes
+}
+
+function Assert-ExactGeneratedRecordForwardReverseDelta {
+    param(
+        [Parameter(Mandatory = $true)][byte[]]$CurrentBytes,
+        [Parameter(Mandatory = $true)][string]$CurrentSha256,
+        [Parameter(Mandatory = $true)][string]$HistoricalSha256,
+        [Parameter(Mandatory = $true)][object[]]$Deltas,
+        [Parameter(Mandatory = $true)][string]$RecordOwner
+    )
+
+    if ((Get-BytesSha256 -Bytes $CurrentBytes) -cne $CurrentSha256) {
+        Throw-UdpCallbackBlocker "$RecordOwner current raw record identity drifted."
+    }
+    $historical = [byte[]]::new($CurrentBytes.Count)
+    [Array]::Copy($CurrentBytes, $historical, $CurrentBytes.Count)
+    foreach ($delta in $Deltas) {
+        $old = ConvertFrom-ExactHexBytes `
+            -Hex $delta.Old -EvidenceOwner "$RecordOwner old delta"
+        $new = ConvertFrom-ExactHexBytes `
+            -Hex $delta.New -EvidenceOwner "$RecordOwner new delta"
+        if ($old.Count -ne $new.Count) {
+            Throw-UdpCallbackBlocker "$RecordOwner delta width drifted."
+        }
+        if (-not (Test-ClassDatabaseByteSequence `
+                -DatabaseBytes $CurrentBytes `
+                -Start ([int]$delta.Offset) `
+                -ExpectedBytes $new)) {
+            Throw-UdpCallbackBlocker (
+                "$RecordOwner current delta at offset $($delta.Offset) drifted.")
+        }
+        [Array]::Copy($old, 0, $historical, [int]$delta.Offset, $old.Count)
+    }
+    if ((Get-BytesSha256 -Bytes $historical) -cne $HistoricalSha256) {
+        Throw-UdpCallbackBlocker (
+            "$RecordOwner does not reverse exactly to the pre-Store record.")
+    }
+    $forward = [byte[]]::new($historical.Count)
+    [Array]::Copy($historical, $forward, $historical.Count)
+    foreach ($delta in $Deltas) {
+        $old = ConvertFrom-ExactHexBytes `
+            -Hex $delta.Old -EvidenceOwner "$RecordOwner old delta"
+        $new = ConvertFrom-ExactHexBytes `
+            -Hex $delta.New -EvidenceOwner "$RecordOwner new delta"
+        if (-not (Test-ClassDatabaseByteSequence `
+                -DatabaseBytes $forward `
+                -Start ([int]$delta.Offset) `
+                -ExpectedBytes $old)) {
+            Throw-UdpCallbackBlocker (
+                "$RecordOwner historical delta at offset $($delta.Offset) drifted.")
+        }
+        [Array]::Copy($new, 0, $forward, [int]$delta.Offset, $new.Count)
+    }
+    if ((Get-BytesSha256 -Bytes $forward) -cne $CurrentSha256) {
+        Throw-UdpCallbackBlocker (
+            "$RecordOwner forward delta does not reconstruct the current record.")
+    }
+}
+
 function Assert-ClassDatabaseMethodHeader {
     param(
         [Parameter(Mandatory = $true)][byte[]]$RecordBytes,
@@ -4941,6 +5285,7 @@ function Get-ProtectedGeneratedRecordEvidence {
                 Name = $contract.Name
                 Bytes = $length
                 Sha256 = Get-BytesSha256 -Bytes $bytes
+                Data = $bytes
             })
     }
     return $records.ToArray()
@@ -4963,6 +5308,7 @@ function Get-VendorGeneratedRecordEvidence {
                 Name = $contract.Name
                 Bytes = $record.Bytes.Count
                 Sha256 = Get-BytesSha256 -Bytes $record.Bytes
+                Data = $record.Bytes
             })
     }
     return $records.ToArray()
@@ -5002,11 +5348,38 @@ function Assert-VendorGeneratedRecordContract {
         }
         $matches = @($Observed | Where-Object { $_.Name -ceq $expected.Name })
         if (($matches.Count -ne 1) -or
-            ($matches[0].Bytes -ne $expected.Bytes) -or
-            ($matches[0].Sha256 -cne $expectedSha256)) {
+            ($matches[0].Bytes -ne $expected.Bytes)) {
             Throw-UdpCallbackBlocker (
                 "vendor generated $($expected.Name) Classes.lcb record drifted.")
         }
+        if ($matches[0].Sha256 -ceq $expectedSha256) {
+            continue
+        }
+        $setPositionSha256 = if (
+            ($State -ceq 'TerminalWakeBrokerCandidate') -and
+            $expected.Contains('SetPositionTerminalWakeSha256')) {
+                $expected.SetPositionTerminalWakeSha256
+            }
+            elseif (($State -in @(
+                        'DerivedWired',
+                        'DerivedCandidate',
+                        'TerminalWakeBrokerCandidate')) -and
+                $expected.Contains('SetPositionWiredSha256')) {
+                $expected.SetPositionWiredSha256
+            }
+            else { '' }
+        if (($setPositionSha256.Length -eq 0) -or
+            ($matches[0].Sha256 -cne $setPositionSha256) -or
+            (-not ($matches[0].PSObject.Properties.Name -contains 'Data'))) {
+            Throw-UdpCallbackBlocker (
+                "vendor generated $($expected.Name) Classes.lcb record drifted.")
+        }
+        Assert-ExactGeneratedRecordForwardReverseDelta `
+            -CurrentBytes $matches[0].Data `
+            -CurrentSha256 $setPositionSha256 `
+            -HistoricalSha256 $expectedSha256 `
+            -Deltas @($expected.SetPositionDeltas) `
+            -RecordOwner "vendor generated $($expected.Name) Classes.lcb"
     }
 }
 
@@ -5999,18 +6372,8 @@ function Get-TerminalWakeLayoutProjection {
             'TransceiverPosition',
             'SenderPosition')
         NetworksDatabase = @('Bytes', 'Sha256')
-        FullNetwork = @(
-            'Count',
-            'Sha256',
-            'CleanCheckoutCount',
-            'CleanCheckoutSha256',
-            'PureGitCheckoutCount',
-            'PureGitCheckoutSha256')
-        TrackedNetwork = @(
-            'Count',
-            'Sha256',
-            'CleanCheckoutCount',
-            'CleanCheckoutSha256')
+        FullNetwork = @('Count', 'Sha256')
+        TrackedNetwork = @('Count', 'Sha256')
     }
     Assert-ExactInventory `
         -Actual @($Layout.Keys | ForEach-Object { [string]$_ }) `
@@ -6058,33 +6421,8 @@ function Test-TerminalWakeNetworkAggregateIdentity {
         [Collections.IDictionary]$Expected
     )
 
-    $accepted = [Collections.Generic.List[object]]::new()
-    $accepted.Add([pscustomobject]@{
-            Count = [long]$Expected.Count
-            Sha256 = [string]$Expected.Sha256
-        })
-    $accepted.Add([pscustomobject]@{
-            Count = [long]$Expected.CleanCheckoutCount
-            Sha256 = [string]$Expected.CleanCheckoutSha256
-        })
-    $hasPureGitCount = $Expected.Contains('PureGitCheckoutCount')
-    $hasPureGitSha256 = $Expected.Contains('PureGitCheckoutSha256')
-    if ($hasPureGitCount -ne $hasPureGitSha256) {
-        Throw-UdpCallbackBlocker (
-            'Gate D pure Git checkout Network identity is incomplete.')
-    }
-    if ($hasPureGitCount) {
-        $accepted.Add([pscustomobject]@{
-                Count = [long]$Expected.PureGitCheckoutCount
-                Sha256 = [string]$Expected.PureGitCheckoutSha256
-            })
-    }
-    $matches = @(
-        $accepted.ToArray() | Where-Object {
-                ($ActualCount -eq $_.Count) -and
-                ($ActualSha256 -ceq $_.Sha256)
-            })
-    return $matches.Count -eq 1
+    return ($ActualCount -eq [long]$Expected.Count) -and
+        ($ActualSha256 -ceq [string]$Expected.Sha256)
 }
 
 function Assert-TerminalWakeLayoutContract {
@@ -6101,6 +6439,37 @@ function Assert-TerminalWakeLayoutContract {
         -SourceText $Snapshot.DerivedSource `
         -ClassName 'LMCUdpCallbackSender' `
         -ExpectedObjectsize $ExpectedTerminalWakeLayout.Sender.Objectsize
+    if (-not $SyntheticFixture) {
+        $transceiverSourceEvidence = Get-AsciiTextEvidence `
+            -Bytes $Utf8.GetBytes([string]$Snapshot.TransceiverSource) `
+            -SourceOwner 'Gate D _UDPTransceiver source evidence'
+        if (($transceiverSourceEvidence.CanonicalLfBytes -ne
+                [long]$Snapshot.TransceiverCanonicalLfBytes) -or
+            ($transceiverSourceEvidence.CanonicalLfSha256 -cne
+                [string]$Snapshot.TransceiverCanonicalLfSha256)) {
+            Throw-UdpCallbackBlocker (
+                'Gate D _UDPTransceiver source text and identity fields disagree.')
+        }
+
+        $senderSourceEvidence = Get-AsciiTextEvidence `
+            -Bytes $Utf8.GetBytes([string]$Snapshot.DerivedSource) `
+            -SourceOwner 'Gate D LMCUdpCallbackSender source evidence'
+        if (($senderSourceEvidence.ByteCount -ne
+                [long]$Snapshot.DerivedRawBytes) -or
+            ($senderSourceEvidence.RawSha256 -cne
+                [string]$Snapshot.DerivedRawSha256) -or
+            ($senderSourceEvidence.CanonicalLfBytes -ne
+                [long]$Snapshot.DerivedCanonicalLfBytes) -or
+            ($senderSourceEvidence.CanonicalLfSha256 -cne
+                [string]$Snapshot.DerivedCanonicalLfSha256) -or
+            ($senderSourceEvidence.EolStyle -cne
+                [string]$Snapshot.DerivedEolStyle) -or
+            ($senderSourceEvidence.LineBreakCount -ne
+                [long]$Snapshot.DerivedLineBreakCount)) {
+            Throw-UdpCallbackBlocker (
+                'Gate D LMCUdpCallbackSender source text and identity fields disagree.')
+        }
+    }
     Assert-VendorGeneratedRepresentation `
         -CanonicalLfSha256 $Snapshot.DerivedCanonicalLfSha256 `
         -RawSha256 $Snapshot.DerivedRawSha256 `
@@ -6872,12 +7241,26 @@ function Assert-ProtectedGeneratedRecordContract {
     foreach ($expected in $ProtectedGeneratedRecordContracts) {
         $matches = @($Observed | Where-Object { $_.Name -ceq $expected.Name })
         if (($matches.Count -ne 1) -or
-            ($matches[0].Bytes -ne $expected.Bytes) -or
-            ($matches[0].Sha256 -cne $expected.Sha256)) {
+            ($matches[0].Bytes -ne $expected.Bytes)) {
             Throw-UdpCallbackBlocker (
                 "protected generated $($expected.Name) Classes.lcb record " +
                 'was overwritten or regenerated from a noncanonical dependency.')
         }
+        if ($matches[0].Sha256 -ceq $expected.Sha256) {
+            continue
+        }
+        if (($matches[0].Sha256 -cne $expected.SetPositionSha256) -or
+            (-not ($matches[0].PSObject.Properties.Name -contains 'Data'))) {
+            Throw-UdpCallbackBlocker (
+                "protected generated $($expected.Name) Classes.lcb record " +
+                'was overwritten or regenerated from a noncanonical dependency.')
+        }
+        Assert-ExactGeneratedRecordForwardReverseDelta `
+            -CurrentBytes $matches[0].Data `
+            -CurrentSha256 $expected.SetPositionSha256 `
+            -HistoricalSha256 $expected.Sha256 `
+            -Deltas @($expected.SetPositionDeltas) `
+            -RecordOwner "protected generated $($expected.Name) Classes.lcb"
     }
 }
 
@@ -7271,10 +7654,26 @@ function Assert-LasalUdpCallbackStateContract {
     $syntheticFixture =
         ($Snapshot.PSObject.Properties.Name -contains 'SyntheticFixture') -and
         [bool]$Snapshot.SyntheticFixture
+    $enforceSetPositionEvidence =
+        ($Snapshot.PSObject.Properties.Name -contains
+            'EnforceSetPositionAugmentedEvidence') -and
+        [bool]$Snapshot.EnforceSetPositionAugmentedEvidence
+    $setPositionEvidence = if (
+        ($state -ceq 'TerminalWakeBrokerCandidate') -and
+        ((-not $syntheticFixture) -or $enforceSetPositionEvidence)) {
+            Assert-SetPositionAugmentedGateDContract -Snapshot $Snapshot
+        }
+        else { $null }
+    $projectDefinitionText = if ($null -ne $setPositionEvidence) {
+        $setPositionEvidence.ProjectDefinitionText
+    }
+    else { $Snapshot.ProjectDefinitionText }
+    $projectDefinitionBytes = $Utf8.GetBytes($projectDefinitionText)
     Assert-ProjectDefinitionRegistrations `
-        -ProjectDefinitionText $Snapshot.ProjectDefinitionText `
-        -ProjectDefinitionBytes $Snapshot.ProjectDefinitionBytes `
-        -ProjectDefinitionSha256 $Snapshot.ProjectDefinitionSha256 `
+        -ProjectDefinitionText $projectDefinitionText `
+        -ProjectDefinitionBytes $projectDefinitionBytes.Count `
+        -ProjectDefinitionSha256 (
+            Get-BytesSha256 -Bytes $projectDefinitionBytes) `
         -VendorCount $(if ($state -ceq 'Absent') { 0 } else { 1 }) `
         -DerivedCount $(if ($derivedState) { 1 } else { 0 })
     Assert-ProjectDatabaseResidueContract `
@@ -7283,8 +7682,12 @@ function Assert-LasalUdpCallbackStateContract {
         -ProjectSha256 $Snapshot.ProjectSha256 `
         -State $historicalState `
         -SyntheticFixture:$syntheticFixture
+    $generatedIncludes = if ($null -ne $setPositionEvidence) {
+        @($setPositionEvidence.GeneratedIncludes)
+    }
+    else { @($Snapshot.GeneratedIncludes) }
     Assert-GeneratedIncludeContract `
-        -Observed @($Snapshot.GeneratedIncludes) `
+        -Observed $generatedIncludes `
         -State $historicalState
 
     if ($state -ceq 'Absent') {
@@ -7403,9 +7806,15 @@ function Assert-LasalUdpCallbackStateContract {
                 -VendorCount 1 `
                 -DerivedCount 1
             Assert-DerivedGeneratedRegistryContract `
-                -ConfigObjectsText $Snapshot.ConfigObjectsText `
-                -ConfigObjectsBytes $Snapshot.ConfigObjectsBytes `
-                -ConfigObjectsSha256 $Snapshot.ConfigObjectsSha256
+                -ConfigObjectsText $(if ($null -ne $setPositionEvidence) {
+                        $setPositionEvidence.ConfigObjectsText
+                    } else { $Snapshot.ConfigObjectsText }) `
+                -ConfigObjectsBytes $(if ($null -ne $setPositionEvidence) {
+                        $Utf8.GetByteCount($setPositionEvidence.ConfigObjectsText)
+                    } else { $Snapshot.ConfigObjectsBytes }) `
+                -ConfigObjectsSha256 $(if ($null -ne $setPositionEvidence) {
+                        Get-TextSha256 -Text $setPositionEvidence.ConfigObjectsText
+                    } else { $Snapshot.ConfigObjectsSha256 })
             $emptyImplementations = $state -in @(
                 'DerivedDeclaration',
                 'DerivedWired')
@@ -7495,7 +7904,9 @@ function Assert-LasalUdpCallbackStateContract {
                     }
                 }
                 Assert-TcpDerivedClientContract `
-                    -TcpSource $Snapshot.TcpSource -State $state
+                    -TcpSource $Snapshot.TcpSource `
+                    -State $state `
+                    -LegacySyntheticSource:$syntheticFixture
                 if ($syntheticFixture) {
                     $expectedTcpSource = New-SyntheticTcpSource `
                         -Phase $(if (
@@ -9957,6 +10368,10 @@ function Get-SyntheticGitBlobBytes {
         [Parameter(Mandatory = $true)][string]$ObjectId
     )
 
+    if ($SyntheticGitBlobCache.ContainsKey($ObjectId)) {
+        return ,([byte[]]$SyntheticGitBlobCache[$ObjectId].Clone())
+    }
+
     $start = [Diagnostics.ProcessStartInfo]::new()
     $start.FileName = 'git'
     $start.UseShellExecute = $false
@@ -9983,7 +10398,9 @@ function Get-SyntheticGitBlobBytes {
             if ($process.ExitCode -ne 0) {
                 throw "synthetic Git blob $ObjectId is unavailable: $errorText"
             }
-            return ,$stream.ToArray()
+            $result = $stream.ToArray()
+            $SyntheticGitBlobCache[$ObjectId] = [byte[]]$result.Clone()
+            return ,([byte[]]$result.Clone())
         }
         finally {
             $stream.Dispose()
@@ -9991,6 +10408,602 @@ function Get-SyntheticGitBlobBytes {
     }
     finally {
         $process.Dispose()
+    }
+}
+
+function Get-PinnedCanonicalAsciiText {
+    param(
+        [Parameter(Mandatory = $true)][string]$RepositoryRoot,
+        [Parameter(Mandatory = $true)][Collections.IDictionary]$Expected,
+        [Parameter(Mandatory = $true)][string]$ArtifactOwner
+    )
+
+    $raw = Get-SyntheticGitBlobBytes `
+        -RepositoryRoot $RepositoryRoot -ObjectId $Expected.ObjectId
+    $text = ConvertTo-CanonicalLf -Text (
+        ConvertFrom-StrictAsciiBytes -Bytes $raw -SourceOwner $ArtifactOwner)
+    $bytes = $Utf8.GetBytes($text)
+    if (($bytes.Count -ne $Expected.CanonicalLfBytes) -or
+        ((Get-BytesSha256 -Bytes $bytes) -cne
+            $Expected.CanonicalLfSha256)) {
+        Throw-UdpCallbackBlocker "$ArtifactOwner pinned blob identity drifted."
+    }
+    return $text
+}
+
+function Get-ByteRangeSha256 {
+    param(
+        [Parameter(Mandatory = $true)][byte[]]$Bytes,
+        [Parameter(Mandatory = $true)][int]$Offset,
+        [Parameter(Mandatory = $true)][int]$Count,
+        [Parameter(Mandatory = $true)][string]$EvidenceOwner
+    )
+
+    if (($Offset -lt 0) -or ($Count -lt 0) -or
+        ($Offset -gt $Bytes.Count) -or
+        ($Count -gt ($Bytes.Count - $Offset))) {
+        Throw-UdpCallbackBlocker "$EvidenceOwner byte range is out of bounds."
+    }
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try {
+        $hash = $sha.ComputeHash($Bytes, $Offset, $Count)
+        return ([BitConverter]::ToString($hash)).Replace('-', '')
+    }
+    finally {
+        $sha.Dispose()
+    }
+}
+
+function Test-ByteArraysEqual {
+    param(
+        [Parameter(Mandatory = $true)][byte[]]$Left,
+        [Parameter(Mandatory = $true)][byte[]]$Right
+    )
+
+    if ($Left.Count -ne $Right.Count) {
+        return $false
+    }
+    for ($index = 0; $index -lt $Left.Count; $index++) {
+        if ($Left[$index] -ne $Right[$index]) {
+            return $false
+        }
+    }
+    return $true
+}
+
+function Assert-ExactByteWindowForwardReverseDelta {
+    param(
+        [Parameter(Mandatory = $true)][byte[]]$CurrentBytes,
+        [Parameter(Mandatory = $true)]
+        [Collections.IDictionary]$CurrentExpected,
+        [Parameter(Mandatory = $true)][byte[]]$HistoricalBytes,
+        [Parameter(Mandatory = $true)]
+        [Collections.IDictionary]$HistoricalExpected,
+        [Parameter(Mandatory = $true)]
+        [Collections.IDictionary]$Delta,
+        [Parameter(Mandatory = $true)][string]$ArtifactOwner
+    )
+
+    $deltaSchema = @(
+        'PrefixBytes',
+        'HistoricalChangedBytes',
+        'HistoricalChangedSha256',
+        'CurrentChangedBytes',
+        'CurrentChangedSha256',
+        'SuffixBytes')
+    Assert-ExactInventory `
+        -Actual @($Delta.Keys | ForEach-Object { [string]$_ }) `
+        -Expected $deltaSchema `
+        -InventoryOwner "$ArtifactOwner byte-window delta fields"
+
+    $prefix = [long]$Delta.PrefixBytes
+    $historicalChanged = [long]$Delta.HistoricalChangedBytes
+    $currentChanged = [long]$Delta.CurrentChangedBytes
+    $suffix = [long]$Delta.SuffixBytes
+    foreach ($value in @($prefix, $historicalChanged, $currentChanged, $suffix)) {
+        if (($value -lt 0) -or ($value -gt [int]::MaxValue)) {
+            Throw-UdpCallbackBlocker "$ArtifactOwner byte-window size is invalid."
+        }
+    }
+    if (($prefix + $historicalChanged + $suffix -ne
+            [long]$HistoricalExpected.Bytes) -or
+        ($prefix + $currentChanged + $suffix -ne
+            [long]$CurrentExpected.Bytes)) {
+        Throw-UdpCallbackBlocker "$ArtifactOwner byte-window size equation drifted."
+    }
+    if (($HistoricalBytes.Count -ne [long]$HistoricalExpected.Bytes) -or
+        ((Get-BytesSha256 -Bytes $HistoricalBytes) -cne
+            [string]$HistoricalExpected.Sha256)) {
+        Throw-UdpCallbackBlocker "$ArtifactOwner historical identity drifted."
+    }
+    if (($CurrentBytes.Count -ne [long]$CurrentExpected.Bytes) -or
+        ((Get-BytesSha256 -Bytes $CurrentBytes) -cne
+            [string]$CurrentExpected.Sha256)) {
+        Throw-UdpCallbackBlocker "$ArtifactOwner current identity drifted."
+    }
+
+    for ($index = 0; $index -lt [int]$prefix; $index++) {
+        if ($HistoricalBytes[$index] -ne $CurrentBytes[$index]) {
+            Throw-UdpCallbackBlocker "$ArtifactOwner common prefix drifted."
+        }
+    }
+    for ($index = 0; $index -lt [int]$suffix; $index++) {
+        if ($HistoricalBytes[$HistoricalBytes.Count - 1 - $index] -ne
+            $CurrentBytes[$CurrentBytes.Count - 1 - $index]) {
+            Throw-UdpCallbackBlocker "$ArtifactOwner common suffix drifted."
+        }
+    }
+    if (($historicalChanged -gt 0) -and ($currentChanged -gt 0) -and
+        ($HistoricalBytes[[int]$prefix] -eq $CurrentBytes[[int]$prefix])) {
+        Throw-UdpCallbackBlocker "$ArtifactOwner byte-window prefix is not maximal."
+    }
+    if (($historicalChanged -gt 0) -and ($currentChanged -gt 0) -and
+        ($HistoricalBytes[$HistoricalBytes.Count - [int]$suffix - 1] -eq
+            $CurrentBytes[$CurrentBytes.Count - [int]$suffix - 1])) {
+        Throw-UdpCallbackBlocker "$ArtifactOwner byte-window suffix is not maximal."
+    }
+
+    $historicalWindowSha = Get-ByteRangeSha256 `
+        -Bytes $HistoricalBytes `
+        -Offset ([int]$prefix) `
+        -Count ([int]$historicalChanged) `
+        -EvidenceOwner "$ArtifactOwner historical changed window"
+    $currentWindowSha = Get-ByteRangeSha256 `
+        -Bytes $CurrentBytes `
+        -Offset ([int]$prefix) `
+        -Count ([int]$currentChanged) `
+        -EvidenceOwner "$ArtifactOwner current changed window"
+    if (($historicalWindowSha -cne [string]$Delta.HistoricalChangedSha256) -or
+        ($currentWindowSha -cne [string]$Delta.CurrentChangedSha256)) {
+        Throw-UdpCallbackBlocker "$ArtifactOwner changed-window identity drifted."
+    }
+
+    $reverse = [byte[]]::new([int]$HistoricalExpected.Bytes)
+    [Array]::Copy($CurrentBytes, 0, $reverse, 0, [int]$prefix)
+    [Array]::Copy(
+        $HistoricalBytes,
+        [int]$prefix,
+        $reverse,
+        [int]$prefix,
+        [int]$historicalChanged)
+    [Array]::Copy(
+        $CurrentBytes,
+        $CurrentBytes.Count - [int]$suffix,
+        $reverse,
+        $reverse.Count - [int]$suffix,
+        [int]$suffix)
+    if (-not (Test-ByteArraysEqual -Left $reverse -Right $HistoricalBytes)) {
+        Throw-UdpCallbackBlocker (
+            "$ArtifactOwner reverse delta does not reconstruct historical Gate D.")
+    }
+
+    $forward = [byte[]]::new([int]$CurrentExpected.Bytes)
+    [Array]::Copy($HistoricalBytes, 0, $forward, 0, [int]$prefix)
+    [Array]::Copy(
+        $CurrentBytes,
+        [int]$prefix,
+        $forward,
+        [int]$prefix,
+        [int]$currentChanged)
+    [Array]::Copy(
+        $HistoricalBytes,
+        $HistoricalBytes.Count - [int]$suffix,
+        $forward,
+        $forward.Count - [int]$suffix,
+        [int]$suffix)
+    if (-not (Test-ByteArraysEqual -Left $forward -Right $CurrentBytes)) {
+        Throw-UdpCallbackBlocker (
+            "$ArtifactOwner forward delta does not reconstruct augmented Gate D.")
+    }
+}
+
+function Get-ExactPinnedTextDeltaRestoration {
+    param(
+        [Parameter(Mandatory = $true)][string]$RepositoryRoot,
+        [Parameter(Mandatory = $true)][string]$CurrentText,
+        [Parameter(Mandatory = $true)][long]$CurrentRawBytes,
+        [Parameter(Mandatory = $true)][string]$CurrentRawSha256,
+        [Parameter(Mandatory = $true)]
+        [Collections.IDictionary]$CurrentExpected,
+        [Parameter(Mandatory = $true)]
+        [Collections.IDictionary]$HistoricalExpected,
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [string[]]$RemovalPatterns,
+        [object[]]$Replacements = @(),
+        [Parameter(Mandatory = $true)][string]$ArtifactOwner
+    )
+
+    Assert-AsciiTextEvidence `
+        -Text $CurrentText `
+        -ByteCount $CurrentRawBytes `
+        -Sha256 $CurrentRawSha256 `
+        -ArtifactOwner $ArtifactOwner
+    if (($CurrentRawBytes -ne $CurrentExpected.RawBytes) -or
+        ($CurrentRawSha256 -cne $CurrentExpected.RawSha256)) {
+        Throw-UdpCallbackBlocker "$ArtifactOwner current physical identity drifted."
+    }
+    $current = ConvertTo-CanonicalLf -Text $CurrentText
+    $currentBytes = $Utf8.GetBytes($current)
+    if (($currentBytes.Count -ne $CurrentExpected.CanonicalLfBytes) -or
+        ((Get-BytesSha256 -Bytes $currentBytes) -cne
+            $CurrentExpected.CanonicalLfSha256)) {
+        Throw-UdpCallbackBlocker "$ArtifactOwner current canonical identity drifted."
+    }
+    $historical = Get-PinnedCanonicalAsciiText `
+        -RepositoryRoot $RepositoryRoot `
+        -Expected $HistoricalExpected `
+        -ArtifactOwner "$ArtifactOwner pre-Store Gate D"
+
+    $removals = [Collections.Generic.List[object]]::new()
+    foreach ($pattern in $RemovalPatterns) {
+        $matches = @([regex]::Matches($current, $pattern))
+        if ($matches.Count -ne 1) {
+            Throw-UdpCallbackBlocker (
+                "$ArtifactOwner exact removal delta count is $($matches.Count), expected 1.")
+        }
+        $removals.Add([pscustomobject]@{
+                Index = $matches[0].Index
+                Length = $matches[0].Length
+                Value = $matches[0].Value
+            })
+    }
+    $ordered = @($removals.ToArray() | Sort-Object Index)
+    for ($index = 1; $index -lt $ordered.Count; $index++) {
+        if ($ordered[$index].Index -lt
+            ($ordered[$index - 1].Index + $ordered[$index - 1].Length)) {
+            Throw-UdpCallbackBlocker "$ArtifactOwner removal deltas overlap."
+        }
+    }
+
+    $restored = $current
+    foreach ($replacement in $Replacements) {
+        if (($replacement.Current.Length -ne $replacement.Historical.Length) -or
+            ((Get-OrdinalCount `
+                    -Text $restored -Needle $replacement.Current) -ne 1)) {
+            Throw-UdpCallbackBlocker "$ArtifactOwner replacement delta drifted."
+        }
+        $restored = $restored.Replace(
+            $replacement.Current,
+            $replacement.Historical)
+    }
+    foreach ($removal in @($ordered | Sort-Object Index -Descending)) {
+        $restored = $restored.Remove($removal.Index, $removal.Length)
+    }
+    if ($restored -cne $historical) {
+        Throw-UdpCallbackBlocker (
+            "$ArtifactOwner does not reverse exactly to pre-Store Gate D.")
+    }
+
+    $forward = $historical
+    foreach ($removal in $ordered) {
+        $forward = $forward.Insert($removal.Index, $removal.Value)
+    }
+    foreach ($replacement in $Replacements) {
+        if ((Get-OrdinalCount `
+                -Text $forward -Needle $replacement.Historical) -ne 1) {
+            Throw-UdpCallbackBlocker "$ArtifactOwner forward replacement anchor drifted."
+        }
+        $forward = $forward.Replace(
+            $replacement.Historical,
+            $replacement.Current)
+    }
+    if ($forward -cne $current) {
+        Throw-UdpCallbackBlocker (
+            "$ArtifactOwner forward delta does not reconstruct current Gate D.")
+    }
+    return [pscustomobject]@{
+        Current = $current
+        Historical = $historical
+    }
+}
+
+function Assert-SetPositionAugmentedGateDContract {
+    param(
+        [Parameter(Mandatory = $true)][pscustomobject]$Snapshot,
+        [Collections.IDictionary]$ExpectedCurrent = $SetPositionAugmentedGateD
+    )
+
+    $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\..\..'))
+    if (($Snapshot.ClassesBytes -ne $ExpectedCurrent.Classes.Bytes) -or
+        ($Snapshot.ClassesSha256 -cne
+            $ExpectedCurrent.Classes.Sha256)) {
+        Throw-UdpCallbackBlocker (
+            'SetPosition-augmented Classes.lcb physical identity drifted.')
+    }
+    $oldClasses = Get-SyntheticGitBlobBytes `
+        -RepositoryRoot $root -ObjectId $PreSetPositionGateD.Classes.ObjectId
+    if (($oldClasses.Count -ne $PreSetPositionGateD.Classes.Bytes) -or
+        ((Get-BytesSha256 -Bytes $oldClasses) -cne
+            $PreSetPositionGateD.Classes.Sha256)) {
+        Throw-UdpCallbackBlocker 'pre-Store Gate D Classes.lcb blob drifted.'
+    }
+    Assert-ExactByteWindowForwardReverseDelta `
+        -CurrentBytes $Snapshot.ClassesDatabaseBytes `
+        -CurrentExpected $ExpectedCurrent.Classes `
+        -HistoricalBytes $oldClasses `
+        -HistoricalExpected $PreSetPositionGateD.Classes `
+        -Delta $SetPositionAugmentedGateD.Classes.Delta `
+        -ArtifactOwner 'SetPosition-augmented Classes.lcb'
+    $oldClassesText = $Latin1.GetString($oldClasses)
+    foreach ($path in @(
+            '.\Class\LMCSetPositionStore\LMCSetPositionStore.h',
+            '.\Class\LMCSetPositionStore\LMCSetPositionStore.st',
+            '.\Class\LMCSetPositionStore\global_LMCSetPositionStore.st')) {
+        $currentCount = Get-OrdinalCount `
+            -Text $Snapshot.ClassesDatabaseText -Needle $path -IgnoreCase
+        $historicalCount = Get-OrdinalCount `
+            -Text $oldClassesText -Needle $path -IgnoreCase
+        if (($currentCount -ne 1) -or ($historicalCount -ne 0)) {
+            Throw-UdpCallbackBlocker (
+                "Classes.lcb SetPosition source-path delta drifted: $path")
+        }
+    }
+
+    if (($Snapshot.ProjectBytes -ne $ExpectedCurrent.Project.Bytes) -or
+        ($Snapshot.ProjectSha256 -cne
+            $ExpectedCurrent.Project.Sha256)) {
+        Throw-UdpCallbackBlocker (
+            'SetPosition-augmented project .lcb physical identity drifted.')
+    }
+    $oldProject = Get-SyntheticGitBlobBytes `
+        -RepositoryRoot $root -ObjectId $PreSetPositionGateD.Project.ObjectId
+    if (($oldProject.Count -ne $PreSetPositionGateD.Project.Bytes) -or
+        ((Get-BytesSha256 -Bytes $oldProject) -cne
+            $PreSetPositionGateD.Project.Sha256)) {
+        Throw-UdpCallbackBlocker 'pre-Store Gate D project .lcb blob drifted.'
+    }
+    $currentProject = $Latin1.GetBytes($Snapshot.ProjectDatabaseText)
+    Assert-ExactByteWindowForwardReverseDelta `
+        -CurrentBytes $currentProject `
+        -CurrentExpected $ExpectedCurrent.Project `
+        -HistoricalBytes $oldProject `
+        -HistoricalExpected $PreSetPositionGateD.Project `
+        -Delta $SetPositionAugmentedGateD.Project.Delta `
+        -ArtifactOwner 'SetPosition-augmented project .lcb'
+
+    $projectDefinition = Get-ExactPinnedTextDeltaRestoration `
+        -RepositoryRoot $root `
+        -CurrentText $Snapshot.ProjectDefinitionText `
+        -CurrentRawBytes $Snapshot.ProjectDefinitionBytes `
+        -CurrentRawSha256 $Snapshot.ProjectDefinitionSha256 `
+        -CurrentExpected $ExpectedCurrent.ProjectDefinition `
+        -HistoricalExpected $PreSetPositionGateD.ProjectDefinition `
+        -RemovalPatterns @(
+            '(?m)^[ \t]*<File Path="\.\\Class\\LMCSetPositionStore\\LMCSetPositionStore\.h" Global="true" EC-Header="Class"/>[ \t]*(?:\n|\z)',
+            '(?m)^[ \t]*<File Path="\.\\Class\\LMCSetPositionStore\\LMCSetPositionStore\.st"/>[ \t]*(?:\n|\z)',
+            '(?m)^[ \t]*<File Path="\.\\Class\\LMCSetPositionStore\\global_LMCSetPositionStore\.st"/>[ \t]*(?:\n|\z)') `
+        -ArtifactOwner 'SetPosition-augmented project definition'
+
+    $configObjects = Get-ExactPinnedTextDeltaRestoration `
+        -RepositoryRoot $root `
+        -CurrentText $Snapshot.ConfigObjectsText `
+        -CurrentRawBytes $Snapshot.ConfigObjectsBytes `
+        -CurrentRawSha256 $Snapshot.ConfigObjectsSha256 `
+        -CurrentExpected $ExpectedCurrent.ConfigObjects `
+        -HistoricalExpected $PreSetPositionGateD.ConfigObjects `
+        -RemovalPatterns @(
+            '(?m)^0\$UINT, 0, 0, "LMCSETPOSITIONSTORE",[ \t]*(?:\n|\z)') `
+        -Replacements @(
+            [pscustomobject]@{
+                Current = '00121$UINT,'
+                Historical = '00120$UINT,'
+            }) `
+        -ArtifactOwner 'SetPosition-augmented ConfigObjects.st'
+
+    $includeRestorations = @{}
+    foreach ($spec in @(
+            [pscustomobject]@{
+                Name = 'C_channels.h'
+                Current = $ExpectedCurrent.CChannels
+                Historical = $PreSetPositionGateD.CChannels
+                Patterns = @(
+                    '(?ms)^[ \t]*typedef[ \t]+struct[ \t]+' +
+                        'CltChCmd_LMCSetPositionStore\b.*?\}[ \t]*' +
+                        'CltChCmd_LMCSetPositionStore[ \t]*;[ \t]*\n\n')
+            },
+            [pscustomobject]@{
+                Name = 'channels.h'
+                Current = $ExpectedCurrent.StChannels
+                Historical = $PreSetPositionGateD.StChannels
+                Patterns = @(
+                    '(?ms)^[ \t]*CltChCmd_LMCSetPositionStore[ \t]*:' +
+                        '[ \t]*STRUCT\b.*?END_STRUCT[ \t]*;[ \t]*(?:\n|\z)')
+            },
+            [pscustomobject]@{
+                Name = 'lslpublictypes.h'
+                Current = $ExpectedCurrent.PublicTypes
+                Historical = $PreSetPositionGateD.PublicTypes
+                Patterns = @()
+            })) {
+        $file = @($Snapshot.GeneratedIncludes | Where-Object {
+                $_.Name -ceq $spec.Name
+            })
+        if ($file.Count -ne 1) {
+            Throw-UdpCallbackBlocker (
+                "SetPosition-augmented Include count drifted: $($spec.Name)")
+        }
+        $includeRestorations[$spec.Name] =
+            Get-ExactPinnedTextDeltaRestoration `
+                -RepositoryRoot $root `
+                -CurrentText $file[0].Text `
+                -CurrentRawBytes $file[0].RawBytes `
+                -CurrentRawSha256 $file[0].RawSha256 `
+                -CurrentExpected $spec.Current `
+                -HistoricalExpected $spec.Historical `
+                -RemovalPatterns @($spec.Patterns) `
+                -ArtifactOwner "SetPosition-augmented $($spec.Name)"
+    }
+
+    $commNetwork = Get-ExactPinnedTextDeltaRestoration `
+        -RepositoryRoot $root `
+        -CurrentText $Snapshot.CommNetworkText `
+        -CurrentRawBytes $Snapshot.CommNetworkBytes `
+        -CurrentRawSha256 $Snapshot.CommNetworkSha256 `
+        -CurrentExpected $ExpectedCurrent.CommNetwork `
+        -HistoricalExpected $PreSetPositionGateD.CommNetwork `
+        -RemovalPatterns @(
+            '(?m)^[ \t]*<Client Name="SetPositionStore"/>[ \t]*(?:\n|\z)',
+            '(?ms)^[ \t]*<Object[ \t]*\n[ \t]*Name[ \t]*=[ \t]*"LMCSetPositionCheckSum1".*?^[ \t]*</Object>[ \t]*(?:\n|\z)',
+            '(?ms)^[ \t]*<Object[ \t]*\n[ \t]*Name[ \t]*=[ \t]*"LMCSetPositionStore1".*?^[ \t]*</Object>[ \t]*(?:\n|\z)',
+            '(?m)^[ \t]*<Connection Source="LMCControlCommandService1\.SetPositionStore" Destination="LMCSetPositionStore1\.ClassSvr"[^>]*?/>[ \t]*(?:\n|\z)',
+            '(?m)^[ \t]*<Connection Source="LMCSetPositionStore1\.CheckSum" Destination="LMCSetPositionCheckSum1\.ClassSvr"[^>]*?/>[ \t]*(?:\n|\z)') `
+        -ArtifactOwner 'SetPosition-augmented Comm_Network.lcn'
+
+    Assert-AsciiTextEvidence `
+        -Text $Snapshot.CommTableText `
+        -ByteCount $Snapshot.CommTableBytes `
+        -Sha256 $Snapshot.CommTableSha256 `
+        -ArtifactOwner 'SetPosition-augmented ONE_Comm_Network_Table.st'
+    $tableCanonical = ConvertTo-CanonicalLf -Text $Snapshot.CommTableText
+    $tableCanonicalBytes = $Utf8.GetBytes($tableCanonical)
+    if (($Snapshot.CommTableBytes -ne
+            $ExpectedCurrent.CommTable.RawBytes) -or
+        ($Snapshot.CommTableSha256 -cne
+            $ExpectedCurrent.CommTable.RawSha256) -or
+        ($tableCanonicalBytes.Count -ne
+            $ExpectedCurrent.CommTable.CanonicalLfBytes) -or
+        ((Get-BytesSha256 -Bytes $tableCanonicalBytes) -cne
+            $ExpectedCurrent.CommTable.CanonicalLfSha256)) {
+        Throw-UdpCallbackBlocker (
+            'SetPosition-augmented ONE_Comm_Network_Table.st identity drifted.')
+    }
+    $oldTable = Get-PinnedCanonicalAsciiText `
+        -RepositoryRoot $root `
+        -Expected $PreSetPositionGateD.CommTable `
+        -ArtifactOwner 'pre-Store Gate D ONE_Comm_Network_Table.st'
+    $oldTableBytes = $Utf8.GetBytes($oldTable)
+    Assert-ExactByteWindowForwardReverseDelta `
+        -CurrentBytes $tableCanonicalBytes `
+        -CurrentExpected ([ordered]@{
+                Bytes = $ExpectedCurrent.CommTable.CanonicalLfBytes
+                Sha256 = $ExpectedCurrent.CommTable.CanonicalLfSha256
+            }) `
+        -HistoricalBytes $oldTableBytes `
+        -HistoricalExpected ([ordered]@{
+                Bytes = $PreSetPositionGateD.CommTable.CanonicalLfBytes
+                Sha256 = $PreSetPositionGateD.CommTable.CanonicalLfSha256
+            }) `
+        -Delta $SetPositionAugmentedGateD.CommTable.Delta `
+        -ArtifactOwner 'SetPosition-augmented ONE_Comm_Network_Table.st'
+    foreach ($pair in @(
+            [pscustomobject]@{
+                Current = 'TO_UDINT(5), "SetPositionStore", TO_UDINT(7), "ClassSvr",'
+                Historical = ''
+            },
+            [pscustomobject]@{
+                Current = 'TO_UDINT(7), "CheckSum", TO_UDINT(0), "ClassSvr",'
+                Historical = ''
+            },
+            [pscustomobject]@{
+                Current = 'TO_UDINT(8), "_UDPTransceiver", TO_UDINT(2), "sControl",'
+                Historical = 'TO_UDINT(6), "_UDPTransceiver", TO_UDINT(1), "sControl",'
+            },
+            [pscustomobject]@{
+                Current = 'TO_UDINT(16), "CallbackSender", TO_UDINT(8), "ClassSvr",'
+                Historical = 'TO_UDINT(14), "CallbackSender", TO_UDINT(6), "ClassSvr",'
+            })) {
+        if ((Get-OrdinalCount -Text $tableCanonical -Needle $pair.Current) -ne 1) {
+            Throw-UdpCallbackBlocker (
+                "SetPosition table current tuple drifted: $($pair.Current)")
+        }
+        if (($pair.Historical.Length -gt 0) -and
+            ((Get-OrdinalCount -Text $oldTable -Needle $pair.Historical) -ne 1)) {
+            Throw-UdpCallbackBlocker (
+                "SetPosition table historical tuple drifted: $($pair.Historical)")
+        }
+    }
+
+    Assert-Latin1BinaryEvidence `
+        -Text $Snapshot.NetworksDatabaseText `
+        -ByteCount $Snapshot.NetworksDatabaseBytes `
+        -Sha256 $Snapshot.NetworksDatabaseSha256 `
+        -ArtifactOwner 'SetPosition-augmented Networks.lcb'
+    if (($Snapshot.NetworksDatabaseBytes -ne
+            $ExpectedCurrent.NetworksDatabase.Bytes) -or
+        ($Snapshot.NetworksDatabaseSha256 -cne
+            $ExpectedCurrent.NetworksDatabase.Sha256)) {
+        Throw-UdpCallbackBlocker 'SetPosition-augmented Networks.lcb identity drifted.'
+    }
+    $oldNetworks = Get-SyntheticGitBlobBytes `
+        -RepositoryRoot $root `
+        -ObjectId $PreSetPositionGateD.NetworksDatabase.ObjectId
+    if (($oldNetworks.Count -ne $PreSetPositionGateD.NetworksDatabase.Bytes) -or
+        ((Get-BytesSha256 -Bytes $oldNetworks) -cne
+            $PreSetPositionGateD.NetworksDatabase.Sha256)) {
+        Throw-UdpCallbackBlocker 'pre-Store Gate D Networks.lcb blob drifted.'
+    }
+    $currentNetworks = $Latin1.GetBytes($Snapshot.NetworksDatabaseText)
+    Assert-ExactByteWindowForwardReverseDelta `
+        -CurrentBytes $currentNetworks `
+        -CurrentExpected $ExpectedCurrent.NetworksDatabase `
+        -HistoricalBytes $oldNetworks `
+        -HistoricalExpected $PreSetPositionGateD.NetworksDatabase `
+        -Delta $SetPositionAugmentedGateD.NetworksDatabase.Delta `
+        -ArtifactOwner 'SetPosition-augmented Networks.lcb'
+    $oldNetworksText = $Latin1.GetString($oldNetworks)
+    $networkRecordDeltas = [ordered]@{
+        '_CheckSum' = 1
+        '000023' = 3
+        '000024' = 3
+        'CheckSum' = 2
+        'ClassSvr' = 4
+        'LMCControlCommandService1' = 1
+        'LMCSetPositionCheckSum1' = 2
+        'LMCSetPositionStore' = 1
+        'LMCSetPositionStore1' = 3
+        'off' = 6
+        'SetPositionStore' = 2
+    }
+    foreach ($entry in $networkRecordDeltas.GetEnumerator()) {
+        $currentCount = Get-LasalLengthPrefixedRecordCount `
+            -DatabaseText $Snapshot.NetworksDatabaseText -Value $entry.Key
+        $oldCount = Get-LasalLengthPrefixedRecordCount `
+            -DatabaseText $oldNetworksText -Value $entry.Key
+        if (($currentCount - $oldCount) -ne $entry.Value) {
+            Throw-UdpCallbackBlocker (
+                "Networks.lcb SetPosition record delta drifted: $($entry.Key)")
+        }
+    }
+    foreach ($udpRecord in @(
+            'LMCUdpTransceiver1',
+            '_UDPTransceiver',
+            'LMCUdpCallbackSender1',
+            'LMCUdpCallbackSender',
+            'CallbackSender',
+            'cSizeOfRXBuffer',
+            'cSizeOfTXBuffer')) {
+        $currentCount = Get-LasalLengthPrefixedRecordCount `
+            -DatabaseText $Snapshot.NetworksDatabaseText -Value $udpRecord
+        $oldCount = Get-LasalLengthPrefixedRecordCount `
+            -DatabaseText $oldNetworksText -Value $udpRecord
+        if ($currentCount -ne $oldCount) {
+            Throw-UdpCallbackBlocker (
+                "Networks.lcb UDP record changed during Store delta: $udpRecord")
+        }
+    }
+
+    $normalizedIncludes = @(
+        foreach ($expected in $GeneratedIncludeContracts) {
+            $text = $includeRestorations[$expected.Name].Historical
+            $bytes = $Utf8.GetBytes($text)
+            [pscustomobject]@{
+                Name = $expected.Name
+                Path = $expected.Path
+                Text = $text
+                RawBytes = $bytes.Count
+                RawSha256 = Get-BytesSha256 -Bytes $bytes
+                CanonicalLfBytes = $bytes.Count
+                CanonicalLfSha256 = Get-BytesSha256 -Bytes $bytes
+                EolStyle = 'LF'
+                LineBreakCount = [regex]::Matches($text, "`n").Count
+            }
+        })
+    return [pscustomobject]@{
+        ProjectDefinitionText = $projectDefinition.Historical
+        ConfigObjectsText = $configObjects.Historical
+        GeneratedIncludes = $normalizedIncludes
+        CommNetworkText = $commNetwork.Historical
     }
 }
 
@@ -10123,13 +11136,21 @@ function New-SyntheticProjectDefinition {
 '@
     }
     $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\..\..'))
-    $path = Join-Path $root $ProjectDefinitionRelativePath.Replace('/', '\')
-    $source = ConvertTo-CanonicalLf -Text ([IO.File]::ReadAllText($path, $Utf8))
+    $sourceRaw = Get-SyntheticGitBlobBytes `
+        -RepositoryRoot $root `
+        -ObjectId $PreSetPositionGateD.ProjectDefinition.ObjectId
+    $source = ConvertTo-CanonicalLf -Text (
+        ConvertFrom-StrictAsciiBytes `
+            -Bytes $sourceRaw `
+            -SourceOwner 'synthetic pre-Store Gate D project definition')
     $sourceBytes = $Utf8.GetBytes($source)
     if (($sourceBytes.Count -ne
-            $ExpectedVendorImportedProjectDefinitionCanonicalLfBytes) -or
+            $PreSetPositionGateD.ProjectDefinition.CanonicalLfBytes) -or
         ((Get-BytesSha256 -Bytes $sourceBytes) -cne
-            $ExpectedVendorImportedProjectDefinitionCanonicalLfSha256)) {
+            $PreSetPositionGateD.ProjectDefinition.CanonicalLfSha256)) {
+        throw 'synthetic pre-Store Gate D project definition blob drifted.'
+    }
+    if ($State -ceq 'VendorImported') {
         $filePattern =
             '(?m)^[ \t]*<File Path="\.\\Class\\LMCUdpCallbackSender\\' +
             'LMCUdpCallbackSender\.st"/>[ \t]*(?:\n|\z)'
@@ -10137,20 +11158,7 @@ function New-SyntheticProjectDefinition {
         if ($fileMatches.Count -ne 1) {
             throw 'synthetic lcp cannot recover one derived File registration.'
         }
-        $source = $source.Remove(
-            $fileMatches[0].Index,
-            $fileMatches[0].Length)
-        $classPattern =
-            '(?m)^[ \t]*<Class Name="LMCUdpCallbackSender"/>[ \t]*(?:\n|\z)'
-        $classMatches = @([regex]::Matches($source, $classPattern))
-        if ($classMatches.Count -gt 1) {
-            throw 'synthetic lcp has duplicate derived Class registrations.'
-        }
-        if ($classMatches.Count -eq 1) {
-            $source = $source.Remove(
-                $classMatches[0].Index,
-                $classMatches[0].Length)
-        }
+        $source = $source.Remove($fileMatches[0].Index, $fileMatches[0].Length)
         $sourceBytes = $Utf8.GetBytes($source)
         if (($sourceBytes.Count -ne
                 $ExpectedVendorImportedProjectDefinitionCanonicalLfBytes) -or
@@ -10158,19 +11166,8 @@ function New-SyntheticProjectDefinition {
                 $ExpectedVendorImportedProjectDefinitionCanonicalLfSha256)) {
             throw 'synthetic lcp does not reverse exactly to Gate A.'
         }
-    }
-    if ($State -ceq 'VendorImported') {
         return $source
     }
-    $vendorFile = "`t`t" +
-        '<File Path=".\Class\_UDPTransceiverInterface\' +
-        '_UDPTransceiverInterface.st"/>'
-    $derivedFile = "`t`t" +
-        '<File Path=".\Class\LMCUdpCallbackSender\' +
-        'LMCUdpCallbackSender.st"/>'
-    $source = $source.Replace(
-        $vendorFile,
-        $vendorFile + "`n" + $derivedFile)
     return $source
 }
 
@@ -10282,10 +11279,20 @@ function New-SyntheticConfigObjects {
     }
     else {
         $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\..\..'))
-        $path = Join-Path $root $ConfigObjectsRelativePath.Replace('/', '\')
-        $source = [IO.File]::ReadAllText($path, $Utf8)
+        $source = ConvertFrom-StrictAsciiBytes `
+            -Bytes (Get-SyntheticGitBlobBytes `
+                -RepositoryRoot $root `
+                -ObjectId $PreSetPositionGateD.ConfigObjects.ObjectId) `
+            -SourceOwner 'synthetic pre-Store Gate D ConfigObjects.st'
     }
     $canonical = ConvertTo-CanonicalLf -Text $source
+    $baselineBytes = $Utf8.GetBytes($canonical)
+    if (($baselineBytes.Count -ne
+            $PreSetPositionGateD.ConfigObjects.CanonicalLfBytes) -or
+        ((Get-BytesSha256 -Bytes $baselineBytes) -cne
+            $PreSetPositionGateD.ConfigObjects.CanonicalLfSha256)) {
+        throw 'synthetic pre-Store Gate D ConfigObjects blob drifted.'
+    }
     $source = $canonical.Replace("`n", "`r`n")
     $senderRowPattern =
         '(?m)^0\$UINT, 0, 0, "LMCUDPCALLBACKSENDER",[ \t]*\n'
@@ -10307,9 +11314,12 @@ function New-SyntheticConfigObjects {
 
 function Assert-SyntheticConfigObjectsCrossEolSelfTest {
     $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\..\..'))
-    $path = Join-Path $root $ConfigObjectsRelativePath.Replace('/', '\')
-    $live = [IO.File]::ReadAllText($path, $Utf8)
-    $canonical = ConvertTo-CanonicalLf -Text $live
+    $baseline = ConvertFrom-StrictAsciiBytes `
+        -Bytes (Get-SyntheticGitBlobBytes `
+            -RepositoryRoot $root `
+            -ObjectId $PreSetPositionGateD.ConfigObjects.ObjectId) `
+        -SourceOwner 'synthetic pre-Store Gate D ConfigObjects.st'
+    $canonical = ConvertTo-CanonicalLf -Text $baseline
     if (-not $canonical.Contains("`n")) {
         throw 'synthetic ConfigObjects cross-EOL fixture has no line break.'
     }
@@ -10369,9 +11379,25 @@ function New-SyntheticGeneratedIncludes {
     $textByName = @{}
     if ($vendorPresent) {
         foreach ($expected in $GeneratedIncludeContracts) {
-            $path = Join-Path $root $expected.Path.Replace('/', '\')
-            $textByName[$expected.Name] = ConvertTo-CanonicalLf `
-                -Text ([IO.File]::ReadAllText($path, $Utf8))
+            $baseline = switch ($expected.Name) {
+                'C_channels.h' { $PreSetPositionGateD.CChannels }
+                'channels.h' { $PreSetPositionGateD.StChannels }
+                'lslpublictypes.h' { $PreSetPositionGateD.PublicTypes }
+                default { throw "synthetic Include baseline is unknown: $($expected.Name)" }
+            }
+            $raw = Get-SyntheticGitBlobBytes `
+                -RepositoryRoot $root -ObjectId $baseline.ObjectId
+            $text = ConvertTo-CanonicalLf -Text (
+                ConvertFrom-StrictAsciiBytes `
+                    -Bytes $raw `
+                    -SourceOwner "synthetic pre-Store Gate D $($expected.Name)")
+            $bytes = $Utf8.GetBytes($text)
+            if (($bytes.Count -ne $baseline.CanonicalLfBytes) -or
+                ((Get-BytesSha256 -Bytes $bytes) -cne
+                    $baseline.CanonicalLfSha256)) {
+                throw "synthetic pre-Store Gate D $($expected.Name) blob drifted."
+            }
+            $textByName[$expected.Name] = $text
         }
         if (-not $derivedPresent) {
             foreach ($removal in @(
@@ -10598,8 +11624,15 @@ function New-UdpCallbackTestSnapshot {
         New-SyntheticLasalBinaryText -Records @('LMCUdpCallbackSender')
     }
     else {
-        $projectPath = Join-Path $root $ProjectRelativePath.Replace('/', '\')
-        $Latin1.GetString([IO.File]::ReadAllBytes($projectPath))
+        $projectBaseline = Get-SyntheticGitBlobBytes `
+            -RepositoryRoot $root `
+            -ObjectId $PreSetPositionGateD.Project.ObjectId
+        if (($projectBaseline.Count -ne $PreSetPositionGateD.Project.Bytes) -or
+            ((Get-BytesSha256 -Bytes $projectBaseline) -cne
+                $PreSetPositionGateD.Project.Sha256)) {
+            throw 'synthetic pre-Store Gate D project database blob drifted.'
+        }
+        $Latin1.GetString($projectBaseline)
     }
     $projectDatabaseRaw = $Latin1.GetBytes($projectDatabaseText)
     if ($wiredPresent) {
@@ -11272,29 +12305,74 @@ function New-TerminalWakePhysicalLayoutFixture {
 
     $snapshot = New-UdpCallbackTestSnapshot `
         -State TerminalWakeBrokerCandidate
+    $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\..\..'))
+    $transceiverBytes = Get-RequiredFileBytes `
+        -Root $root `
+        -RelativePath $TransceiverRelativePath `
+        -FileOwner 'Gate D source-evidence fixture _UDPTransceiver'
+    $transceiverEvidence = Get-AsciiTextEvidence `
+        -Bytes $transceiverBytes `
+        -SourceOwner 'Gate D source-evidence fixture _UDPTransceiver'
+    if (($transceiverEvidence.CanonicalLfBytes -ne
+            $TerminalWakeLayoutSelfTestOracle.Transceiver.CanonicalLfBytes) -or
+        ($transceiverEvidence.CanonicalLfSha256 -cne
+            $TerminalWakeLayoutSelfTestOracle.Transceiver.CanonicalLfSha256)) {
+        throw 'Gate D source-evidence fixture transceiver baseline drifted.'
+    }
+    $snapshot.TransceiverSource = $transceiverEvidence.Text
     $snapshot.TransceiverCanonicalLfBytes =
-        $TerminalWakeLayoutSelfTestOracle.Transceiver.CanonicalLfBytes
+        $transceiverEvidence.CanonicalLfBytes
     $snapshot.TransceiverCanonicalLfSha256 =
-        $TerminalWakeLayoutSelfTestOracle.Transceiver.CanonicalLfSha256
-    if ($SenderEolStyle -ceq 'LF') {
-        $snapshot.DerivedRawBytes =
-            $TerminalWakeLayoutSelfTestOracle.Sender.CanonicalLfBytes
-        $snapshot.DerivedRawSha256 =
-            $TerminalWakeLayoutSelfTestOracle.Sender.CanonicalLfSha256
+        $transceiverEvidence.CanonicalLfSha256
+
+    $senderBytes = Get-RequiredFileBytes `
+        -Root $root `
+        -RelativePath $DerivedRelativePath `
+        -FileOwner 'Gate D source-evidence fixture LMCUdpCallbackSender'
+    $senderEvidence = Get-AsciiTextEvidence `
+        -Bytes $senderBytes `
+        -SourceOwner 'Gate D source-evidence fixture LMCUdpCallbackSender'
+    if (($senderEvidence.CanonicalLfBytes -ne
+            $TerminalWakeLayoutSelfTestOracle.Sender.CanonicalLfBytes) -or
+        ($senderEvidence.CanonicalLfSha256 -cne
+            $TerminalWakeLayoutSelfTestOracle.Sender.CanonicalLfSha256) -or
+        ($senderEvidence.LineBreakCount -ne
+            $TerminalWakeLayoutSelfTestOracle.Sender.LineBreakCount)) {
+        throw 'Gate D source-evidence fixture sender baseline drifted.'
+    }
+    $senderText = ConvertTo-CanonicalLf -Text $senderEvidence.Text
+    if ($SenderEolStyle -ceq 'CRLF') {
+        $senderText = $senderText.Replace("`n", "`r`n")
+    }
+    $senderPhysicalEvidence = Get-AsciiTextEvidence `
+        -Bytes $Utf8.GetBytes($senderText) `
+        -SourceOwner "Gate D $SenderEolStyle sender source-evidence fixture"
+    $expectedSenderBytes = if ($SenderEolStyle -ceq 'LF') {
+        $TerminalWakeLayoutSelfTestOracle.Sender.CanonicalLfBytes
     }
     else {
-        $snapshot.DerivedRawBytes =
-            $TerminalWakeLayoutSelfTestOracle.Sender.CodeGeneratorCrLfBytes
-        $snapshot.DerivedRawSha256 =
-            $TerminalWakeLayoutSelfTestOracle.Sender.CodeGeneratorCrLfSha256
+        $TerminalWakeLayoutSelfTestOracle.Sender.CodeGeneratorCrLfBytes
     }
-    $snapshot.DerivedCanonicalLfBytes =
-        $TerminalWakeLayoutSelfTestOracle.Sender.CanonicalLfBytes
-    $snapshot.DerivedCanonicalLfSha256 =
+    $expectedSenderSha256 = if ($SenderEolStyle -ceq 'LF') {
         $TerminalWakeLayoutSelfTestOracle.Sender.CanonicalLfSha256
-    $snapshot.DerivedEolStyle = $SenderEolStyle
+    }
+    else {
+        $TerminalWakeLayoutSelfTestOracle.Sender.CodeGeneratorCrLfSha256
+    }
+    if (($senderPhysicalEvidence.ByteCount -ne $expectedSenderBytes) -or
+        ($senderPhysicalEvidence.RawSha256 -cne $expectedSenderSha256)) {
+        throw "Gate D $SenderEolStyle sender physical fixture drifted."
+    }
+    $snapshot.DerivedSource = $senderText
+    $snapshot.DerivedRawBytes = $senderPhysicalEvidence.ByteCount
+    $snapshot.DerivedRawSha256 = $senderPhysicalEvidence.RawSha256
+    $snapshot.DerivedCanonicalLfBytes =
+        $senderPhysicalEvidence.CanonicalLfBytes
+    $snapshot.DerivedCanonicalLfSha256 =
+        $senderPhysicalEvidence.CanonicalLfSha256
+    $snapshot.DerivedEolStyle = $senderPhysicalEvidence.EolStyle
     $snapshot.DerivedLineBreakCount =
-        $TerminalWakeLayoutSelfTestOracle.Sender.LineBreakCount
+        $senderPhysicalEvidence.LineBreakCount
     $snapshot.ClassesBytes = $TerminalWakeLayoutSelfTestOracle.Classes.Bytes
     $snapshot.ClassesSha256 = $TerminalWakeLayoutSelfTestOracle.Classes.Sha256
     $snapshot.CommNetworkBytes =
@@ -11344,7 +12422,7 @@ function Assert-OwnerLossRetirementSyntheticLifecycle {
         ForcedOwnerLossResult = $null
     }
     $tcp = [pscustomobject]@{
-        CallbackSenderConnected = $true
+        CallbackSenderConnected = 1
         RpcCallbackRegistered = $true
         RpcCallbackSessionEpoch = [uint32]42
         RpcCallbackCookieLo = [uint32]52
@@ -11390,7 +12468,7 @@ function Assert-OwnerLossRetirementSyntheticLifecycle {
         if (-not $tcp.RpcCallbackRegistered) {
             $result = 1
         }
-        elseif (-not $tcp.CallbackSenderConnected) {
+        elseif ($tcp.CallbackSenderConnected -eq 0) {
             $result = -9
         }
         else {
@@ -11420,7 +12498,8 @@ function Assert-OwnerLossRetirementSyntheticLifecycle {
         (-not $tcp.RpcCallbackRegistered)) {
         throw 'synthetic owner-loss exact fenced disarm did not preserve state.'
     }
-    if (($exactResult -eq -8) -and $tcp.CallbackSenderConnected) {
+    if (($exactResult -eq -8) -and
+        ($tcp.CallbackSenderConnected -ne 0)) {
         $retireResult = [int](& $disarm 0 0 0)
         if (($retireResult -eq 0) -or ($retireResult -eq 1)) {
             $confirmationResult = [int](& $helper)
@@ -11459,7 +12538,7 @@ function Assert-OwnerLossRetirementSyntheticLifecycle {
     $sender.SessionEpoch = [uint32]71
     $sender.CookieLo = [uint32]81
     $sender.CookieHi = [uint32]91
-    $tcp.CallbackSenderConnected = $false
+    $tcp.CallbackSenderConnected = 0
     $tcp.RpcCallbackRegistered = $true
     $tcp.RpcCallbackSessionEpoch = [uint32]72
     $tcp.RpcCallbackCookieLo = [uint32]82
@@ -11474,7 +12553,7 @@ function Assert-OwnerLossRetirementSyntheticLifecycle {
         throw 'synthetic unavailable sender did not remain fail-closed.'
     }
 
-    $tcp.CallbackSenderConnected = $true
+    $tcp.CallbackSenderConnected = 1
     $sender.OwnerLossCallCount = 0
     $ordinaryMismatch = [int](& $helper)
     if (($ordinaryMismatch -ne -8) -or
@@ -11508,7 +12587,7 @@ function Assert-OwnerLossRetirementSyntheticLifecycle {
     $sender.CookieHi = [uint32]121
     $sender.OwnerLossCallCount = 0
     $sender.ForcedOwnerLossResult = -9
-    $tcp.CallbackSenderConnected = $true
+    $tcp.CallbackSenderConnected = 1
     $tcp.RpcCallbackRegistered = $true
     $tcp.RpcCallbackSessionEpoch = [uint32]102
     $tcp.RpcCallbackCookieLo = [uint32]112
@@ -11538,7 +12617,7 @@ function Assert-OwnerLossRetirementSyntheticLifecycle {
     $sender.CookieHi = [uint32]151
     $sender.OwnerLossCallCount = 0
     $sender.ForcedOwnerLossResult = $null
-    $tcp.CallbackSenderConnected = $true
+    $tcp.CallbackSenderConnected = 1
     $tcp.RpcCallbackRegistered = $true
     $tcp.RpcCallbackSessionEpoch = [uint32]132
     $tcp.RpcCallbackCookieLo = [uint32]142
@@ -11546,7 +12625,7 @@ function Assert-OwnerLossRetirementSyntheticLifecycle {
     $tcp.RpcCallbackLastDisarmResult = 1
     $confirmationTriggerResult = [int](& $helper)
     $confirmationSentinelResult = [int](& $disarm 0 0 0)
-    $tcp.CallbackSenderConnected = $false
+    $tcp.CallbackSenderConnected = 0
     $confirmationFailureResult = [int](& $helper)
     if (($confirmationTriggerResult -ne -8) -or
         ($confirmationSentinelResult -ne 0) -or
@@ -11569,14 +12648,14 @@ function Assert-OwnerLossRetirementSyntheticLifecycle {
     $sender.CookieHi = [uint32]221
     $sender.OwnerLossCallCount = 0
     $sender.ForcedOwnerLossResult = $null
-    $tcp.CallbackSenderConnected = $true
+    $tcp.CallbackSenderConnected = 1
     $tcp.RpcCallbackRegistered = $true
     $tcp.RpcCallbackSessionEpoch = [uint32]202
     $tcp.RpcCallbackCookieLo = [uint32]212
     $tcp.RpcCallbackCookieHi = [uint32]222
     $tcp.RpcCallbackLastDisarmResult = 1
     $preSentinelDisconnectTrigger = [int](& $helper)
-    $tcp.CallbackSenderConnected = $false
+    $tcp.CallbackSenderConnected = 0
     if ($preSentinelDisconnectTrigger -eq -8) {
         $tcp.RpcCallbackLastDisarmResult = -9
     }
@@ -11596,7 +12675,7 @@ function Assert-OwnerLossRetirementSyntheticLifecycle {
     $sender.CookieHi = [uint32]251
     $sender.OwnerLossCallCount = 0
     $sender.ForcedOwnerLossResult = $null
-    $tcp.CallbackSenderConnected = $true
+    $tcp.CallbackSenderConnected = 1
     $tcp.RpcCallbackRegistered = $true
     $tcp.RpcCallbackSessionEpoch = [uint32]232
     $tcp.RpcCallbackCookieLo = [uint32]242
@@ -11660,7 +12739,290 @@ function Get-UdpCallbackSenderEvidenceToken {
         "$($Snapshot.DerivedCanonicalLfSha256); ")
 }
 
+function Copy-OrderedEvidenceMap {
+    param(
+        [Parameter(Mandatory = $true)]
+        [Collections.IDictionary]$Source
+    )
+
+    $copy = [ordered]@{}
+    foreach ($key in $Source.Keys) {
+        $value = $Source[$key]
+        $copy[$key] = if ($value -is [Collections.IDictionary]) {
+            Copy-OrderedEvidenceMap -Source $value
+        }
+        else { $value }
+    }
+    return $copy
+}
+
+function Assert-SetPositionAugmentedArtifactDeltaSelfTest {
+    $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\..\..'))
+    # Worktree bytes are only the candidate under test.  The immutable old Git
+    # blobs and literal current/delta identities above remain the test oracle.
+    $snapshot = Get-CurrentRepositorySnapshot -Root $root
+    Assert-SetPositionAugmentedGateDContract -Snapshot $snapshot | Out-Null
+
+    $negativeCount = 0
+
+    $classesFixture = $snapshot | Select-Object *
+    $classesBytes = [byte[]]$snapshot.ClassesDatabaseBytes.Clone()
+    $classesIndex = [int]$SetPositionAugmentedGateD.Classes.Delta.PrefixBytes +
+        [int]([long]$SetPositionAugmentedGateD.Classes.Delta.CurrentChangedBytes / 2)
+    $classesBytes[$classesIndex] = $classesBytes[$classesIndex] -bxor 1
+    $classesFixture.ClassesDatabaseBytes = $classesBytes
+    $classesFixture.ClassesDatabaseText = $Latin1.GetString($classesBytes)
+    $classesFixture.ClassesBytes = $classesBytes.Count
+    $classesFixture.ClassesSha256 = Get-BytesSha256 -Bytes $classesBytes
+    $classesExpected = Copy-OrderedEvidenceMap -Source $SetPositionAugmentedGateD
+    $classesExpected.Classes.Bytes = $classesBytes.Count
+    $classesExpected.Classes.Sha256 = $classesFixture.ClassesSha256
+    # The explicit opt-in reaches augmented evidence before the legacy
+    # SyntheticFixture shortcuts used by historical Gate D fixtures.
+    $synthetic = $classesFixture | Select-Object *
+    $synthetic | Add-Member -NotePropertyName SyntheticFixture -NotePropertyValue $true
+    $synthetic | Add-Member `
+        -NotePropertyName EnforceSetPositionAugmentedEvidence `
+        -NotePropertyValue $true
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'SetPosition augmented synthetic evidence is not bypassed' `
+        -Action {
+            Assert-LasalUdpCallbackStateContract `
+                -Snapshot $synthetic `
+                -PermitAbsent $false `
+                -RequiredState TerminalWakeBrokerCandidate
+        }
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'SetPosition Classes coherent-pin body flip' `
+        -Action {
+            Assert-SetPositionAugmentedGateDContract `
+                -Snapshot $classesFixture `
+                -ExpectedCurrent $classesExpected
+        }
+
+    $projectFixture = $snapshot | Select-Object *
+    $projectBytes = $Latin1.GetBytes($snapshot.ProjectDatabaseText)
+    $projectIndex = [int]$SetPositionAugmentedGateD.Project.Delta.PrefixBytes +
+        [int]([long]$SetPositionAugmentedGateD.Project.Delta.CurrentChangedBytes / 2)
+    $projectBytes[$projectIndex] = $projectBytes[$projectIndex] -bxor 1
+    $projectFixture.ProjectDatabaseText = $Latin1.GetString($projectBytes)
+    $projectFixture.ProjectBytes = $projectBytes.Count
+    $projectFixture.ProjectSha256 = Get-BytesSha256 -Bytes $projectBytes
+    $projectExpected = Copy-OrderedEvidenceMap -Source $SetPositionAugmentedGateD
+    $projectExpected.Project.Bytes = $projectBytes.Count
+    $projectExpected.Project.Sha256 = $projectFixture.ProjectSha256
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'SetPosition project coherent-pin body flip' `
+        -Action {
+            Assert-SetPositionAugmentedGateDContract `
+                -Snapshot $projectFixture `
+                -ExpectedCurrent $projectExpected
+        }
+
+    $tableFixture = $snapshot | Select-Object *
+    $tableText = ConvertTo-CanonicalLf -Text $snapshot.CommTableText
+    $tableBytes = $Utf8.GetBytes($tableText)
+    $tableIndex = [int]$SetPositionAugmentedGateD.CommTable.Delta.PrefixBytes +
+        [int]([long]$SetPositionAugmentedGateD.CommTable.Delta.CurrentChangedBytes / 2)
+    $tableBytes[$tableIndex] = $tableBytes[$tableIndex] -bxor 1
+    $tableFixture.CommTableText = $Utf8.GetString($tableBytes)
+    $tableFixture.CommTableBytes = $tableBytes.Count
+    $tableFixture.CommTableSha256 = Get-BytesSha256 -Bytes $tableBytes
+    $tableExpected = Copy-OrderedEvidenceMap -Source $SetPositionAugmentedGateD
+    $tableExpected.CommTable.RawBytes = $tableBytes.Count
+    $tableExpected.CommTable.RawSha256 = $tableFixture.CommTableSha256
+    $tableExpected.CommTable.CanonicalLfBytes = $tableBytes.Count
+    $tableExpected.CommTable.CanonicalLfSha256 = $tableFixture.CommTableSha256
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'SetPosition table coherent-pin body flip' `
+        -Action {
+            Assert-SetPositionAugmentedGateDContract `
+                -Snapshot $tableFixture `
+                -ExpectedCurrent $tableExpected
+        }
+
+    $networksFixture = $snapshot | Select-Object *
+    $networksBytes = $Latin1.GetBytes($snapshot.NetworksDatabaseText)
+    $networksIndex = [int]$SetPositionAugmentedGateD.NetworksDatabase.Delta.PrefixBytes +
+        [int]([long]$SetPositionAugmentedGateD.NetworksDatabase.Delta.CurrentChangedBytes / 2)
+    $networksBytes[$networksIndex] = $networksBytes[$networksIndex] -bxor 1
+    $networksFixture.NetworksDatabaseText = $Latin1.GetString($networksBytes)
+    $networksFixture.NetworksDatabaseBytes = $networksBytes.Count
+    $networksFixture.NetworksDatabaseSha256 = Get-BytesSha256 -Bytes $networksBytes
+    $networksExpected = Copy-OrderedEvidenceMap -Source $SetPositionAugmentedGateD
+    $networksExpected.NetworksDatabase.Bytes = $networksBytes.Count
+    $networksExpected.NetworksDatabase.Sha256 =
+        $networksFixture.NetworksDatabaseSha256
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'SetPosition Networks coherent-pin body flip' `
+        -Action {
+            Assert-SetPositionAugmentedGateDContract `
+                -Snapshot $networksFixture `
+                -ExpectedCurrent $networksExpected
+        }
+
+    return $negativeCount
+}
+
+function Assert-SetPositionGeneratedRecordDeltaSelfTest {
+    $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\..\..'))
+    $classes = Get-SyntheticGitBlobBytes `
+        -RepositoryRoot $root -ObjectId $PreSetPositionGateD.Classes.ObjectId
+    if (($classes.Count -ne $PreSetPositionGateD.Classes.Bytes) -or
+        ((Get-BytesSha256 -Bytes $classes) -cne
+            $PreSetPositionGateD.Classes.Sha256)) {
+        throw 'SetPosition record fixture pre-Store Classes blob drifted.'
+    }
+    $text = $Latin1.GetString($classes)
+    $protected = @(Get-ProtectedGeneratedRecordEvidence `
+            -ClassesDatabaseBytes $classes -ClassesDatabaseText $text)
+    $vendor = @(Get-VendorGeneratedRecordEvidence `
+            -ClassesDatabaseBytes $classes -ClassesDatabaseText $text)
+    $fixtureContracts = [Collections.Generic.List[object]]::new()
+    foreach ($contract in $ProtectedGeneratedRecordContracts) {
+        $record = @($protected | Where-Object { $_.Name -ceq $contract.Name })
+        if ($record.Count -ne 1) {
+            throw "SetPosition protected fixture record drifted: $($contract.Name)"
+        }
+        $fixtureContracts.Add([pscustomobject]@{
+                Name = $contract.Name
+                Data = $record[0].Data
+                HistoricalSha256 = $contract.Sha256
+                CurrentSha256 = $contract.SetPositionSha256
+                Deltas = @($contract.SetPositionDeltas)
+            })
+    }
+    foreach ($contract in $VendorGeneratedRecordContracts) {
+        $record = @($vendor | Where-Object { $_.Name -ceq $contract.Name })
+        if ($record.Count -ne 1) {
+            throw "SetPosition vendor fixture record drifted: $($contract.Name)"
+        }
+        $historicalSha256 = if ($contract.Name -ceq '_UDPTransceiver') {
+            $contract.TerminalWakeSha256
+        }
+        else { $contract.WiredSha256 }
+        $currentSha256 = if ($contract.Name -ceq '_UDPTransceiver') {
+            $contract.SetPositionTerminalWakeSha256
+        }
+        else { $contract.SetPositionWiredSha256 }
+        $fixtureContracts.Add([pscustomobject]@{
+                Name = $contract.Name
+                Data = $record[0].Data
+                HistoricalSha256 = $historicalSha256
+                CurrentSha256 = $currentSha256
+                Deltas = @($contract.SetPositionDeltas)
+            })
+    }
+
+    $negativeCount = 0
+    $positiveSlotCount = 0
+    foreach ($fixture in $fixtureContracts.ToArray()) {
+        if ((Get-BytesSha256 -Bytes $fixture.Data) -cne
+            $fixture.HistoricalSha256) {
+            throw "SetPosition $($fixture.Name) historical record fixture drifted."
+        }
+        $current = [byte[]]$fixture.Data.Clone()
+        foreach ($delta in $fixture.Deltas) {
+            $old = ConvertFrom-ExactHexBytes `
+                -Hex $delta.Old `
+                -EvidenceOwner "SetPosition $($fixture.Name) old fixture"
+            $new = ConvertFrom-ExactHexBytes `
+                -Hex $delta.New `
+                -EvidenceOwner "SetPosition $($fixture.Name) new fixture"
+            if (-not (Test-ClassDatabaseByteSequence `
+                    -DatabaseBytes $current `
+                    -Start ([int]$delta.Offset) `
+                    -ExpectedBytes $old)) {
+                throw (
+                    "SetPosition $($fixture.Name) old slot drifted at " +
+                    "$($delta.Offset).")
+            }
+            [Array]::Copy($new, 0, $current, [int]$delta.Offset, $new.Count)
+            $positiveSlotCount++
+        }
+        if ((Get-BytesSha256 -Bytes $current) -cne $fixture.CurrentSha256) {
+            throw "SetPosition $($fixture.Name) explicit forward fixture drifted."
+        }
+        Assert-ExactGeneratedRecordForwardReverseDelta `
+            -CurrentBytes $current `
+            -CurrentSha256 $fixture.CurrentSha256 `
+            -HistoricalSha256 $fixture.HistoricalSha256 `
+            -Deltas @($fixture.Deltas) `
+            -RecordOwner "SetPosition $($fixture.Name) positive fixture"
+
+        foreach ($delta in $fixture.Deltas) {
+            $bad = [byte[]]$current.Clone()
+            $bad[[int]$delta.Offset] = $bad[[int]$delta.Offset] -bxor 1
+            $negativeCount += Assert-UdpCallbackNegativeFixture `
+                -Name "$($fixture.Name) delta third value $($delta.Offset)" `
+                -Action {
+                    Assert-ExactGeneratedRecordForwardReverseDelta `
+                        -CurrentBytes $bad `
+                        -CurrentSha256 (Get-BytesSha256 -Bytes $bad) `
+                        -HistoricalSha256 $fixture.HistoricalSha256 `
+                        -Deltas @($fixture.Deltas) `
+                        -RecordOwner "$($fixture.Name) third-value fixture"
+                }
+        }
+
+        $wrongOffset = [byte[]]$current.Clone()
+        $firstDelta = $fixture.Deltas[0]
+        $firstOld = ConvertFrom-ExactHexBytes `
+            -Hex $firstDelta.Old `
+            -EvidenceOwner "$($fixture.Name) wrong-offset old fixture"
+        $firstNew = ConvertFrom-ExactHexBytes `
+            -Hex $firstDelta.New `
+            -EvidenceOwner "$($fixture.Name) wrong-offset new fixture"
+        [Array]::Copy(
+            $firstOld,
+            0,
+            $wrongOffset,
+            [int]$firstDelta.Offset,
+            $firstOld.Count)
+        [Array]::Copy(
+            $firstNew,
+            0,
+            $wrongOffset,
+            [int]$firstDelta.Offset + $firstNew.Count + 1,
+            $firstNew.Count)
+        $negativeCount += Assert-UdpCallbackNegativeFixture `
+            -Name "$($fixture.Name) delta at wrong offset" `
+            -Action {
+                Assert-ExactGeneratedRecordForwardReverseDelta `
+                    -CurrentBytes $wrongOffset `
+                    -CurrentSha256 (Get-BytesSha256 -Bytes $wrongOffset) `
+                    -HistoricalSha256 $fixture.HistoricalSha256 `
+                    -Deltas @($fixture.Deltas) `
+                    -RecordOwner "$($fixture.Name) wrong-offset fixture"
+            }
+
+        $bodyFlip = [byte[]]$current.Clone()
+        $bodyIndex = [Math]::Min(1000, $bodyFlip.Count - 1)
+        $bodyFlip[$bodyIndex] = $bodyFlip[$bodyIndex] -bxor 1
+        $negativeCount += Assert-UdpCallbackNegativeFixture `
+            -Name "$($fixture.Name) non-ID body flip" `
+            -Action {
+                Assert-ExactGeneratedRecordForwardReverseDelta `
+                    -CurrentBytes $bodyFlip `
+                    -CurrentSha256 (Get-BytesSha256 -Bytes $bodyFlip) `
+                    -HistoricalSha256 $fixture.HistoricalSha256 `
+                    -Deltas @($fixture.Deltas) `
+                    -RecordOwner "$($fixture.Name) body-flip fixture"
+            }
+    }
+    if ($positiveSlotCount -ne 9) {
+        throw (
+            "SetPosition generated-record positive slot count is " +
+            "$positiveSlotCount, expected 9.")
+    }
+    return $negativeCount
+}
+
 function Invoke-UdpCallbackVerifierSelfTest {
+    $setPositionArtifactNegativeCount =
+        Assert-SetPositionAugmentedArtifactDeltaSelfTest
+    $setPositionDeltaNegativeCount =
+        Assert-SetPositionGeneratedRecordDeltaSelfTest
     Assert-TerminalWakeLayoutConstantsMatchSelfTestOracle
     Assert-DerivedFunctionParserCrossEolSelfTest
     Assert-SyntheticConfigObjectsCrossEolSelfTest
@@ -11883,31 +13245,6 @@ function Invoke-UdpCallbackVerifierSelfTest {
             throw "Gate D $senderEolStyle Sender stdout token drifted."
         }
     }
-
-    $cleanCheckoutNetworkPositive =
-        New-TerminalWakePhysicalLayoutFixture -SenderEolStyle LF
-    $cleanCheckoutNetworkPositive.FullNetworkCount =
-        $TerminalWakeLayoutSelfTestOracle.FullNetwork.CleanCheckoutCount
-    $cleanCheckoutNetworkPositive.FullNetworkSha256 =
-        $TerminalWakeLayoutSelfTestOracle.FullNetwork.CleanCheckoutSha256
-    $cleanCheckoutNetworkPositive.TrackedNetworkCount =
-        $TerminalWakeLayoutSelfTestOracle.TrackedNetwork.CleanCheckoutCount
-    $cleanCheckoutNetworkPositive.TrackedNetworkSha256 =
-        $TerminalWakeLayoutSelfTestOracle.TrackedNetwork.CleanCheckoutSha256
-    Assert-TerminalWakeLayoutContract -Snapshot $cleanCheckoutNetworkPositive
-
-    $pureGitCheckoutNetworkPositive =
-        New-TerminalWakePhysicalLayoutFixture -SenderEolStyle LF
-    $pureGitCheckoutNetworkPositive.FullNetworkCount =
-        $TerminalWakeLayoutSelfTestOracle.FullNetwork.PureGitCheckoutCount
-    $pureGitCheckoutNetworkPositive.FullNetworkSha256 =
-        $TerminalWakeLayoutSelfTestOracle.FullNetwork.PureGitCheckoutSha256
-    $pureGitCheckoutNetworkPositive.TrackedNetworkCount =
-        $TerminalWakeLayoutSelfTestOracle.TrackedNetwork.CleanCheckoutCount
-    $pureGitCheckoutNetworkPositive.TrackedNetworkSha256 =
-        $TerminalWakeLayoutSelfTestOracle.TrackedNetwork.CleanCheckoutSha256
-    Assert-TerminalWakeLayoutContract `
-        -Snapshot $pureGitCheckoutNetworkPositive
 
     $gateCSenderToken = Get-UdpCallbackSenderEvidenceToken `
         -State DerivedCandidate `
@@ -12165,17 +13502,44 @@ END_STRUCT;
         throw 'derived multiline Include reverse-delta positive fixture drifted.'
     }
 
-    $negativeCount = 0
+    $negativeCount = $setPositionDeltaNegativeCount +
+        $setPositionArtifactNegativeCount
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'pre-Store clean Network tuple is not augmented approval' -Action {
+            $s = New-TerminalWakePhysicalLayoutFixture -SenderEolStyle LF
+            $s.FullNetworkCount =
+                $HistoricalPreSetPositionTerminalWakeNetworkIdentity.FullNetwork.CleanCheckoutCount
+            $s.FullNetworkSha256 =
+                $HistoricalPreSetPositionTerminalWakeNetworkIdentity.FullNetwork.CleanCheckoutSha256
+            $s.TrackedNetworkCount =
+                $HistoricalPreSetPositionTerminalWakeNetworkIdentity.TrackedNetwork.CleanCheckoutCount
+            $s.TrackedNetworkSha256 =
+                $HistoricalPreSetPositionTerminalWakeNetworkIdentity.TrackedNetwork.CleanCheckoutSha256
+            Assert-TerminalWakeLayoutContract -Snapshot $s
+        }
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'pre-Store pure Git Network tuple is not augmented approval' -Action {
+            $s = New-TerminalWakePhysicalLayoutFixture -SenderEolStyle LF
+            $s.FullNetworkCount =
+                $HistoricalPreSetPositionTerminalWakeNetworkIdentity.FullNetwork.PureGitCheckoutCount
+            $s.FullNetworkSha256 =
+                $HistoricalPreSetPositionTerminalWakeNetworkIdentity.FullNetwork.PureGitCheckoutSha256
+            $s.TrackedNetworkCount =
+                $HistoricalPreSetPositionTerminalWakeNetworkIdentity.TrackedNetwork.CleanCheckoutCount
+            $s.TrackedNetworkSha256 =
+                $HistoricalPreSetPositionTerminalWakeNetworkIdentity.TrackedNetwork.CleanCheckoutSha256
+            Assert-TerminalWakeLayoutContract -Snapshot $s
+        }
     $negativeCount += Assert-UdpCallbackNegativeFixture `
         -Name 'Gate D pure Git Network missing tracked subset' -Action {
             $s = New-TerminalWakePhysicalLayoutFixture -SenderEolStyle LF
             $s.FullNetworkCount =
-                $ExpectedTerminalWakeLayout.FullNetwork.PureGitCheckoutCount
+                $HistoricalPreSetPositionTerminalWakeNetworkIdentity.FullNetwork.PureGitCheckoutCount
             $s.FullNetworkSha256 =
-                $ExpectedTerminalWakeLayout.FullNetwork.PureGitCheckoutSha256
+                $HistoricalPreSetPositionTerminalWakeNetworkIdentity.FullNetwork.PureGitCheckoutSha256
             $s.TrackedNetworkCount = 14
             $s.TrackedNetworkSha256 =
-                $ExpectedTerminalWakeLayout.TrackedNetwork.CleanCheckoutSha256
+                $HistoricalPreSetPositionTerminalWakeNetworkIdentity.TrackedNetwork.CleanCheckoutSha256
             Assert-TerminalWakeLayoutContract -Snapshot $s
         }
     $negativeCount += Assert-UdpCallbackNegativeFixture `
@@ -12183,11 +13547,11 @@ END_STRUCT;
             $s = New-TerminalWakePhysicalLayoutFixture -SenderEolStyle LF
             $s.FullNetworkCount = 22
             $s.FullNetworkSha256 =
-                $ExpectedTerminalWakeLayout.FullNetwork.CleanCheckoutSha256
+                $HistoricalPreSetPositionTerminalWakeNetworkIdentity.FullNetwork.CleanCheckoutSha256
             $s.TrackedNetworkCount =
-                $ExpectedTerminalWakeLayout.TrackedNetwork.CleanCheckoutCount
+                $HistoricalPreSetPositionTerminalWakeNetworkIdentity.TrackedNetwork.CleanCheckoutCount
             $s.TrackedNetworkSha256 =
-                $ExpectedTerminalWakeLayout.TrackedNetwork.CleanCheckoutSha256
+                $HistoricalPreSetPositionTerminalWakeNetworkIdentity.TrackedNetwork.CleanCheckoutSha256
             Assert-TerminalWakeLayoutContract -Snapshot $s
         }
     $negativeCount += Assert-UdpCallbackNegativeFixture `
@@ -12197,9 +13561,9 @@ END_STRUCT;
             $s.FullNetworkSha256 = Get-TextSha256 `
                 -Text 'seeded-network-corrupt-generated-file'
             $s.TrackedNetworkCount =
-                $ExpectedTerminalWakeLayout.TrackedNetwork.CleanCheckoutCount
+                $HistoricalPreSetPositionTerminalWakeNetworkIdentity.TrackedNetwork.CleanCheckoutCount
             $s.TrackedNetworkSha256 =
-                $ExpectedTerminalWakeLayout.TrackedNetwork.CleanCheckoutSha256
+                $HistoricalPreSetPositionTerminalWakeNetworkIdentity.TrackedNetwork.CleanCheckoutSha256
             Assert-TerminalWakeLayoutContract -Snapshot $s
         }
     $negativeCount += Assert-UdpCallbackNegativeFixture `
@@ -12209,9 +13573,9 @@ END_STRUCT;
             $s.FullNetworkSha256 = Get-TextSha256 `
                 -Text 'seeded-network-extra-ignored-generated-file'
             $s.TrackedNetworkCount =
-                $ExpectedTerminalWakeLayout.TrackedNetwork.CleanCheckoutCount
+                $HistoricalPreSetPositionTerminalWakeNetworkIdentity.TrackedNetwork.CleanCheckoutCount
             $s.TrackedNetworkSha256 =
-                $ExpectedTerminalWakeLayout.TrackedNetwork.CleanCheckoutSha256
+                $HistoricalPreSetPositionTerminalWakeNetworkIdentity.TrackedNetwork.CleanCheckoutSha256
             Assert-TerminalWakeLayoutContract -Snapshot $s
         }
     $negativeCount += Assert-UdpCallbackNegativeFixture `
@@ -12221,9 +13585,9 @@ END_STRUCT;
             $s.FullNetworkSha256 = Get-TextSha256 `
                 -Text 'pure-git-network-full-identity-corrupt'
             $s.TrackedNetworkCount =
-                $ExpectedTerminalWakeLayout.TrackedNetwork.CleanCheckoutCount
+                $HistoricalPreSetPositionTerminalWakeNetworkIdentity.TrackedNetwork.CleanCheckoutCount
             $s.TrackedNetworkSha256 =
-                $ExpectedTerminalWakeLayout.TrackedNetwork.CleanCheckoutSha256
+                $HistoricalPreSetPositionTerminalWakeNetworkIdentity.TrackedNetwork.CleanCheckoutSha256
             Assert-TerminalWakeLayoutContract -Snapshot $s
         }
     $negativeCount += Assert-UdpCallbackNegativeFixture `
@@ -12312,19 +13676,34 @@ END_STRUCT;
             Assert-TerminalWakeLayoutContract -Snapshot $s
         }
     $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'Gate D sender actual-byte mutation with coherent hashes' -Action {
+            $s = New-TerminalWakePhysicalLayoutFixture -SenderEolStyle LF
+            $s.DerivedSource += "`n "
+            $evidence = Get-AsciiTextEvidence `
+                -Bytes $Utf8.GetBytes($s.DerivedSource) `
+                -SourceOwner 'Gate D sender coherent-hash mutation fixture'
+            $s.DerivedRawBytes = $evidence.ByteCount
+            $s.DerivedRawSha256 = $evidence.RawSha256
+            $s.DerivedCanonicalLfBytes = $evidence.CanonicalLfBytes
+            $s.DerivedCanonicalLfSha256 = $evidence.CanonicalLfSha256
+            $s.DerivedEolStyle = $evidence.EolStyle
+            $s.DerivedLineBreakCount = $evidence.LineBreakCount
+            Assert-TerminalWakeLayoutContract -Snapshot $s
+        }
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
         -Name 'Gate D transceiver Objectsize metadata drift' -Action {
             $s = New-TerminalWakePhysicalLayoutFixture
             $s.TransceiverSource = $s.TransceiverSource.Replace(
-                'Objectsize="(522,120)"',
-                'Objectsize="(523,120)"')
+                '(522,120)',
+                '(523,120)')
             Assert-TerminalWakeLayoutContract -Snapshot $s
         }
     $negativeCount += Assert-UdpCallbackNegativeFixture `
         -Name 'Gate D sender Objectsize metadata drift' -Action {
             $s = New-TerminalWakePhysicalLayoutFixture
             $s.DerivedSource = $s.DerivedSource.Replace(
-                'Objectsize="(778,120)"',
-                'Objectsize="(777,120)"')
+                '(778,120)',
+                '(777,120)')
             Assert-TerminalWakeLayoutContract -Snapshot $s
         }
     $negativeCount += Assert-UdpCallbackNegativeFixture `
@@ -13600,9 +14979,9 @@ cSizeOfRXBuffer cSizeOfTXBuffer END_FUNCTION *)
             '(RpcCallbackRegistered = FALSE)',
             '(RpcCallbackRegistered = TRUE)'),
         @(
-            'Gate C helper omits connected client fence',
-            'ELSIF NOT IsClientConnected(#CallbackSender) THEN',
-            'ELSIF FALSE THEN'),
+            'Gate C helper bitwise-inverts connected client result',
+            'ELSIF IsClientConnected(#CallbackSender) = 0 THEN',
+            'ELSIF NOT IsClientConnected(#CallbackSender) THEN'),
         @(
             'Gate C helper overwrites dormant owner-loss latch',
             'IF RpcCallbackRegistered THEN',

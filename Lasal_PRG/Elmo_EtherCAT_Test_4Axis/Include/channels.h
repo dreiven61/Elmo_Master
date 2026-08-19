@@ -486,6 +486,11 @@ TYPE
     dData : iprStates;
     pCmd : ^LMCSdoExecutor;
   END_STRUCT;
+  CltChCmd_LMCSetPositionStore : STRUCT
+    pCh : ^SvrChCmd_DINT;
+    dData : DINT;
+    pCmd : ^LMCSetPositionStore;
+  END_STRUCT;
   CltChCmd_LMCUdpCallbackSender : STRUCT
     pCh : ^SvrChCmd_DINT;
     dData : DINT;

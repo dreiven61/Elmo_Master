@@ -189,9 +189,9 @@
 			<Connection Source="this.StrTaskName" Destination="StrTaskName.Data"/>
 			<Connection Source="this.StrSemaName01" Destination="StrSemaName01.Data"/>
 			<Connection Source="this.StrSemaName02" Destination="StrSemaName02.Data"/>
-			<Connection Source="this.TaskName" Destination="StrTaskName.Data" Vertices="(818,330),(556,450),"/>
-			<Connection Source="this.SemaName01" Destination="StrSemaName01.Data" Vertices="(818,390),(556,600),"/>
-			<Connection Source="this.SemaName02" Destination="StrSemaName02.Data" Vertices="(818,450),(556,750),"/>
+			<Connection Source="this.TaskName" Destination="StrTaskName.Data" Vertices="(1028,330),(556,450),"/>
+			<Connection Source="this.SemaName01" Destination="StrSemaName01.Data" Vertices="(1028,390),(556,600),"/>
+			<Connection Source="this.SemaName02" Destination="StrSemaName02.Data" Vertices="(1028,450),(556,750),"/>
 		</Connections>
 		<!-- Headerfiles -->
 		<Options>

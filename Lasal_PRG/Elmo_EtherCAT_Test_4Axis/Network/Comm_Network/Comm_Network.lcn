@@ -22,6 +22,7 @@
 				<Client Name="LMCAxis8"/>
 				<Client Name="LMCAxis9"/>
 				<Client Name="LMCRobot"/>
+				<Client Name="SetPositionStore"/>
 			</Channels>
 		</Object>
 		<Object
@@ -41,6 +42,37 @@
 				<Client Name="SdoAxis3"/>
 				<Client Name="SdoAxis4"/>
 			</Channels>
+		</Object>
+		<Object
+			Name       = "LMCSetPositionCheckSum1"
+			GUID       = "{E83B4353-913F-43D9-A4D2-E9CA6FB072D6}"
+			Class      = "_CheckSum"
+			Position   = "(90,2160)"
+			Visualized = "false">
+			<Channels>
+				<Server Name="ClassSvr"/>
+			</Channels>
+		</Object>
+		<Object
+			Name       = "LMCSetPositionStore1"
+			GUID       = "{738407AF-1507-4E89-B5E2-5201F06AE394}"
+			Class      = "LMCSetPositionStore"
+			Position   = "(660,1890)"
+			Visualized = "false">
+			<Channels>
+				<Server Name="ClassSvr"/>
+				<Client Name="CheckSum"/>
+			</Channels>
+			<!-- List of Networks in this component -->
+			<Networks>
+				<Network>
+					<!-- List of Components in this network -->
+					<Components>
+					</Components>
+					<Connections>
+					</Connections>
+				</Network>
+			</Networks>
 		</Object>
 		<Object
 			Name       = "LMCUdpCallbackSender1"
@@ -416,6 +448,8 @@
 		<Connection Source="LMCControlCommandService1.InputLatch" Destination="LMCEcatInputLatch1.ClassSvr"/>
 		<Connection Source="LMCUdpCallbackSender1._UDPTransceiver" Destination="LMCUdpTransceiver1.sControl" Vertices="(2610,1080),(1948,1080),"/>
 		<Connection Source="TCPMotionInterface1.CallbackSender" Destination="LMCUdpCallbackSender1.ClassSvr" Vertices="(2670,510),(2610,510),(2610,960),(3480,960),(3480,1080),(3404,1080),"/>
+		<Connection Source="LMCControlCommandService1.SetPositionStore" Destination="LMCSetPositionStore1.ClassSvr" Vertices="(1410,2640),(1100,1980),"/>
+		<Connection Source="LMCSetPositionStore1.CheckSum" Destination="LMCSetPositionCheckSum1.ClassSvr" Vertices="(660,1980),(706,2250),"/>
 	</Connections>
 	<!-- Headerfiles -->
 	<Options>

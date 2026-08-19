@@ -116,6 +116,7 @@
 		<File Path=".\Class\_LMCProfileBase\LMCProfileDefines.h" Global="true"/>
 		<File Path=".\Class\Ram\Ram.h" Global="true"/>
 		<File Path=".\Class\ECAT_SlotMng\ECAT_SlotMng.h"/>
+		<File Path=".\Class\LMCSetPositionStore\LMCSetPositionStore.h" Global="true" EC-Header="Class"/>
 	</HeaderFiles>
 	<ClassFiles>
 		<File Path=".\Class\_SyncMeasureECAT\_64BitTimestamp.c"/>
@@ -265,6 +266,8 @@
 		<File Path=".\Class\_UDPTransceiver\_UDPTransceiver.st"/>
 		<File Path=".\Class\_UDPTransceiverInterface\_UDPTransceiverInterface.st"/>
 		<File Path=".\Class\LMCUdpCallbackSender\LMCUdpCallbackSender.st"/>
+		<File Path=".\Class\LMCSetPositionStore\LMCSetPositionStore.st"/>
+		<File Path=".\Class\LMCSetPositionStore\global_LMCSetPositionStore.st"/>
 	</ClassFiles>
 	<NetworkFiles>
 		<File Path=".\Network\HW_Network\HW_Network.lcn"/>

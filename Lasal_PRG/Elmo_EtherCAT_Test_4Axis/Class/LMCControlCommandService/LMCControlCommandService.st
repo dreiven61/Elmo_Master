@@ -31,6 +31,7 @@
 		<Client Name="LMCAxis8" Required="true" Internal="false"/>
 		<Client Name="LMCAxis9" Required="true" Internal="false"/>
 		<Client Name="LMCRobot" Required="true" Internal="false"/>
+		<Client Name="SetPositionStore" Required="true" Internal="false"/>
 	</Channels>
 </Class>
 *)
@@ -50,6 +51,7 @@ LMCControlCommandService : CLASS
 	LMCAxis8 	: CltChCmd__LMCAxis;
 	LMCAxis9 	: CltChCmd__LMCAxis;
 	LMCRobot 	: CltChCmd__LMCRobotBase;
+	SetPositionStore 	: CltChCmd_LMCSetPositionStore;
   //Variables:
 		GroupMovePos 	: _LMCPROF_POS;
 		GroupKinematicReady 	: BOOL;
@@ -435,6 +437,31 @@ LMCControlCommandService : CLASS
 		VAR_OUTPUT
 			Result 	: DINT;
 		END_VAR;
+	
+	FUNCTION HandleAdminSetPosition
+		VAR_INPUT
+			Reference 	: UINT;
+			pRequestFrame 	: ^USINT;
+			RequestFrameSize 	: UDINT;
+			pResponseFrame 	: ^USINT;
+			ResponseCapacity 	: UDINT;
+		END_VAR
+		VAR_OUTPUT
+			ResponseSize 	: DINT;
+		END_VAR;
+	
+	FUNCTION DispatchRequestCommand
+		VAR_INPUT
+			CommandId 	: UINT;
+			Reference 	: UINT;
+			pRequestFrame 	: ^USINT;
+			RequestFrameSize 	: UDINT;
+			pResponseFrame 	: ^USINT;
+			ResponseCapacity 	: UDINT;
+		END_VAR
+		VAR_OUTPUT
+			ResponseSize 	: DINT;
+		END_VAR;
   //Tables:
 	FUNCTION @STD
 		VAR_OUTPUT
@@ -446,6 +473,7 @@ END_CLASS;
 #pragma usingLtd _LMCAxis
 #pragma usingLtd _LMCRobotBase
 #pragma usingLtd LMCEcatInputLatch
+#pragma usingLtd LMCSetPositionStore
 
 
 //}}LSL_DECLARATION
@@ -455,7 +483,7 @@ FUNCTION GLOBAL TAB LMCControlCommandService::@CT_
 0$UINT,
 2#0100000000000010$UINT, //TY_LMCCONTROLCOMMANDSERVICE
 0$UINT, 0$UINT, (SIZEOF(::LMCControlCommandService))$UINT, 
-2$UINT, 11$UINT, 0$UINT, 
+2$UINT, 12$UINT, 0$UINT, 
 TO_UDINT(4292381624), "LMCControlCommandService", //Class
 TO_UDINT(0), 0, 0$UINT, 0$UINT, //Baseclass
 //Servers:
@@ -473,6 +501,7 @@ TO_UDINT(0), 0, 0$UINT, 0$UINT, //Baseclass
 (::LMCControlCommandService.LMCAxis8.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(452276802), "LMCAxis8", TO_UDINT(1422175863), "_LMCAxis", 1$UINT, 120$UINT, 
 (::LMCControlCommandService.LMCAxis9.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(1844576980), "LMCAxis9", TO_UDINT(1422175863), "_LMCAxis", 1$UINT, 120$UINT, 
 (::LMCControlCommandService.LMCRobot.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(1583165433), "LMCRobot", TO_UDINT(3888346726), "_LMCRobotBase", 2$UINT, 22$UINT, 
+(::LMCControlCommandService.SetPositionStore.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(1378088166), "SetPositionStore", TO_UDINT(2393574248), "LMCSetPositionStore", 0$UINT, 0$UINT, 
 END_FUNCTION
 
 
@@ -517,6 +546,14 @@ END_FUNCTION
 
 
 #define LMC_ADMIN_AXIS_HOME_ENABLED TRUE
+#define LMC_ADMIN_DIAGNOSTICS_BUILD 1
+#define LMC_ADMIN_MAP_REVISION 0x957F101E
+#define LMC_ADMIN_SET_POSITION_STORE_CONFIGURED FALSE
+#define LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE -12
+#define LMC_ADMIN_SET_POSITION_MAX_JUMP_AXIS1 0
+#define LMC_ADMIN_SET_POSITION_MAX_JUMP_AXIS2 0
+#define LMC_ADMIN_SET_POSITION_MAX_JUMP_AXIS3 0
+#define LMC_ADMIN_SET_POSITION_MAX_JUMP_AXIS4 0
 #define LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED FALSE
 #define LMC_OWNER_ADAPTER_ERROR_CONFLICT -9
 #define LMC_OWNER_SAFETY_DRAIN_PENDING -10
@@ -2213,36 +2250,11 @@ FUNCTION GLOBAL LMCControlCommandService::HandleRequest
 		end_if;
 	end_if;
 	if ownershipInvokeHandler then
-	case CommandId of
-		0x103C, 0x1042, 0x202B:
-			ResponseSize := HandleRegistryCommands(
-				CommandId:=CommandId, Reference:=Reference,
-				pRequestFrame:=pRequestFrame, RequestFrameSize:=RequestFrameSize,
-				pResponseFrame:=pResponseFrame,
-				ResponseCapacity:=ResponseCapacity);
-		0x2023, 0x2024, 0x2022, 0x2028,
-		0x202E, 0x209F, 0x20A0, 0x20A2:
-			ResponseSize := HandleAxisCommands(
-				CommandId:=CommandId, Reference:=Reference,
-				pRequestFrame:=pRequestFrame, RequestFrameSize:=RequestFrameSize,
-				pResponseFrame:=pResponseFrame,
-				ResponseCapacity:=ResponseCapacity);
-		0x20D2, 0x2047, 0x2048, 0x2049, 0x204A, 0x204B,
-		0x2085, 0x20A4, 0x2045, 0x2051, 0x20E7:
-			ResponseSize := HandleGroupCommands(
-				CommandId:=CommandId, Reference:=Reference,
-				pRequestFrame:=pRequestFrame, RequestFrameSize:=RequestFrameSize,
-				pResponseFrame:=pResponseFrame,
-				ResponseCapacity:=ResponseCapacity);
-		0x7D00, 0x7D10, 0x7D12, 0x7D13, 0x7D18, 0x7D19, 0x7D20, 0x7D22:
-			ResponseSize := HandleAdminCommands(
-				CommandId:=CommandId, Reference:=Reference,
-				pRequestFrame:=pRequestFrame, RequestFrameSize:=RequestFrameSize,
-				pResponseFrame:=pResponseFrame,
-				ResponseCapacity:=ResponseCapacity);
-	else
-		ResponseSize := -1;
-	end_case;
+		ResponseSize := DispatchRequestCommand(
+			CommandId:=CommandId, Reference:=Reference,
+			pRequestFrame:=pRequestFrame, RequestFrameSize:=RequestFrameSize,
+			pResponseFrame:=pResponseFrame,
+			ResponseCapacity:=ResponseCapacity);
 	end_if;
 	if ownershipArmed & (ownershipSafetyPumpRejected = FALSE) then
 		ownershipDispatchEntered :=
@@ -2583,6 +2595,11 @@ FUNCTION GLOBAL LMCControlCommandService::ReserveAxisOwnership
 	pEffectiveAxisMask^ := 0;
 	pAdmissionToken^ := 0;
 	pOwnerGeneration^ := 0;
+	if (CommandId = 0x7D12) &
+	   (LMC_ADMIN_SET_POSITION_STORE_CONFIGURED = FALSE) then
+		Result := -3;
+		RETURN;
+	end_if;
 	if (ZeroHomeState[60] = 0) &
 	   ((ZeroHomeState[61] <> 0) | (ZeroHomeState[62] <> 0) |
 	    (ZeroHomeState[63] <> 0)) then
@@ -2691,6 +2708,8 @@ FUNCTION GLOBAL LMCControlCommandService::ReserveAxisOwnership
 		identityShapeValid := IdentitySize = 104;
 	elsif CommandId = 0x20E7 then
 		identityShapeValid := IdentitySize = 1320;
+	elsif CommandId = 0x7D12 then
+		identityShapeValid := IdentitySize = 48;
 	elsif CommandId = 0x7D13 then
 		identityShapeValid := IdentitySize = 56;
 	elsif (CommandId = 0x7D15) | (CommandId = 0x7E53) then
@@ -2739,14 +2758,13 @@ FUNCTION GLOBAL LMCControlCommandService::ReserveAxisOwnership
 	else
 	end_case;
 
-	// Ordinary Axis/Group ownership remains dormant until paired PLC/SDK and
-	// runtime qualification. Lifecycle Home/encoder reservations stay separate.
 	if ResourceKind = LMC_OWNER_RESOURCE_AXIS then
 		if (OwnerKind <> LMC_OWNER_KIND_DIRECT) &
 		   (OwnerKind <> LMC_OWNER_KIND_GROUP) then
 			RETURN;
 		end_if;
-		if LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED = FALSE then
+		if (CommandId <> 0x7D12) &
+		   (LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED = FALSE) then
 			Result := -3;
 			RETURN;
 		end_if;
@@ -2767,6 +2785,14 @@ FUNCTION GLOBAL LMCControlCommandService::ReserveAxisOwnership
 			0x2024, 0x209F, 0x20A0, 0x20A2:
 				if (OwnerKind <> LMC_OWNER_KIND_DIRECT) |
 				   (AdmissionMode <> LMC_OWNER_ADMISSION_ORDINARY) |
+				   (RequestedAxisMask <> referenceAxisMask) then
+					RETURN;
+				end_if;
+			0x7D12:
+				if (OwnerKind <> LMC_OWNER_KIND_DIRECT) |
+				   (AdmissionMode <> LMC_OWNER_ADMISSION_ORDINARY) |
+				   (referenceAxisMask = 0) |
+				   (referenceAxisMask > 0x00000008) |
 				   (RequestedAxisMask <> referenceAxisMask) then
 					RETURN;
 				end_if;
@@ -2860,8 +2886,7 @@ FUNCTION GLOBAL LMCControlCommandService::ReserveAxisOwnership
 		RETURN;
 	end_if;
 
-	// A valid root is one outstanding safety preemption. Any nonzero bank
-	// without that root is corruption. Both checks occur before token mutation.
+	// Reject an invalid preemption bank before token mutation.
 	if OwnershipPreemptedIdentityState[
 	   LMC_OWNER_PREEMPT_HEADER_BASE]$UDINT =
 	   LMC_OWNER_PREEMPT_IDENTITY_MAGIC then
@@ -2935,9 +2960,7 @@ FUNCTION GLOBAL LMCControlCommandService::ReserveAxisOwnership
 		end_if;
 	end_if;
 
-	// Group suffix bytes share the compact store with non-Group axis tails.
-	// Ordinary/lifecycle owners are globally exclusive. A disjoint safety
-	// overlay is allowed only after the complete live Group tuple is proved.
+	// Prove a complete Group tuple before a disjoint safety overlay.
 	liveGroupFound := FALSE;
 	liveNonGroupFound := FALSE;
 	liveNonSafetyFound := FALSE;
@@ -3012,8 +3035,7 @@ FUNCTION GLOBAL LMCControlCommandService::ReserveAxisOwnership
 		Result := -3;
 		RETURN;
 	end_if;
-	// No live record can own a singleton or lease bank. Reject orphan global
-	// ownership evidence before any fresh Group or Direct reservation mutates it.
+	// Reject orphan global ownership evidence before mutation.
 	if (liveGroupFound = FALSE) & (liveNonGroupFound = FALSE) then
 		if leaseAvailable then
 			Result := -3;
@@ -3028,9 +3050,7 @@ FUNCTION GLOBAL LMCControlCommandService::ReserveAxisOwnership
 			stateIndex += 1;
 		end_while;
 	end_if;
-	// A fresh Group reservation publishes a global header and rewrites every
-	// selected observer/header. Prove the entire all-Idle identity surface is
-	// clean first; stale state is corruption, not state to heal implicitly.
+	// Prove the fresh Group identity surface is idle before mutation.
 	if (OwnerKind = LMC_OWNER_KIND_GROUP) &
 	   (liveGroupFound = FALSE) & (liveNonGroupFound = FALSE) then
 		axisIndex := 1;
@@ -4699,6 +4719,14 @@ FUNCTION GLOBAL LMCControlCommandService::ValidateAxisOwnership
 				(ResourceKind = LMC_OWNER_RESOURCE_AXIS) &
 				(AdmissionMode = LMC_OWNER_ADMISSION_ORDINARY) &
 				(referenceAxisMask <> 0) &
+				(ExpectedAxisMask = referenceAxisMask);
+		0x7D12:
+			tupleValid :=
+				(OwnerKind = LMC_OWNER_KIND_DIRECT) &
+				(ResourceKind = LMC_OWNER_RESOURCE_AXIS) &
+				(AdmissionMode = LMC_OWNER_ADMISSION_ORDINARY) &
+				(referenceAxisMask <> 0) &
+				(referenceAxisMask <= 0x00000008) &
 				(ExpectedAxisMask = referenceAxisMask);
 		0x2047, 0x20A4, 0x7D22:
 			tupleValid :=
@@ -9489,8 +9517,10 @@ FUNCTION LMCControlCommandService::HandleAdminCommands
 		adminSchemaVersion : UINT;
 		adminRequestFlags : UINT;
 		adminRequestId : UDINT;
+		adminOriginalRequestId : UDINT;
 		adminDiagnosticsBuild : UDINT;
 		adminBootId : UDINT;
+		adminCurrentBootId : UDINT;
 		adminMapRevision : UDINT;
 		adminClientIntentId0 : UDINT;
 		adminClientIntentId1 : UDINT;
@@ -9510,9 +9540,14 @@ FUNCTION LMCControlCommandService::HandleAdminCommands
 		adminAxisClientConnected : BOOL;
 		adminAxisPosition : DINT;
 		adminExpectedActualPosition : DINT;
-		adminExecuteToken : UDINT;
-		adminAppliedPosition : DINT;
 		adminErrorId : INT;
+		adminRecordGeneration : UDINT;
+		adminSetPositionKey : ARRAY [0..47] OF USINT;
+		adminSetPositionSnapshot : ARRAY [0..67] OF USINT;
+		adminStoreResult : DINT;
+		adminStoreRecordGeneration : UDINT;
+		adminStoreDetailCode : UDINT;
+		adminStoreSnapshotValid : BOOL;
 		groupVelocity : DINT;
 		groupAccel : DINT;
 		groupDecel : DINT;
@@ -9738,9 +9773,10 @@ FUNCTION LMCControlCommandService::HandleAdminCommands
 				ResponseSize := 24;
 			end_if;
 
-		// Dormant v1 parser. Native coordinate mutation is not activated.
-		0x7D12:
-			if ResponseCapacity < 36 then
+
+		// Source-active recovery framing. Store access stays feature-gated.
+		0x7D14, 0x7D1A:
+			if ResponseCapacity < 24 then
 				RETURN;
 			end_if;
 			adminSchemaVersion := 0;
@@ -9748,37 +9784,48 @@ FUNCTION LMCControlCommandService::HandleAdminCommands
 			adminRequestId := 0;
 			adminDiagnosticsBuild := 0;
 			adminBootId := 0;
+			adminCurrentBootId := 0;
 			adminMapRevision := 0;
+			adminOriginalRequestId := 0;
 			adminClientIntentId0 := 0;
 			adminClientIntentId1 := 0;
 			adminClientIntentId2 := 0;
 			adminClientIntentId3 := 0;
-			adminDetailCode := 0;
 			adminAxisPosition := 0;
 			adminExpectedActualPosition := 0;
-			adminExecuteToken := 0;
-			adminAppliedPosition := 0;
-			adminErrorId := -31000;
+			adminRecordGeneration := 0;
+			adminDetailCode := 0;
+			adminStoreResult := -1;
+			adminStoreRecordGeneration := 0;
+			adminStoreDetailCode := 0;
+			adminStoreSnapshotValid := FALSE;
+			_memset(dest:=#adminSetPositionKey[0], usByte:=0, cntr:=48);
+			_memset(dest:=#adminSetPositionSnapshot[0], usByte:=0, cntr:=68);
 
 			if RequestFrameSize >= 16 then
 				adminSchemaVersion := (pRequestFrame + 8)^$UINT;
 				adminRequestFlags := (pRequestFrame + 10)^$UINT;
 				adminRequestId := (pRequestFrame + 12)^$UDINT;
 			end_if;
-			if RequestFrameSize >= 56 then
+			if RequestFrameSize >= 60 then
 				adminDiagnosticsBuild := (pRequestFrame + 16)^$UDINT;
 				adminBootId := (pRequestFrame + 20)^$UDINT;
 				adminMapRevision := (pRequestFrame + 24)^$UDINT;
-				adminClientIntentId0 := (pRequestFrame + 28)^$UDINT;
-				adminClientIntentId1 := (pRequestFrame + 32)^$UDINT;
-				adminClientIntentId2 := (pRequestFrame + 36)^$UDINT;
-				adminClientIntentId3 := (pRequestFrame + 40)^$UDINT;
-				adminAxisPosition := (pRequestFrame + 44)^$DINT;
-				adminExpectedActualPosition := (pRequestFrame + 48)^$DINT;
-				adminExecuteToken := (pRequestFrame + 52)^$UDINT;
+				adminCurrentBootId := (pRequestFrame + 28)^$UDINT;
+				adminOriginalRequestId := (pRequestFrame + 32)^$UDINT;
+				adminClientIntentId0 := (pRequestFrame + 36)^$UDINT;
+				adminClientIntentId1 := (pRequestFrame + 40)^$UDINT;
+				adminClientIntentId2 := (pRequestFrame + 44)^$UDINT;
+				adminClientIntentId3 := (pRequestFrame + 48)^$UDINT;
+				adminAxisPosition := (pRequestFrame + 52)^$DINT;
+				adminExpectedActualPosition := (pRequestFrame + 56)^$DINT;
+			end_if;
+			if RequestFrameSize >= 64 then
+				adminRecordGeneration := (pRequestFrame + 60)^$UDINT;
 			end_if;
 
-			if RequestFrameSize <> 56 then
+			if ((CommandId = 0x7D14) & (RequestFrameSize <> 60)) |
+			   ((CommandId = 0x7D1A) & (RequestFrameSize <> 64)) then
 				adminDetailCode := 5;
 			elsif (Reference < 1) | (Reference > 4) then
 				adminDetailCode := 4;
@@ -9788,39 +9835,167 @@ FUNCTION LMCControlCommandService::HandleAdminCommands
 				adminDetailCode := 2;
 			elsif adminRequestId = 0 then
 				adminDetailCode := 3;
-			elsif adminDiagnosticsBuild = 0 then
-				adminDetailCode := 9;
+			elsif (adminDiagnosticsBuild = 0) |
+			      (adminDiagnosticsBuild <> LMC_ADMIN_DIAGNOSTICS_BUILD) then
+				adminDetailCode := 16;
+			elsif adminCurrentBootId = 0 then
+				adminDetailCode := 17;
+			elsif (adminMapRevision = 0) |
+			      (adminMapRevision <> LMC_ADMIN_MAP_REVISION) then
+				adminDetailCode := 18;
+			elsif (OwnershipState[0]$UDINT <> LMC_OWNER_TABLE_MAGIC) |
+			      (OwnershipState[3]$UDINT = 0) then
+				adminDetailCode := 24;
+			elsif adminCurrentBootId <> OwnershipState[3]$UDINT then
+				adminDetailCode := 17;
 			elsif adminBootId = 0 then
-				adminDetailCode := 9;
-			elsif adminMapRevision = 0 then
-				adminDetailCode := 9;
-			elsif (adminClientIntentId0 = 0) &
-			      (adminClientIntentId1 = 0) &
-			      (adminClientIntentId2 = 0) &
-			      (adminClientIntentId3 = 0) then
-				adminDetailCode := 9;
-			elsif adminExecuteToken <> 0x50544553 then
-				adminDetailCode := 9;
+				adminDetailCode := 17;
+			elsif (adminOriginalRequestId = 0) |
+			      ((adminClientIntentId0 = 0) &
+			       (adminClientIntentId1 = 0) &
+			       (adminClientIntentId2 = 0) &
+			       (adminClientIntentId3 = 0)) |
+			      ((CommandId = 0x7D1A) &
+			       (adminRecordGeneration = 0)) then
+				adminDetailCode := 22;
+			elsif LMC_ADMIN_SET_POSITION_STORE_CONFIGURED = FALSE then
+				adminDetailCode := 24;
+			elsif IsClientConnected(#SetPositionStore) <> 1 then
+				adminDetailCode := 24;
 			else
-				// Activation requires an authoritative jump and task policy.
-				adminDetailCode := 10;
+				// Reserve the full success frame before any store access.
+				if ResponseCapacity < 92 then
+					RETURN;
+				end_if;
+				adminSetPositionKey[0]$UINT := 1;
+				adminSetPositionKey[2]$UINT := 1;
+				adminSetPositionKey[4]$UDINT := adminDiagnosticsBuild;
+				adminSetPositionKey[8]$UDINT := adminBootId;
+				adminSetPositionKey[12]$UDINT := adminMapRevision;
+				adminSetPositionKey[16]$UDINT := adminOriginalRequestId;
+				adminSetPositionKey[20]$UDINT := adminClientIntentId0;
+				adminSetPositionKey[24]$UDINT := adminClientIntentId1;
+				adminSetPositionKey[28]$UDINT := adminClientIntentId2;
+				adminSetPositionKey[32]$UDINT := adminClientIntentId3;
+				adminSetPositionKey[36]$UINT := Reference;
+				adminSetPositionKey[38]$UINT := 0;
+				adminSetPositionKey[40]$DINT := adminAxisPosition;
+				adminSetPositionKey[44]$DINT :=
+					adminExpectedActualPosition;
+
+				if CommandId = 0x7D14 then
+					adminStoreResult :=
+						SetPositionStore.ReadSetPositionOutcome(
+							pKey:=#adminSetPositionKey[0], KeySize:=48,
+							pSnapshot:=#adminSetPositionSnapshot[0],
+							SnapshotCapacity:=68,
+							pDetailCode:=#adminStoreDetailCode);
+				else
+					adminStoreResult :=
+						SetPositionStore.RetireSetPositionOutcome(
+							pKey:=#adminSetPositionKey[0], KeySize:=48,
+							ExpectedRecordGeneration:=
+								adminRecordGeneration,
+							pSnapshot:=#adminSetPositionSnapshot[0],
+							SnapshotCapacity:=68,
+							pDetailCode:=#adminStoreDetailCode);
+				end_if;
+
+				if adminStoreResult = 1 then
+					adminStoreRecordGeneration :=
+						adminSetPositionSnapshot[64]$UDINT;
+					adminStoreSnapshotValid :=
+						(adminStoreDetailCode = 0) &
+						(adminStoreRecordGeneration <> 0) &
+						(adminSetPositionSnapshot[2]$UINT = 1) &
+						(adminSetPositionSnapshot[4]$UDINT =
+						 adminDiagnosticsBuild) &
+						(adminSetPositionSnapshot[8]$UDINT = adminBootId) &
+						(adminSetPositionSnapshot[12]$UDINT =
+						 adminMapRevision) &
+						(adminSetPositionSnapshot[16]$UDINT =
+						 adminOriginalRequestId) &
+						(adminSetPositionSnapshot[20]$UDINT =
+						 adminClientIntentId0) &
+						(adminSetPositionSnapshot[24]$UDINT =
+						 adminClientIntentId1) &
+						(adminSetPositionSnapshot[28]$UDINT =
+						 adminClientIntentId2) &
+						(adminSetPositionSnapshot[32]$UDINT =
+						 adminClientIntentId3) &
+						(adminSetPositionSnapshot[36]$UINT = Reference) &
+						(adminSetPositionSnapshot[38]$UINT = 0) &
+						(adminSetPositionSnapshot[40]$DINT =
+						 adminAxisPosition) &
+						(adminSetPositionSnapshot[44]$DINT =
+						 adminExpectedActualPosition) &
+						(((adminSetPositionSnapshot[0]$UINT = 2) &
+						  (adminSetPositionSnapshot[48]$DINT =
+						   adminAxisPosition) &
+						  (adminSetPositionSnapshot[52]$UINT = 0) &
+						  (adminSetPositionSnapshot[54]$INT = 0) &
+						  (adminSetPositionSnapshot[56]$UDINT = 0) &
+						  (adminSetPositionSnapshot[60]$UDINT = 0)) |
+						 ((adminSetPositionSnapshot[0]$UINT = 3) &
+						  (adminSetPositionSnapshot[48]$DINT = 0) &
+						  (adminSetPositionSnapshot[52]$UINT = 1) &
+						  (((adminSetPositionSnapshot[56]$UDINT = 11) &
+						    (adminSetPositionSnapshot[54]$INT = -6) &
+						    (adminSetPositionSnapshot[60]$UDINT <> 0)) |
+						   ((((adminSetPositionSnapshot[56]$UDINT = 10) |
+						      ((adminSetPositionSnapshot[56]$UDINT >= 12) &
+						       (adminSetPositionSnapshot[56]$UDINT <= 15))) &
+						     (adminSetPositionSnapshot[54]$INT = -31000) &
+						     (adminSetPositionSnapshot[60]$UDINT = 0))))));
+					if (CommandId = 0x7D1A) &
+					   (adminStoreRecordGeneration <>
+					    adminRecordGeneration) then
+						adminStoreSnapshotValid := FALSE;
+					end_if;
+					if adminStoreSnapshotValid = FALSE then
+						RETURN;
+					end_if;
+
+					_memset(dest:=pResponseFrame, usByte:=0, cntr:=92);
+					pResponseFrame^$UINT := 0;
+					(pResponseFrame + 2)^$UINT := 84;
+					(pResponseFrame + 4)^$UDINT := 0;
+					(pResponseFrame + 8)^$UINT := 1;
+					(pResponseFrame + 10)^$UINT := 0;
+					(pResponseFrame + 12)^$UINT := 0;
+					(pResponseFrame + 14)^$INT := 0;
+					(pResponseFrame + 16)^$UDINT := adminRequestId;
+					(pResponseFrame + 20)^$UDINT := 0;
+					_memcpy(ptr1:=pResponseFrame + 24,
+					        ptr2:=#adminSetPositionSnapshot[0], cntr:=68);
+					ResponseSize := 92;
+					RETURN;
+				elsif adminStoreResult = 0 then
+					if (adminStoreDetailCode = 19) |
+					   (adminStoreDetailCode = 20) |
+					   (adminStoreDetailCode = 21) |
+					   (adminStoreDetailCode = 22) |
+					   (adminStoreDetailCode = 24) then
+						adminDetailCode := adminStoreDetailCode;
+					else
+						RETURN;
+					end_if;
+				else
+					RETURN;
+				end_if;
 			end_if;
 
-			_memset(dest:=pResponseFrame, usByte:=0, cntr:=36);
+			_memset(dest:=pResponseFrame, usByte:=0, cntr:=24);
 			pResponseFrame^$UINT := 0;
-			(pResponseFrame + 2)^$UINT := 28;
+			(pResponseFrame + 2)^$UINT := 16;
 			(pResponseFrame + 4)^$UDINT := 0;
 			(pResponseFrame + 8)^$UINT := 1;
 			(pResponseFrame + 10)^$UINT := 0;
 			(pResponseFrame + 12)^$UINT := 1;
-			(pResponseFrame + 14)^$INT := adminErrorId;
+			(pResponseFrame + 14)^$INT := -31000;
 			(pResponseFrame + 16)^$UDINT := adminRequestId;
 			(pResponseFrame + 20)^$UDINT := adminDetailCode;
-			(pResponseFrame + 24)^$DINT := adminAppliedPosition;
-			(pResponseFrame + 28)^$UINT := 1;
-			(pResponseFrame + 30)^$UINT := 0;
-			(pResponseFrame + 32)^$UDINT := 0;
-			ResponseSize := 36;
+			ResponseSize := 24;
 
 		0x7D13, 0x7D18, 0x7D19:
 			ResponseSize := HandleAxisZeroHomeCommands(
@@ -11867,6 +12042,15 @@ FUNCTION GLOBAL LMCControlCommandService::ValidateAxisOwnershipIdentity
 				(AdmissionMode = LMC_OWNER_ADMISSION_ORDINARY) &
 				(referenceAxisMask <> 0) &
 				(ExpectedAxisMask = referenceAxisMask);
+		0x7D12:
+			tupleValid :=
+				(IdentitySize = 48) &
+				(OwnerKind = LMC_OWNER_KIND_DIRECT) &
+				(ResourceKind = LMC_OWNER_RESOURCE_AXIS) &
+				(AdmissionMode = LMC_OWNER_ADMISSION_ORDINARY) &
+				(referenceAxisMask <> 0) &
+				(referenceAxisMask <= 0x00000008) &
+				(ExpectedAxisMask = referenceAxisMask);
 		0x2047, 0x20A4, 0x7D22:
 			tupleValid :=
 				(OwnerKind = LMC_OWNER_KIND_GROUP) &
@@ -12501,6 +12685,15 @@ FUNCTION GLOBAL LMCControlCommandService::CopyAxisOwnershipPreemption
 				(oldResourceKind = LMC_OWNER_RESOURCE_AXIS) &
 				(oldAdmissionMode = LMC_OWNER_ADMISSION_ORDINARY) &
 				(referenceAxisMask <> 0) &
+				(oldAxisMask = referenceAxisMask);
+		0x7D12:
+			identityExpectedSize := 48;
+			identityMetadataValid :=
+				(oldOwnerKind = LMC_OWNER_KIND_DIRECT) &
+				(oldResourceKind = LMC_OWNER_RESOURCE_AXIS) &
+				(oldAdmissionMode = LMC_OWNER_ADMISSION_ORDINARY) &
+				(referenceAxisMask <> 0) &
+				(referenceAxisMask <= 0x00000008) &
 				(oldAxisMask = referenceAxisMask);
 		0x2047:
 			identityExpectedSize := 1;
@@ -15418,6 +15611,8 @@ FUNCTION LMCControlCommandService::ValidateAxisOwnershipRollbackPreemptBank
 				identityExpectedSize := 104;
 			elsif snapshotCommand = 0x20E7 then
 				identityExpectedSize := 1320;
+			elsif snapshotCommand = 0x7D12 then
+				identityExpectedSize := 48;
 			elsif snapshotCommand = 0x7D13 then
 				identityExpectedSize := 56;
 			elsif (snapshotCommand = 0x7D15) |
@@ -15467,6 +15662,12 @@ FUNCTION LMCControlCommandService::ValidateAxisOwnershipRollbackPreemptBank
 						snapshotTupleValid := snapshotTupleValid &
 							(snapshotAdmissionMode =
 							 LMC_OWNER_ADMISSION_ORDINARY);
+					elsif snapshotCommand = 0x7D12 then
+						snapshotTupleValid := snapshotTupleValid &
+							(snapshotAdmissionMode =
+							 LMC_OWNER_ADMISSION_ORDINARY) &
+							(probeAxisBit <= 0x00000008) &
+							(snapshotMask = probeAxisBit);
 					else
 						snapshotTupleValid := FALSE;
 					end_if;
@@ -16895,5 +17096,561 @@ FUNCTION LMCControlCommandService::PrepareAxisOwnershipPublishDecision
 	if restoreLease then
 		Result += 4;
 	end_if;
+
+END_FUNCTION
+
+
+FUNCTION LMCControlCommandService::HandleAdminSetPosition
+	VAR_INPUT
+		Reference 	: UINT;
+		pRequestFrame 	: ^USINT;
+		RequestFrameSize 	: UDINT;
+		pResponseFrame 	: ^USINT;
+		ResponseCapacity 	: UDINT;
+	END_VAR
+	VAR_OUTPUT
+
+		ResponseSize 	: DINT;
+	END_VAR
+	VAR
+		adminSchemaVersion : UINT;
+		adminRequestFlags : UINT;
+		adminRequestId : UDINT;
+		adminDiagnosticsBuild : UDINT;
+		adminBootId : UDINT;
+		adminMapRevision : UDINT;
+		adminClientIntentId0 : UDINT;
+		adminClientIntentId1 : UDINT;
+		adminClientIntentId2 : UDINT;
+		adminClientIntentId3 : UDINT;
+		adminDetailCode : UDINT;
+		adminAxisPosition : DINT;
+		adminExpectedActualPosition : DINT;
+		adminExecuteToken : UDINT;
+		adminAppliedPosition : DINT;
+		adminErrorId : INT;
+		adminSetPositionKey : ARRAY [0..47] OF USINT;
+		adminSetPositionSnapshot : ARRAY [0..67] OF USINT;
+		adminStoreResult : DINT;
+		adminStoreRecordGeneration : UDINT;
+		adminStoreDetailCode : UDINT;
+		adminSetPositionCommandStatus : UINT;
+		adminSetPositionNativeCommandState : UDINT;
+		adminStoreSnapshotValid : BOOL;
+		adminSetPositionMaxJump : UDINT;
+		adminActualPosition : DINT;
+		adminSoftwareLimitMin : DINT;
+		adminSoftwareLimitMax : DINT;
+		adminTargetOrder : UDINT;
+		adminActualOrder : UDINT;
+		adminPositionJump : UDINT;
+		adminOwnerAxisMask : UDINT;
+		adminOwnerEffectiveAxisMask : UDINT;
+		adminOwnerAdmissionToken : UDINT;
+		adminOwnerGeneration : UDINT;
+		adminOwnerSession : UDINT;
+		adminOwnerSequence : UDINT;
+		adminOwnerReserveResult : DINT;
+		adminOwnerRollbackResult : DINT;
+		adminAxisClientConnected : BOOL;
+		adminOwnerAcquired : BOOL;
+	END_VAR
+
+	ResponseSize := -1;
+	if (pRequestFrame = NIL) | (pResponseFrame = NIL) |
+	   (RequestFrameSize < 8) then
+		RETURN;
+	end_if;
+
+	// Dormant v1 parser. Native coordinate mutation is not activated.
+	if ResponseCapacity < 36 then
+		RETURN;
+	end_if;
+	adminSchemaVersion := 0;
+	adminRequestFlags := 0;
+	adminRequestId := 0;
+	adminDiagnosticsBuild := 0;
+	adminBootId := 0;
+	adminMapRevision := 0;
+	adminClientIntentId0 := 0;
+	adminClientIntentId1 := 0;
+	adminClientIntentId2 := 0;
+	adminClientIntentId3 := 0;
+	adminDetailCode := 0;
+	adminAxisPosition := 0;
+	adminExpectedActualPosition := 0;
+	adminExecuteToken := 0;
+	adminAppliedPosition := 0;
+	adminErrorId := -31000;
+	adminStoreResult := -1;
+	adminStoreRecordGeneration := 0;
+	adminStoreDetailCode := 0;
+	adminSetPositionCommandStatus := 1;
+	adminSetPositionNativeCommandState := 0;
+	adminStoreSnapshotValid := FALSE;
+	adminSetPositionMaxJump := 0;
+	adminActualPosition := 0;
+	adminSoftwareLimitMin := 0;
+	adminSoftwareLimitMax := 0;
+	adminTargetOrder := 0;
+	adminActualOrder := 0;
+	adminPositionJump := 0;
+	adminOwnerAxisMask := 0;
+	adminOwnerEffectiveAxisMask := 0;
+	adminOwnerAdmissionToken := 0;
+	adminOwnerGeneration := 0;
+	adminOwnerSession := 0;
+	adminOwnerSequence := 0;
+	adminOwnerReserveResult := -1;
+	adminOwnerRollbackResult := -1;
+	adminAxisClientConnected := FALSE;
+	adminOwnerAcquired := FALSE;
+	_memset(dest:=#adminSetPositionKey[0], usByte:=0, cntr:=48);
+	_memset(dest:=#adminSetPositionSnapshot[0], usByte:=0, cntr:=68);
+
+	if RequestFrameSize >= 16 then
+		adminSchemaVersion := (pRequestFrame + 8)^$UINT;
+		adminRequestFlags := (pRequestFrame + 10)^$UINT;
+		adminRequestId := (pRequestFrame + 12)^$UDINT;
+	end_if;
+	if RequestFrameSize >= 56 then
+		adminDiagnosticsBuild := (pRequestFrame + 16)^$UDINT;
+		adminBootId := (pRequestFrame + 20)^$UDINT;
+		adminMapRevision := (pRequestFrame + 24)^$UDINT;
+		adminClientIntentId0 := (pRequestFrame + 28)^$UDINT;
+		adminClientIntentId1 := (pRequestFrame + 32)^$UDINT;
+		adminClientIntentId2 := (pRequestFrame + 36)^$UDINT;
+		adminClientIntentId3 := (pRequestFrame + 40)^$UDINT;
+		adminAxisPosition := (pRequestFrame + 44)^$DINT;
+		adminExpectedActualPosition := (pRequestFrame + 48)^$DINT;
+		adminExecuteToken := (pRequestFrame + 52)^$UDINT;
+	end_if;
+
+	if RequestFrameSize <> 56 then
+		adminDetailCode := 5;
+	elsif (Reference < 1) | (Reference > 4) then
+		adminDetailCode := 4;
+	elsif adminSchemaVersion <> 1 then
+		adminDetailCode := 1;
+	elsif adminRequestFlags <> 0 then
+		adminDetailCode := 2;
+	elsif adminRequestId = 0 then
+		adminDetailCode := 3;
+	elsif adminDiagnosticsBuild = 0 then
+		adminDetailCode := 16;
+	elsif adminBootId = 0 then
+		adminDetailCode := 17;
+	elsif adminMapRevision = 0 then
+		adminDetailCode := 18;
+	elsif adminDiagnosticsBuild <> LMC_ADMIN_DIAGNOSTICS_BUILD then
+		adminDetailCode := 16;
+	elsif (OwnershipState[0]$UDINT = LMC_OWNER_TABLE_MAGIC) &
+	      (OwnershipState[3]$UDINT <> 0) &
+	      (adminBootId <> OwnershipState[3]$UDINT) then
+		adminDetailCode := 17;
+	elsif adminMapRevision <> LMC_ADMIN_MAP_REVISION then
+		adminDetailCode := 18;
+	elsif (adminClientIntentId0 = 0) &
+	      (adminClientIntentId1 = 0) &
+	      (adminClientIntentId2 = 0) &
+	      (adminClientIntentId3 = 0) then
+		adminDetailCode := 9;
+	elsif adminExecuteToken <> 0x50544553 then
+		adminDetailCode := 9;
+	elsif (OwnershipState[0]$UDINT <> LMC_OWNER_TABLE_MAGIC) |
+	      (OwnershipState[3]$UDINT = 0) then
+		adminDetailCode := 24;
+	elsif LMC_ADMIN_SET_POSITION_STORE_CONFIGURED = FALSE then
+		adminDetailCode := 24;
+	elsif IsClientConnected(#SetPositionStore) <> 1 then
+		adminDetailCode := 24;
+	else
+		// Normalize the durable key. Native SetPosition remains disabled.
+		adminSetPositionKey[0]$UINT := 1;
+		adminSetPositionKey[2]$UINT := 1;
+		adminSetPositionKey[4]$UDINT := adminDiagnosticsBuild;
+		adminSetPositionKey[8]$UDINT := adminBootId;
+		adminSetPositionKey[12]$UDINT := adminMapRevision;
+		adminSetPositionKey[16]$UDINT := adminRequestId;
+		adminSetPositionKey[20]$UDINT := adminClientIntentId0;
+		adminSetPositionKey[24]$UDINT := adminClientIntentId1;
+		adminSetPositionKey[28]$UDINT := adminClientIntentId2;
+		adminSetPositionKey[32]$UDINT := adminClientIntentId3;
+		adminSetPositionKey[36]$UINT := Reference;
+		adminSetPositionKey[38]$UINT := 0;
+		adminSetPositionKey[40]$DINT := adminAxisPosition;
+		adminSetPositionKey[44]$DINT :=
+			adminExpectedActualPosition;
+
+		adminStoreResult := SetPositionStore.BeginSetPosition(
+			pKey:=#adminSetPositionKey[0], KeySize:=48,
+			pSnapshot:=#adminSetPositionSnapshot[0],
+			SnapshotCapacity:=68,
+			pRecordGeneration:=#adminStoreRecordGeneration,
+			pDetailCode:=#adminStoreDetailCode);
+		if adminStoreResult = 2 then
+			adminStoreSnapshotValid :=
+				(adminStoreDetailCode = 0) &
+				(adminStoreRecordGeneration <> 0) &
+				(adminSetPositionSnapshot[2]$UINT = 1) &
+				(adminSetPositionSnapshot[4]$UDINT =
+				 adminDiagnosticsBuild) &
+				(adminSetPositionSnapshot[8]$UDINT = adminBootId) &
+				(adminSetPositionSnapshot[12]$UDINT =
+				 adminMapRevision) &
+				(adminSetPositionSnapshot[16]$UDINT =
+				 adminRequestId) &
+				(adminSetPositionSnapshot[20]$UDINT =
+				 adminClientIntentId0) &
+				(adminSetPositionSnapshot[24]$UDINT =
+				 adminClientIntentId1) &
+				(adminSetPositionSnapshot[28]$UDINT =
+				 adminClientIntentId2) &
+				(adminSetPositionSnapshot[32]$UDINT =
+				 adminClientIntentId3) &
+				(adminSetPositionSnapshot[36]$UINT = Reference) &
+				(adminSetPositionSnapshot[38]$UINT = 0) &
+				(adminSetPositionSnapshot[40]$DINT =
+				 adminAxisPosition) &
+				(adminSetPositionSnapshot[44]$DINT =
+				 adminExpectedActualPosition) &
+				(adminSetPositionSnapshot[64]$UDINT =
+				 adminStoreRecordGeneration) &
+				(((adminSetPositionSnapshot[0]$UINT = 2) &
+				  (adminSetPositionSnapshot[48]$DINT =
+				   adminAxisPosition) &
+				  (adminSetPositionSnapshot[52]$UINT = 0) &
+				  (adminSetPositionSnapshot[54]$INT = 0) &
+				  (adminSetPositionSnapshot[56]$UDINT = 0) &
+				  (adminSetPositionSnapshot[60]$UDINT = 0)) |
+				 ((adminSetPositionSnapshot[0]$UINT = 3) &
+				  (adminSetPositionSnapshot[48]$DINT = 0) &
+				  (adminSetPositionSnapshot[52]$UINT = 1) &
+				  (((adminSetPositionSnapshot[56]$UDINT = 11) &
+				    (adminSetPositionSnapshot[54]$INT = -6) &
+				    (adminSetPositionSnapshot[60]$UDINT <> 0)) |
+				   ((((adminSetPositionSnapshot[56]$UDINT = 10) |
+				      ((adminSetPositionSnapshot[56]$UDINT >= 12) &
+				       (adminSetPositionSnapshot[56]$UDINT <= 15))) &
+				     (adminSetPositionSnapshot[54]$INT = -31000) &
+				     (adminSetPositionSnapshot[60]$UDINT = 0))))));
+			if adminStoreSnapshotValid = FALSE then
+				RETURN;
+			end_if;
+			adminSetPositionCommandStatus :=
+				adminSetPositionSnapshot[52]$UINT;
+			adminErrorId := adminSetPositionSnapshot[54]$INT;
+			adminDetailCode := adminSetPositionSnapshot[56]$UDINT;
+			adminAppliedPosition :=
+				adminSetPositionSnapshot[48]$DINT;
+			adminSetPositionNativeCommandState :=
+				adminSetPositionSnapshot[60]$UDINT;
+		elsif adminStoreResult = 1 then
+			if (adminStoreDetailCode <> 0) |
+			   (adminStoreRecordGeneration = 0) then
+				RETURN;
+			end_if;
+			adminDetailCode := 10;
+			case Reference of
+				1: adminOwnerAxisMask := 0x00000001;
+				2: adminOwnerAxisMask := 0x00000002;
+				3: adminOwnerAxisMask := 0x00000004;
+				4: adminOwnerAxisMask := 0x00000008;
+			else
+				adminOwnerAxisMask := 0;
+			end_case;
+			if (adminOwnerAxisMask <> 0) &
+			   (OwnershipState[16]$UDINT <> 0) &
+			   (OwnershipState[17]$UDINT <> 0) &
+			   (OwnershipState[18]$UDINT = 0) &
+			   (OwnershipState[19]$UDINT = 0) &
+			   (OwnershipState[20] = 0x7D12) &
+			   (OwnershipState[21] = TO_DINT(Reference)) then
+				adminOwnerSession := OwnershipState[16]$UDINT;
+				adminOwnerSequence := OwnershipState[17]$UDINT;
+				adminOwnerReserveResult := ReserveAxisOwnership(
+					CommandId:=0x7D12, Reference:=Reference,
+					RequestedAxisMask:=adminOwnerAxisMask,
+					OwnerKind:=LMC_OWNER_KIND_DIRECT,
+					ResourceKind:=LMC_OWNER_RESOURCE_AXIS,
+					AdmissionMode:=LMC_OWNER_ADMISSION_ORDINARY,
+					CallerSessionEpoch:=adminOwnerSession,
+					RequestSequence:=adminOwnerSequence,
+					pIdentity:=(pRequestFrame + 8)$^void,
+					IdentitySize:=48,
+					pEffectiveAxisMask:=#adminOwnerEffectiveAxisMask,
+					pAdmissionToken:=#adminOwnerAdmissionToken,
+					pOwnerGeneration:=#adminOwnerGeneration);
+				adminOwnerAcquired :=
+					(adminOwnerReserveResult = 0) &
+					(adminOwnerEffectiveAxisMask = adminOwnerAxisMask) &
+					(adminOwnerAdmissionToken <> 0) &
+					(adminOwnerGeneration <> 0);
+				if (adminOwnerAcquired = FALSE) &
+				   (adminOwnerReserveResult <> -2) then
+					OwnershipState[24] := 1;
+				end_if;
+			else
+				OwnershipState[24] := 1;
+			end_if;
+			if adminOwnerAcquired then
+			case Reference of
+				1:
+					adminSetPositionMaxJump :=
+						LMC_ADMIN_SET_POSITION_MAX_JUMP_AXIS1;
+				2:
+					adminSetPositionMaxJump :=
+						LMC_ADMIN_SET_POSITION_MAX_JUMP_AXIS2;
+				3:
+					adminSetPositionMaxJump :=
+						LMC_ADMIN_SET_POSITION_MAX_JUMP_AXIS3;
+				4:
+					adminSetPositionMaxJump :=
+						LMC_ADMIN_SET_POSITION_MAX_JUMP_AXIS4;
+			else
+				adminSetPositionMaxJump := 0;
+			end_case;
+
+			// Default zero is fail closed and performs no axis access.
+			if adminSetPositionMaxJump = 0 then
+				adminDetailCode := 14;
+			else
+				adminAxisClientConnected := FALSE;
+				case Reference of
+					1:
+						if IsClientConnected(#LMCAxis1) = 1 then
+							adminAxisClientConnected := TRUE;
+							adminActualPosition := LMCAxis1.ReadPosition(
+								Mode:=LMCAXIS_ACTPOS_APPUNIT);
+							adminSoftwareLimitMin := LMCAxis1.ReadSWEndPos(
+								Mode:=LMCAXIS_RD_SWMIN_APPUNIT);
+							adminSoftwareLimitMax := LMCAxis1.ReadSWEndPos(
+								Mode:=LMCAXIS_RD_SWMAX_APPUNIT);
+						end_if;
+					2:
+						if IsClientConnected(#LMCAxis2) = 1 then
+							adminAxisClientConnected := TRUE;
+							adminActualPosition := LMCAxis2.ReadPosition(
+								Mode:=LMCAXIS_ACTPOS_APPUNIT);
+							adminSoftwareLimitMin := LMCAxis2.ReadSWEndPos(
+								Mode:=LMCAXIS_RD_SWMIN_APPUNIT);
+							adminSoftwareLimitMax := LMCAxis2.ReadSWEndPos(
+								Mode:=LMCAXIS_RD_SWMAX_APPUNIT);
+						end_if;
+					3:
+						if IsClientConnected(#LMCAxis3) = 1 then
+							adminAxisClientConnected := TRUE;
+							adminActualPosition := LMCAxis3.ReadPosition(
+								Mode:=LMCAXIS_ACTPOS_APPUNIT);
+							adminSoftwareLimitMin := LMCAxis3.ReadSWEndPos(
+								Mode:=LMCAXIS_RD_SWMIN_APPUNIT);
+							adminSoftwareLimitMax := LMCAxis3.ReadSWEndPos(
+								Mode:=LMCAXIS_RD_SWMAX_APPUNIT);
+						end_if;
+					4:
+						if IsClientConnected(#LMCAxis4) = 1 then
+							adminAxisClientConnected := TRUE;
+							adminActualPosition := LMCAxis4.ReadPosition(
+								Mode:=LMCAXIS_ACTPOS_APPUNIT);
+							adminSoftwareLimitMin := LMCAxis4.ReadSWEndPos(
+								Mode:=LMCAXIS_RD_SWMIN_APPUNIT);
+							adminSoftwareLimitMax := LMCAxis4.ReadSWEndPos(
+								Mode:=LMCAXIS_RD_SWMAX_APPUNIT);
+						end_if;
+				else
+				end_case;
+
+				if adminAxisClientConnected = FALSE then
+					adminDetailCode := 14;
+				elsif adminSoftwareLimitMin >= adminSoftwareLimitMax then
+					adminDetailCode := 14;
+				elsif (adminActualPosition < adminSoftwareLimitMin) |
+				      (adminActualPosition > adminSoftwareLimitMax) |
+				      (adminAxisPosition < adminSoftwareLimitMin) |
+				      (adminAxisPosition > adminSoftwareLimitMax) then
+					adminDetailCode := 14;
+				elsif adminActualPosition <>
+				      adminExpectedActualPosition then
+					adminDetailCode := 15;
+				else
+					// Bias signed coordinates into monotonic unsigned order.
+					adminTargetOrder :=
+						adminAxisPosition$UDINT xor 0x80000000;
+					adminActualOrder :=
+						adminActualPosition$UDINT xor 0x80000000;
+					if adminTargetOrder >= adminActualOrder then
+						adminPositionJump :=
+							adminTargetOrder - adminActualOrder;
+					else
+						adminPositionJump :=
+							adminActualOrder - adminTargetOrder;
+					end_if;
+					if adminPositionJump > adminSetPositionMaxJump then
+						adminDetailCode := 15;
+					end_if;
+				end_if;
+			end_if;
+			end_if;
+			adminStoreDetailCode := 0;
+			adminStoreResult :=
+				SetPositionStore.CommitSetPositionTerminal(
+					pKey:=#adminSetPositionKey[0], KeySize:=48,
+					RecordGeneration:=adminStoreRecordGeneration,
+					RecordState:=3, AppliedPosition:=0,
+					OriginalCommandStatus:=1,
+					OriginalErrorId:=-31000,
+					OriginalDetailCode:=adminDetailCode,
+					NativeCommandState:=0,
+					pSnapshot:=#adminSetPositionSnapshot[0],
+					SnapshotCapacity:=68,
+					pDetailCode:=#adminStoreDetailCode);
+			if adminStoreResult = 1 then
+				adminStoreSnapshotValid :=
+					(adminStoreDetailCode = 0) &
+					(adminStoreRecordGeneration <> 0) &
+					(adminSetPositionSnapshot[0]$UINT = 3) &
+					(adminSetPositionSnapshot[2]$UINT = 1) &
+					(adminSetPositionSnapshot[4]$UDINT =
+					 adminDiagnosticsBuild) &
+					(adminSetPositionSnapshot[8]$UDINT = adminBootId) &
+					(adminSetPositionSnapshot[12]$UDINT =
+					 adminMapRevision) &
+					(adminSetPositionSnapshot[16]$UDINT =
+					 adminRequestId) &
+					(adminSetPositionSnapshot[20]$UDINT =
+					 adminClientIntentId0) &
+					(adminSetPositionSnapshot[24]$UDINT =
+					 adminClientIntentId1) &
+					(adminSetPositionSnapshot[28]$UDINT =
+					 adminClientIntentId2) &
+					(adminSetPositionSnapshot[32]$UDINT =
+					 adminClientIntentId3) &
+					(adminSetPositionSnapshot[36]$UINT = Reference) &
+					(adminSetPositionSnapshot[38]$UINT = 0) &
+					(adminSetPositionSnapshot[40]$DINT =
+					 adminAxisPosition) &
+					(adminSetPositionSnapshot[44]$DINT =
+					 adminExpectedActualPosition) &
+					(adminSetPositionSnapshot[48]$DINT = 0) &
+					(adminSetPositionSnapshot[52]$UINT = 1) &
+					(adminSetPositionSnapshot[54]$INT = -31000) &
+					(adminSetPositionSnapshot[56]$UDINT =
+					 adminDetailCode) &
+					(adminSetPositionSnapshot[60]$UDINT = 0) &
+					(adminSetPositionSnapshot[64]$UDINT =
+					 adminStoreRecordGeneration);
+			end_if;
+			if (adminStoreResult <> 1) |
+			   (adminStoreSnapshotValid = FALSE) then
+				ResponseSize :=
+					LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE;
+				RETURN;
+			end_if;
+			if adminOwnerAcquired then
+				adminOwnerRollbackResult := RollbackAxisOwnership(
+					AdmissionToken:=adminOwnerAdmissionToken,
+					OwnerGeneration:=adminOwnerGeneration,
+					CallerSessionEpoch:=adminOwnerSession,
+					RequestSequence:=adminOwnerSequence,
+					Reason:=0);
+				if adminOwnerRollbackResult <> 0 then
+					OwnershipState[24] := 1;
+				end_if;
+			end_if;
+			adminSetPositionCommandStatus := 1;
+			adminErrorId := -31000;
+			adminAppliedPosition := 0;
+			adminSetPositionNativeCommandState := 0;
+		elsif adminStoreResult = 0 then
+			if (adminStoreDetailCode = 20) |
+			   (adminStoreDetailCode = 21) |
+			   (adminStoreDetailCode = 23) |
+			   (adminStoreDetailCode = 24) then
+				adminDetailCode := adminStoreDetailCode;
+			else
+				RETURN;
+			end_if;
+		else
+			RETURN;
+		end_if;
+	end_if;
+
+	_memset(dest:=pResponseFrame, usByte:=0, cntr:=36);
+	pResponseFrame^$UINT := 0;
+	(pResponseFrame + 2)^$UINT := 28;
+	(pResponseFrame + 4)^$UDINT := 0;
+	(pResponseFrame + 8)^$UINT := 1;
+	(pResponseFrame + 10)^$UINT := 0;
+	(pResponseFrame + 12)^$UINT :=
+		adminSetPositionCommandStatus;
+	(pResponseFrame + 14)^$INT := adminErrorId;
+	(pResponseFrame + 16)^$UDINT := adminRequestId;
+	(pResponseFrame + 20)^$UDINT := adminDetailCode;
+	(pResponseFrame + 24)^$DINT := adminAppliedPosition;
+	(pResponseFrame + 28)^$UINT := 1;
+	(pResponseFrame + 30)^$UINT := 0;
+	(pResponseFrame + 32)^$UDINT :=
+		adminSetPositionNativeCommandState;
+	ResponseSize := 36;
+
+END_FUNCTION
+
+
+FUNCTION LMCControlCommandService::DispatchRequestCommand
+	VAR_INPUT
+		CommandId 	: UINT;
+		Reference 	: UINT;
+		pRequestFrame 	: ^USINT;
+		RequestFrameSize 	: UDINT;
+		pResponseFrame 	: ^USINT;
+		ResponseCapacity 	: UDINT;
+	END_VAR
+	VAR_OUTPUT
+		ResponseSize 	: DINT;
+	END_VAR
+
+	ResponseSize := -1;
+	if (pRequestFrame = NIL) |
+	   (pResponseFrame = NIL) |
+	   (RequestFrameSize < 8) then
+		RETURN;
+	end_if;
+	case CommandId of
+		0x103C, 0x1042, 0x202B:
+			ResponseSize := HandleRegistryCommands(
+				CommandId:=CommandId, Reference:=Reference,
+				pRequestFrame:=pRequestFrame, RequestFrameSize:=RequestFrameSize,
+				pResponseFrame:=pResponseFrame,
+				ResponseCapacity:=ResponseCapacity);
+		0x2023, 0x2024, 0x2022, 0x2028,
+		0x202E, 0x209F, 0x20A0, 0x20A2:
+			ResponseSize := HandleAxisCommands(
+				CommandId:=CommandId, Reference:=Reference,
+				pRequestFrame:=pRequestFrame, RequestFrameSize:=RequestFrameSize,
+				pResponseFrame:=pResponseFrame,
+				ResponseCapacity:=ResponseCapacity);
+		0x20D2, 0x2047, 0x2048, 0x2049, 0x204A, 0x204B,
+		0x2085, 0x20A4, 0x2045, 0x2051, 0x20E7:
+			ResponseSize := HandleGroupCommands(
+				CommandId:=CommandId, Reference:=Reference,
+				pRequestFrame:=pRequestFrame, RequestFrameSize:=RequestFrameSize,
+				pResponseFrame:=pResponseFrame,
+				ResponseCapacity:=ResponseCapacity);
+		0x7D12:
+			ResponseSize := HandleAdminSetPosition(
+				Reference:=Reference,
+				pRequestFrame:=pRequestFrame, RequestFrameSize:=RequestFrameSize,
+				pResponseFrame:=pResponseFrame,
+				ResponseCapacity:=ResponseCapacity);
+		0x7D00, 0x7D10, 0x7D14, 0x7D1A,
+		0x7D13, 0x7D18, 0x7D19, 0x7D20, 0x7D22:
+			ResponseSize := HandleAdminCommands(
+				CommandId:=CommandId, Reference:=Reference,
+				pRequestFrame:=pRequestFrame, RequestFrameSize:=RequestFrameSize,
+				pResponseFrame:=pResponseFrame,
+				ResponseCapacity:=ResponseCapacity);
+	else
+		ResponseSize := -1;
+	end_case;
 
 END_FUNCTION

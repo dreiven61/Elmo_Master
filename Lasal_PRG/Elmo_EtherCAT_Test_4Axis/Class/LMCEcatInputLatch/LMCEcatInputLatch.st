@@ -78,6 +78,12 @@ LMCEcatInputLatch : CLASS
 		Ds402HomeDispatchSequence 	: UDINT;
 		Ds402HomeDrainMailbox : ARRAY [0..7] OF DINT;
 
+		AxisSetPositionPreflightRequestSequence 	: UDINT;
+		AxisSetPositionPreflightAppliedSequence 	: UDINT;
+		AxisSetPositionPreflightMailbox : ARRAY [0..15] OF DINT;
+
+		AxisSetPositionPreflightResult : ARRAY [0..31] OF DINT;
+
   //Functions:
 	
 	FUNCTION VIRTUAL GLOBAL RtWork
@@ -183,6 +189,40 @@ LMCEcatInputLatch : CLASS
 		END_VAR
 		VAR_OUTPUT
 			Result 	: DINT;
+		END_VAR;
+	
+	FUNCTION GLOBAL SubmitAxisSetPositionPreflight
+		VAR_INPUT
+			OperationToken 	: UDINT;
+			OwnerGeneration 	: UDINT;
+			StoreRecordGeneration 	: UDINT;
+			CallerSessionEpoch 	: UDINT;
+			RequestSequence 	: UDINT;
+			AxisReference 	: DINT;
+			TargetPosition 	: DINT;
+			ExpectedActualPosition 	: DINT;
+			MaxJump 	: UDINT;
+			ExpectedAxisMask 	: UDINT;
+		END_VAR
+		VAR_OUTPUT
+			Result 	: DINT;
+		END_VAR;
+	
+	FUNCTION GLOBAL CopyAxisSetPositionPreflightResult
+		VAR_INPUT
+			OperationToken 	: UDINT;
+			OwnerGeneration 	: UDINT;
+			StoreRecordGeneration 	: UDINT;
+			pDest 	: ^void;
+			DestSize 	: UDINT;
+		END_VAR
+		VAR_OUTPUT
+			Result 	: DINT;
+		END_VAR;
+	
+	FUNCTION ProcessAxisSetPositionPreflightRt
+		VAR_INPUT
+			ObservationCycle 	: UDINT;
 		END_VAR;
   //Tables:
 	FUNCTION @STD
@@ -302,6 +342,37 @@ END_FUNCTION
 #define LMC_DS402_HOME_DRAIN_DISCARDED    -6
 #define LMC_DS402_HOME_DISPATCH_EXHAUSTED -7
 #define LMC_DS402_HOME_STARTUP_SWEEP_ENABLED FALSE
+
+#define LMC_SET_POSITION_PREFLIGHT_EMPTY       0
+#define LMC_SET_POSITION_PREFLIGHT_READY       1
+#define LMC_SET_POSITION_PREFLIGHT_REJECTED    2
+#define LMC_SET_POSITION_PREFLIGHT_CORRUPT     3
+#define LMC_SET_POSITION_PREFLIGHT_INVALID    -1
+#define LMC_SET_POSITION_PREFLIGHT_BUSY       -2
+#define LMC_SET_POSITION_PREFLIGHT_BAD_DATA   -3
+#define LMC_SET_POSITION_PREFLIGHT_CLIENT     -4
+#define LMC_SET_POSITION_PREFLIGHT_STATE      -5
+#define LMC_SET_POSITION_PREFLIGHT_CONFIG     -6
+#define LMC_SET_POSITION_PREFLIGHT_VELOCITY   -7
+#define LMC_SET_POSITION_PREFLIGHT_AXIS_ERROR -8
+#define LMC_SET_POSITION_PREFLIGHT_COORDINATE -9
+#define LMC_SET_POSITION_REQUIRED_STATUS       0x02000002
+#define LMC_SET_POSITION_FORBIDDEN_STATUS      0x1D2E0E01
+#define LMC_SET_POSITION_ERROR_STATUS          0x18000600
+#define LMC_SET_POSITION_CONFIG_STATUS         0x002C0000
+#define LMC_SET_POSITION_UNSAFE_STATUS         0x05020801
+#define LMC_SET_POSITION_MODULO_STATUS         0x00010000
+#define LMC_SET_POSITION_EVIDENCE_IDENTITY     0x00000001
+#define LMC_SET_POSITION_EVIDENCE_AXIS_MASK    0x00000002
+#define LMC_SET_POSITION_EVIDENCE_CLIENT       0x00000004
+#define LMC_SET_POSITION_EVIDENCE_STATUS_ERROR 0x00000008
+#define LMC_SET_POSITION_EVIDENCE_PARAMETER    0x00000010
+#define LMC_SET_POSITION_EVIDENCE_VELOCITY     0x00000020
+#define LMC_SET_POSITION_EVIDENCE_LIMITS       0x00000040
+#define LMC_SET_POSITION_EVIDENCE_CAS          0x00000080
+#define LMC_SET_POSITION_EVIDENCE_JUMP         0x00000100
+#define LMC_SET_POSITION_EVIDENCE_READY        0x00000200
+#define LMC_SET_POSITION_EVIDENCE_ACTIVATION_OFF 0x80000000
 
 
 FUNCTION VIRTUAL GLOBAL LMCEcatInputLatch::RtWork
@@ -1504,15 +1575,15 @@ FUNCTION VIRTUAL GLOBAL LMCEcatInputLatch::RtWork
 		pValue:=#Ds402HomeAppliedSequence);
 	homeHasRequest := homeRequestSequence <> homeAppliedSequence;
 
-	// The legacy recorder prefix remains 304 bytes. The coherent topology and
-	// I/O reader uses the extended 464-byte scalar snapshot.
+	// Preserve the 304-byte prefix and 464-byte extension.
+	cycleCounter := SnapshotBytes[0]$UDINT + 1;
+	ProcessAxisSetPositionPreflightRt(ObservationCycle:=cycleCounter);
 	writeSequence := sigclib_atomic_getU32(pValue:=#PublishSequence) + 1;
 	if (writeSequence and 1) = 0 then
 		writeSequence += 1;
 	end_if;
 	sigclib_atomic_setU32(pValue:=#PublishSequence, value:=writeSequence);
 
-	cycleCounter := SnapshotBytes[0]$UDINT + 1;
 	timestampLow := OS_READMICROSEC();
 	previousTimestampLow := SnapshotBytes[4]$UDINT;
 	timestampHigh := SnapshotBytes[8]$UDINT;
@@ -3046,5 +3117,697 @@ FUNCTION GLOBAL LMCEcatInputLatch::RequestDs402HomeSafetyDrain
 		pValue:=#Ds402HomeDrainRequestSequence,
 		value:=nextRequestSequence);
 	Result := 1;
+
+END_FUNCTION
+
+
+FUNCTION GLOBAL LMCEcatInputLatch::SubmitAxisSetPositionPreflight
+	VAR_INPUT
+		OperationToken 	: UDINT;
+		OwnerGeneration 	: UDINT;
+		StoreRecordGeneration 	: UDINT;
+		CallerSessionEpoch 	: UDINT;
+		RequestSequence 	: UDINT;
+		AxisReference 	: DINT;
+		TargetPosition 	: DINT;
+		ExpectedActualPosition 	: DINT;
+		MaxJump 	: UDINT;
+		ExpectedAxisMask 	: UDINT;
+	END_VAR
+	VAR_OUTPUT
+		Result 	: DINT;
+	END_VAR
+	VAR
+		requestSequenceBefore : UDINT;
+		requestSequenceAfter : UDINT;
+		appliedSequenceBefore : UDINT;
+		appliedSequenceAfter : UDINT;
+		nextRequestSequence : UDINT;
+		expectedAxisMaskValue : UDINT;
+		initialIndex : UINT;
+		pendingExact : BOOL;
+		previousCoherent : BOOL;
+		previousTripleExact : BOOL;
+		previousTupleExact : BOOL;
+		initialMailboxZero : BOOL;
+		initialResultZero : BOOL;
+	END_VAR
+
+	Result := LMC_SET_POSITION_PREFLIGHT_INVALID;
+	expectedAxisMaskValue := 0;
+	case AxisReference of
+		1: expectedAxisMaskValue := 0x00000001;
+		2: expectedAxisMaskValue := 0x00000002;
+		3: expectedAxisMaskValue := 0x00000004;
+		4: expectedAxisMaskValue := 0x00000008;
+	else
+	end_case;
+	if (OperationToken = 0) | (OwnerGeneration = 0) |
+		(StoreRecordGeneration = 0) | (CallerSessionEpoch = 0) |
+		(RequestSequence = 0) | (expectedAxisMaskValue = 0) |
+		(ExpectedAxisMask <> expectedAxisMaskValue) then
+		RETURN;
+	end_if;
+
+	requestSequenceBefore := sigclib_atomic_getU32(
+		pValue:=#AxisSetPositionPreflightRequestSequence);
+	appliedSequenceBefore := sigclib_atomic_getU32(
+		pValue:=#AxisSetPositionPreflightAppliedSequence);
+
+	if requestSequenceBefore <> appliedSequenceBefore then
+		pendingExact :=
+			(AxisSetPositionPreflightMailbox[0]$UDINT = OperationToken) &
+			(AxisSetPositionPreflightMailbox[1]$UDINT = OwnerGeneration) &
+			(AxisSetPositionPreflightMailbox[2]$UDINT = StoreRecordGeneration) &
+			(AxisSetPositionPreflightMailbox[3]$UDINT = CallerSessionEpoch) &
+			(AxisSetPositionPreflightMailbox[4]$UDINT = RequestSequence) &
+			(AxisSetPositionPreflightMailbox[5] = AxisReference) &
+			(AxisSetPositionPreflightMailbox[6] = TargetPosition) &
+			(AxisSetPositionPreflightMailbox[7] = ExpectedActualPosition) &
+			(AxisSetPositionPreflightMailbox[8]$UDINT = MaxJump) &
+			(AxisSetPositionPreflightMailbox[9]$UDINT = ExpectedAxisMask) &
+			(AxisSetPositionPreflightMailbox[10]$UDINT = requestSequenceBefore) &
+			(AxisSetPositionPreflightMailbox[11] = 0) &
+			(AxisSetPositionPreflightMailbox[12] = 0) &
+			(AxisSetPositionPreflightMailbox[13] = 0) &
+			(AxisSetPositionPreflightMailbox[14] = 0) &
+			(AxisSetPositionPreflightMailbox[15] = 0);
+		if pendingExact then
+			Result := 1;
+		else
+			Result := LMC_SET_POSITION_PREFLIGHT_BUSY;
+		end_if;
+		RETURN;
+	end_if;
+
+	previousCoherent := FALSE;
+	previousTripleExact := FALSE;
+	previousTupleExact := FALSE;
+	initialMailboxZero := TRUE;
+	initialResultZero := TRUE;
+	if appliedSequenceBefore = 0 then
+		for initialIndex := 0 to 15 do
+			if AxisSetPositionPreflightMailbox[initialIndex] <> 0 then
+				initialMailboxZero := FALSE;
+			end_if;
+		end_for;
+		for initialIndex := 0 to 31 do
+			if AxisSetPositionPreflightResult[initialIndex] <> 0 then
+				initialResultZero := FALSE;
+			end_if;
+		end_for;
+		previousCoherent := initialMailboxZero & initialResultZero;
+	else
+		previousCoherent :=
+			(AxisSetPositionPreflightMailbox[10]$UDINT = appliedSequenceBefore) &
+			(AxisSetPositionPreflightMailbox[11] = 0) &
+			(AxisSetPositionPreflightMailbox[12] = 0) &
+			(AxisSetPositionPreflightMailbox[13] = 0) &
+			(AxisSetPositionPreflightMailbox[14] = 0) &
+			(AxisSetPositionPreflightMailbox[15] = 0) &
+			(AxisSetPositionPreflightResult[0] = AxisSetPositionPreflightMailbox[0]) &
+			(AxisSetPositionPreflightResult[1] = AxisSetPositionPreflightMailbox[1]) &
+			(AxisSetPositionPreflightResult[2] = AxisSetPositionPreflightMailbox[2]) &
+			(AxisSetPositionPreflightResult[3] = AxisSetPositionPreflightMailbox[3]) &
+			(AxisSetPositionPreflightResult[4] = AxisSetPositionPreflightMailbox[4]) &
+			(AxisSetPositionPreflightResult[5] = AxisSetPositionPreflightMailbox[5]) &
+			(AxisSetPositionPreflightResult[6] = AxisSetPositionPreflightMailbox[6]) &
+			(AxisSetPositionPreflightResult[7] = AxisSetPositionPreflightMailbox[7]) &
+			(AxisSetPositionPreflightResult[8] = AxisSetPositionPreflightMailbox[8]) &
+			(AxisSetPositionPreflightResult[9] = AxisSetPositionPreflightMailbox[9]) &
+			(AxisSetPositionPreflightResult[10]$UDINT = appliedSequenceBefore) &
+			((AxisSetPositionPreflightResult[11] =
+			  LMC_SET_POSITION_PREFLIGHT_READY) |
+			 (AxisSetPositionPreflightResult[11] =
+			  LMC_SET_POSITION_PREFLIGHT_REJECTED)) &
+			(AxisSetPositionPreflightResult[29] = 0) &
+			(AxisSetPositionPreflightResult[30] = 0) &
+			(AxisSetPositionPreflightResult[31] = 0);
+		previousTripleExact :=
+			(AxisSetPositionPreflightResult[0]$UDINT = OperationToken) &
+			(AxisSetPositionPreflightResult[1]$UDINT = OwnerGeneration) &
+			(AxisSetPositionPreflightResult[2]$UDINT = StoreRecordGeneration);
+		previousTupleExact := previousTripleExact &
+			(AxisSetPositionPreflightResult[3]$UDINT = CallerSessionEpoch) &
+			(AxisSetPositionPreflightResult[4]$UDINT = RequestSequence) &
+			(AxisSetPositionPreflightResult[5] = AxisReference) &
+			(AxisSetPositionPreflightResult[6] = TargetPosition) &
+			(AxisSetPositionPreflightResult[7] = ExpectedActualPosition) &
+			(AxisSetPositionPreflightResult[8]$UDINT = MaxJump) &
+			(AxisSetPositionPreflightResult[9]$UDINT = ExpectedAxisMask);
+	end_if;
+
+	if previousCoherent = FALSE then
+		Result := LMC_SET_POSITION_PREFLIGHT_BAD_DATA;
+		RETURN;
+	end_if;
+	if previousTripleExact then
+		if previousTupleExact then
+			Result := 0;
+		else
+			Result := LMC_SET_POSITION_PREFLIGHT_BAD_DATA;
+		end_if;
+		RETURN;
+	end_if;
+	nextRequestSequence := requestSequenceBefore + 1;
+	if nextRequestSequence = 0 then
+		nextRequestSequence := 1;
+	end_if;
+	requestSequenceAfter := sigclib_atomic_getU32(
+		pValue:=#AxisSetPositionPreflightRequestSequence);
+	appliedSequenceAfter := sigclib_atomic_getU32(
+		pValue:=#AxisSetPositionPreflightAppliedSequence);
+	if (requestSequenceAfter <> requestSequenceBefore) |
+		(appliedSequenceAfter <> appliedSequenceBefore) then
+		Result := LMC_SET_POSITION_PREFLIGHT_BUSY;
+		RETURN;
+	end_if;
+
+	AxisSetPositionPreflightMailbox[0]$UDINT := OperationToken;
+	AxisSetPositionPreflightMailbox[1]$UDINT := OwnerGeneration;
+	AxisSetPositionPreflightMailbox[2]$UDINT := StoreRecordGeneration;
+	AxisSetPositionPreflightMailbox[3]$UDINT := CallerSessionEpoch;
+	AxisSetPositionPreflightMailbox[4]$UDINT := RequestSequence;
+	AxisSetPositionPreflightMailbox[5] := AxisReference;
+	AxisSetPositionPreflightMailbox[6] := TargetPosition;
+	AxisSetPositionPreflightMailbox[7] := ExpectedActualPosition;
+	AxisSetPositionPreflightMailbox[8]$UDINT := MaxJump;
+	AxisSetPositionPreflightMailbox[9]$UDINT := ExpectedAxisMask;
+	AxisSetPositionPreflightMailbox[10]$UDINT := nextRequestSequence;
+	AxisSetPositionPreflightMailbox[11] := 0;
+	AxisSetPositionPreflightMailbox[12] := 0;
+	AxisSetPositionPreflightMailbox[13] := 0;
+	AxisSetPositionPreflightMailbox[14] := 0;
+	AxisSetPositionPreflightMailbox[15] := 0;
+	sigclib_atomic_setU32(
+		pValue:=#AxisSetPositionPreflightRequestSequence,
+		value:=nextRequestSequence);
+	Result := 1;
+
+END_FUNCTION
+
+
+FUNCTION GLOBAL LMCEcatInputLatch::CopyAxisSetPositionPreflightResult
+	VAR_INPUT
+		OperationToken 	: UDINT;
+		OwnerGeneration 	: UDINT;
+		StoreRecordGeneration 	: UDINT;
+		pDest 	: ^void;
+		DestSize 	: UDINT;
+	END_VAR
+	VAR_OUTPUT
+		Result 	: DINT;
+	END_VAR
+	VAR
+		retryCount : UINT;
+		requestSequenceBefore : UDINT;
+		requestSequenceAfter : UDINT;
+		appliedSequenceBefore : UDINT;
+		appliedSequenceAfter : UDINT;
+	END_VAR
+
+	Result := LMC_SET_POSITION_PREFLIGHT_INVALID;
+	if (OperationToken = 0) | (OwnerGeneration = 0) |
+		(StoreRecordGeneration = 0) | (pDest = NIL) | (DestSize <> 128) then
+		RETURN;
+	end_if;
+
+	retryCount := 0;
+	while retryCount < 3 do
+		requestSequenceBefore := sigclib_atomic_getU32(
+			pValue:=#AxisSetPositionPreflightRequestSequence);
+		appliedSequenceBefore := sigclib_atomic_getU32(
+			pValue:=#AxisSetPositionPreflightAppliedSequence);
+
+		if requestSequenceBefore <> appliedSequenceBefore then
+			if (requestSequenceBefore <> 0) &
+				(AxisSetPositionPreflightMailbox[0]$UDINT = OperationToken) &
+				(AxisSetPositionPreflightMailbox[1]$UDINT = OwnerGeneration) &
+				(AxisSetPositionPreflightMailbox[2]$UDINT = StoreRecordGeneration) &
+				(AxisSetPositionPreflightMailbox[10]$UDINT = requestSequenceBefore) &
+				(AxisSetPositionPreflightMailbox[11] = 0) &
+				(AxisSetPositionPreflightMailbox[12] = 0) &
+				(AxisSetPositionPreflightMailbox[13] = 0) &
+				(AxisSetPositionPreflightMailbox[14] = 0) &
+				(AxisSetPositionPreflightMailbox[15] = 0) then
+				Result := 1;
+			else
+				Result := LMC_SET_POSITION_PREFLIGHT_BAD_DATA;
+			end_if;
+			RETURN;
+		end_if;
+		if appliedSequenceBefore = 0 then
+			Result := LMC_SET_POSITION_PREFLIGHT_BAD_DATA;
+			RETURN;
+		end_if;
+		if (AxisSetPositionPreflightResult[0]$UDINT <> OperationToken) |
+			(AxisSetPositionPreflightResult[1]$UDINT <> OwnerGeneration) |
+			(AxisSetPositionPreflightResult[2]$UDINT <> StoreRecordGeneration) |
+			(AxisSetPositionPreflightResult[10]$UDINT <> appliedSequenceBefore) |
+			((AxisSetPositionPreflightResult[11] <
+			  LMC_SET_POSITION_PREFLIGHT_READY) |
+			 (AxisSetPositionPreflightResult[11] >
+			  LMC_SET_POSITION_PREFLIGHT_CORRUPT)) |
+			(AxisSetPositionPreflightResult[29] <> 0) |
+			(AxisSetPositionPreflightResult[30] <> 0) |
+			(AxisSetPositionPreflightResult[31] <> 0) then
+			Result := LMC_SET_POSITION_PREFLIGHT_BAD_DATA;
+			RETURN;
+		end_if;
+
+		_memcpy(ptr1:=pDest, ptr2:=#AxisSetPositionPreflightResult[0],
+			cntr:=128);
+		requestSequenceAfter := sigclib_atomic_getU32(
+			pValue:=#AxisSetPositionPreflightRequestSequence);
+		appliedSequenceAfter := sigclib_atomic_getU32(
+			pValue:=#AxisSetPositionPreflightAppliedSequence);
+		if (requestSequenceBefore = requestSequenceAfter) &
+			(appliedSequenceBefore = appliedSequenceAfter) &
+			(requestSequenceAfter = appliedSequenceAfter) then
+			Result := 0;
+			RETURN;
+		end_if;
+		retryCount += 1;
+	end_while;
+
+	Result := 1;
+
+END_FUNCTION
+
+
+FUNCTION LMCEcatInputLatch::ProcessAxisSetPositionPreflightRt
+	VAR_INPUT
+		ObservationCycle 	: UDINT;
+	END_VAR
+	VAR
+		requestSequence : UDINT;
+		appliedSequence : UDINT;
+		operationToken : UDINT;
+		ownerGeneration : UDINT;
+		storeRecordGeneration : UDINT;
+		callerSessionEpoch : UDINT;
+		callerRequestSequence : UDINT;
+		axisReference : DINT;
+		targetPosition : DINT;
+		expectedActualPosition : DINT;
+		maxJump : UDINT;
+		expectedAxisMask : UDINT;
+		mailboxSequenceEcho : UDINT;
+		dispatchClaim : DINT;
+		cancelEcho : DINT;
+		reserved13 : DINT;
+		reserved14 : DINT;
+		reserved15 : DINT;
+		requestSequenceAfterSnapshot : UDINT;
+		derivedAxisMask : UDINT;
+		resultState : DINT;
+		failure : DINT;
+		detail : DINT;
+		evidence : UDINT;
+		axisConnected : BOOL;
+		mailboxValid : BOOL;
+		previousResultValid : BOOL;
+		initialResultZero : BOOL;
+		setVelocityCaptured : BOOL;
+		initialResultIndex : UINT;
+		axisStatus : _LMCAXIS_STATUS;
+		axisError : _LMCAXIS_ERROR;
+		axisStatusValue : UDINT;
+		axisErrorValue : UDINT;
+		actualPosition : DINT;
+		setPosition : DINT;
+		actualVelocity : DINT;
+		setVelocity : DINT;
+		softwareLimitMin : DINT;
+		softwareLimitMax : DINT;
+		simulateMode : DINT;
+		modulo : DINT;
+		moveType : DINT;
+		masterLock : DINT;
+		delayedMasterLock : DINT;
+		targetOrder : UDINT;
+		actualOrder : UDINT;
+		positionJump : UDINT;
+	END_VAR
+
+	requestSequence := sigclib_atomic_getU32(
+		pValue:=#AxisSetPositionPreflightRequestSequence);
+	appliedSequence := sigclib_atomic_getU32(
+		pValue:=#AxisSetPositionPreflightAppliedSequence);
+	if requestSequence = appliedSequence then
+		RETURN;
+	end_if;
+
+	operationToken := AxisSetPositionPreflightMailbox[0]$UDINT;
+	ownerGeneration := AxisSetPositionPreflightMailbox[1]$UDINT;
+	storeRecordGeneration := AxisSetPositionPreflightMailbox[2]$UDINT;
+	callerSessionEpoch := AxisSetPositionPreflightMailbox[3]$UDINT;
+	callerRequestSequence := AxisSetPositionPreflightMailbox[4]$UDINT;
+	axisReference := AxisSetPositionPreflightMailbox[5];
+	targetPosition := AxisSetPositionPreflightMailbox[6];
+	expectedActualPosition := AxisSetPositionPreflightMailbox[7];
+	maxJump := AxisSetPositionPreflightMailbox[8]$UDINT;
+	expectedAxisMask := AxisSetPositionPreflightMailbox[9]$UDINT;
+	mailboxSequenceEcho := AxisSetPositionPreflightMailbox[10]$UDINT;
+	dispatchClaim := AxisSetPositionPreflightMailbox[11];
+	cancelEcho := AxisSetPositionPreflightMailbox[12];
+	reserved13 := AxisSetPositionPreflightMailbox[13];
+	reserved14 := AxisSetPositionPreflightMailbox[14];
+	reserved15 := AxisSetPositionPreflightMailbox[15];
+	requestSequenceAfterSnapshot := sigclib_atomic_getU32(
+		pValue:=#AxisSetPositionPreflightRequestSequence);
+	if requestSequenceAfterSnapshot <> requestSequence then
+		RETURN;
+	end_if;
+	derivedAxisMask := 0;
+	case axisReference of
+		1: derivedAxisMask := 0x00000001;
+		2: derivedAxisMask := 0x00000002;
+		3: derivedAxisMask := 0x00000004;
+		4: derivedAxisMask := 0x00000008;
+	else
+	end_case;
+
+	mailboxValid :=
+		(requestSequence <> 0) &
+		(operationToken <> 0) &
+		(ownerGeneration <> 0) &
+		(storeRecordGeneration <> 0) &
+		(callerSessionEpoch <> 0) &
+		(callerRequestSequence <> 0) &
+		(derivedAxisMask <> 0) &
+		(expectedAxisMask = derivedAxisMask) &
+		(mailboxSequenceEcho = requestSequence) &
+		(dispatchClaim = 0) & (cancelEcho = 0) &
+		(reserved13 = 0) & (reserved14 = 0) & (reserved15 = 0);
+
+	previousResultValid := FALSE;
+	initialResultZero := TRUE;
+	if appliedSequence = 0 then
+		for initialResultIndex := 0 to 31 do
+			if AxisSetPositionPreflightResult[initialResultIndex] <> 0 then
+				initialResultZero := FALSE;
+			end_if;
+		end_for;
+		previousResultValid := initialResultZero;
+	else
+		previousResultValid :=
+			(AxisSetPositionPreflightResult[10]$UDINT = appliedSequence) &
+			((AxisSetPositionPreflightResult[11] =
+			  LMC_SET_POSITION_PREFLIGHT_READY) |
+			 (AxisSetPositionPreflightResult[11] =
+			  LMC_SET_POSITION_PREFLIGHT_REJECTED)) &
+			(AxisSetPositionPreflightResult[29] = 0) &
+			(AxisSetPositionPreflightResult[30] = 0) &
+			(AxisSetPositionPreflightResult[31] = 0);
+	end_if;
+
+	resultState := LMC_SET_POSITION_PREFLIGHT_REJECTED;
+	failure := LMC_SET_POSITION_PREFLIGHT_INVALID;
+	detail := 0;
+	evidence := LMC_SET_POSITION_EVIDENCE_ACTIVATION_OFF;
+	axisConnected := FALSE;
+	setVelocityCaptured := FALSE;
+	axisStatus$UDINT := 0;
+	axisError$UDINT := 0;
+	axisStatusValue := 0;
+	axisErrorValue := 0;
+	actualPosition := 0;
+	setPosition := 0;
+	actualVelocity := 0;
+	setVelocity := 0;
+	softwareLimitMin := 0;
+	softwareLimitMax := 0;
+	simulateMode := 0;
+	modulo := 0;
+	moveType := 0;
+	masterLock := 0;
+	delayedMasterLock := 0;
+	positionJump := 0;
+
+	if (mailboxValid = FALSE) |
+		(AxisSetPositionPreflightResult[10]$UDINT = requestSequence) |
+		(previousResultValid = FALSE) then
+		resultState := LMC_SET_POSITION_PREFLIGHT_CORRUPT;
+		failure := LMC_SET_POSITION_PREFLIGHT_BAD_DATA;
+		detail := 0;
+	else
+		evidence := evidence or LMC_SET_POSITION_EVIDENCE_IDENTITY;
+		evidence := evidence or LMC_SET_POSITION_EVIDENCE_AXIS_MASK;
+		case axisReference of
+			1:
+				axisConnected := IsClientConnected(#LMCAxis1) <> 0;
+				if axisConnected then
+					axisStatus := LMCAxis1.ReadAxisStatus();
+					axisError := LMCAxis1.ReadAxisError();
+					actualPosition := LMCAxis1.ReadPosition(
+						Mode:=LMCAXIS_ACTPOS_APPUNIT);
+					setPosition := LMCAxis1.ReadPosition(
+						Mode:=LMCAXIS_SETPOS_APPUNIT);
+					actualVelocity := LMCAxis1.ReadVelocity(
+						Mode:=LMCAXIS_ACTVEL_APPUNIT_SEC);
+					softwareLimitMin := LMCAxis1.ReadSWEndPos(
+						Mode:=LMCAXIS_RD_SWMIN_APPUNIT);
+					softwareLimitMax := LMCAxis1.ReadSWEndPos(
+						Mode:=LMCAXIS_RD_SWMAX_APPUNIT);
+					simulateMode := LMCAxis1.ReadParameter(
+						ParNr:=LMCAXIS_PAR_RD_SIMULATE_MODE, mode:=0);
+					modulo := LMCAxis1.ReadParameter(
+						ParNr:=LMCAXIS_PAR_RD_MODULO, mode:=0);
+					moveType := LMCAxis1.ReadParameter(
+						ParNr:=LMCAXIS_PAR_RD_MOVETYPE, mode:=0);
+					if moveType = 10 then
+						setVelocity := LMCAxis1.ReadVelocity(
+							Mode:=LMCAXIS_SETVEL_APPUNIT_SEC_JERK);
+						setVelocityCaptured := TRUE;
+					elsif (moveType = 0) | (moveType = 1) then
+						setVelocity := LMCAxis1.ReadVelocity(
+							Mode:=LMCAXIS_SETVEL_APPUNIT_SEC);
+						setVelocityCaptured := TRUE;
+					end_if;
+				end_if;
+			2:
+				axisConnected := IsClientConnected(#LMCAxis2) <> 0;
+				if axisConnected then
+					axisStatus := LMCAxis2.ReadAxisStatus();
+					axisError := LMCAxis2.ReadAxisError();
+					actualPosition := LMCAxis2.ReadPosition(
+						Mode:=LMCAXIS_ACTPOS_APPUNIT);
+					setPosition := LMCAxis2.ReadPosition(
+						Mode:=LMCAXIS_SETPOS_APPUNIT);
+					actualVelocity := LMCAxis2.ReadVelocity(
+						Mode:=LMCAXIS_ACTVEL_APPUNIT_SEC);
+					softwareLimitMin := LMCAxis2.ReadSWEndPos(
+						Mode:=LMCAXIS_RD_SWMIN_APPUNIT);
+					softwareLimitMax := LMCAxis2.ReadSWEndPos(
+						Mode:=LMCAXIS_RD_SWMAX_APPUNIT);
+					simulateMode := LMCAxis2.ReadParameter(
+						ParNr:=LMCAXIS_PAR_RD_SIMULATE_MODE, mode:=0);
+					modulo := LMCAxis2.ReadParameter(
+						ParNr:=LMCAXIS_PAR_RD_MODULO, mode:=0);
+					moveType := LMCAxis2.ReadParameter(
+						ParNr:=LMCAXIS_PAR_RD_MOVETYPE, mode:=0);
+					if moveType = 10 then
+						setVelocity := LMCAxis2.ReadVelocity(
+							Mode:=LMCAXIS_SETVEL_APPUNIT_SEC_JERK);
+						setVelocityCaptured := TRUE;
+					elsif (moveType = 0) | (moveType = 1) then
+						setVelocity := LMCAxis2.ReadVelocity(
+							Mode:=LMCAXIS_SETVEL_APPUNIT_SEC);
+						setVelocityCaptured := TRUE;
+					end_if;
+				end_if;
+			3:
+				axisConnected := IsClientConnected(#LMCAxis3) <> 0;
+				if axisConnected then
+					axisStatus := LMCAxis3.ReadAxisStatus();
+					axisError := LMCAxis3.ReadAxisError();
+					actualPosition := LMCAxis3.ReadPosition(
+						Mode:=LMCAXIS_ACTPOS_APPUNIT);
+					setPosition := LMCAxis3.ReadPosition(
+						Mode:=LMCAXIS_SETPOS_APPUNIT);
+					actualVelocity := LMCAxis3.ReadVelocity(
+						Mode:=LMCAXIS_ACTVEL_APPUNIT_SEC);
+					softwareLimitMin := LMCAxis3.ReadSWEndPos(
+						Mode:=LMCAXIS_RD_SWMIN_APPUNIT);
+					softwareLimitMax := LMCAxis3.ReadSWEndPos(
+						Mode:=LMCAXIS_RD_SWMAX_APPUNIT);
+					simulateMode := LMCAxis3.ReadParameter(
+						ParNr:=LMCAXIS_PAR_RD_SIMULATE_MODE, mode:=0);
+					modulo := LMCAxis3.ReadParameter(
+						ParNr:=LMCAXIS_PAR_RD_MODULO, mode:=0);
+					moveType := LMCAxis3.ReadParameter(
+						ParNr:=LMCAXIS_PAR_RD_MOVETYPE, mode:=0);
+					if moveType = 10 then
+						setVelocity := LMCAxis3.ReadVelocity(
+							Mode:=LMCAXIS_SETVEL_APPUNIT_SEC_JERK);
+						setVelocityCaptured := TRUE;
+					elsif (moveType = 0) | (moveType = 1) then
+						setVelocity := LMCAxis3.ReadVelocity(
+							Mode:=LMCAXIS_SETVEL_APPUNIT_SEC);
+						setVelocityCaptured := TRUE;
+					end_if;
+				end_if;
+			4:
+				axisConnected := IsClientConnected(#LMCAxis4) <> 0;
+				if axisConnected then
+					axisStatus := LMCAxis4.ReadAxisStatus();
+					axisError := LMCAxis4.ReadAxisError();
+					actualPosition := LMCAxis4.ReadPosition(
+						Mode:=LMCAXIS_ACTPOS_APPUNIT);
+					setPosition := LMCAxis4.ReadPosition(
+						Mode:=LMCAXIS_SETPOS_APPUNIT);
+					actualVelocity := LMCAxis4.ReadVelocity(
+						Mode:=LMCAXIS_ACTVEL_APPUNIT_SEC);
+					softwareLimitMin := LMCAxis4.ReadSWEndPos(
+						Mode:=LMCAXIS_RD_SWMIN_APPUNIT);
+					softwareLimitMax := LMCAxis4.ReadSWEndPos(
+						Mode:=LMCAXIS_RD_SWMAX_APPUNIT);
+					simulateMode := LMCAxis4.ReadParameter(
+						ParNr:=LMCAXIS_PAR_RD_SIMULATE_MODE, mode:=0);
+					modulo := LMCAxis4.ReadParameter(
+						ParNr:=LMCAXIS_PAR_RD_MODULO, mode:=0);
+					moveType := LMCAxis4.ReadParameter(
+						ParNr:=LMCAXIS_PAR_RD_MOVETYPE, mode:=0);
+					if moveType = 10 then
+						setVelocity := LMCAxis4.ReadVelocity(
+							Mode:=LMCAXIS_SETVEL_APPUNIT_SEC_JERK);
+						setVelocityCaptured := TRUE;
+					elsif (moveType = 0) | (moveType = 1) then
+						setVelocity := LMCAxis4.ReadVelocity(
+							Mode:=LMCAXIS_SETVEL_APPUNIT_SEC);
+						setVelocityCaptured := TRUE;
+					end_if;
+				end_if;
+		else
+		end_case;
+
+		axisStatusValue := axisStatus$UDINT;
+		axisErrorValue := axisError$UDINT;
+		if (axisStatusValue and 0x00000800) <> 0 then
+			masterLock := 1;
+		end_if;
+		if (axisStatusValue and 0x01000000) <> 0 then
+			delayedMasterLock := 1;
+		end_if;
+		if axisConnected then
+			targetOrder := targetPosition$UDINT xor 0x80000000;
+			actualOrder := actualPosition$UDINT xor 0x80000000;
+			if targetOrder >= actualOrder then
+				positionJump := targetOrder - actualOrder;
+			else
+				positionJump := actualOrder - targetOrder;
+			end_if;
+		end_if;
+
+		if axisConnected = FALSE then
+			failure := LMC_SET_POSITION_PREFLIGHT_CLIENT;
+			detail := 10;
+		else
+			evidence := evidence or LMC_SET_POSITION_EVIDENCE_CLIENT;
+			evidence := evidence or LMC_SET_POSITION_EVIDENCE_STATUS_ERROR;
+			evidence := evidence or LMC_SET_POSITION_EVIDENCE_PARAMETER;
+			if setVelocityCaptured then
+				evidence := evidence or LMC_SET_POSITION_EVIDENCE_VELOCITY;
+			end_if;
+			evidence := evidence or LMC_SET_POSITION_EVIDENCE_LIMITS;
+			if (maxJump = 0) | (simulateMode <> 0) | (modulo <> 0) |
+				((axisStatusValue and LMC_SET_POSITION_CONFIG_STATUS) <> 0) |
+				((axisStatusValue and LMC_SET_POSITION_MODULO_STATUS) <> 0) |
+				((moveType <> 0) & (moveType <> 1) & (moveType <> 10)) then
+				failure := LMC_SET_POSITION_PREFLIGHT_CONFIG;
+				detail := 14;
+			else
+				if ((axisStatusValue and LMC_SET_POSITION_REQUIRED_STATUS) <>
+					LMC_SET_POSITION_REQUIRED_STATUS) |
+					((axisStatusValue and LMC_SET_POSITION_UNSAFE_STATUS) <> 0) then
+					failure := LMC_SET_POSITION_PREFLIGHT_STATE;
+					detail := 10;
+				else
+					if (axisErrorValue <> 0) |
+						((axisStatusValue and LMC_SET_POSITION_ERROR_STATUS) <> 0) then
+						failure := LMC_SET_POSITION_PREFLIGHT_AXIS_ERROR;
+						detail := 13;
+					else
+						if (actualVelocity <> 0) | (setVelocity <> 0) then
+							failure := LMC_SET_POSITION_PREFLIGHT_VELOCITY;
+							detail := 12;
+						else
+							if (softwareLimitMin >= softwareLimitMax) |
+								(actualPosition < softwareLimitMin) |
+								(actualPosition > softwareLimitMax) |
+								(targetPosition < softwareLimitMin) |
+								(targetPosition > softwareLimitMax) then
+								failure := LMC_SET_POSITION_PREFLIGHT_CONFIG;
+								detail := 14;
+							else
+								if actualPosition <> expectedActualPosition then
+									failure := LMC_SET_POSITION_PREFLIGHT_COORDINATE;
+									detail := 15;
+								else
+									evidence := evidence or
+										LMC_SET_POSITION_EVIDENCE_CAS;
+									if positionJump > maxJump then
+										failure := LMC_SET_POSITION_PREFLIGHT_COORDINATE;
+										detail := 15;
+									else
+										evidence := evidence or
+											LMC_SET_POSITION_EVIDENCE_JUMP;
+										evidence := evidence or
+											LMC_SET_POSITION_EVIDENCE_READY;
+										resultState := LMC_SET_POSITION_PREFLIGHT_READY;
+										failure := 0;
+										detail := 0;
+									end_if;
+								end_if;
+							end_if;
+						end_if;
+					end_if;
+				end_if;
+			end_if;
+		end_if;
+	end_if;
+
+	if sigclib_atomic_getU32(
+		pValue:=#AxisSetPositionPreflightRequestSequence) <>
+		requestSequence then
+		RETURN;
+	end_if;
+	_memset(dest:=#AxisSetPositionPreflightResult[0], usByte:=0, cntr:=128);
+	AxisSetPositionPreflightResult[0]$UDINT := operationToken;
+	AxisSetPositionPreflightResult[1]$UDINT := ownerGeneration;
+	AxisSetPositionPreflightResult[2]$UDINT := storeRecordGeneration;
+	AxisSetPositionPreflightResult[3]$UDINT := callerSessionEpoch;
+	AxisSetPositionPreflightResult[4]$UDINT := callerRequestSequence;
+	AxisSetPositionPreflightResult[5] := axisReference;
+	AxisSetPositionPreflightResult[6] := targetPosition;
+	AxisSetPositionPreflightResult[7] := expectedActualPosition;
+	AxisSetPositionPreflightResult[8]$UDINT := maxJump;
+	AxisSetPositionPreflightResult[9]$UDINT := expectedAxisMask;
+	AxisSetPositionPreflightResult[10]$UDINT := requestSequence;
+	AxisSetPositionPreflightResult[11] := resultState;
+	AxisSetPositionPreflightResult[12] := failure;
+	AxisSetPositionPreflightResult[13] := detail;
+	AxisSetPositionPreflightResult[14]$UDINT := ObservationCycle;
+	AxisSetPositionPreflightResult[15]$UDINT := axisStatusValue;
+	AxisSetPositionPreflightResult[16]$UDINT := axisErrorValue;
+	AxisSetPositionPreflightResult[17] := actualPosition;
+	AxisSetPositionPreflightResult[18] := setPosition;
+	AxisSetPositionPreflightResult[19] := actualVelocity;
+	AxisSetPositionPreflightResult[20] := setVelocity;
+	AxisSetPositionPreflightResult[21] := softwareLimitMin;
+	AxisSetPositionPreflightResult[22] := softwareLimitMax;
+	AxisSetPositionPreflightResult[23] := simulateMode;
+	AxisSetPositionPreflightResult[24] := modulo;
+	AxisSetPositionPreflightResult[25] := masterLock;
+	AxisSetPositionPreflightResult[26] := delayedMasterLock;
+	AxisSetPositionPreflightResult[27]$UDINT := positionJump;
+	AxisSetPositionPreflightResult[28]$UDINT := evidence;
+	AxisSetPositionPreflightResult[29] := 0;
+	AxisSetPositionPreflightResult[30] := 0;
+	AxisSetPositionPreflightResult[31] := 0;
+	sigclib_atomic_setU32(
+		pValue:=#AxisSetPositionPreflightAppliedSequence,
+		value:=requestSequence);
 
 END_FUNCTION

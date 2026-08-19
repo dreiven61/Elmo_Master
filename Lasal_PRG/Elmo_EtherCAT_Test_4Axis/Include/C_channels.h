@@ -679,6 +679,13 @@ typedef struct CltChCmd_LMCSdoExecutor
     LMCSdoExecutor *pCmd;
   } CltChCmd_LMCSdoExecutor;
 
+typedef struct CltChCmd_LMCSetPositionStore 
+  {
+    struct SvrChCmd_DINT *pCh;
+    DINT dData;
+    LMCSetPositionStore *pCmd;
+  } CltChCmd_LMCSetPositionStore;
+
 typedef struct CltChCmd_LMCUdpCallbackSender 
   {
     struct SvrChCmd_DINT *pCh;

@@ -16,7 +16,7 @@
 	Automatic          = "false"
 	UpdateMode         = "Prescan"
 	SharedCommandTable = "true"
-	Objectsize         = "(390,120)"
+	Objectsize         = "(600,120)"
 	Comment            = "This class provides CheckSum &amp; CRC calculation">
 	<Channels>
 		<Server Name="ClassSvr" GUID="{4BB506D7-4FDE-4F5C-A107-C305D5AD0175}" Visualized="false" Initialize="false" WriteProtected="true" Retentive="false" Comment="Server to call global methods"/>

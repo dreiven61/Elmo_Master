@@ -38,6 +38,10 @@
 #include "unit.h"
 #include "UserDef.h"
 #include "types.h"
+
+//Easy Case Header Files
+#include "..\Class\LMCSetPositionStore\LMCSetPositionStore.h"
+
 #include "lslpublictypes.h"
 #include "channels.h"
 

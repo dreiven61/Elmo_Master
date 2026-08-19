@@ -62,7 +62,15 @@ param(
 
     [switch]$AxisZeroHomeRtMailboxVerifierSelfTestOnly,
 
+    [switch]$AxisSetPositionPreflightRtVerifierSelfTestOnly,
+
     [switch]$EncoderMaintenanceVerifierSelfTestOnly,
+
+    [switch]$SetPositionCloseWithoutResponseVerifierSelfTestOnly,
+
+    [switch]$SetPositionAdminStoreWiringVerifierSelfTestOnly,
+
+    [switch]$SetPositionStoreReadOnlyScanVerifierSelfTestOnly,
 
     [switch]$AllowUdpCallbackPreImportAbsent,
 
@@ -384,6 +392,23 @@ function Get-LasalScanText {
         { param($match) ' ' * $match.Length })
 
     return $scanText
+}
+
+function Get-LasalCommentStrippedText {
+    param(
+        [string]$Text
+    )
+
+    return [regex]::Replace(
+        $Text,
+        '(?s)\(\*.*?\*\)|//[^\r\n]*|"(?:[^"]|"")*"',
+        {
+            param($match)
+            if ($match.Value.StartsWith('"', [StringComparison]::Ordinal)) {
+                return $match.Value
+            }
+            return [regex]::Replace($match.Value, '[^\r\n]', ' ')
+        })
 }
 
 function Invoke-LasalAxisOwnershipRollbackSplitVerifierGate {
@@ -2458,7 +2483,7 @@ function Assert-LasalAxisOwnershipRollbackSplitMutationFences {
 
     foreach ($methodContract in @(
             @{ Name = 'adapter'; Fragment = $adapter; LF = 29124; CRLF = 29922; Sha = '8855AEEAE9B617CEAC1D10C7CC4ADB7F4D0536D108592560CE0D39ACF344AFAC' },
-            @{ Name = 'helper'; Fragment = $helper; LF = 21451; CRLF = 22046; Sha = 'AE6AD76007725544FBC57D8D60DF5C483CD3381149A1D14C424C96BCBEE0AF09' })) {
+            @{ Name = 'helper'; Fragment = $helper; LF = 21760; CRLF = 22363; Sha = 'FC1CA1BBD8E56B13FFE55FA7158C8C8EA28038522AC9793A803B2B77EBD58A23' })) {
         if (-not $methodContract.Fragment.EndsWith(
                 "`n",
                 [StringComparison]::Ordinal)) {
@@ -2724,7 +2749,8 @@ function Assert-LasalAxisOwnershipPublishMutationFences {
     $expectedPragmas = @(
         'usingLtd _LMCAxis',
         'usingLtd _LMCRobotBase',
-        'usingLtd LMCEcatInputLatch')
+        'usingLtd LMCEcatInputLatch',
+        'usingLtd LMCSetPositionStore')
     $observedPragmas = @()
     $observedPragmaPositions = @()
     foreach ($hashLineMatch in [regex]::Matches(
@@ -2753,7 +2779,7 @@ function Assert-LasalAxisOwnershipPublishMutationFences {
             "$blocker unsupported or malformed preprocessor line " +
             "'$($hashLine.Trim())'.")
     }
-    if (($observedPragmas.Count -ne 3) -or
+    if (($observedPragmas.Count -ne 4) -or
         ([string]::Join('|', $observedPragmas) -cne
             [string]::Join('|', $expectedPragmas))) {
         throw "$blocker exact usingLtd pragma closure drifted."
@@ -2904,14 +2930,14 @@ function Assert-LasalAxisOwnershipPublishMutationFences {
     finally {
         $macroInventorySha.Dispose()
     }
-    if (($allMacroInventory.Count -ne 165) -or
-        ($joinedMacroInventory.Length -ne 6175) -or
+    if (($allMacroInventory.Count -ne 173) -or
+        ($joinedMacroInventory.Length -ne 6495) -or
         ($macroInventorySha256 -cne
-            '67348A046E35A28C733ACB27B811B4C88EB6402BEC697CE22ADAF726EC6A2928')) {
+            'B12A65E42732E15A7045679B057F05A2B6BEB624A558A92913202B7929C2BEE5')) {
         throw (
             "$blocker whole-control macro inventory drifted " +
-            "($($allMacroInventory.Count)/165, " +
-            "$($joinedMacroInventory.Length)/6175, $macroInventorySha256).")
+            "($($allMacroInventory.Count)/173, " +
+            "$($joinedMacroInventory.Length)/6495, $macroInventorySha256).")
     }
     if ($macroMatches.Count -lt 1) {
         throw "$blocker macro definition inventory is empty."
@@ -3613,7 +3639,7 @@ function Invoke-LasalAxisOwnershipPublishVerifierSelfTest {
             Name = 'UsingLtdPragmasRelocatedAfterImplementation'
             Pattern = (
                 '(?ims)^(?<Pragmas>#pragma\s+usingLtd\s+_LMCAxis\s*$' +
-                '.*?^#pragma\s+usingLtd\s+LMCEcatInputLatch\s*$)' +
+                '.*?^#pragma\s+usingLtd\s+LMCSetPositionStore\s*$)' +
                 '(?<Middle>.*?^FUNCTION\s+GLOBAL\s+' +
                 'LMCControlCommandService::PublishAxisOwnership\s*$.*?' +
                 '^END_FUNCTION\s*$)')
@@ -4454,24 +4480,86 @@ function Assert-LasalAxisOwnershipPublishSplitMutationFences {
     $expectedPragmas = @(
         'usingLtd _LMCAxis',
         'usingLtd _LMCRobotBase',
-        'usingLtd LMCEcatInputLatch')
-    $observedPragmas = @(
-        [regex]::Matches(
+        'usingLtd LMCEcatInputLatch',
+        'usingLtd LMCSetPositionStore')
+    $observedPragmas = @()
+    $observedPragmaPositions = @()
+    foreach ($hashLineMatch in [regex]::Matches(
             $scan,
-            ('(?im)^[^\S\r\n]*#[^\S\r\n]*pragma[^\S\r\n]+' +
-             '(?<Body>[^\r\n]*?)[^\S\r\n]*\r?$')) |
-            ForEach-Object { $_.Groups['Body'].Value })
-    if ([string]::Join('|', $observedPragmas) -cne
-        [string]::Join('|', $expectedPragmas)) {
+            '(?im)^[^\S\r\n]*#[^\r\n]*\r?$')) {
+        $hashLine = $hashLineMatch.Value
+        if ([regex]::IsMatch(
+                $hashLine,
+                ('(?i)^[^\S\r\n]*#[^\S\r\n]*define[^\S\r\n]+' +
+                 '[A-Za-z_][A-Za-z0-9_]*(?:[^\r\n]*)\r?$'))) {
+            continue
+        }
+        $pragmaMatch = [regex]::Match(
+            $hashLine,
+            ('(?i)^[^\S\r\n]*#[^\S\r\n]*pragma[^\S\r\n]+' +
+             '(?<Body>[^\r\n]*?)[^\S\r\n]*\r?$'))
+        if ($pragmaMatch.Success -and
+            ($expectedPragmas -ccontains $pragmaMatch.Groups['Body'].Value)) {
+            $observedPragmas += $pragmaMatch.Groups['Body'].Value
+            $observedPragmaPositions += $hashLineMatch.Index
+            continue
+        }
+        throw (
+            "$blocker unsupported or malformed preprocessor line " +
+            "'$($hashLine.Trim())'.")
+    }
+    if (($observedPragmas.Count -ne 4) -or
+        ([string]::Join('|', $observedPragmas) -cne
+            [string]::Join('|', $expectedPragmas))) {
         throw "$blocker exact usingLtd pragma closure drifted."
     }
 
-    $macroInventory = @(
-        [regex]::Matches(
-            $scan,
+    $generatedTableMatches = [regex]::Matches(
+        $scan,
+        ('(?ims)^[ \t]*FUNCTION[ \t]+GLOBAL[ \t]+TAB[ \t]+' +
+         'LMCControlCommandService::@CT_[ \t]*$.*?' +
+         '^[ \t]*END_FUNCTION[ \t]*$'))
+    $firstCustomImplementationMatches = [regex]::Matches(
+        $scan,
+        ('(?im)^[ \t]*FUNCTION[ \t]+' +
+         'LMCControlCommandService::ReadAxisRebaseRequiredMask[ \t]*$'))
+    $classDeclarationMatches = [regex]::Matches(
+        $scan,
+        ('(?is)\bLMCControlCommandService\s*:\s*CLASS\b.*?' +
+         '\bEND_CLASS\s*;'))
+    $macroMatches = [regex]::Matches(
+        $scan,
+        ('(?im)^[^\S\r\n]*#[^\S\r\n]*define[^\S\r\n]+' +
+         '(?<Name>[A-Za-z_][A-Za-z0-9_]*)' +
+         '(?<Value>[^\r\n]*)\r?$'))
+    if (($generatedTableMatches.Count -ne 1) -or
+        ($firstCustomImplementationMatches.Count -ne 1) -or
+        ($classDeclarationMatches.Count -ne 1) -or
+        ($macroMatches.Count -lt 1)) {
+        throw "$blocker declaration/generated-table/macro layout is incomplete."
+    }
+    $classDeclarationEnd = $classDeclarationMatches[0].Index +
+        $classDeclarationMatches[0].Length
+    $generatedTableEnd = $generatedTableMatches[0].Index +
+        $generatedTableMatches[0].Length
+    $postImplementationScan = $scan.Substring(
+        $firstCustomImplementationMatches[0].Index)
+    if (($classDeclarationEnd -ge $observedPragmaPositions[0]) -or
+        ($observedPragmaPositions[-1] -ge $generatedTableMatches[0].Index) -or
+        ($generatedTableEnd -ge $macroMatches[0].Index) -or
+        ($macroMatches[-1].Index -ge
+            $firstCustomImplementationMatches[0].Index) -or
+        [regex]::IsMatch(
+            $postImplementationScan,
             ('(?im)^[^\S\r\n]*#[^\S\r\n]*define[^\S\r\n]+' +
-             '(?<Name>[A-Za-z_][A-Za-z0-9_]*)' +
-             '(?<Value>[^\r\n]*)\r?$')) |
+             '[A-Za-z_][A-Za-z0-9_]*'))) {
+        throw (
+            "$blocker declaration/usingLtd/generated-table/macro/" +
+            'implementation order drifted.')
+    }
+
+    $macroInventory = @(
+        $macroMatches |
             ForEach-Object {
                 ($_.Groups['Name'].Value.ToLowerInvariant() + '=' +
                  [regex]::Replace(
@@ -4480,10 +4568,10 @@ function Assert-LasalAxisOwnershipPublishSplitMutationFences {
                      ' ').ToLowerInvariant())
             })
     $joinedMacros = [string]::Join('|', $macroInventory)
-    if (($macroInventory.Count -ne 165) -or
-        ($joinedMacros.Length -ne 6175) -or
+    if (($macroInventory.Count -ne 173) -or
+        ($joinedMacros.Length -ne 6495) -or
         ((Get-LasalPublishSplitTextSha256 -Text $joinedMacros) -cne
-            '67348A046E35A28C733ACB27B811B4C88EB6402BEC697CE22ADAF726EC6A2928')) {
+            'B12A65E42732E15A7045679B057F05A2B6BEB624A558A92913202B7929C2BEE5')) {
         throw "$blocker whole-control macro inventory drifted."
     }
 
@@ -4770,6 +4858,129 @@ function Invoke-LasalAxisOwnershipPublishSplitVerifierSelfTest {
         -New 'HandleAxisOwnershipPublishHomeReceiptMissing(' `
         -Owner "$Owner adapter call fixture"
 
+    $fenceFixtures = @(
+        @{
+            Name = 'ErrorDirectiveAdded'
+            Value = Replace-LasalPublishSplitExactOne `
+                -Text $splitFixture `
+                -Old '#define LMC_OWNER_AXIS_COUNT 9' `
+                -New ('#define LMC_OWNER_AXIS_COUNT 9' + "`n" +
+                    '#error PUBLISH_DISABLED') `
+                -Owner "$Owner split error directive fixture"
+        },
+        @{
+            Name = 'WarningDirectiveAdded'
+            Value = Replace-LasalPublishSplitExactOne `
+                -Text $splitFixture `
+                -Old '#define LMC_OWNER_AXIS_COUNT 9' `
+                -New ('#define LMC_OWNER_AXIS_COUNT 9' + "`n" +
+                    '#warning PUBLISH_UNSAFE') `
+                -Owner "$Owner split warning directive fixture"
+        },
+        @{
+            Name = 'LineMarkerDirectiveAdded'
+            Value = Replace-LasalPublishSplitExactOne `
+                -Text $splitFixture `
+                -Old '#define LMC_OWNER_AXIS_COUNT 9' `
+                -New ('#define LMC_OWNER_AXIS_COUNT 9' + "`n" +
+                    '# 123 "fake.st"') `
+                -Owner "$Owner split line marker fixture"
+        },
+        @{
+            Name = 'ArbitraryDirectiveAdded'
+            Value = Replace-LasalPublishSplitExactOne `
+                -Text $splitFixture `
+                -Old '#define LMC_OWNER_AXIS_COUNT 9' `
+                -New ('#define LMC_OWNER_AXIS_COUNT 9' + "`n" +
+                    '#foo PUBLISH_DISABLED') `
+                -Owner "$Owner split arbitrary directive fixture"
+        },
+        @{
+            Name = 'ExternalMacroIncludeAdded'
+            Value = Replace-LasalPublishSplitExactOne `
+                -Text $splitFixture `
+                -Old '#define LMC_OWNER_AXIS_COUNT 9' `
+                -New ('#define LMC_OWNER_AXIS_COUNT 9' + "`n" +
+                    '#include "PublishOverrides.h"') `
+                -Owner "$Owner split include fixture"
+        },
+        @{
+            Name = 'ConditionalImplementationDisabled'
+            Value = Replace-LasalPublishSplitExactOne `
+                -Text $splitFixture `
+                -Old $fragments.Adapter `
+                -New ('#ifdef LMC_DISABLE_PUBLISH' + "`n" +
+                    $fragments.Adapter + '#endif' + "`n") `
+                -Owner "$Owner split conditional fixture"
+        },
+        @{
+            Name = 'UsingLtdPragmasRelocatedAfterImplementation'
+            Value = Replace-LasalPublishSplitRegexExactOne `
+                -Text $splitFixture `
+                -Pattern (
+                    '(?<Pragmas>^#pragma\s+usingLtd\s+_LMCAxis\s*$' +
+                    '.*?^#pragma\s+usingLtd\s+LMCSetPositionStore\s*$)' +
+                    '(?<Middle>.*?^FUNCTION\s+GLOBAL\s+' +
+                    'LMCControlCommandService::PublishAxisOwnership\s*$' +
+                    '.*?^END_FUNCTION\s*$)') `
+                -Replacement ('${Middle}' + "`n" + '${Pragmas}') `
+                -Owner "$Owner split pragma relocation fixture"
+        },
+        @{
+            Name = 'UsedMacroSuffixRelocatedAfterImplementation'
+            Value = Replace-LasalPublishSplitRegexExactOne `
+                -Text $splitFixture `
+                -Pattern (
+                    '(?<Suffix>^#define\s+' +
+                    'LMC_OWNER_PREEMPT_FLAG_FORCE_QUARANTINE\s+0x00010000\s*$' +
+                    '.*?^#define\s+' +
+                    'LMC_OWNER_CLEANUP_INCOMPLETE_QUARANTINE\s+3\s*$)' +
+                    '(?<Middle>.*?^FUNCTION\s+GLOBAL\s+' +
+                    'LMCControlCommandService::PublishAxisOwnership\s*$' +
+                    '.*?^END_FUNCTION\s*$)') `
+                -Replacement ('${Middle}' + "`n" + '${Suffix}') `
+                -Owner "$Owner split macro relocation fixture"
+        },
+        @{
+            Name = 'UsingLtdPragmaMissing'
+            Value = Replace-LasalPublishSplitExactOne `
+                -Text $splitFixture `
+                -Old '#pragma usingLtd _LMCAxis' `
+                -New '' `
+                -Owner "$Owner split missing pragma fixture"
+        },
+        @{
+            Name = 'UsingLtdPragmaDuplicated'
+            Value = Replace-LasalPublishSplitExactOne `
+                -Text $splitFixture `
+                -Old '#pragma usingLtd _LMCRobotBase' `
+                -New ('#pragma usingLtd _LMCRobotBase' + "`n" +
+                    '#pragma usingLtd _LMCRobotBase') `
+                -Owner "$Owner split duplicate pragma fixture"
+        },
+        @{
+            Name = 'UsingLtdPragmasReordered'
+            Value = Replace-LasalPublishSplitExactOne `
+                -Text $splitFixture `
+                -Old ('#pragma usingLtd _LMCAxis' + "`n" +
+                    '#pragma usingLtd _LMCRobotBase') `
+                -New ('#pragma usingLtd _LMCRobotBase' + "`n" +
+                    '#pragma usingLtd _LMCAxis') `
+                -Owner "$Owner split reordered pragma fixture"
+        },
+        @{
+            Name = 'LMCSetPositionStorePragmaRemoved'
+            Value = Replace-LasalPublishSplitExactOne `
+                -Text $splitFixture `
+                -Old '#pragma usingLtd LMCSetPositionStore' `
+                -New '' `
+                -Owner "$Owner split fourth pragma removal fixture"
+        })
+    if (($fenceFixtures.Count -ne 12) -or
+        (@($fenceFixtures.Name | Select-Object -Unique).Count -ne 12)) {
+        throw "$Owner split fence fixture inventory drifted."
+    }
+
     $fixtures = @(
         @{
             Name = 'PartialHomeDeclaration'
@@ -4837,8 +5048,14 @@ function Invoke-LasalAxisOwnershipPublishSplitVerifierSelfTest {
         throw "$Owner split fixture inventory drifted."
     }
 
+    $allFixtures = @($fixtures + $fenceFixtures)
+    if (@($allFixtures.Name | Select-Object -Unique).Count -ne
+            $allFixtures.Count) {
+        throw "$Owner combined split fixture names are not unique."
+    }
+
     $rejected = 0
-    foreach ($fixture in $fixtures) {
+    foreach ($fixture in $allFixtures) {
         if ($fixture.Value -ceq $splitFixture) {
             throw "$Owner split fixture '$($fixture.Name)' did not mutate."
         }
@@ -7769,6 +7986,9 @@ function Assert-LasalAxisOwnershipReserveMutationFences {
             'handleaxisownershippublishhomereceipt',
             'prepareaxisownershippublishdecision')
     }
+    $expectedImplementationHeaderInventory += @(
+        'handleadminsetposition',
+        'dispatchrequestcommand')
     if ([string]::Join('|', $implementationHeaderInventory) -cne
         [string]::Join('|', $expectedImplementationHeaderInventory)) {
         throw "$blocker whole implementation header inventory/order drifted."
@@ -8265,10 +8485,10 @@ function Assert-LasalAxisOwnershipReserveMutationFences {
                     '').ToLowerInvariant()
             }))
     $expectedResultSequence = (
-        '-1|-2|-3|-3|-2|-3|-3|-2|-3|-3|-3|-3|-3|-3|-3|-2|-2|' +
-        '-2|-3|-3|-3|-3|-3|-3|-3|-3|-2|-3|-3|-2|-3|-3|-2|-3|' +
-        '-3|-2|-3|-3|-3|-3|-3|-3|-3|-3|-2|-3|-2|-3|-2|-3|-3|' +
-        '-3|-3|-3|repeatmode|0')
+        '-1|-3|-2|-3|-3|-2|-3|-3|-2|-3|-3|-3|-3|-3|-3|-3|-2|' +
+        '-2|-2|-3|-3|-3|-3|-3|-3|-3|-3|-2|-3|-3|-2|-3|-3|-2|' +
+        '-3|-3|-2|-3|-3|-3|-3|-3|-3|-3|-3|-2|-3|-2|-3|-2|-3|' +
+        '-3|-3|-3|-3|repeatmode|0')
     if ($resultSequence -cne $expectedResultSequence) {
         throw "$blocker Result value/count/order inventory drifted."
     }
@@ -8294,14 +8514,14 @@ function Assert-LasalAxisOwnershipReserveMutationFences {
     finally {
         $controlFlowSha.Dispose()
     }
-    if (($controlFlowTokens.Count -ne 127) -or
-        ($controlFlowInventory.Length -ne 1246) -or
+    if (($controlFlowTokens.Count -ne 130) -or
+        ($controlFlowInventory.Length -ne 1274) -or
         ($controlFlowSha256 -cne
-            '5F438EDB025A88529A2C14326DCC1FEDE9D19ED44A56FAC3645E4B7AF8AF1154')) {
+            '2034600098F29E2A61578697990FCFDE642E91DB0564D210A5D0FA1FE3732C4A')) {
         throw (
             "$blocker Result/RETURN control-flow inventory drifted " +
-            "($($controlFlowTokens.Count)/127, " +
-            "$($controlFlowInventory.Length)/1246, $controlFlowSha256).")
+            "($($controlFlowTokens.Count)/130, " +
+            "$($controlFlowInventory.Length)/1274, $controlFlowSha256).")
     }
     Assert-Match $scan (
         '(?is)case\s+ResourceKind\s+of\s*' +
@@ -8335,12 +8555,12 @@ function Assert-LasalAxisOwnershipReserveMutationFences {
     finally {
         $semanticSha.Dispose()
     }
-    if (($semanticTokens.Length -ne 60886) -or
+    if (($semanticTokens.Length -ne 61265) -or
         ($semanticSha256 -cne
-            '9E0A14511F49B47D174CECC978749BAE5C8B4D42D5E934A020BEC2158322C85E')) {
+            '960527D122DCB82BE9645415A3DA444E07C1FDFB0AAF28BE77723864450F084C')) {
         throw (
             "$blocker normalized semantic token inventory drifted " +
-            "($($semanticTokens.Length)/60886, $semanticSha256).")
+            "($($semanticTokens.Length)/61265, $semanticSha256).")
     }
     $lexicalTokens = @(
         [regex]::Matches(
@@ -8360,14 +8580,14 @@ function Assert-LasalAxisOwnershipReserveMutationFences {
     finally {
         $lexicalSha.Dispose()
     }
-    if (($lexicalTokens.Count -ne 11839) -or
-        ($lexicalInventory.Length -ne 72724) -or
+    if (($lexicalTokens.Count -ne 11917) -or
+        ($lexicalInventory.Length -ne 73181) -or
         ($lexicalSha256 -cne
-            'F13EDA75E7EFF379D407E88EC5CE2C37BA3445A3FED0C7D59B3DB9C53517246F')) {
+            '506B018E60715707471DD69571B6B4BCD35C6C887C6D43A7F829E0EED86B7587')) {
         throw (
             "$blocker lexical token boundary inventory drifted " +
-            "($($lexicalTokens.Count)/11839, " +
-            "$($lexicalInventory.Length)/72724, $lexicalSha256).")
+            "($($lexicalTokens.Count)/11917, " +
+            "$($lexicalInventory.Length)/73181, $lexicalSha256).")
     }
 }
 
@@ -8629,8 +8849,9 @@ function Invoke-LasalAxisOwnershipReserveVerifierSelfTest {
             Pattern = (
                 '(?is)(FUNCTION\s+GLOBAL\s+' +
                 'LMCControlCommandService::ReserveAxisOwnership.*?' +
-                'if\s+LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED\s*=\s*)' +
-                'FALSE(\s+then)')
+                'if\s+\(CommandId\s*<>\s*0x7D12\)\s*&\s*' +
+                '\(LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED\s*=\s*)' +
+                'FALSE(\)\s+then)')
             Replacement = '${1}TRUE${2}'
         },
         @{
@@ -9200,6 +9421,91 @@ function Assert-LasalControlHandleRequestMutationFences {
         throw "$blocker raw implementation may not contain strings."
     }
 
+    $dispatchMatches = [regex]::Matches(
+        $controlScan,
+        ('(?ims)^[ \t]*FUNCTION[ \t]+' +
+         'LMCControlCommandService::DispatchRequestCommand[ \t]*\r?$' +
+         '.*?^[ \t]*END_FUNCTION[ \t]*\r?$'))
+    if ($dispatchMatches.Count -ne 1 -or
+        $controlScan -match (
+            '(?im)^\s*FUNCTION\s+GLOBAL\s+' +
+            'LMCControlCommandService::DispatchRequestCommand\b')) {
+        throw "$blocker exact private dispatch implementation scope drifted."
+    }
+    $dispatchScan = $dispatchMatches[0].Value
+    $rawDispatchBlock = $ControlServiceText.Substring(
+        $dispatchMatches[0].Index,
+        $dispatchMatches[0].Length)
+    if ([regex]::Matches(
+            $rawDispatchBlock,
+            '"(?:[^"]|"")*"').Count -ne 0) {
+        throw "$blocker raw dispatch implementation may not contain strings."
+    }
+
+    $dispatchAbiPattern = (
+        'VAR_INPUT\s*' +
+        'CommandId\s*:\s*UINT\s*;\s*' +
+        'Reference\s*:\s*UINT\s*;\s*' +
+        'pRequestFrame\s*:\s*\^USINT\s*;\s*' +
+        'RequestFrameSize\s*:\s*UDINT\s*;\s*' +
+        'pResponseFrame\s*:\s*\^USINT\s*;\s*' +
+        'ResponseCapacity\s*:\s*UDINT\s*;\s*' +
+        'END_VAR\s*;?\s*' +
+        'VAR_OUTPUT\s*' +
+        'ResponseSize\s*:\s*DINT\s*;\s*' +
+        'END_VAR\s*;?')
+    $dispatchClassAbiMatches = [regex]::Matches(
+        $controlScan,
+        ('(?is)\bFUNCTION\s+DispatchRequestCommand\s*' +
+         $dispatchAbiPattern + '\s*(?=FUNCTION\b)'))
+    $dispatchImplementationAbiMatches = [regex]::Matches(
+        $controlScan,
+        ('(?is)\bFUNCTION\s+' +
+         'LMCControlCommandService::DispatchRequestCommand\s*' +
+         $dispatchAbiPattern + '\s*(?=ResponseSize\s*:=)'))
+    $dispatchAnyHeaderCount = [regex]::Matches(
+        $controlScan,
+        ('(?is)(?<![A-Za-z0-9_])FUNCTION\b' +
+         '(?:(?!\b(?:FUNCTION|VAR_INPUT|VAR_OUTPUT|VAR|' +
+         'END_VAR|END_FUNCTION)\b|;).)*?' +
+         '(?<![A-Za-z0-9_])DispatchRequestCommand' +
+         '(?=[^A-Za-z0-9_])')).Count
+    if (($dispatchAnyHeaderCount -ne 2) -or
+        ($dispatchClassAbiMatches.Count -ne 1) -or
+        ($dispatchImplementationAbiMatches.Count -ne 1)) {
+        throw (
+            "$blocker private dispatch declaration and implementation must " +
+            'expose the exact closed six-input/one-output ABI with no locals.')
+    }
+    Assert-Match $dispatchScan (
+        '(?is)\AFUNCTION\s+' +
+        'LMCControlCommandService::DispatchRequestCommand\s*' +
+        $dispatchAbiPattern + '\s*' +
+        'ResponseSize\s*:=\s*-1\s*;\s*' +
+        'if\s*\(pRequestFrame\s*=\s*NIL\)\s*\|\s*' +
+        '\(pResponseFrame\s*=\s*NIL\)\s*\|\s*' +
+        '\(RequestFrameSize\s*<\s*8\)\s+then\s*' +
+        'RETURN\s*;\s*end_if\s*;\s*case\s+CommandId\s+of') (
+        "$blocker private dispatch ABI/prologue/local-free fence drifted.")
+    foreach ($sizeEntry in @(
+            @{ Name = 'HandleRequest'; Block = $rawHandleBlock },
+            @{ Name = 'DispatchRequestCommand'; Block = $rawDispatchBlock })) {
+        $rawBytes = [Text.Encoding]::UTF8.GetByteCount($sizeEntry.Block)
+        $lfBlock = $sizeEntry.Block.Replace("`r`n", "`n").Replace(
+            "`r", "`n")
+        $lfBytes = [Text.Encoding]::UTF8.GetByteCount($lfBlock)
+        $crlfBytes = [Text.Encoding]::UTF8.GetByteCount(
+            $lfBlock.Replace("`n", "`r`n"))
+        if ($rawBytes -ge 32768 -or
+            $lfBytes -ge 32768 -or
+            $crlfBytes -ge 32768) {
+            throw (
+                "$blocker $($sizeEntry.Name) is raw=$rawBytes, " +
+                "LF=$lfBytes, CRLF=$crlfBytes UTF-8 bytes; " +
+                'all must remain under 32768.')
+        }
+    }
+
     $abiBodyPattern = (
         'VAR_INPUT\s*' +
         'CommandId\s*:\s*UINT\s*;\s*' +
@@ -9413,23 +9719,22 @@ function Assert-LasalControlHandleRequestMutationFences {
             ForEach-Object { "$_=$($actualCallHistogram[$_])" })
     $joinedCalls = [string]::Join('|', $callInventory)
     $expectedJoinedCalls = (
-        '_memset=12|commitaxisownership=1|handleadmincommands=1|' +
-        'handleaxiscommands=1|handleaxisownershipsafetyrepeat=1|' +
-        'handlegroupcommands=1|handleregistrycommands=1|' +
+        '_memset=12|commitaxisownership=1|dispatchrequestcommand=1|' +
+        'handleaxisownershipsafetyrepeat=1|' +
         'isclientconnected=1|processaxiszerohome=1|' +
         'publishaxisownership=3|requestds402homesafetydrain=1|' +
         'rollbackaxisownership=6|to_dint=4|to_udint=13|' +
         'validateaxisownershipidentity=1')
     $callSha256 = Get-LasalControlHandleRequestTextSha256 $joinedCalls
-    if (($callInventory.Count -ne 15) -or
-        ($joinedCalls.Length -ne 329) -or
+    if (($callInventory.Count -ne 12) -or
+        ($joinedCalls.Length -ne 264) -or
         ($joinedCalls -cne $expectedJoinedCalls) -or
         ($callSha256 -cne
-            'BDE3A831ECC9C002C53B332C7B4357CB1D466B39C912A354DE2C5C336196F518')) {
+            '3761366441C358D51506BC53CDD6FBC293A2BDACBB7DBC12022CBB76CD76327A')) {
         throw (
             "$blocker call histogram drifted " +
-            "($($callInventory.Count)/15, " +
-            "$($joinedCalls.Length)/329, $callSha256).")
+            "($($callInventory.Count)/12, " +
+            "$($joinedCalls.Length)/264, $callSha256).")
     }
 
     $mutationPattern = (
@@ -9451,14 +9756,14 @@ function Assert-LasalControlHandleRequestMutationFences {
     $joinedMutations = [string]::Join('|', $persistentMutations)
     $mutationSha256 =
         Get-LasalControlHandleRequestTextSha256 $joinedMutations
-    if (($persistentMutations.Count -ne 119) -or
-        ($joinedMutations.Length -ne 4703) -or
+    if (($persistentMutations.Count -ne 115) -or
+        ($joinedMutations.Length -ne 4062) -or
         ($mutationSha256 -cne
-            'A974D3ABFF29AF970FF693AB6A9D57D38AEC378DF8742255DEA817096389381B')) {
+            '91E25908A5A22492DEC527F731CDCD55327C468CE0CEBCF492DEC48655F5EFEB')) {
         throw (
             "$blocker persistent/output mutation inventory drifted " +
-            "($($persistentMutations.Count)/119, " +
-            "$($joinedMutations.Length)/4703, $mutationSha256).")
+            "($($persistentMutations.Count)/115, " +
+            "$($joinedMutations.Length)/4062, $mutationSha256).")
     }
 
     $responseValues = @(
@@ -9477,16 +9782,16 @@ function Assert-LasalControlHandleRequestMutationFences {
         [regex]::Matches($scan, '(?is)\bResult\s*:=').Count
     $returnCount =
         [regex]::Matches($scan, '(?i)\bRETURN\s*;').Count
-    if (($responseValues.Count -ne 29) -or
-        ($joinedResponseValues.Length -ne 1214) -or
+    if (($responseValues.Count -ne 25) -or
+        ($joinedResponseValues.Length -ne 633) -or
         ($responseSha256 -cne
-            '5A8107E492ACEAA02B885825BEDE27A6EEB700EC951A64784C6C5E3F7E9FAB42') -or
+            '0FE75C49CA6720908B12AA1CE42DE7A27BF334CD60B37203D78747F24A868615') -or
         ($resultAssignmentCount -ne 0) -or
         ($returnCount -ne 2)) {
         throw (
             "$blocker ResponseSize/Result/RETURN inventory drifted " +
-            "($($responseValues.Count)/29, " +
-            "$($joinedResponseValues.Length)/1214, $responseSha256, " +
+            "($($responseValues.Count)/25, " +
+            "$($joinedResponseValues.Length)/633, $responseSha256, " +
             "Result=$resultAssignmentCount/0, RETURN=$returnCount/2).")
     }
 
@@ -9505,14 +9810,14 @@ function Assert-LasalControlHandleRequestMutationFences {
     $controlFlowInventory = [string]::Join('|', $controlFlowTokens)
     $controlFlowSha256 =
         Get-LasalControlHandleRequestTextSha256 $controlFlowInventory
-    if (($controlFlowTokens.Count -ne 233) -or
-        ($controlFlowInventory.Length -ne 2730) -or
+    if (($controlFlowTokens.Count -ne 226) -or
+        ($controlFlowInventory.Length -ne 2070) -or
         ($controlFlowSha256 -cne
-            '2A2DAB1C9DA6F42D465C751D14A7E1CA461587149CAF518A45607B292FDBACD8')) {
+            '341BE59D610A94176178B9215897293F4480C33E6C1959EB3E187F1A44BB0E92')) {
         throw (
             "$blocker executable control-flow inventory drifted " +
-            "($($controlFlowTokens.Count)/233, " +
-            "$($controlFlowInventory.Length)/2730, $controlFlowSha256).")
+            "($($controlFlowTokens.Count)/226, " +
+            "$($controlFlowInventory.Length)/2070, $controlFlowSha256).")
     }
 
     Assert-Match $scan (
@@ -9538,17 +9843,56 @@ function Assert-LasalControlHandleRequestMutationFences {
         'RETURN\s*;\s*end_if\s*;') (
         "$blocker safety-repeat/result envelope or early-return order drifted.")
 
-    $dispatchMatch = [regex]::Match(
+    $dispatchWrapperMatches = [regex]::Matches(
         $scan,
         ('(?is)if\s+ownershipInvokeHandler\s+then\s*' +
-         '(?<Body>case\s+CommandId\s+of.*?end_case\s*;)\s*' +
+         'ResponseSize\s*:=\s*DispatchRequestCommand\s*\(\s*' +
+         'CommandId\s*:=\s*CommandId\s*,\s*' +
+         'Reference\s*:=\s*Reference\s*,\s*' +
+         'pRequestFrame\s*:=\s*pRequestFrame\s*,\s*' +
+         'RequestFrameSize\s*:=\s*RequestFrameSize\s*,\s*' +
+         'pResponseFrame\s*:=\s*pResponseFrame\s*,\s*' +
+         'ResponseCapacity\s*:=\s*ResponseCapacity\s*\)\s*;\s*' +
          'end_if\s*;'))
-    if (-not $dispatchMatch.Success) {
-        throw "$blocker exact command dispatch scope is missing."
+    if ($dispatchWrapperMatches.Count -ne 1) {
+        throw "$blocker exact guarded private dispatch wrapper is missing."
     }
-    $dispatchBlock = $dispatchMatch.Groups['Body'].Value
+    if ([regex]::Matches(
+            $scan,
+            ('(?i)(?<![A-Za-z0-9_.])(?:HandleRegistryCommands|' +
+             'HandleAxisCommands|HandleGroupCommands|HandleAdminCommands|' +
+             'HandleAdminSetPosition)\s*\(')).Count -ne 0) {
+        throw "$blocker HandleRequest retains a case or direct leaf dispatch."
+    }
+    $dispatchExecutableMatch = [regex]::Match(
+        $dispatchScan,
+        ('(?is)(?<Body>ResponseSize\s*:=\s*-1\s*;\s*' +
+         'if\s*\(pRequestFrame\s*=\s*NIL\)\s*\|\s*' +
+         '\(pResponseFrame\s*=\s*NIL\)\s*\|\s*' +
+         '\(RequestFrameSize\s*<\s*8\)\s+then\s*' +
+         'RETURN\s*;\s*end_if\s*;\s*' +
+         '(?<Case>case\s+CommandId\s+of.*?end_case\s*;))'))
+    if (-not $dispatchExecutableMatch.Success) {
+        throw "$blocker exact private dispatch executable scope is missing."
+    }
+    $dispatchExecutable = $dispatchExecutableMatch.Groups['Body'].Value
+    $dispatchBlock = $dispatchExecutableMatch.Groups['Case'].Value
+    $dispatchExecutableToken = [regex]::Replace(
+        $dispatchExecutable,
+        '\s+', '')
+    $dispatchExecutableSha256 =
+        Get-LasalControlHandleRequestTextSha256 $dispatchExecutableToken
+    if (($dispatchExecutableToken.Length -ne 1386) -or
+        ($dispatchExecutableSha256 -cne
+            '2E5B5A7EDB4AAE60F17FCD6F25F89A9C3EDFA9AF6CE286665F9878946F7B1E7C')) {
+        throw (
+            "$blocker private dispatch executable fingerprint drifted " +
+            "($($dispatchExecutableToken.Length)/1386, " +
+            "$dispatchExecutableSha256).")
+    }
     $expectedControlCommandIds = @(
-        '7D00', '7D10', '7D12', '7D13', '7D18', '7D19', '7D20', '7D22',
+        '7D00', '7D10', '7D12', '7D14', '7D1A',
+        '7D13', '7D18', '7D19', '7D20', '7D22',
         '103C', '1042', '202B',
         '2023', '2024', '2022', '2028', '202E', '209F', '20A0', '20A2',
         '20D2', '2047', '2048', '2049', '204A', '204B', '2085', '20A4',
@@ -9567,8 +9911,8 @@ function Assert-LasalControlHandleRequestMutationFences {
                Ids = @('20D2', '2047', '2048', '2049', '204A', '204B',
                        '2085', '20A4', '2045', '2051', '20E7') },
             @{ Handler = 'HandleAdminCommands';
-               Ids = @('7D00', '7D10', '7D12', '7D13', '7D18', '7D19',
-                       '7D20', '7D22') })) {
+               Ids = @('7D00', '7D10', '7D14', '7D1A',
+                       '7D13', '7D18', '7D19', '7D20', '7D22') })) {
         Assert-ExactLasalCommandRouteIds `
             -RouterBlock $dispatchBlock `
             -Owner "$blocker $($routeContract.Handler) route" `
@@ -9587,6 +9931,19 @@ function Assert-LasalControlHandleRequestMutationFences {
             'ResponseCapacity\s*:=\s*ResponseCapacity\s*\)') (
             "$blocker $($routeContract.Handler) zero-copy ABI drifted.")
     }
+    Assert-ExactLasalCommandRouteIds `
+        -RouterBlock $dispatchBlock `
+        -Owner "$blocker HandleAdminSetPosition route" `
+        -CallPattern 'ResponseSize\s*:=\s*HandleAdminSetPosition\s*\(' `
+        -ExpectedCommandIds @('7D12')
+    Assert-Match $dispatchBlock (
+        '(?is)ResponseSize\s*:=\s*HandleAdminSetPosition\s*\(\s*' +
+        'Reference\s*:=\s*Reference\s*,\s*' +
+        'pRequestFrame\s*:=\s*pRequestFrame\s*,\s*' +
+        'RequestFrameSize\s*:=\s*RequestFrameSize\s*,\s*' +
+        'pResponseFrame\s*:=\s*pResponseFrame\s*,\s*' +
+        'ResponseCapacity\s*:=\s*ResponseCapacity\s*\)') (
+        "$blocker HandleAdminSetPosition zero-copy ABI drifted.")
     Assert-Match $dispatchBlock (
         '(?is)else\s+ResponseSize\s*:=\s*-1\s*;\s*end_case\s*;\s*$') (
         "$blocker unsupported-command fail-closed result drifted.")
@@ -9651,12 +10008,12 @@ function Assert-LasalControlHandleRequestMutationFences {
         '\s+', '').ToLowerInvariant()
     $semanticSha256 =
         Get-LasalControlHandleRequestTextSha256 $semanticTokens
-    if (($semanticTokens.Length -ne 25144) -or
+    if (($semanticTokens.Length -ne 24269) -or
         ($semanticSha256 -cne
-            '4421A60FA347CE93E0F9E0BCFEA0D60C039B5432773006124F4E2D49C9A708E4')) {
+            '8930EACC78CBF9EBD5DC195678DA775076FBABFD218580360E10D3870DF415D4')) {
         throw (
             "$blocker normalized semantic token inventory drifted " +
-            "($($semanticTokens.Length)/25144, $semanticSha256).")
+            "($($semanticTokens.Length)/24269, $semanticSha256).")
     }
     $lexicalTokens = @(
         [regex]::Matches(
@@ -9667,14 +10024,14 @@ function Assert-LasalControlHandleRequestMutationFences {
     $lexicalInventory = [string]::Join('|', $lexicalTokens)
     $lexicalSha256 =
         Get-LasalControlHandleRequestTextSha256 $lexicalInventory
-    if (($lexicalTokens.Count -ne 5848) -or
-        ($lexicalInventory.Length -ne 30991) -or
+    if (($lexicalTokens.Count -ne 5690) -or
+        ($lexicalInventory.Length -ne 29958) -or
         ($lexicalSha256 -cne
-            '588A66E9580E6EAA7021F9146F1212122D4F8496DA3C9F6B5E584814D3080E08')) {
+            '7DAE010A6AD8EE6B14C8CC1CD337EC304BD86BD84D3DE486FCAC4A463A7EEB0F')) {
         throw (
             "$blocker lexical token boundary inventory drifted " +
-            "($($lexicalTokens.Count)/5848, " +
-            "$($lexicalInventory.Length)/30991, $lexicalSha256).")
+            "($($lexicalTokens.Count)/5690, " +
+            "$($lexicalInventory.Length)/29958, $lexicalSha256).")
     }
 }
 
@@ -9706,7 +10063,8 @@ function Invoke-LasalControlHandleRequestVerifierSelfTest {
         @{
             Name = 'RouteHandlerRenamed'
             Pattern = (
-                '(?is)(if\s+ownershipInvokeHandler\s+then\s*' +
+                '(?is)(FUNCTION\s+' +
+                'LMCControlCommandService::DispatchRequestCommand.*?' +
                 'case\s+CommandId\s+of.*?ResponseSize\s*:=\s*)' +
                 'HandleRegistryCommands')
             Replacement = '${1}HandleRegistryCommandsShadow'
@@ -9785,6 +10143,70 @@ function Invoke-LasalControlHandleRequestVerifierSelfTest {
             Replacement = (
                 '${1}' + [Environment]::NewLine +
                 "`tUnknownHandleRequestHelper();")
+        },
+        @{
+            Name = 'DispatchClassAbiCommandIdTypeChanged'
+            Pattern = (
+                '(?is)(FUNCTION\s+DispatchRequestCommand\s*' +
+                'VAR_INPUT\s*CommandId\s*:\s*)UINT')
+            Replacement = '${1}UDINT'
+        },
+        @{
+            Name = 'DispatchWrapperReferenceArgumentChanged'
+            Pattern = (
+                '(?is)(FUNCTION\s+GLOBAL\s+' +
+                'LMCControlCommandService::HandleRequest.*?' +
+                'ResponseSize\s*:=\s*DispatchRequestCommand\s*\(.*?' +
+                'Reference\s*:=\s*)Reference')
+            Replacement = '${1}0'
+        },
+        @{
+            Name = 'DispatchPointerGuardRemoved'
+            Pattern = (
+                '(?is)(FUNCTION\s+' +
+                'LMCControlCommandService::DispatchRequestCommand.*?' +
+                'if\s*\(pRequestFrame\s*=\s*NIL\)\s*\|\s*' +
+                '\(pResponseFrame\s*)=\s*NIL')
+            Replacement = '${1}<> NIL'
+        },
+        @{
+            Name = 'DispatchLocalAdded'
+            Pattern = (
+                '(?is)(FUNCTION\s+' +
+                'LMCControlCommandService::DispatchRequestCommand.*?' +
+                'VAR_OUTPUT\s*ResponseSize\s*:\s*DINT\s*;\s*END_VAR)')
+            Replacement = (
+                '${1}' + [Environment]::NewLine +
+                "`tVAR dispatchScratch : DINT; END_VAR")
+        },
+        @{
+            Name = 'DispatchHelperOversized'
+            Pattern = (
+                '(?im)^([ \t]*FUNCTION[ \t]+' +
+                'LMCControlCommandService::DispatchRequestCommand)' +
+                '[ \t]*\r?$')
+            Replacement = (
+                '${1}' + [Environment]::NewLine +
+                '//' + ('X' * 40000))
+        },
+        @{
+            Name = 'DispatchDirectLeafCallAdded'
+            Pattern = (
+                '(?is)(FUNCTION\s+GLOBAL\s+' +
+                'LMCControlCommandService::HandleRequest.*?' +
+                'ownershipIdentityIndex\s*:=\s*0\s*;)')
+            Replacement = (
+                '${1}' + [Environment]::NewLine +
+                "`tHandleRegistryCommands();")
+        },
+        @{
+            Name = 'DispatchOuterGuardBypassed'
+            Pattern = (
+                '(?is)(FUNCTION\s+GLOBAL\s+' +
+                'LMCControlCommandService::HandleRequest.*?\bif\s+)' +
+                'ownershipInvokeHandler(\s+then\s*' +
+                'ResponseSize\s*:=\s*DispatchRequestCommand)')
+            Replacement = '${1}TRUE${2}'
         }
     )
 
@@ -9898,10 +10320,10 @@ function Invoke-LasalControlHandleRequestVerifierSelfTest {
         -ControlServiceText $positiveFixture `
         -Owner "$Owner positive comment-only fixture"
 
-    if ($negativeCount -ne 13) {
+    if ($negativeCount -ne 20) {
         throw (
             "$Owner HandleRequest negative count is $negativeCount, " +
-            'expected 13.')
+            'expected 20.')
     }
     return $negativeCount
 }
@@ -10074,6 +10496,7 @@ function Assert-LasalAxisOwnershipIdentityPreemptionContract {
         @{ Condition = 'CommandId\s*=\s*0x20A4'; Size = 96 },
         @{ Condition = 'CommandId\s*=\s*0x7D22'; Size = 104 },
         @{ Condition = 'CommandId\s*=\s*0x20E7'; Size = 1320 },
+        @{ Condition = 'CommandId\s*=\s*0x7D12'; Size = 48 },
         @{ Condition = 'CommandId\s*=\s*0x7D13'; Size = 56 },
         @{ Condition = '\(CommandId\s*=\s*0x7D15\)\s*\|\s*\(CommandId\s*=\s*0x7E53\)'; Size = 72 })
     foreach ($shape in $reserveIdentityShapes) {
@@ -10192,6 +10615,18 @@ function Assert-LasalAxisOwnershipIdentityPreemptionContract {
         'if\s+Result\s*<>\s*0\s+then\s*RETURN\s*;\s*end_if\s*;') (
         "$blocker identity validation must first pass the plain ownership validator.")
     Assert-Match $validateIdentityBlock (
+        '(?ims)^\s*0x7D12\s*:\s*' +
+        'tupleValid\s*:=\s*' +
+        '\(IdentitySize\s*=\s*48\)\s*&\s*' +
+        '\(OwnerKind\s*=\s*LMC_OWNER_KIND_DIRECT\)\s*&\s*' +
+        '\(ResourceKind\s*=\s*LMC_OWNER_RESOURCE_AXIS\)\s*&\s*' +
+        '\(AdmissionMode\s*=\s*LMC_OWNER_ADMISSION_ORDINARY\)\s*&\s*' +
+        '\(referenceAxisMask\s*<>\s*0\)\s*&\s*' +
+        '\(referenceAxisMask\s*<=\s*0x00000008\)\s*&\s*' +
+        '\(ExpectedAxisMask\s*=\s*referenceAxisMask\)\s*;') (
+        "$blocker 0x7D12 identity validation must retain exact 48-byte " +
+        'Direct/Axis/Ordinary Axis1..4 metadata.')
+    Assert-Match $validateIdentityBlock (
         '(?s)if\s+OwnerKind\s*=\s*LMC_OWNER_KIND_GROUP\s+then.*?' +
         'OwnershipIdentityState\[identityHeaderBase\]\$UDINT\s*<>\s*' +
         'LMC_OWNER_IDENTITY_GROUP_MAGIC.*?' +
@@ -10259,6 +10694,7 @@ function Assert-LasalAxisOwnershipIdentityPreemptionContract {
         @{ Label = '0x2049/0x204A'; Pattern = '0x2049\s*,\s*0x204A\s*:\s*identityExpectedSize\s*:=\s*1\s*;' },
         @{ Label = '0x204B'; Pattern = '0x204B\s*:\s*identityExpectedSize\s*:=\s*1\s*;' },
         @{ Label = '0x20E7'; Pattern = '0x20E7\s*:\s*identityExpectedSize\s*:=\s*1320\s*;' },
+        @{ Label = '0x7D12'; Pattern = '0x7D12\s*:\s*identityExpectedSize\s*:=\s*48\s*;' },
         @{ Label = '0x7D13'; Pattern = '0x7D13\s*:\s*identityExpectedSize\s*:=\s*56\s*;' },
         @{ Label = '0x7D15'; Pattern = '0x7D15\s*:\s*identityExpectedSize\s*:=\s*72\s*;' },
         @{ Label = '0x7E53'; Pattern = '0x7E53\s*:\s*identityExpectedSize\s*:=\s*72\s*;' })
@@ -10266,6 +10702,18 @@ function Assert-LasalAxisOwnershipIdentityPreemptionContract {
         Assert-Match $copyBlock $shape.Pattern (
             "$blocker reconstructed old identity metadata size drifted for $($shape.Label).")
     }
+    Assert-Match $copyBlock (
+        '(?ims)^\s*0x7D12\s*:\s*' +
+        'identityExpectedSize\s*:=\s*48\s*;\s*' +
+        'identityMetadataValid\s*:=\s*' +
+        '\(oldOwnerKind\s*=\s*LMC_OWNER_KIND_DIRECT\)\s*&\s*' +
+        '\(oldResourceKind\s*=\s*LMC_OWNER_RESOURCE_AXIS\)\s*&\s*' +
+        '\(oldAdmissionMode\s*=\s*LMC_OWNER_ADMISSION_ORDINARY\)\s*&\s*' +
+        '\(referenceAxisMask\s*<>\s*0\)\s*&\s*' +
+        '\(referenceAxisMask\s*<=\s*0x00000008\)\s*&\s*' +
+        '\(oldAxisMask\s*=\s*referenceAxisMask\)\s*;') (
+        "$blocker reconstructed 0x7D12 preemption identity must remain " +
+        '48-byte Direct/Axis/Ordinary Axis1..4 metadata.')
     Assert-Match $copyBlock (
         '(?s)if\s+\(identityMetadataValid\s*=\s*FALSE\)\s*\|\s*' +
         '\(identitySize\s*<>\s*identityExpectedSize\)\s+then\s*' +
@@ -10589,6 +11037,17 @@ function Assert-LasalAxisOwnershipIdentityPreemptionContract {
         'if\s+restoredGroupFound\s*&\s*restoredNonSafetyFound\s+then\s*' +
         'preemptBankValid\s*:=\s*FALSE\s*;') (
         "$blocker rollback Group aggregation/global exclusivity proof drifted.")
+    Assert-Match $rollbackHelperBlock (
+        '(?s)elsif\s+snapshotCommand\s*=\s*0x7D12\s+then\s*' +
+        'identityExpectedSize\s*:=\s*48\s*;.*?' +
+        'elsif\s+snapshotCommand\s*=\s*0x7D12\s+then\s*' +
+        'snapshotTupleValid\s*:=\s*snapshotTupleValid\s*&\s*' +
+        '\(snapshotAdmissionMode\s*=\s*' +
+        'LMC_OWNER_ADMISSION_ORDINARY\)\s*&\s*' +
+        '\(probeAxisBit\s*<=\s*0x00000008\)\s*&\s*' +
+        '\(snapshotMask\s*=\s*probeAxisBit\)\s*;') (
+        "$blocker rollback preemption bank must retain exact 0x7D12 " +
+        '48-byte Ordinary Axis1..4 metadata.')
     Assert-Match $rollbackBlock (
         '(?s)if\s+restoreLease\s*\|\s*restoredGroupActive\s+then.*?' +
         'leaseBankValid\s*:=.*?' +
@@ -11911,7 +12370,8 @@ function Assert-LasalAxisOwnershipPhaseContract {
     param(
         [string]$ControlServiceText,
         [string]$DiagnosticsText,
-        [string]$Owner
+        [string]$Owner,
+        [switch]$AllowLegacySetPositionOwnershipFixture
     )
 
     $controlScan = Get-LasalScanText $ControlServiceText
@@ -12108,21 +12568,33 @@ function Assert-LasalAxisOwnershipPhaseContract {
             break
         }
     }
-    if ($tupleAssignments.Count -ne 13 -or
-        $tupleArmAssignments.Count -ne 12 -or
+    $expectedTupleArmCount = if ($AllowLegacySetPositionOwnershipFixture) {
+        12
+    }
+    else {
+        13
+    }
+    $expectedTupleAssignmentCount = $expectedTupleArmCount + 1
+    if ($tupleAssignments.Count -ne $expectedTupleAssignmentCount -or
+        $tupleArmAssignments.Count -ne $expectedTupleArmCount -or
         $tupleInitializers.Count -ne 1 -or
         $tupleAssignmentOutsideClassifier) {
         throw (
             "$blocker tupleValid assignment inventory drifted; expected " +
-            'one FALSE initializer and one assignment in each of 12 tuple arms.')
+            'one FALSE initializer and one assignment in each of ' +
+            "$expectedTupleArmCount tuple arms.")
+    }
+    $expectedValidationCommandIds = @(
+        '2022', '2023', '2024', '2047', '2048', '2049', '204A',
+        '204B', '2085', '209F', '20A0', '20A2', '20A4', '20E7',
+        '7D22', '7D13', '7D15', '7E53')
+    if (-not $AllowLegacySetPositionOwnershipFixture) {
+        $expectedValidationCommandIds += '7D12'
     }
     Assert-ExactLasalCommandCaseIds `
         -FunctionBlock $tupleCase.Groups['Body'].Value `
         -Owner "$blocker ValidateAxisOwnership tuple classifier" `
-        -ExpectedCommandIds @(
-            '2022', '2023', '2024', '2047', '2048', '2049', '204A',
-            '204B', '2085', '209F', '20A0', '20A2', '20A4', '20E7',
-            '7D22', '7D13', '7D15', '7E53')
+        -ExpectedCommandIds $expectedValidationCommandIds
     $tupleArms = @{}
     foreach ($command in @('0x2022', '0x2023', '0x2048', '0x2085',
             '0x7D13', '0x7D15', '0x7E53')) {
@@ -12184,6 +12656,19 @@ function Assert-LasalAxisOwnershipPhaseContract {
             'referenceAxisMask\s*<=\s*0x00000008.*?' +
             'ExpectedAxisMask\s*=\s*referenceAxisMask') (
             "$blocker validation tuple for $($specialTuple.Command) is not exact.")
+    }
+    if (-not $AllowLegacySetPositionOwnershipFixture) {
+        Assert-Match $tupleCase.Groups['Body'].Value (
+            '(?ims)^\s*0x7D12\s*:\s*' +
+            'tupleValid\s*:=\s*' +
+            '\(OwnerKind\s*=\s*LMC_OWNER_KIND_DIRECT\)\s*&\s*' +
+            '\(ResourceKind\s*=\s*LMC_OWNER_RESOURCE_AXIS\)\s*&\s*' +
+            '\(AdmissionMode\s*=\s*LMC_OWNER_ADMISSION_ORDINARY\)\s*&\s*' +
+            '\(referenceAxisMask\s*<>\s*0\)\s*&\s*' +
+            '\(referenceAxisMask\s*<=\s*0x00000008\)\s*&\s*' +
+            '\(ExpectedAxisMask\s*=\s*referenceAxisMask\)\s*;') (
+            "$blocker 0x7D12 validation tuple must remain exact Direct/Axis/" +
+            'Ordinary, Axis1..4, and the exact reference bit.')
     }
     $tupleReject = [regex]::Match(
         $validateBlock,
@@ -12563,7 +13048,8 @@ function Assert-LasalDs402CommonOwnershipActivationMatrix {
         [string]$InputLatchText,
         [string]$SdkErrorCatalogText,
         [string]$SdkAdminModelsText,
-        [string]$Owner
+        [string]$Owner,
+        [switch]$AllowLegacySetPositionOwnershipFixture
     )
 
     $tcpScan = Get-LasalScanText $TcpText
@@ -12689,11 +13175,25 @@ function Assert-LasalDs402CommonOwnershipActivationMatrix {
         $controlScan,
         ('(?is)FUNCTION\s+GLOBAL\s+' +
          'LMCControlCommandService::ReserveAxisOwnership.*?END_FUNCTION')).Value
-    Assert-Match $controlReserveBlock (
-        '(?s)if\s+\(?\s*ResourceKind\s*=\s*LMC_OWNER_RESOURCE_AXIS.*?then.*?' +
-        'if\s+LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED\s*=\s*FALSE\s+then\s*' +
-        'Result\s*:=\s*-3\s*;\s*RETURN\s*;') (
-        "$blocker Control Reserve reachability guard is missing.")
+    if ($AllowLegacySetPositionOwnershipFixture) {
+        Assert-Match $controlReserveBlock (
+            '(?s)if\s+\(?\s*ResourceKind\s*=\s*LMC_OWNER_RESOURCE_AXIS.*?then.*?' +
+            'if\s+LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED\s*=\s*FALSE\s+then\s*' +
+            'Result\s*:=\s*-3\s*;\s*RETURN\s*;') (
+            "$blocker Control Reserve reachability guard is missing.")
+    }
+    else {
+        Assert-Match $controlReserveBlock (
+            '(?s)if\s+\(CommandId\s*=\s*0x7D12\)\s*&\s*' +
+            '\(LMC_ADMIN_SET_POSITION_STORE_CONFIGURED\s*=\s*FALSE\)\s+then\s*' +
+            'Result\s*:=\s*-3\s*;\s*RETURN\s*;\s*end_if\s*;.*?' +
+            'if\s+ResourceKind\s*=\s*LMC_OWNER_RESOURCE_AXIS\s+then.*?' +
+            'if\s+\(CommandId\s*<>\s*0x7D12\)\s*&\s*' +
+            '\(LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED\s*=\s*FALSE\)\s+then\s*' +
+            'Result\s*:=\s*-3\s*;\s*RETURN\s*;') (
+            "$blocker Control Reserve must retain the exact store-gated " +
+            '0x7D12-only dormant exception.')
+    }
     $controlProcessBlock = [regex]::Match(
         $controlScan,
         ('(?is)FUNCTION\s+GLOBAL\s+' +
@@ -12790,7 +13290,8 @@ function Assert-LasalOrdinaryAxisGroupOwnershipDormantContract {
         [string]$SdkErrorCatalogText,
         [ValidateSet('TRUE', 'FALSE')]
         [string]$ExpectedOrdinaryGate,
-        [string]$Owner
+        [string]$Owner,
+        [switch]$AllowLegacySetPositionOwnershipFixture
     )
 
     $tcpScan = Get-LasalScanText $TcpText
@@ -12840,10 +13341,14 @@ function Assert-LasalOrdinaryAxisGroupOwnershipDormantContract {
         '(?m)^\s*#define\s+LMC_OWNER_OBSERVER_STRIDE\s+12\s*$') (
         "$blocker observer stride is not exact twelve.")
 
-    $expectedCommandIds = @(
+    $expectedOuterCommandIds = @(
         '2022', '2023', '2024', '2047', '2048', '2049', '204A',
         '204B', '2085', '209F', '20A0', '20A2', '20A4', '20E7',
         '7D22')
+    $expectedReserveCommandIds = @($expectedOuterCommandIds)
+    if (-not $AllowLegacySetPositionOwnershipFixture) {
+        $expectedReserveCommandIds += '7D12'
+    }
     $tcpClassifierBlock = [regex]::Match(
         $tcpScan,
         ('(?is)if\s+LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED\s*&\s*' +
@@ -12856,7 +13361,7 @@ function Assert-LasalOrdinaryAxisGroupOwnershipDormantContract {
     Assert-ExactLasalCommandCaseIds `
         -FunctionBlock $tcpClassifierBlock `
         -Owner "$blocker TCP classifier" `
-        -ExpectedCommandIds $expectedCommandIds
+        -ExpectedCommandIds $expectedOuterCommandIds
 
     $directKind = '(?:LMC_OWNER_KIND_DIRECT|1)'
     $groupKind = '(?:LMC_OWNER_KIND_GROUP|2)'
@@ -13062,12 +13567,36 @@ function Assert-LasalOrdinaryAxisGroupOwnershipDormantContract {
     Assert-ExactLasalCommandCaseIds `
         -FunctionBlock $reserveBlock `
         -Owner "$blocker service reservation classifier" `
-        -ExpectedCommandIds $expectedCommandIds
-    Assert-Match $reserveBlock (
-        '(?s)ResourceKind\s*=\s*LMC_OWNER_RESOURCE_AXIS.*?' +
-        'LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED\s*=\s*FALSE\s+then\s*' +
-        'Result\s*:=\s*-3\s*;\s*RETURN') (
-        "$blocker direct/group reserve is not disabled by the dormant gate.")
+        -ExpectedCommandIds $expectedReserveCommandIds
+    if ($AllowLegacySetPositionOwnershipFixture) {
+        Assert-Match $reserveBlock (
+            '(?s)ResourceKind\s*=\s*LMC_OWNER_RESOURCE_AXIS.*?' +
+            'LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED\s*=\s*FALSE\s+then\s*' +
+            'Result\s*:=\s*-3\s*;\s*RETURN') (
+            "$blocker direct/group reserve is not disabled by the dormant gate.")
+    }
+    else {
+        Assert-Match $reserveBlock (
+            '(?s)if\s+\(CommandId\s*=\s*0x7D12\)\s*&\s*' +
+            '\(LMC_ADMIN_SET_POSITION_STORE_CONFIGURED\s*=\s*FALSE\)\s+then\s*' +
+            'Result\s*:=\s*-3\s*;\s*RETURN\s*;\s*end_if\s*;.*?' +
+            'if\s+ResourceKind\s*=\s*LMC_OWNER_RESOURCE_AXIS\s+then.*?' +
+            'if\s+\(CommandId\s*<>\s*0x7D12\)\s*&\s*' +
+            '\(LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED\s*=\s*FALSE\)\s+then\s*' +
+            'Result\s*:=\s*-3\s*;\s*RETURN') (
+            "$blocker service Reserve dormant exception must be exact " +
+            'store-configured 0x7D12 only.')
+        Assert-Match $reserveBlock (
+            '(?ims)^\s*0x7D12\s*:\s*' +
+            'if\s+\(OwnerKind\s*<>\s*LMC_OWNER_KIND_DIRECT\)\s*\|\s*' +
+            '\(AdmissionMode\s*<>\s*LMC_OWNER_ADMISSION_ORDINARY\)\s*\|\s*' +
+            '\(referenceAxisMask\s*=\s*0\)\s*\|\s*' +
+            '\(referenceAxisMask\s*>\s*0x00000008\)\s*\|\s*' +
+            '\(RequestedAxisMask\s*<>\s*referenceAxisMask\)\s+then\s*' +
+            'RETURN\s*;\s*end_if\s*;') (
+            "$blocker service 0x7D12 classifier must be exact Direct/" +
+            'Axis/Ordinary, Axis1..4, and the exact reference bit.')
+    }
     Assert-Match $reserveBlock (
         '(?s)case\s+Reference\s+of\s*' +
         '1\s*:\s*referenceAxisMask\s*:=\s*0x00000001\s*;.*?' +
@@ -13176,7 +13705,7 @@ function Assert-LasalOrdinaryAxisGroupOwnershipDormantContract {
     Assert-ExactLasalCommandCaseIds `
         -FunctionBlock $managedClassifier.Groups['Body'].Value `
         -Owner "$blocker final-prewire managed-command classifier" `
-        -ExpectedCommandIds $expectedCommandIds
+        -ExpectedCommandIds $expectedOuterCommandIds
     $shapeClassifier = [regex]::Match(
         $finalPrewireBlock,
         ('(?is)if\s+ownershipManagedCommand\s+then\s*' +
@@ -13188,7 +13717,7 @@ function Assert-LasalOrdinaryAxisGroupOwnershipDormantContract {
     Assert-ExactLasalCommandCaseIds `
         -FunctionBlock $shapeClassifier.Groups['Body'].Value `
         -Owner "$blocker final-prewire request-shape classifier" `
-        -ExpectedCommandIds $expectedCommandIds
+        -ExpectedCommandIds $expectedOuterCommandIds
     $shapeClassifierBlock = $shapeClassifier.Groups['Body'].Value
     $shapeSpecifications = @(
         @{ Name = 'Axis Power'; Start = '0x2023'; End = '0x2024';
@@ -13302,6 +13831,17 @@ function Assert-LasalOrdinaryAxisGroupOwnershipDormantContract {
     $adminHandlerCall = [regex]::Match(
         $handleRequestBlock,
         '(?i)ResponseSize\s*:=\s*HandleAdminCommands\s*\(')
+    $dispatchHandlerCall = [regex]::Match(
+        $handleRequestBlock,
+        ('(?is)ResponseSize\s*:=\s*DispatchRequestCommand\s*\(\s*' +
+         'CommandId:=CommandId\s*,\s*Reference:=Reference\s*,\s*' +
+         'pRequestFrame:=pRequestFrame\s*,\s*' +
+         'RequestFrameSize:=RequestFrameSize\s*,\s*' +
+         'pResponseFrame:=pResponseFrame\s*,\s*' +
+         'ResponseCapacity:=ResponseCapacity\s*\)'))
+    $dispatchHelperPresent = $controlScan -match (
+        '(?im)^\s*FUNCTION\s+' +
+        'LMCControlCommandService::DispatchRequestCommand\s*$')
     $commitCallPattern = (
         'ownershipCommitResult\s*:=\s*CommitAxisOwnership\(\s*' +
         'CommandId:=CommandId\s*,\s*Reference:=Reference\s*,\s*' +
@@ -13360,15 +13900,33 @@ function Assert-LasalOrdinaryAxisGroupOwnershipDormantContract {
         Assert-Match $acceptanceBody $acceptancePattern (
             "$blocker handler result can reach Commit without an exact accepted response.")
     }
-    if (-not ($dispatchGate.Success -and $axisHandlerCall.Success -and
-            $groupHandlerCall.Success -and $adminHandlerCall.Success)) {
-        throw "$blocker ordinary native handler dispatch shape is incomplete."
+    if ($dispatchHelperPresent) {
+        $directHandlerCallCount = [regex]::Matches(
+            $handleRequestBlock,
+            ('(?i)(?<![A-Za-z0-9_.])(?:HandleAxisCommands|' +
+             'HandleGroupCommands|HandleAdminCommands|' +
+             'HandleRegistryCommands|HandleAdminSetPosition)\s*\(')).Count
+        $dispatchCallCount = [regex]::Matches(
+            $handleRequestBlock,
+            '(?i)(?<![A-Za-z0-9_.])DispatchRequestCommand\s*\(').Count
+        if (-not ($dispatchGate.Success -and $dispatchHandlerCall.Success) -or
+            $dispatchCallCount -ne 1 -or
+            $directHandlerCallCount -ne 0) {
+            throw "$blocker ordinary private dispatch wrapper is incomplete."
+        }
+        $firstHandlerIndex = $dispatchHandlerCall.Index
     }
-    $firstHandlerIndex = @(
-        $axisHandlerCall.Index,
-        $groupHandlerCall.Index,
-        $adminHandlerCall.Index) | Measure-Object -Minimum |
-        Select-Object -ExpandProperty Minimum
+    else {
+        if (-not ($dispatchGate.Success -and $axisHandlerCall.Success -and
+                $groupHandlerCall.Success -and $adminHandlerCall.Success)) {
+            throw "$blocker ordinary native handler dispatch shape is incomplete."
+        }
+        $firstHandlerIndex = @(
+            $axisHandlerCall.Index,
+            $groupHandlerCall.Index,
+            $adminHandlerCall.Index) | Measure-Object -Minimum |
+            Select-Object -ExpandProperty Minimum
+    }
     if (-not (
             $validateCalls[0].Index -lt $validationReject.Index -and
             $validationReject.Index -lt $dispatchGate.Index -and
@@ -13416,6 +13974,12 @@ function Assert-LasalOrdinaryAxisGroupOwnershipDormantContract {
         throw (
             "$blocker terminal observer is not dormant before its first " +
             'observer state, hardware read, or publish action.')
+    }
+    if (-not $AllowLegacySetPositionOwnershipFixture -and
+        [regex]::Matches($observerBlock, '(?i)\b0x7D12\b').Count -ne 0) {
+        throw (
+            "$blocker ProcessAxisOwnership must not auto-release or " +
+            'special-case the immediate 0x7D12 Reserved boundary.')
     }
 
     Assert-Match $SdkErrorCatalogText (
@@ -14037,7 +14601,24 @@ function Assert-LasalAxisOwnershipActivationGuard {
     Assert-LasalAxisOwnershipPhaseContract `
         -ControlServiceText $ControlServiceText `
         -DiagnosticsText $DiagnosticsText `
-        -Owner $Owner
+        -Owner $Owner `
+        -AllowLegacySetPositionOwnershipFixture:$AllowLegacyTcpFinalizerFixture
+    if (-not $AllowLegacyTcpFinalizerFixture) {
+        Assert-Match $reserveOwnershipBlock (
+            '(?s)END_VAR\s*Result\s*:=\s*-1\s*;\s*' +
+            'if\s+\(pEffectiveAxisMask\s*=\s*NIL\)\s*\|\s*' +
+            '\(pAdmissionToken\s*=\s*NIL\)\s*\|\s*' +
+            '\(pOwnerGeneration\s*=\s*NIL\)\s+then\s*' +
+            'RETURN\s*;\s*end_if\s*;\s*' +
+            'pEffectiveAxisMask\^\s*:=\s*0\s*;\s*' +
+            'pAdmissionToken\^\s*:=\s*0\s*;\s*' +
+            'pOwnerGeneration\^\s*:=\s*0\s*;\s*' +
+            'if\s+\(CommandId\s*=\s*0x7D12\)\s*&\s*' +
+            '\(LMC_ADMIN_SET_POSITION_STORE_CONFIGURED\s*=\s*FALSE\)\s+then\s*' +
+            'Result\s*:=\s*-3\s*;\s*RETURN\s*;\s*end_if\s*;') (
+            "$Owner Reserve store-FALSE fence must return -3 after only " +
+            'zeroing outputs and before any global-state access.')
+    }
     Assert-Match $reserveOwnershipBlock (
         '(?s)' +
         'LMC_OWNER_STATE_IDLE.*?' +
@@ -14190,7 +14771,8 @@ function Assert-LasalAxisOwnershipActivationGuard {
             -InputLatchText $InputLatchText `
             -SdkErrorCatalogText $SdkErrorCatalogText `
             -SdkAdminModelsText $SdkAdminModelsText `
-            -Owner $Owner
+            -Owner $Owner `
+            -AllowLegacySetPositionOwnershipFixture:$AllowLegacyTcpFinalizerFixture
     Assert-LasalTcpImplementationPrefix `
         -TcpText $TcpText `
         -ExpectedOrdinaryGate $ordinaryActivationGate `
@@ -14201,7 +14783,8 @@ function Assert-LasalAxisOwnershipActivationGuard {
         -ControlServiceText $ControlServiceText `
         -SdkErrorCatalogText $SdkErrorCatalogText `
         -ExpectedOrdinaryGate $ordinaryActivationGate `
-        -Owner $Owner
+        -Owner $Owner `
+        -AllowLegacySetPositionOwnershipFixture:$AllowLegacyTcpFinalizerFixture
     Assert-Match $tcpScan (
         '(?s)ReserveAxisOwnership\(.*?' +
         'CallerSessionEpoch:=ActiveRequest\.SessionEpoch.*?' +
@@ -15139,7 +15722,9 @@ function Assert-LasalAxisRebaseBarrierContract {
         'LMC_OWNER_ADAPTER_ERROR_CONFLICT\s*;.*?Result\s*:=\s*16\s*;') (
         "$blocker legacy conflict envelope is not canonical 16-byte adapter output.")
     if ($helperGuard -match
-        '(?i)HandleAxisCommands|HandleGroupCommands|HandleAdminCommands|' +
+        '(?i)DispatchRequestCommand|HandleAxisCommands|' +
+        'HandleGroupCommands|HandleAdminCommands|' +
+        'HandleAdminSetPosition|' +
         'CommitAxisOwnership|RollbackAxisOwnership|PublishAxisOwnership') {
         throw "$blocker a blocked request can reach owner or native dispatch."
     }
@@ -15191,6 +15776,15 @@ function Assert-LasalAxisRebaseBarrierContract {
         '\(rebaseAdmissionAllowed\s*=\s*FALSE\)\s+then\s*' +
         'Result\s*:=\s*-2\s*;\s*RETURN\s*;') (
         "$blocker ReserveAxisOwnership duplicate guard or allow matrix drifted.")
+    $rebaseAllowAssignment = [regex]::Match(
+        $reserve,
+        '(?is)rebaseAdmissionAllowed\s*:=\s*(?<Body>.*?)\s*;')
+    if (-not $rebaseAllowAssignment.Success -or
+        $rebaseAllowAssignment.Groups['Body'].Value -match '(?i)\b0x7D12\b') {
+        throw (
+            "$blocker 0x7D12 must remain outside every rebase admission " +
+            'exception.')
+    }
     if ([regex]::Matches(
             $reserve,
             'AxisRebaseRequiredState\.Write\s*\(').Count -ne 0) {
@@ -16564,6 +17158,135 @@ function Assert-TCPMotionInterfaceCallbackEndpointOwnership {
     }
 }
 
+function ConvertTo-LasalSetPositionBiasedOrder {
+    param(
+        [Parameter(Mandatory = $true)]
+        [int]$Coordinate
+    )
+
+    $coordinateBits = [BitConverter]::ToUInt32(
+        [BitConverter]::GetBytes([int32]$Coordinate),
+        0)
+    $signMask = [uint32]::Parse(
+        '80000000',
+        [Globalization.NumberStyles]::HexNumber)
+    return [uint64]($coordinateBits -bxor $signMask)
+}
+
+function Get-LasalSetPositionCoordinateGateOracle {
+    param(
+        [int]$ActualPosition,
+        [int]$ExpectedActualPosition,
+        [int]$TargetPosition,
+        [int]$SoftwareLimitMin,
+        [int]$SoftwareLimitMax,
+        [uint32]$MaximumJump,
+        [bool]$AxisConnected = $true
+    )
+
+    $readCount = 0
+    $positionJump = [uint64]0
+    if ($MaximumJump -eq 0) {
+        return [pscustomobject]@{
+            DetailCode = 14
+            ReadCount = $readCount
+            PositionJump = $positionJump
+        }
+    }
+    if (-not $AxisConnected) {
+        return [pscustomobject]@{
+            DetailCode = 14
+            ReadCount = $readCount
+            PositionJump = $positionJump
+        }
+    }
+
+    $readCount = 3
+    if (($SoftwareLimitMin -ge $SoftwareLimitMax) -or
+        ($ActualPosition -lt $SoftwareLimitMin) -or
+        ($ActualPosition -gt $SoftwareLimitMax) -or
+        ($TargetPosition -lt $SoftwareLimitMin) -or
+        ($TargetPosition -gt $SoftwareLimitMax)) {
+        return [pscustomobject]@{
+            DetailCode = 14
+            ReadCount = $readCount
+            PositionJump = $positionJump
+        }
+    }
+    if ($ActualPosition -ne $ExpectedActualPosition) {
+        return [pscustomobject]@{
+            DetailCode = 15
+            ReadCount = $readCount
+            PositionJump = $positionJump
+        }
+    }
+
+    $targetOrder = ConvertTo-LasalSetPositionBiasedOrder $TargetPosition
+    $actualOrder = ConvertTo-LasalSetPositionBiasedOrder $ActualPosition
+    if ($targetOrder -ge $actualOrder) {
+        $positionJump = $targetOrder - $actualOrder
+    }
+    else {
+        $positionJump = $actualOrder - $targetOrder
+    }
+    $detailCode = if ($positionJump -gt [uint64]$MaximumJump) {
+        15
+    }
+    else {
+        10
+    }
+    return [pscustomobject]@{
+        DetailCode = $detailCode
+        ReadCount = $readCount
+        PositionJump = [uint64]$positionJump
+    }
+}
+
+function Invoke-LasalSetPositionCoordinateGateOracleSelfTest {
+    param([string]$Owner)
+
+    $fixtures = @(
+        @{ Name = 'ZeroThresholdBeforeDisconnect'; Actual = 0; Expected = 0; Target = 0; Min = -1; Max = 1; Jump = [uint32]0; Connected = $false; Detail = 14; Reads = 0; Delta = [uint64]0 },
+        @{ Name = 'DisconnectedSkipsReads'; Actual = 0; Expected = 0; Target = 0; Min = -1; Max = 1; Jump = [uint32]1; Connected = $false; Detail = 14; Reads = 0; Delta = [uint64]0 },
+        @{ Name = 'EqualBoundsRejected'; Actual = 0; Expected = 0; Target = 0; Min = 0; Max = 0; Jump = [uint32]1; Connected = $true; Detail = 14; Reads = 3; Delta = [uint64]0 },
+        @{ Name = 'ReversedBoundsRejected'; Actual = 0; Expected = 0; Target = 0; Min = 1; Max = -1; Jump = [uint32]1; Connected = $true; Detail = 14; Reads = 3; Delta = [uint64]0 },
+        @{ Name = 'ActualBelowBoundsRejected'; Actual = -2; Expected = -2; Target = 0; Min = -1; Max = 1; Jump = [uint32]2; Connected = $true; Detail = 14; Reads = 3; Delta = [uint64]0 },
+        @{ Name = 'TargetAboveBoundsRejected'; Actual = 0; Expected = 0; Target = 2; Min = -1; Max = 1; Jump = [uint32]2; Connected = $true; Detail = 14; Reads = 3; Delta = [uint64]0 },
+        @{ Name = 'ExpectedActualMismatch'; Actual = 0; Expected = 1; Target = 0; Min = -1; Max = 1; Jump = [uint32]1; Connected = $true; Detail = 15; Reads = 3; Delta = [uint64]0 },
+        @{ Name = 'LowerBoundInclusive'; Actual = -100; Expected = -100; Target = -100; Min = -100; Max = 100; Jump = [uint32]1; Connected = $true; Detail = 10; Reads = 3; Delta = [uint64]0 },
+        @{ Name = 'UpperBoundInclusive'; Actual = 100; Expected = 100; Target = 100; Min = -100; Max = 100; Jump = [uint32]1; Connected = $true; Detail = 10; Reads = 3; Delta = [uint64]0 },
+        @{ Name = 'JumpAtMaximum'; Actual = 0; Expected = 0; Target = 100; Min = -200; Max = 200; Jump = [uint32]100; Connected = $true; Detail = 10; Reads = 3; Delta = [uint64]100 },
+        @{ Name = 'JumpAboveMaximum'; Actual = 0; Expected = 0; Target = 101; Min = -200; Max = 200; Jump = [uint32]100; Connected = $true; Detail = 15; Reads = 3; Delta = [uint64]101 },
+        @{ Name = 'DintFullSpanForward'; Actual = [int]::MinValue; Expected = [int]::MinValue; Target = [int]::MaxValue; Min = [int]::MinValue; Max = [int]::MaxValue; Jump = [uint32]::MaxValue; Connected = $true; Detail = 10; Reads = 3; Delta = [uint64]4294967295 },
+        @{ Name = 'DintFullSpanReverse'; Actual = [int]::MaxValue; Expected = [int]::MaxValue; Target = [int]::MinValue; Min = [int]::MinValue; Max = [int]::MaxValue; Jump = [uint32]::MaxValue; Connected = $true; Detail = 10; Reads = 3; Delta = [uint64]4294967295 },
+        @{ Name = 'DintFullSpanAboveLimit'; Actual = [int]::MinValue; Expected = [int]::MinValue; Target = [int]::MaxValue; Min = [int]::MinValue; Max = [int]::MaxValue; Jump = [uint32]4294967294; Connected = $true; Detail = 15; Reads = 3; Delta = [uint64]4294967295 },
+        @{ Name = 'CrossZeroJump'; Actual = -50; Expected = -50; Target = 50; Min = -100; Max = 100; Jump = [uint32]100; Connected = $true; Detail = 10; Reads = 3; Delta = [uint64]100 }
+    )
+    if ($fixtures.Count -ne 15) {
+        throw "$Owner coordinate oracle fixture inventory drifted."
+    }
+    foreach ($fixture in $fixtures) {
+        $actual = Get-LasalSetPositionCoordinateGateOracle `
+            -ActualPosition $fixture.Actual `
+            -ExpectedActualPosition $fixture.Expected `
+            -TargetPosition $fixture.Target `
+            -SoftwareLimitMin $fixture.Min `
+            -SoftwareLimitMax $fixture.Max `
+            -MaximumJump $fixture.Jump `
+            -AxisConnected $fixture.Connected
+        if ($actual.DetailCode -ne $fixture.Detail -or
+            $actual.ReadCount -ne $fixture.Reads -or
+            $actual.PositionJump -ne $fixture.Delta) {
+            throw (
+                "$Owner coordinate oracle fixture $($fixture.Name) returned " +
+                "$($actual.DetailCode)/$($actual.ReadCount)/" +
+                "$($actual.PositionJump), expected $($fixture.Detail)/" +
+                "$($fixture.Reads)/$($fixture.Delta).")
+        }
+    }
+    return $fixtures.Count
+}
+
 function Assert-LasalAdminSetAxisPositionContract {
     param(
         [string]$ControlServiceText,
@@ -16583,6 +17306,16 @@ function Assert-LasalAdminSetAxisPositionContract {
         ('(?ims)^[ \t]*FUNCTION[ \t]+' +
          'LMCControlCommandService::HandleAdminCommands[ \t]*\r?$' +
          '.*?^[ \t]*END_FUNCTION[ \t]*\r?$'))
+    $setPositionHandlerMatches = [regex]::Matches(
+        $serviceScan,
+        ('(?ims)^[ \t]*FUNCTION[ \t]+' +
+         'LMCControlCommandService::HandleAdminSetPosition[ \t]*\r?$' +
+         '.*?^[ \t]*END_FUNCTION[ \t]*\r?$'))
+    $dispatchHandlerMatches = [regex]::Matches(
+        $serviceScan,
+        ('(?ims)^[ \t]*FUNCTION[ \t]+' +
+         'LMCControlCommandService::DispatchRequestCommand[ \t]*\r?$' +
+         '.*?^[ \t]*END_FUNCTION[ \t]*\r?$'))
     $msgParserMatches = [regex]::Matches(
         $tcpScan,
         ('(?ims)^[ \t]*FUNCTION[ \t]+' +
@@ -16590,40 +17323,432 @@ function Assert-LasalAdminSetAxisPositionContract {
          '.*?^[ \t]*END_FUNCTION[ \t]*\r?$'))
     if ($handleRequestMatches.Count -ne 1 -or
         $adminHandlerMatches.Count -ne 1 -or
+        $setPositionHandlerMatches.Count -ne 1 -or
+        $dispatchHandlerMatches.Count -ne 1 -or
         $msgParserMatches.Count -ne 1) {
-        throw "$Owner router or Admin handler was not found exactly once."
+        throw "$Owner router or private Admin handler was not found exactly once."
     }
 
     $handleRequestBlock = $handleRequestMatches[0].Value
     $adminHandlerBlock = $adminHandlerMatches[0].Value
+    $setPositionHandlerBlock = $setPositionHandlerMatches[0].Value
+    $dispatchHandlerBlock = $dispatchHandlerMatches[0].Value
     $msgParserBlock = $msgParserMatches[0].Value
-    $setPositionCaseMatches = [regex]::Matches(
-        $adminHandlerBlock,
-        ('(?ims)^[ \t]*0x7D12[ \t]*:[ \t]*\r?$' +
+    $reserveOwnershipBlock = Get-LasalExactFunctionImplementationBlock `
+        -SourceText $serviceScan `
+        -ClassName 'LMCControlCommandService' `
+        -FunctionName 'ReserveAxisOwnership' `
+        -Owner "$Owner ReserveAxisOwnership"
+    $validateOwnershipBlock = Get-LasalExactFunctionImplementationBlock `
+        -SourceText $serviceScan `
+        -ClassName 'LMCControlCommandService' `
+        -FunctionName 'ValidateAxisOwnership' `
+        -Owner "$Owner ValidateAxisOwnership"
+    $validateIdentityBlock = Get-LasalExactFunctionImplementationBlock `
+        -SourceText $serviceScan `
+        -ClassName 'LMCControlCommandService' `
+        -FunctionName 'ValidateAxisOwnershipIdentity' `
+        -Owner "$Owner ValidateAxisOwnershipIdentity"
+    $copyPreemptionBlock = Get-LasalExactFunctionImplementationBlock `
+        -SourceText $serviceScan `
+        -ClassName 'LMCControlCommandService' `
+        -FunctionName 'CopyAxisOwnershipPreemption' `
+        -Owner "$Owner CopyAxisOwnershipPreemption"
+    $rollbackPreemptBankBlock = Get-LasalExactFunctionImplementationBlock `
+        -SourceText $serviceScan `
+        -ClassName 'LMCControlCommandService' `
+        -FunctionName 'ValidateAxisOwnershipRollbackPreemptBank' `
+        -Owner "$Owner ValidateAxisOwnershipRollbackPreemptBank"
+    $processOwnershipBlock = Get-LasalExactFunctionImplementationBlock `
+        -SourceText $serviceScan `
+        -ClassName 'LMCControlCommandService' `
+        -FunctionName 'ProcessAxisOwnership' `
+        -Owner "$Owner ProcessAxisOwnership"
+    $notifyClosedBlock = Get-LasalExactFunctionImplementationBlock `
+        -SourceText $serviceScan `
+        -ClassName 'LMCControlCommandService' `
+        -FunctionName 'NotifyAxisOwnershipSessionClosed' `
+        -Owner "$Owner NotifyAxisOwnershipSessionClosed"
+    $ordinaryClassifierMatches = [regex]::Matches(
+        $TcpText,
+        ('(?ims)^[ \t]*//[ \t]*LMC_OWNER_ORDINARY_CLASSIFIER_BEGIN' +
+         '[ \t]*\r?$' +
          '(?<Body>.*?)' +
-         '(?=^[ \t]*0x7D13[ \t]*,[ \t]*0x7D18[ \t]*,[ \t]*' +
-         '0x7D19[ \t]*:[ \t]*\r?$)'))
+         '^[ \t]*//[ \t]*LMC_OWNER_ORDINARY_CLASSIFIER_END' +
+         '[ \t]*\r?$'))
+    if ($ordinaryClassifierMatches.Count -ne 1) {
+        throw "$Owner TCP ordinary ownership classifier was not found once."
+    }
+    $ordinaryClassifierBlock = Get-LasalScanText (
+        $ordinaryClassifierMatches[0].Groups['Body'].Value)
+    $adminPrologueMatches = [regex]::Matches(
+        $adminHandlerBlock,
+        ('(?is)END_VAR\s*' +
+         'ResponseSize\s*:=\s*-1\s*;\s*' +
+         'if\s+\(pRequestFrame\s*=\s*NIL\)\s*\|\s*' +
+         '\(pResponseFrame\s*=\s*NIL\)\s*\|\s*' +
+         '\(RequestFrameSize\s*<\s*8\)\s+then\s*' +
+         'RETURN\s*;\s*end_if\s*;\s*' +
+         'case\s+CommandId\s+of'))
+    if ($adminPrologueMatches.Count -ne 1) {
+        throw (
+            "$Owner Admin handler must initialize ResponseSize to -1 " +
+            'before the exact null/frame guard and command dispatch.')
+    }
+    $setPositionContractMatch = [regex]::Match(
+        $setPositionHandlerBlock,
+        ('(?is)\AFUNCTION\s+' +
+         'LMCControlCommandService::HandleAdminSetPosition\s*' +
+         'VAR_INPUT\s*' +
+         'Reference\s*:\s*UINT\s*;\s*' +
+         'pRequestFrame\s*:\s*\^USINT\s*;\s*' +
+         'RequestFrameSize\s*:\s*UDINT\s*;\s*' +
+         'pResponseFrame\s*:\s*\^USINT\s*;\s*' +
+         'ResponseCapacity\s*:\s*UDINT\s*;\s*END_VAR\s*' +
+         'VAR_OUTPUT\s*ResponseSize\s*:\s*DINT\s*;\s*END_VAR\s*' +
+         'VAR\s*(?<Locals>.*?)\s*END_VAR\s*' +
+         'ResponseSize\s*:=\s*-1\s*;\s*' +
+         'if\s+\(pRequestFrame\s*=\s*NIL\)\s*\|\s*' +
+         '\(pResponseFrame\s*=\s*NIL\)\s*\|\s*' +
+         '\(RequestFrameSize\s*<\s*8\)\s+then\s*' +
+         'RETURN\s*;\s*end_if\s*;\s*' +
+         '(?<Body>.*?)\s*END_FUNCTION\s*\z'))
+    if (-not $setPositionContractMatch.Success -or
+        $serviceScan -match (
+            '(?im)^[ \t]*FUNCTION[ \t]+GLOBAL[ \t]+' +
+            'LMCControlCommandService::HandleAdminSetPosition\b')) {
+        throw (
+            "$Owner SetPosition helper must have one exact private " +
+            'five-input/one-output ABI and null/minimum-frame prologue.')
+    }
+    $caseBlock = $setPositionContractMatch.Groups['Body'].Value
+
+    $setPositionLocalInventory = @(
+        [regex]::Matches(
+            $setPositionContractMatch.Groups['Locals'].Value,
+            ('(?im)^[ \t]*(?<Name>[A-Za-z_][A-Za-z0-9_]*)[ \t]*:[ \t]*' +
+             '(?<Type>[^;]+)[ \t]*;[ \t]*\r?$')) |
+            ForEach-Object {
+                ($_.Groups['Name'].Value + ':' +
+                 [regex]::Replace($_.Groups['Type'].Value, '\s+', '')).
+                    ToLowerInvariant()
+            })
+    $expectedSetPositionLocalInventory = @(
+        'adminschemaversion:uint',
+        'adminrequestflags:uint',
+        'adminrequestid:udint',
+        'admindiagnosticsbuild:udint',
+        'adminbootid:udint',
+        'adminmaprevision:udint',
+        'adminclientintentid0:udint',
+        'adminclientintentid1:udint',
+        'adminclientintentid2:udint',
+        'adminclientintentid3:udint',
+        'admindetailcode:udint',
+        'adminaxisposition:dint',
+        'adminexpectedactualposition:dint',
+        'adminexecutetoken:udint',
+        'adminappliedposition:dint',
+        'adminerrorid:int',
+        'adminsetpositionkey:array[0..47]ofusint',
+        'adminsetpositionsnapshot:array[0..67]ofusint',
+        'adminstoreresult:dint',
+        'adminstorerecordgeneration:udint',
+        'adminstoredetailcode:udint',
+        'adminsetpositioncommandstatus:uint',
+        'adminsetpositionnativecommandstate:udint',
+        'adminstoresnapshotvalid:bool',
+        'adminsetpositionmaxjump:udint',
+        'adminactualposition:dint',
+        'adminsoftwarelimitmin:dint',
+        'adminsoftwarelimitmax:dint',
+        'admintargetorder:udint',
+        'adminactualorder:udint',
+        'adminpositionjump:udint',
+        'adminowneraxismask:udint',
+        'adminownereffectiveaxismask:udint',
+        'adminowneradmissiontoken:udint',
+        'adminownergeneration:udint',
+        'adminownersession:udint',
+        'adminownersequence:udint',
+        'adminownerreserveresult:dint',
+        'adminownerrollbackresult:dint',
+        'adminaxisclientconnected:bool',
+        'adminowneracquired:bool')
+    if ([string]::Join('|', $setPositionLocalInventory) -cne
+        [string]::Join('|', $expectedSetPositionLocalInventory)) {
+        throw "$Owner SetPosition helper local declaration inventory drifted."
+    }
+
+    foreach ($exclusiveLocal in @(
+            'adminExecuteToken',
+            'adminAppliedPosition',
+            'adminSetPositionCommandStatus',
+            'adminSetPositionNativeCommandState')) {
+        if ($adminHandlerBlock -match (
+                '(?im)^[ \t]*' + [regex]::Escape($exclusiveLocal) +
+                '[ \t]*:')) {
+            throw (
+                "$Owner legacy Admin handler retained exclusive SetPosition " +
+                "local $exclusiveLocal.")
+        }
+    }
+
+    $rawAdminHandlerMatches = [regex]::Matches(
+        $ControlServiceText,
+        ('(?ims)^[ \t]*FUNCTION[ \t]+' +
+         'LMCControlCommandService::HandleAdminCommands[ \t]*\r?$' +
+         '.*?^[ \t]*END_FUNCTION[ \t]*\r?$'))
+    $rawSetPositionHandlerMatches = [regex]::Matches(
+        $ControlServiceText,
+        ('(?ims)^[ \t]*FUNCTION[ \t]+' +
+         'LMCControlCommandService::HandleAdminSetPosition[ \t]*\r?$' +
+         '.*?^[ \t]*END_FUNCTION[ \t]*\r?$'))
+    foreach ($sizeEntry in @(
+            @{ Name = 'HandleAdminCommands'; Matches = $rawAdminHandlerMatches },
+            @{ Name = 'HandleAdminSetPosition'; Matches = $rawSetPositionHandlerMatches })) {
+        if ($sizeEntry.Matches.Count -ne 1) {
+            throw "$Owner $($sizeEntry.Name) raw implementation was not found once."
+        }
+        $rawBlock = $sizeEntry.Matches[0].Value
+        $rawBytes = [Text.Encoding]::UTF8.GetByteCount($rawBlock)
+        $lfBlock = $rawBlock.Replace("`r`n", "`n").Replace("`r", "`n")
+        $lfBytes = [Text.Encoding]::UTF8.GetByteCount($lfBlock)
+        $crlfBytes = [Text.Encoding]::UTF8.GetByteCount(
+            $lfBlock.Replace("`n", "`r`n"))
+        if ($rawBytes -ge 32768 -or
+            $lfBytes -ge 32768 -or
+            $crlfBytes -ge 32768) {
+            throw (
+                "$Owner $($sizeEntry.Name) is raw=$rawBytes, LF=$lfBytes, " +
+                "CRLF=$crlfBytes UTF-8 bytes; all must remain under 32768.")
+        }
+    }
+    $criticalAdminLocals = [ordered]@{
+        adminSchemaVersion = 'UINT'
+        adminRequestFlags = 'UINT'
+        adminRequestId = 'UDINT'
+        adminDiagnosticsBuild = 'UDINT'
+        adminBootId = 'UDINT'
+        adminMapRevision = 'UDINT'
+        adminOriginalRequestId = 'UDINT'
+        adminClientIntentId0 = 'UDINT'
+        adminClientIntentId1 = 'UDINT'
+        adminClientIntentId2 = 'UDINT'
+        adminClientIntentId3 = 'UDINT'
+        adminAxisPosition = 'DINT'
+        adminExpectedActualPosition = 'DINT'
+        adminRecordGeneration = 'UDINT'
+        adminDetailCode = 'UDINT'
+        adminStoreResult = 'DINT'
+        adminStoreRecordGeneration = 'UDINT'
+        adminStoreDetailCode = 'UDINT'
+        adminStoreSnapshotValid = 'BOOL'
+    }
+    foreach ($criticalLocal in $criticalAdminLocals.GetEnumerator()) {
+        $localMatches = [regex]::Matches(
+            $adminHandlerBlock,
+            ('(?im)^[ \t]*' + [regex]::Escape($criticalLocal.Key) +
+             '[ \t]*:[ \t]*' + [regex]::Escape($criticalLocal.Value) +
+             '[ \t]*;[ \t]*\r?$'))
+        if ($localMatches.Count -ne 1) {
+            throw (
+                "$Owner Admin recovery local $($criticalLocal.Key) must " +
+                "be declared exactly once as $($criticalLocal.Value).")
+        }
+    }
+    foreach ($arrayLocal in @(
+            @{
+                Name = 'adminSetPositionKey'
+                Pattern = 'ARRAY\s*\[\s*0\.\.47\s*\]\s*OF\s*USINT'
+            },
+            @{
+                Name = 'adminSetPositionSnapshot'
+                Pattern = 'ARRAY\s*\[\s*0\.\.67\s*\]\s*OF\s*USINT'
+            })) {
+        $arrayLocalCount = [regex]::Matches(
+            $adminHandlerBlock,
+            ('(?im)^[ \t]*' + [regex]::Escape($arrayLocal.Name) +
+             '[ \t]*:[ \t]*' + $arrayLocal.Pattern +
+             '[ \t]*;[ \t]*\r?$')).Count
+        if ($arrayLocalCount -ne 1) {
+            throw (
+                "$Owner Admin Store local $($arrayLocal.Name) must retain " +
+                'its exact bounded byte-array ABI.')
+        }
+    }
     $capabilityCaseMatches = [regex]::Matches(
         $adminHandlerBlock,
         ('(?ims)^[ \t]*0x7D00[ \t]*:[ \t]*\r?$' +
          '(?<Body>.*?)' +
          '(?=^[ \t]*0x7D10[ \t]*:[ \t]*\r?$)'))
-    if ($setPositionCaseMatches.Count -ne 1 -or
-        $capabilityCaseMatches.Count -ne 1) {
-        throw "$Owner 0x7D00 or 0x7D12 case was not found exactly once."
+    if ($capabilityCaseMatches.Count -ne 1) {
+        throw "$Owner 0x7D00 capability case was not found exactly once."
     }
-    $caseBlock = $setPositionCaseMatches[0].Groups['Body'].Value
     $capabilityBlock = $capabilityCaseMatches[0].Groups['Body'].Value
 
     Assert-Match $handleRequestBlock (
-        '(?s)0x7D00,\s*0x7D10,\s*0x7D12,\s*0x7D13,\s*0x7D18,\s*0x7D19,\s*0x7D20,\s*0x7D22:\s*' +
+        '(?s)if\s+ownershipInvokeHandler\s+then\s*' +
+        'ResponseSize\s*:=\s*DispatchRequestCommand\s*\(\s*' +
+        'CommandId:=CommandId\s*,\s*Reference:=Reference\s*,\s*' +
+        'pRequestFrame:=pRequestFrame\s*,\s*' +
+        'RequestFrameSize:=RequestFrameSize\s*,\s*' +
+        'pResponseFrame:=pResponseFrame\s*,\s*' +
+        'ResponseCapacity:=ResponseCapacity\s*\)\s*;\s*end_if\s*;') (
+        "$Owner control-service guarded dispatcher call drifted.")
+    Assert-Match $dispatchHandlerBlock (
+        '(?s)0x7D12:\s*' +
+        'ResponseSize\s*:=\s*HandleAdminSetPosition\s*\(\s*' +
+        'Reference:=Reference\s*,\s*' +
+        'pRequestFrame:=pRequestFrame\s*,\s*' +
+        'RequestFrameSize:=RequestFrameSize\s*,\s*' +
+        'pResponseFrame:=pResponseFrame\s*,\s*' +
+        'ResponseCapacity:=ResponseCapacity\s*\)') (
+        "$Owner control-service dedicated 0x7D12 route drifted.")
+    Assert-Match $dispatchHandlerBlock (
+        '(?s)0x7D00,\s*0x7D10,\s*0x7D14,\s*0x7D1A,\s*' +
+        '0x7D13,\s*0x7D18,\s*0x7D19,\s*0x7D20,\s*0x7D22:\s*' +
         'ResponseSize\s*:=\s*HandleAdminCommands\s*\(') (
-        "$Owner control-service Admin route does not own 0x7D12.")
+        "$Owner control-service remaining Admin aggregate route drifted.")
+    if ($adminHandlerBlock -match '(?im)^[ \t]*0x7D12[ \t]*:') {
+        throw "$Owner legacy Admin handler still owns a 0x7D12 case."
+    }
     Assert-Match $msgParserBlock (
-        '(?s)0x7D00,\s*0x7D10,\s*0x7D12,\s*0x7D13,\s*0x7D18,\s*0x7D19,\s*0x7D20,\s*0x7D22:\s*' +
+        '(?s)0x7D00,\s*0x7D10,\s*0x7D12,\s*0x7D14,\s*0x7D1A,\s*' +
+        '0x7D13,\s*0x7D18,\s*0x7D19,\s*0x7D20,\s*0x7D22:\s*' +
         'controlResponseSize\s*:=\s*-1.*?' +
         'ControlCommands\.HandleRequest\s*\(') (
         "$Owner TCP transport route does not delegate 0x7D12.")
+
+    $setPositionOwnershipOccurrenceInventory = [ordered]@{
+        HandleRequest = @{ Block = $handleRequestBlock; Count = 0 }
+        ReserveAxisOwnership = @{ Block = $reserveOwnershipBlock; Count = 4 }
+        ValidateAxisOwnership = @{ Block = $validateOwnershipBlock; Count = 1 }
+        ValidateAxisOwnershipIdentity = @{
+            Block = $validateIdentityBlock
+            Count = 1
+        }
+        CopyAxisOwnershipPreemption = @{
+            Block = $copyPreemptionBlock
+            Count = 1
+        }
+        ValidateAxisOwnershipRollbackPreemptBank = @{
+            Block = $rollbackPreemptBankBlock
+            Count = 2
+        }
+        HandleAdminSetPosition = @{ Block = $setPositionHandlerBlock; Count = 2 }
+        DispatchRequestCommand = @{ Block = $dispatchHandlerBlock; Count = 1 }
+        ProcessAxisOwnership = @{ Block = $processOwnershipBlock; Count = 0 }
+        NotifyAxisOwnershipSessionClosed = @{
+            Block = $notifyClosedBlock
+            Count = 0
+        }
+    }
+    foreach ($inventoryEntry in
+            $setPositionOwnershipOccurrenceInventory.GetEnumerator()) {
+        $actualCount = [regex]::Matches(
+            $inventoryEntry.Value.Block,
+            '(?i)(?<![A-Za-z0-9_])0x7D12(?![A-Za-z0-9_])').Count
+        if ($actualCount -ne $inventoryEntry.Value.Count) {
+            throw (
+                "$Owner $($inventoryEntry.Key) 0x7D12 ownership occurrence " +
+                "count is $actualCount, expected " +
+                "$($inventoryEntry.Value.Count).")
+        }
+    }
+    if ([regex]::Matches(
+            $serviceScan,
+            '(?i)(?<![A-Za-z0-9_])0x7D12(?![A-Za-z0-9_])').Count -ne 12) {
+        throw "$Owner source-wide 0x7D12 ownership occurrence inventory drifted."
+    }
+    if ([regex]::Matches(
+            $ordinaryClassifierBlock,
+            '(?i)(?<![A-Za-z0-9_])0x7D12(?![A-Za-z0-9_])').Count -ne 0) {
+        throw "$Owner TCP ordinary classifier must exclude 0x7D12."
+    }
+
+    Assert-Match $reserveOwnershipBlock (
+        '(?s)END_VAR\s*Result\s*:=\s*-1\s*;\s*' +
+        'if\s+\(pEffectiveAxisMask\s*=\s*NIL\)\s*\|\s*' +
+        '\(pAdmissionToken\s*=\s*NIL\)\s*\|\s*' +
+        '\(pOwnerGeneration\s*=\s*NIL\)\s+then\s*' +
+        'RETURN\s*;\s*end_if\s*;\s*' +
+        'pEffectiveAxisMask\^\s*:=\s*0\s*;\s*' +
+        'pAdmissionToken\^\s*:=\s*0\s*;\s*' +
+        'pOwnerGeneration\^\s*:=\s*0\s*;\s*' +
+        'if\s+\(CommandId\s*=\s*0x7D12\)\s*&\s*' +
+        '\(LMC_ADMIN_SET_POSITION_STORE_CONFIGURED\s*=\s*FALSE\)\s+then\s*' +
+        'Result\s*:=\s*-3\s*;\s*RETURN\s*;\s*end_if\s*;') (
+        "$Owner Reserve store-FALSE fence must return -3 after only zeroing " +
+        'outputs and before any global-state access.')
+    Assert-Match $reserveOwnershipBlock (
+        '(?s)if\s+\(CommandId\s*=\s*0x7D12\)\s*&\s*' +
+        '\(LMC_ADMIN_SET_POSITION_STORE_CONFIGURED\s*=\s*FALSE\)\s+then\s*' +
+        'Result\s*:=\s*-3\s*;\s*RETURN\s*;\s*end_if\s*;.*?' +
+        'if\s+ResourceKind\s*=\s*LMC_OWNER_RESOURCE_AXIS\s+then.*?' +
+        'if\s+\(CommandId\s*<>\s*0x7D12\)\s*&\s*' +
+        '\(LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED\s*=\s*FALSE\)\s+then\s*' +
+        'Result\s*:=\s*-3\s*;\s*RETURN\s*;') (
+        "$Owner Reserve dormant gates must reject store-FALSE 0x7D12 and " +
+        'keep its ordinary-disabled exception exact.')
+    Assert-Match $reserveOwnershipBlock (
+        '(?ims)^\s*0x7D12\s*:\s*' +
+        'if\s+\(OwnerKind\s*<>\s*LMC_OWNER_KIND_DIRECT\)\s*\|\s*' +
+        '\(AdmissionMode\s*<>\s*LMC_OWNER_ADMISSION_ORDINARY\)\s*\|\s*' +
+        '\(referenceAxisMask\s*=\s*0\)\s*\|\s*' +
+        '\(referenceAxisMask\s*>\s*0x00000008\)\s*\|\s*' +
+        '\(RequestedAxisMask\s*<>\s*referenceAxisMask\)\s+then\s*' +
+        'RETURN\s*;\s*end_if\s*;') (
+        "$Owner Reserve 0x7D12 tuple must remain exact Direct/Axis/" +
+        'Ordinary and Reference 1..4.')
+    Assert-Match $validateOwnershipBlock (
+        '(?ims)^\s*0x7D12\s*:\s*tupleValid\s*:=\s*' +
+        '\(OwnerKind\s*=\s*LMC_OWNER_KIND_DIRECT\)\s*&\s*' +
+        '\(ResourceKind\s*=\s*LMC_OWNER_RESOURCE_AXIS\)\s*&\s*' +
+        '\(AdmissionMode\s*=\s*LMC_OWNER_ADMISSION_ORDINARY\)\s*&\s*' +
+        '\(referenceAxisMask\s*<>\s*0\)\s*&\s*' +
+        '\(referenceAxisMask\s*<=\s*0x00000008\)\s*&\s*' +
+        '\(ExpectedAxisMask\s*=\s*referenceAxisMask\)\s*;') (
+        "$Owner ValidateAxisOwnership 0x7D12 tuple drifted.")
+    Assert-Match $validateIdentityBlock (
+        '(?ims)^\s*0x7D12\s*:\s*tupleValid\s*:=\s*' +
+        '\(IdentitySize\s*=\s*48\)\s*&\s*' +
+        '\(OwnerKind\s*=\s*LMC_OWNER_KIND_DIRECT\)\s*&\s*' +
+        '\(ResourceKind\s*=\s*LMC_OWNER_RESOURCE_AXIS\)\s*&\s*' +
+        '\(AdmissionMode\s*=\s*LMC_OWNER_ADMISSION_ORDINARY\)\s*&\s*' +
+        '\(referenceAxisMask\s*<>\s*0\)\s*&\s*' +
+        '\(referenceAxisMask\s*<=\s*0x00000008\)\s*&\s*' +
+        '\(ExpectedAxisMask\s*=\s*referenceAxisMask\)\s*;') (
+        "$Owner ValidateAxisOwnershipIdentity 0x7D12 identity drifted.")
+    Assert-Match $copyPreemptionBlock (
+        '(?ims)^\s*0x7D12\s*:\s*' +
+        'identityExpectedSize\s*:=\s*48\s*;\s*' +
+        'identityMetadataValid\s*:=\s*' +
+        '\(oldOwnerKind\s*=\s*LMC_OWNER_KIND_DIRECT\)\s*&\s*' +
+        '\(oldResourceKind\s*=\s*LMC_OWNER_RESOURCE_AXIS\)\s*&\s*' +
+        '\(oldAdmissionMode\s*=\s*LMC_OWNER_ADMISSION_ORDINARY\)\s*&\s*' +
+        '\(referenceAxisMask\s*<>\s*0\)\s*&\s*' +
+        '\(referenceAxisMask\s*<=\s*0x00000008\)\s*&\s*' +
+        '\(oldAxisMask\s*=\s*referenceAxisMask\)\s*;') (
+        "$Owner CopyAxisOwnershipPreemption 0x7D12 tuple/identity drifted.")
+    Assert-Match $rollbackPreemptBankBlock (
+        '(?s)elsif\s+snapshotCommand\s*=\s*0x7D12\s+then\s*' +
+        'identityExpectedSize\s*:=\s*48\s*;.*?' +
+        'elsif\s+snapshotCommand\s*=\s*0x7D12\s+then\s*' +
+        'snapshotTupleValid\s*:=\s*snapshotTupleValid\s*&\s*' +
+        '\(snapshotAdmissionMode\s*=\s*' +
+        'LMC_OWNER_ADMISSION_ORDINARY\)\s*&\s*' +
+        '\(probeAxisBit\s*<=\s*0x00000008\)\s*&\s*' +
+        '\(snapshotMask\s*=\s*probeAxisBit\)\s*;') (
+        "$Owner rollback preempt-bank 0x7D12 tuple/identity drifted.")
+    Assert-Match $notifyClosedBlock (
+        '(?s)if\s+\(OwnershipState\[recordBase\s*\+\s*6\]\$UDINT\s*=\s*' +
+        'SessionEpoch\)\s*&\s*' +
+        '\(OwnershipState\[recordBase\s*\+\s*1\]\s*=\s*' +
+        'LMC_OWNER_STATE_RESERVED\)\s+then\s*' +
+        'OwnershipState\[recordBase\s*\+\s*1\]\s*:=\s*' +
+        'LMC_OWNER_STATE_QUARANTINED\s*;') (
+        "$Owner session close must quarantine an immediate Reserved owner.")
 
     $capabilityWrite = [regex]::Match(
         $capabilityBlock,
@@ -16638,29 +17763,43 @@ function Assert-LasalAdminSetAxisPositionContract {
     if (($capabilityBits -band 0x000000A8) -ne 0) {
         throw "$Owner dormant SetPosition bits 3/5/7 were advertised before activation proof."
     }
+    if ($capabilityBits -ne 0x00000017) {
+        throw "$Owner Admin capability mask must remain exactly 0x00000017."
+    }
 
-    foreach ($requiredLocal in @(
-            @{ Name = 'adminDiagnosticsBuild'; Type = 'UDINT' },
-            @{ Name = 'adminBootId'; Type = 'UDINT' },
-            @{ Name = 'adminMapRevision'; Type = 'UDINT' },
-            @{ Name = 'adminClientIntentId0'; Type = 'UDINT' },
-            @{ Name = 'adminClientIntentId1'; Type = 'UDINT' },
-            @{ Name = 'adminClientIntentId2'; Type = 'UDINT' },
-            @{ Name = 'adminClientIntentId3'; Type = 'UDINT' },
-            @{ Name = 'adminAxisPosition'; Type = 'DINT' },
-            @{ Name = 'adminExpectedActualPosition'; Type = 'DINT' },
-            @{ Name = 'adminExecuteToken'; Type = 'UDINT' },
-            @{ Name = 'adminAppliedPosition'; Type = 'DINT' })) {
-        $localCount = [regex]::Matches(
-            $adminHandlerBlock,
-            ('(?im)^[ \t]*' + [regex]::Escape($requiredLocal.Name) +
-             '[ \t]*:[ \t]*' + [regex]::Escape($requiredLocal.Type) +
-             '[ \t]*;[ \t]*\r?$')).Count
-        if ($localCount -ne 1) {
+    foreach ($axis in 1..4) {
+        $macroName = "LMC_ADMIN_SET_POSITION_MAX_JUMP_AXIS$axis"
+        $exactZeroCount = [regex]::Matches(
+            $serviceScan,
+            ('(?im)^[ \t]*#define[ \t]+' +
+             [regex]::Escape($macroName) + '[ \t]+0[ \t]*\r?$')).Count
+        $allDefineCount = [regex]::Matches(
+            $serviceScan,
+            ('(?im)^[ \t]*#define[ \t]+' +
+             [regex]::Escape($macroName) + '(?:[ \t]|$)')).Count
+        $undefCount = [regex]::Matches(
+            $serviceScan,
+            ('(?im)^[ \t]*#undef[ \t]+' +
+             [regex]::Escape($macroName) + '(?:[ \t]|$)')).Count
+        if ($exactZeroCount -ne 1 -or
+            $allDefineCount -ne 1 -or
+            $undefCount -ne 0) {
             throw (
-                "$Owner local '$($requiredLocal.Name)' count is $localCount, " +
-                "expected one $($requiredLocal.Type).")
+                "$Owner $macroName must have exactly one zero definition " +
+                'and no undef.')
         }
+    }
+    if ([regex]::Matches(
+            $serviceScan,
+            ('(?im)^[ \t]*#(?:define|undef)[ \t]+' +
+             'LMC_ADMIN_SET_POSITION_MAX_JUMP_(?!AXIS[1-4](?:[ \t]|$))')).
+            Count -ne 0) {
+        throw "$Owner SetPosition MAX_JUMP may define only AXIS1 through AXIS4."
+    }
+    if ([regex]::Matches(
+            $serviceScan,
+            '(?i)\bLMCAxis[1-9]\.SetPosition\s*\(').Count -ne 0) {
+        throw "$Owner native .SetPosition call count must remain zero."
     }
 
     Assert-Match $caseBlock (
@@ -16714,11 +17853,22 @@ function Assert-LasalAdminSetAxisPositionContract {
         'elsif\s+adminRequestId\s*=\s*0\s+then\s*' +
         'adminDetailCode\s*:=\s*3;\s*' +
         'elsif\s+adminDiagnosticsBuild\s*=\s*0\s+then\s*' +
-        'adminDetailCode\s*:=\s*9;\s*' +
+        'adminDetailCode\s*:=\s*16;\s*' +
         'elsif\s+adminBootId\s*=\s*0\s+then\s*' +
-        'adminDetailCode\s*:=\s*9;\s*' +
+        'adminDetailCode\s*:=\s*17;\s*' +
         'elsif\s+adminMapRevision\s*=\s*0\s+then\s*' +
-        'adminDetailCode\s*:=\s*9;\s*' +
+        'adminDetailCode\s*:=\s*18;\s*' +
+        'elsif\s+adminDiagnosticsBuild\s*<>\s*' +
+        'LMC_ADMIN_DIAGNOSTICS_BUILD\s+then\s*' +
+        'adminDetailCode\s*:=\s*16;\s*' +
+        'elsif\s+\(OwnershipState\[0\]\$UDINT\s*=\s*' +
+        'LMC_OWNER_TABLE_MAGIC\)\s*&\s*' +
+        '\(OwnershipState\[3\]\$UDINT\s*<>\s*0\)\s*&\s*' +
+        '\(adminBootId\s*<>\s*OwnershipState\[3\]\$UDINT\)\s+then\s*' +
+        'adminDetailCode\s*:=\s*17;\s*' +
+        'elsif\s+adminMapRevision\s*<>\s*' +
+        'LMC_ADMIN_MAP_REVISION\s+then\s*' +
+        'adminDetailCode\s*:=\s*18;\s*' +
         'elsif\s+\(adminClientIntentId0\s*=\s*0\)\s*&\s*' +
         '\(adminClientIntentId1\s*=\s*0\)\s*&\s*' +
         '\(adminClientIntentId2\s*=\s*0\)\s*&\s*' +
@@ -16726,24 +17876,417 @@ function Assert-LasalAdminSetAxisPositionContract {
         'adminDetailCode\s*:=\s*9;\s*' +
         'elsif\s+adminExecuteToken\s*<>\s*0x50544553\s+then\s*' +
         'adminDetailCode\s*:=\s*9;\s*' +
-        'else\s+adminDetailCode\s*:=\s*10;\s*end_if;') (
-        "$Owner 0x7D12 must validate the exact dormant request and then fail closed.")
+        'elsif\s+\(OwnershipState\[0\]\$UDINT\s*<>\s*' +
+        'LMC_OWNER_TABLE_MAGIC\)\s*\|\s*' +
+        '\(OwnershipState\[3\]\$UDINT\s*=\s*0\)\s+then\s*' +
+        'adminDetailCode\s*:=\s*24;\s*' +
+        'elsif\s+LMC_ADMIN_SET_POSITION_STORE_CONFIGURED\s*=\s*' +
+        'FALSE\s+then\s*adminDetailCode\s*:=\s*24;\s*' +
+        'elsif\s+IsClientConnected\s*\(\s*#SetPositionStore\s*\)\s*' +
+        '<>\s*1\s+then\s*adminDetailCode\s*:=\s*24;\s*' +
+        'else\s+adminSetPositionKey\s*\[\s*0\s*\]\s*\$UINT\s*:=\s*1;') (
+        "$Owner 0x7D12 Store calls must remain behind the FALSE macro and exact connection gate.")
 
-    $forbiddenMutationPattern = (
-        '(?i)\bLMCAxis[1-9]\.(?:SetPosition|ReadAxisStatus|' +
-        'ReadVelocity|ReadAxisError|ReadPosition|ReadSWEndPos|' +
-        'ReadParameter)\s*\(')
-    if ($caseBlock -match $forbiddenMutationPattern -or
-        $caseBlock -match '(?i)LMCAXIS_SET_ACTPOS_APPUNIT_DEST' -or
+    $setPositionStoreCallCounts = [ordered]@{
+        BeginSetPosition = 1
+        CommitSetPositionTerminal = 1
+        ReadSetPositionOutcome = 0
+        RetireSetPositionOutcome = 0
+    }
+    foreach ($storeCallName in $setPositionStoreCallCounts.Keys) {
+        $storeCallCount = [regex]::Matches(
+            $caseBlock,
+            ('(?i)SetPositionStore\.' + [regex]::Escape($storeCallName) +
+             '\s*\(')).Count
+        if ($storeCallCount -ne $setPositionStoreCallCounts[$storeCallName]) {
+            throw (
+                "$Owner 0x7D12 must call $storeCallName exactly " +
+                "$($setPositionStoreCallCounts[$storeCallName]) time(s); " +
+                "found $storeCallCount.")
+        }
+    }
+    Assert-Match $caseBlock (
+        '(?s)adminSetPositionKey\[0\]\$UINT\s*:=\s*1;\s*' +
+        'adminSetPositionKey\[2\]\$UINT\s*:=\s*1;\s*' +
+        'adminSetPositionKey\[4\]\$UDINT\s*:=\s*adminDiagnosticsBuild;\s*' +
+        'adminSetPositionKey\[8\]\$UDINT\s*:=\s*adminBootId;\s*' +
+        'adminSetPositionKey\[12\]\$UDINT\s*:=\s*adminMapRevision;\s*' +
+        'adminSetPositionKey\[16\]\$UDINT\s*:=\s*adminRequestId;\s*' +
+        'adminSetPositionKey\[20\]\$UDINT\s*:=\s*adminClientIntentId0;\s*' +
+        'adminSetPositionKey\[24\]\$UDINT\s*:=\s*adminClientIntentId1;\s*' +
+        'adminSetPositionKey\[28\]\$UDINT\s*:=\s*adminClientIntentId2;\s*' +
+        'adminSetPositionKey\[32\]\$UDINT\s*:=\s*adminClientIntentId3;\s*' +
+        'adminSetPositionKey\[36\]\$UINT\s*:=\s*Reference;\s*' +
+        'adminSetPositionKey\[38\]\$UINT\s*:=\s*0;\s*' +
+        'adminSetPositionKey\[40\]\$DINT\s*:=\s*adminAxisPosition;\s*' +
+        'adminSetPositionKey\[44\]\$DINT\s*:=\s*' +
+        'adminExpectedActualPosition;') (
+        "$Owner 0x7D12 durable 48-byte key normalization drifted.")
+    Assert-Match $caseBlock (
+        '(?s)SetPositionStore\.BeginSetPosition\s*\(\s*' +
+        'pKey:=#adminSetPositionKey\[0\],\s*KeySize:=48,\s*' +
+        'pSnapshot:=#adminSetPositionSnapshot\[0\],\s*' +
+        'SnapshotCapacity:=68,\s*' +
+        'pRecordGeneration:=#adminStoreRecordGeneration,\s*' +
+        'pDetailCode:=#adminStoreDetailCode\s*\);\s*' +
+        'if\s+adminStoreResult\s*=\s*2\s+then') (
+        "$Owner 0x7D12 Begin/replay contract drifted.")
+
+    $beginCallIndex = $caseBlock.IndexOf(
+        'adminStoreResult := SetPositionStore.BeginSetPosition(',
+        [StringComparison]::Ordinal)
+    $replayBranchIndex = $caseBlock.IndexOf(
+        'if adminStoreResult = 2 then',
+        [StringComparison]::Ordinal)
+    $freshBranchIndex = $caseBlock.IndexOf(
+        'elsif adminStoreResult = 1 then',
+        [StringComparison]::Ordinal)
+    $failureBranchIndex = $caseBlock.IndexOf(
+        'elsif adminStoreResult = 0 then',
+        [StringComparison]::Ordinal)
+    $coordinateCommitIndex = $caseBlock.IndexOf(
+        'SetPositionStore.CommitSetPositionTerminal(',
+        [StringComparison]::Ordinal)
+    if ($beginCallIndex -lt 0 -or
+        $replayBranchIndex -le $beginCallIndex -or
+        $freshBranchIndex -le $replayBranchIndex -or
+        $coordinateCommitIndex -le $freshBranchIndex -or
+        $failureBranchIndex -le $coordinateCommitIndex) {
+        throw (
+            "$Owner 0x7D12 Begin/replay/fresh/failure branch order " +
+            'drifted.')
+    }
+    $coordinateBranchBlock = $caseBlock.Substring(
+        $freshBranchIndex,
+        $failureBranchIndex - $freshBranchIndex)
+    $outsideCoordinateBranch = $caseBlock.Remove(
+        $freshBranchIndex,
+        $failureBranchIndex - $freshBranchIndex)
+    $setPositionOwnershipCallCounts = [ordered]@{
+        ReserveAxisOwnership = 1
+        RollbackAxisOwnership = 1
+        ValidateAxisOwnership = 0
+        ValidateAxisOwnershipIdentity = 0
+        CopyAxisOwnershipPreemption = 0
+        CommitAxisOwnership = 0
+        PublishAxisOwnership = 0
+        ProcessAxisOwnership = 0
+    }
+    foreach ($ownershipCall in $setPositionOwnershipCallCounts.GetEnumerator()) {
+        $callPattern = (
+            '(?i)(?<![A-Za-z0-9_.:])' +
+            [regex]::Escape($ownershipCall.Key) + '\s*\(')
+        $callCount = [regex]::Matches($caseBlock, $callPattern).Count
+        if ($callCount -ne $ownershipCall.Value) {
+            throw (
+                "$Owner 0x7D12 $($ownershipCall.Key) call count is " +
+                "$callCount, expected $($ownershipCall.Value).")
+        }
+        if ($ownershipCall.Value -gt 0 -and
+            [regex]::Matches(
+                $outsideCoordinateBranch,
+                $callPattern).Count -ne 0) {
+            throw (
+                "$Owner 0x7D12 $($ownershipCall.Key) must exist only in " +
+                'the fresh BeginSetPosition result=1 branch.')
+        }
+    }
+    Assert-Match $coordinateBranchBlock (
+        '(?s)adminDetailCode\s*:=\s*10\s*;\s*' +
+        'case\s+Reference\s+of') (
+        "$Owner fresh coordinate MAX_JUMP selection/zero guard drifted.")
+    Assert-Match $coordinateBranchBlock (
+        '(?s)case\s+Reference\s+of\s*' +
+        '1\s*:\s*adminOwnerAxisMask\s*:=\s*0x00000001\s*;\s*' +
+        '2\s*:\s*adminOwnerAxisMask\s*:=\s*0x00000002\s*;\s*' +
+        '3\s*:\s*adminOwnerAxisMask\s*:=\s*0x00000004\s*;\s*' +
+        '4\s*:\s*adminOwnerAxisMask\s*:=\s*0x00000008\s*;\s*' +
+        'else\s*adminOwnerAxisMask\s*:=\s*0\s*;\s*end_case\s*;') (
+        "$Owner 0x7D12 ownership axis-mask mapping must remain exact 1..4.")
+    Assert-Match $coordinateBranchBlock (
+        '(?s)if\s+\(adminOwnerAxisMask\s*<>\s*0\)\s*&\s*' +
+        '\(OwnershipState\[16\]\$UDINT\s*<>\s*0\)\s*&\s*' +
+        '\(OwnershipState\[17\]\$UDINT\s*<>\s*0\)\s*&\s*' +
+        '\(OwnershipState\[18\]\$UDINT\s*=\s*0\)\s*&\s*' +
+        '\(OwnershipState\[19\]\$UDINT\s*=\s*0\)\s*&\s*' +
+        '\(OwnershipState\[20\]\s*=\s*0x7D12\)\s*&\s*' +
+        '\(OwnershipState\[21\]\s*=\s*TO_DINT\s*\(\s*Reference\s*\)\)\s+then\s*' +
+        'adminOwnerSession\s*:=\s*OwnershipState\[16\]\$UDINT\s*;\s*' +
+        'adminOwnerSequence\s*:=\s*OwnershipState\[17\]\$UDINT\s*;') (
+        "$Owner 0x7D12 ownership scratch tuple/copy drifted.")
+    Assert-Match $coordinateBranchBlock (
+        '(?s)adminOwnerReserveResult\s*:=\s*ReserveAxisOwnership\s*\(\s*' +
+        'CommandId:=0x7D12\s*,\s*Reference:=Reference\s*,\s*' +
+        'RequestedAxisMask:=adminOwnerAxisMask\s*,\s*' +
+        'OwnerKind:=LMC_OWNER_KIND_DIRECT\s*,\s*' +
+        'ResourceKind:=LMC_OWNER_RESOURCE_AXIS\s*,\s*' +
+        'AdmissionMode:=LMC_OWNER_ADMISSION_ORDINARY\s*,\s*' +
+        'CallerSessionEpoch:=adminOwnerSession\s*,\s*' +
+        'RequestSequence:=adminOwnerSequence\s*,\s*' +
+        'pIdentity:=\(pRequestFrame\s*\+\s*8\)\$\^void\s*,\s*' +
+        'IdentitySize:=48\s*,\s*' +
+        'pEffectiveAxisMask:=#adminOwnerEffectiveAxisMask\s*,\s*' +
+        'pAdmissionToken:=#adminOwnerAdmissionToken\s*,\s*' +
+        'pOwnerGeneration:=#adminOwnerGeneration\s*\)\s*;') (
+        "$Owner 0x7D12 ReserveAxisOwnership exact 48-byte ABI drifted.")
+    Assert-Match $coordinateBranchBlock (
+        '(?s)adminOwnerAcquired\s*:=\s*' +
+        '\(adminOwnerReserveResult\s*=\s*0\)\s*&\s*' +
+        '\(adminOwnerEffectiveAxisMask\s*=\s*adminOwnerAxisMask\)\s*&\s*' +
+        '\(adminOwnerAdmissionToken\s*<>\s*0\)\s*&\s*' +
+        '\(adminOwnerGeneration\s*<>\s*0\)\s*;\s*' +
+        'if\s+\(adminOwnerAcquired\s*=\s*FALSE\)\s*&\s*' +
+        '\(adminOwnerReserveResult\s*<>\s*-2\)\s+then\s*' +
+        'OwnershipState\[24\]\s*:=\s*1\s*;\s*end_if\s*;\s*' +
+        'else\s*OwnershipState\[24\]\s*:=\s*1\s*;\s*end_if\s*;\s*' +
+        'if\s+adminOwnerAcquired\s+then') (
+        "$Owner 0x7D12 acquisition must treat only -2 as normal conflict " +
+        'and latch malformed/internal coordination failures.')
+    $setPositionStateWrites = [regex]::Matches(
+        $caseBlock,
+        '(?i)OwnershipState\s*\[\s*(?<Index>[^\]]+)\]\s*:=')
+    if ($setPositionStateWrites.Count -ne 3 -or
+        @($setPositionStateWrites | Where-Object {
+                $_.Groups['Index'].Value.Trim() -cne '24'
+            }).Count -ne 0) {
+        throw (
+            "$Owner 0x7D12 may write only three internal-failure " +
+            'OwnershipState[24] latches.')
+    }
+    $coordinateReadPattern =
+        '(?i)\bLMCAxis[1-9]\.(?:ReadPosition|ReadSWEndPos)\s*\('
+    if ([regex]::Matches(
+            $outsideCoordinateBranch,
+            $coordinateReadPattern).Count -ne 0) {
+        throw (
+            "$Owner coordinate reads must exist only in the fresh " +
+            'BeginSetPosition result=1 branch; replay/failure reads must be zero.')
+    }
+    $zeroThresholdIndex = $coordinateBranchBlock.IndexOf(
+        'if adminSetPositionMaxJump = 0 then',
+        [StringComparison]::Ordinal)
+    $firstCoordinateRead = [regex]::Match(
+        $coordinateBranchBlock,
+        $coordinateReadPattern)
+    if ($zeroThresholdIndex -lt 0 -or
+        -not $firstCoordinateRead.Success -or
+        $zeroThresholdIndex -ge $firstCoordinateRead.Index) {
+        throw (
+            "$Owner zero MAX_JUMP threshold must fail closed before every " +
+            'coordinate read.')
+    }
+
+    Assert-Match $coordinateBranchBlock (
+        '(?s)if\s+adminOwnerAcquired\s+then\s*' +
+        'case\s+Reference\s+of\s*' +
+        '1:\s*adminSetPositionMaxJump\s*:=\s*' +
+        'LMC_ADMIN_SET_POSITION_MAX_JUMP_AXIS1;\s*' +
+        '2:\s*adminSetPositionMaxJump\s*:=\s*' +
+        'LMC_ADMIN_SET_POSITION_MAX_JUMP_AXIS2;\s*' +
+        '3:\s*adminSetPositionMaxJump\s*:=\s*' +
+        'LMC_ADMIN_SET_POSITION_MAX_JUMP_AXIS3;\s*' +
+        '4:\s*adminSetPositionMaxJump\s*:=\s*' +
+        'LMC_ADMIN_SET_POSITION_MAX_JUMP_AXIS4;\s*' +
+        'else\s*adminSetPositionMaxJump\s*:=\s*0;\s*end_case;\s*' +
+        'if\s+adminSetPositionMaxJump\s*=\s*0\s+then\s*' +
+        'adminDetailCode\s*:=\s*14;\s*else') (
+        "$Owner fresh coordinate MAX_JUMP selection/zero guard drifted.")
+
+    foreach ($axis in 1..9) {
+        $expectedHelperCount = if ($axis -le 4) { 1 } else { 0 }
+        $expectedServiceActCount = if ($axis -le 4) { 2 } else { 1 }
+        $expectedServiceLimitCount = if ($axis -le 4) { 1 } else { 0 }
+        $connectionPattern =
+            '(?i)IsClientConnected\s*\(\s*#LMCAxis' + $axis +
+            '\s*\)\s*=\s*1'
+        $actualPositionPattern =
+            '(?i)\bLMCAxis' + $axis +
+            '\.ReadPosition\s*\(\s*Mode\s*:=\s*' +
+            'LMCAXIS_ACTPOS_APPUNIT\s*\)'
+        $softwareMinPattern =
+            '(?i)\bLMCAxis' + $axis +
+            '\.ReadSWEndPos\s*\(\s*Mode\s*:=\s*' +
+            'LMCAXIS_RD_SWMIN_APPUNIT\s*\)'
+        $softwareMaxPattern =
+            '(?i)\bLMCAxis' + $axis +
+            '\.ReadSWEndPos\s*\(\s*Mode\s*:=\s*' +
+            'LMCAXIS_RD_SWMAX_APPUNIT\s*\)'
+        foreach ($helperRead in @(
+                @{ Name = 'connection'; Pattern = $connectionPattern },
+                @{ Name = 'ACTPOS'; Pattern = $actualPositionPattern },
+                @{ Name = 'SWMIN'; Pattern = $softwareMinPattern },
+                @{ Name = 'SWMAX'; Pattern = $softwareMaxPattern })) {
+            $helperCount = [regex]::Matches(
+                $coordinateBranchBlock,
+                $helperRead.Pattern).Count
+            if ($helperCount -ne $expectedHelperCount) {
+                throw (
+                    "$Owner axis $axis $($helperRead.Name) coordinate gate " +
+                    "count is $helperCount, expected $expectedHelperCount.")
+            }
+        }
+        $serviceActCount = [regex]::Matches(
+            $serviceScan,
+            $actualPositionPattern).Count
+        $serviceMinCount = [regex]::Matches(
+            $serviceScan,
+            $softwareMinPattern).Count
+        $serviceMaxCount = [regex]::Matches(
+            $serviceScan,
+            $softwareMaxPattern).Count
+        if ($serviceActCount -ne $expectedServiceActCount -or
+            $serviceMinCount -ne $expectedServiceLimitCount -or
+            $serviceMaxCount -ne $expectedServiceLimitCount) {
+            throw (
+                "$Owner source-wide axis $axis coordinate read inventory is " +
+                "$serviceActCount/$serviceMinCount/$serviceMaxCount, expected " +
+                "$expectedServiceActCount/$expectedServiceLimitCount/" +
+                "$expectedServiceLimitCount.")
+        }
+    }
+    $coordinateAxisMethodCalls = [regex]::Matches(
+        $caseBlock,
+        '(?i)\bLMCAxis[1-9]\.(?<Method>[A-Za-z_][A-Za-z0-9_]*)\s*\(')
+    $unexpectedCoordinateMethods = @(
+        $coordinateAxisMethodCalls |
+            Where-Object {
+                $_.Groups['Method'].Value -inotmatch
+                    '^(?:ReadPosition|ReadSWEndPos)$'
+            })
+    if ($coordinateAxisMethodCalls.Count -ne 12 -or
+        $unexpectedCoordinateMethods.Count -ne 0) {
+        throw (
+            "$Owner coordinate helper native method inventory must be " +
+            'exactly four ReadPosition and eight ReadSWEndPos calls.')
+    }
+
+    $detail10Count = [regex]::Matches(
+        $coordinateBranchBlock,
+        '(?i)adminDetailCode\s*:=\s*10\s*;').Count
+    $detail14Count = [regex]::Matches(
+        $coordinateBranchBlock,
+        '(?i)adminDetailCode\s*:=\s*14\s*;').Count
+    $detail15Count = [regex]::Matches(
+        $coordinateBranchBlock,
+        '(?i)adminDetailCode\s*:=\s*15\s*;').Count
+    if ($detail10Count -ne 1 -or
+        $detail14Count -ne 4 -or
+        $detail15Count -ne 2) {
+        throw (
+            "$Owner coordinate detail 10/14/15 assignment inventory is " +
+            "$detail10Count/$detail14Count/$detail15Count, expected 1/4/2.")
+    }
+    Assert-Match $coordinateBranchBlock (
+        '(?s)if\s+adminAxisClientConnected\s*=\s*FALSE\s+then\s*' +
+        'adminDetailCode\s*:=\s*14;\s*' +
+        'elsif\s+adminSoftwareLimitMin\s*>=\s*' +
+        'adminSoftwareLimitMax\s+then\s*' +
+        'adminDetailCode\s*:=\s*14;\s*' +
+        'elsif\s+\(adminActualPosition\s*<\s*' +
+        'adminSoftwareLimitMin\)\s*\|\s*' +
+        '\(adminActualPosition\s*>\s*adminSoftwareLimitMax\)\s*\|\s*' +
+        '\(adminAxisPosition\s*<\s*adminSoftwareLimitMin\)\s*\|\s*' +
+        '\(adminAxisPosition\s*>\s*adminSoftwareLimitMax\)\s+then\s*' +
+        'adminDetailCode\s*:=\s*14;') (
+        "$Owner coordinate software envelope must remain inclusive and fail 14.")
+    Assert-Match $coordinateBranchBlock (
+        '(?s)elsif\s+adminActualPosition\s*<>\s*' +
+        'adminExpectedActualPosition\s+then\s*' +
+        'adminDetailCode\s*:=\s*15;\s*else') (
+        "$Owner coordinate expected-actual equality gate must fail 15.")
+    if ($coordinateBranchBlock -match
+            '(?i)\b(?:ABS|TO_LINT|LINT)\b' -or
+        $coordinateBranchBlock -match
+            '(?i)\b(?:adminAxisPosition|adminActualPosition)\s*-\s*' +
+            '(?:adminAxisPosition|adminActualPosition)\b') {
+        throw (
+            "$Owner coordinate delta must use no ABS/LINT or signed DINT " +
+            'subtraction.')
+    }
+    Assert-Match $coordinateBranchBlock (
+        '(?s)adminTargetOrder\s*:=\s*' +
+        'adminAxisPosition\$UDINT\s+xor\s+0x80000000;\s*' +
+        'adminActualOrder\s*:=\s*' +
+        'adminActualPosition\$UDINT\s+xor\s+0x80000000;\s*' +
+        'if\s+adminTargetOrder\s*>=\s*adminActualOrder\s+then\s*' +
+        'adminPositionJump\s*:=\s*' +
+        'adminTargetOrder\s*-\s*adminActualOrder;\s*else\s*' +
+        'adminPositionJump\s*:=\s*' +
+        'adminActualOrder\s*-\s*adminTargetOrder;\s*end_if;\s*' +
+        'if\s+adminPositionJump\s*>\s*' +
+        'adminSetPositionMaxJump\s+then\s*' +
+        'adminDetailCode\s*:=\s*15;\s*end_if;') (
+        "$Owner coordinate delta must retain overflow-safe sign-biased " +
+        'UDINT ordering and inclusive maximum jump.')
+    Assert-Match $caseBlock (
+        '(?s)elsif\s+adminStoreResult\s*=\s*1\s+then.*?' +
+        'SetPositionStore\.CommitSetPositionTerminal\s*\(.*?' +
+        'RecordState:=3,\s*AppliedPosition:=0,\s*' +
+        'OriginalCommandStatus:=1,\s*OriginalErrorId:=-31000,\s*' +
+        'OriginalDetailCode:=adminDetailCode,\s*NativeCommandState:=0,.*?' +
+        'SnapshotCapacity:=68,\s*' +
+        'pDetailCode:=#adminStoreDetailCode\s*\);.*?' +
+        '\(adminSetPositionSnapshot\[56\]\$UDINT\s*=\s*' +
+        'adminDetailCode\).*?' +
+        'if\s+\(adminStoreResult\s*<>\s*1\)\s*\|\s*' +
+        '\(adminStoreSnapshotValid\s*=\s*FALSE\)\s+then\s*' +
+        'ResponseSize\s*:=\s*' +
+        'LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE\s*;\s*RETURN\s*;') (
+        "$Owner 0x7D12 dynamic-detail Commit/snapshot/fail-close contract drifted.")
+
+    $reserveCallIndex = $coordinateBranchBlock.IndexOf(
+        'adminOwnerReserveResult := ReserveAxisOwnership(',
+        [StringComparison]::Ordinal)
+    $acquiredGuardIndex = $coordinateBranchBlock.IndexOf(
+        'if adminOwnerAcquired then',
+        [StringComparison]::Ordinal)
+    $commitProofFailureIndex = $coordinateBranchBlock.IndexOf(
+        'if (adminStoreResult <> 1) |',
+        [StringComparison]::Ordinal)
+    $rollbackCallIndex = $coordinateBranchBlock.IndexOf(
+        'adminOwnerRollbackResult := RollbackAxisOwnership(',
+        [StringComparison]::Ordinal)
+    $responseWriteIndex = $caseBlock.IndexOf(
+        '_memset(dest:=pResponseFrame, usByte:=0, cntr:=36)',
+        [StringComparison]::Ordinal)
+    if ($reserveCallIndex -lt 0 -or
+        $acquiredGuardIndex -le $reserveCallIndex -or
+        -not $firstCoordinateRead.Success -or
+        $firstCoordinateRead.Index -le $acquiredGuardIndex -or
+        $commitProofFailureIndex -le $firstCoordinateRead.Index -or
+        $rollbackCallIndex -le $commitProofFailureIndex -or
+        $responseWriteIndex -le ($freshBranchIndex + $rollbackCallIndex)) {
+        throw (
+            "$Owner 0x7D12 Reserve/acquired/read/terminal-proof/rollback/" +
+            'response order drifted.')
+    }
+    Assert-Match $coordinateBranchBlock (
+        '(?s)if\s+\(adminStoreResult\s*<>\s*1\)\s*\|\s*' +
+        '\(adminStoreSnapshotValid\s*=\s*FALSE\)\s+then\s*' +
+        'ResponseSize\s*:=\s*' +
+        'LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE\s*;\s*' +
+        'RETURN\s*;\s*end_if\s*;\s*' +
+        'if\s+adminOwnerAcquired\s+then\s*' +
+        'adminOwnerRollbackResult\s*:=\s*RollbackAxisOwnership\s*\(\s*' +
+        'AdmissionToken:=adminOwnerAdmissionToken\s*,\s*' +
+        'OwnerGeneration:=adminOwnerGeneration\s*,\s*' +
+        'CallerSessionEpoch:=adminOwnerSession\s*,\s*' +
+        'RequestSequence:=adminOwnerSequence\s*,\s*Reason:=0\s*\)\s*;\s*' +
+        'if\s+adminOwnerRollbackResult\s*<>\s*0\s+then\s*' +
+        'OwnershipState\[24\]\s*:=\s*1\s*;\s*end_if\s*;\s*end_if\s*;') (
+        "$Owner 0x7D12 rollback must follow terminal proof, use the exact " +
+        'admission identity/Reason 0, and latch failure only.')
+
+    if ($caseBlock -match '(?i)LMCAXIS_SET_ACTPOS_APPUNIT_DEST' -or
         $caseBlock -match '(?i)LMCAXIS_PAR_RD_SWLIMWINDOW') {
         throw (
-            "$Owner dormant 0x7D12 must perform no native axis read or " +
-            'SetPosition mutation.')
+            "$Owner dormant 0x7D12 coordinate gate used a mutation-only " +
+            'native mode.')
     }
     if ([regex]::Matches(
             $caseBlock,
-            '(?i)adminAppliedPosition\s*:=').Count -ne 1) {
-        throw "$Owner dormant 0x7D12 must never publish a position as applied."
+            '(?i)adminAppliedPosition\s*:=').Count -ne 3) {
+        throw "$Owner 0x7D12 applied-position assignment inventory drifted."
     }
 
     Assert-Match $caseBlock (
@@ -16752,16 +18295,1897 @@ function Assert-LasalAdminSetAxisPositionContract {
         '\(pResponseFrame\s*\+\s*2\)\^\$UINT\s*:=\s*28.*?' +
         '\(pResponseFrame\s*\+\s*8\)\^\$UINT\s*:=\s*1.*?' +
         '\(pResponseFrame\s*\+\s*10\)\^\$UINT\s*:=\s*0.*?' +
-        '\(pResponseFrame\s*\+\s*12\)\^\$UINT\s*:=\s*1.*?' +
+        '\(pResponseFrame\s*\+\s*12\)\^\$UINT\s*:=\s*' +
+        'adminSetPositionCommandStatus.*?' +
         '\(pResponseFrame\s*\+\s*14\)\^\$INT\s*:=\s*adminErrorId.*?' +
         '\(pResponseFrame\s*\+\s*16\)\^\$UDINT\s*:=\s*adminRequestId.*?' +
         '\(pResponseFrame\s*\+\s*20\)\^\$UDINT\s*:=\s*adminDetailCode.*?' +
         '\(pResponseFrame\s*\+\s*24\)\^\$DINT\s*:=\s*adminAppliedPosition.*?' +
         '\(pResponseFrame\s*\+\s*28\)\^\$UINT\s*:=\s*1.*?' +
         '\(pResponseFrame\s*\+\s*30\)\^\$UINT\s*:=\s*0.*?' +
-        '\(pResponseFrame\s*\+\s*32\)\^\$UDINT\s*:=\s*0.*?' +
+        '\(pResponseFrame\s*\+\s*32\)\^\$UDINT\s*:=\s*' +
+        'adminSetPositionNativeCommandState.*?' +
         'ResponseSize\s*:=\s*36') (
-        "$Owner 0x7D12 fixed fail-closed 28-byte Admin response is incomplete.")
+        "$Owner 0x7D12 exact 36-byte replay/rejection response is incomplete.")
+
+    $setPositionCaseToken = [regex]::Replace($caseBlock, '\s+', '')
+    $setPositionCaseSha256 = [Security.Cryptography.SHA256]::Create()
+    try {
+        $setPositionCaseFingerprint = ([BitConverter]::ToString(
+                $setPositionCaseSha256.ComputeHash(
+                    [Text.Encoding]::UTF8.GetBytes($setPositionCaseToken)))).
+            Replace('-', '')
+    }
+    finally {
+        $setPositionCaseSha256.Dispose()
+    }
+    if ($setPositionCaseFingerprint -cne
+            '19269B49302CEB0AF34EFD1B17C1CC6C17ECF3C0E543E482C2FC66BAD94499AA') {
+        throw "$Owner 0x7D12 Store-wiring executable fingerprint drifted."
+    }
+}
+
+function Assert-LasalSetPositionCloseWithoutResponseContract {
+    param(
+        [string]$ControlServiceText,
+        [string]$TcpText,
+        [string]$Owner
+    )
+
+    $sentinelName = 'LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE'
+    $sentinelTokenPattern = (
+        '(?<![A-Za-z0-9_])' + [regex]::Escape($sentinelName) +
+        '(?![A-Za-z0-9_])')
+    $sentinelLiteralPattern = '(?<![0-9])-12(?![0-9])'
+    $sentinelDefinePattern = (
+        '(?im)^[ \t]*#define[ \t]+' + [regex]::Escape($sentinelName) +
+        '[ \t]+-12[ \t]*\r?$')
+    $serviceScan = Get-LasalScanText $ControlServiceText
+    $tcpScan = Get-LasalScanText $TcpText
+
+    if ([regex]::Matches(
+            $serviceScan,
+            $sentinelDefinePattern).Count -ne 1) {
+        throw "$Owner service sentinel must be defined exactly once as -12."
+    }
+    $serviceSentinelTokenCount = [regex]::Matches(
+        $serviceScan,
+        $sentinelTokenPattern).Count
+    $serviceSentinelLiteralCount = [regex]::Matches(
+        $serviceScan,
+        $sentinelLiteralPattern).Count
+    $serviceSentinelProducerCount = [regex]::Matches(
+        $serviceScan,
+        ('(?i)ResponseSize\s*:=\s*' + $sentinelTokenPattern + '\s*;')).Count
+    if ($serviceSentinelTokenCount -ne 2 -or
+        $serviceSentinelLiteralCount -ne 1 -or
+        $serviceSentinelProducerCount -ne 1) {
+        throw (
+            "$Owner service sentinel producer count must remain exactly one; " +
+            "found $serviceSentinelProducerCount producer(s), " +
+            "$serviceSentinelTokenCount token(s), and " +
+            "$serviceSentinelLiteralCount literal(s).")
+    }
+    if ([regex]::Matches(
+            $serviceScan,
+            ('(?im)^[ \t]*#define[ \t]+' +
+             'LMC_ADMIN_SET_POSITION_STORE_CONFIGURED[ \t]+FALSE[ \t]*\r?$')
+            ).Count -ne 1) {
+        throw "$Owner retained SetPosition store must remain configured FALSE."
+    }
+    if ($serviceScan -match
+            '(?i)\bLMCAxis[1-9]\.SetPosition\s*\(') {
+        throw "$Owner native SetPosition producer must remain absent."
+    }
+
+    if ([regex]::Matches(
+            $tcpScan,
+            $sentinelDefinePattern).Count -ne 1) {
+        throw "$Owner TCP sentinel must be defined exactly once as -12."
+    }
+    if ([regex]::Matches(
+            $tcpScan,
+            $sentinelTokenPattern).Count -ne 2 -or
+        [regex]::Matches(
+            $tcpScan,
+            $sentinelLiteralPattern).Count -ne 1) {
+        throw (
+            "$Owner TCP sentinel must have one definition and one consumer.")
+    }
+
+    $msgParserMatches = [regex]::Matches(
+        $TcpText,
+        ('(?ims)^[ \t]*FUNCTION[ \t]+' +
+         'TCPMotionInterface::MsgPaser[ \t]*\r?$' +
+         '.*?^[ \t]*END_FUNCTION[ \t]*\r?$'))
+    if ($msgParserMatches.Count -ne 1) {
+        throw "$Owner TCP MsgPaser was not found exactly once."
+    }
+    $msgParserBlock = $msgParserMatches[0].Value
+    foreach ($requiredLocal in @(
+            @{ Name = 'setPositionCloseSocket'; Type = 'DINT' },
+            @{ Name = 'callbackDisarmResult'; Type = 'DINT' })) {
+        $localCount = [regex]::Matches(
+            $msgParserBlock,
+            ('(?im)^[ \t]*' + [regex]::Escape($requiredLocal.Name) +
+             '[ \t]*:[ \t]*' + [regex]::Escape($requiredLocal.Type) +
+             '[ \t]*;[ \t]*\r?$')).Count
+        if ($localCount -ne 1) {
+            throw (
+                "$Owner MsgPaser local $($requiredLocal.Name) must be " +
+                "declared exactly once as $($requiredLocal.Type).")
+        }
+    }
+
+    $consumerMatches = [regex]::Matches(
+        $msgParserBlock,
+        ('(?ims)^[ \t]*//[ \t]*' +
+         'LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE_BEGIN[ \t]*\r?$' +
+         '(?<Body>.*?)' +
+         '^[ \t]*//[ \t]*' +
+         'LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE_END[ \t]*\r?$'))
+    if ($consumerMatches.Count -ne 1) {
+        throw "$Owner no-response consumer block was not found exactly once."
+    }
+    $consumerBlock = $consumerMatches[0].Groups['Body'].Value
+    if ($consumerBlock -match
+            ('(?i)\bSendData\s*\(|' +
+             '(?<![A-Za-z0-9_])Sendbuf(?![A-Za-z0-9_])|' +
+             '(?<![A-Za-z0-9_])pResponseFrame(?![A-Za-z0-9_])|' +
+             '\b_memset\s*\(|\bcontrolResponseSize\s*:=')) {
+        throw "$Owner no-response consumer must perform zero response writes."
+    }
+    Assert-Match $consumerBlock (
+        ('(?is)^\s*if\s+\(CommandID\s*=\s*0x7D12\)\s*&\s*' +
+         '\(controlResponseSize\s*=\s*' +
+         'LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE\)\s+then\s*' +
+         'setPositionCloseSocket\s*:=\s*ActiveRequest\.Socket\s*;\s*' +
+         'if\s+\(ActiveRequest\.SessionEpoch\s*<>\s*0\)\s*&\s*' +
+         '\(PendingClosedSessionEpoch\s*=\s*0\)\s+then\s*' +
+         'PendingClosedSessionEpoch\s*:=\s*' +
+         'ActiveRequest\.SessionEpoch\s*;\s*' +
+         'callbackDisarmResult\s*:=\s*' +
+         'DisarmRpcCallbackEndpoint\s*\(\s*\)\s*;\s*' +
+         'SessionEpoch\s*\+=\s*1\s*;\s*' +
+         'if\s+SessionEpoch\s*=\s*0\s+then\s*' +
+         'SessionEpoch\s*:=\s*1\s*;\s*end_if\s*;\s*' +
+         'end_if\s*;\s*' +
+         'IngressBlocked\s*:=\s*TRUE\s*;\s*' +
+         'IngressFaultPending\s*:=\s*FALSE\s*;\s*' +
+         'IngressFaultCloseRequired\s*:=\s*TRUE\s*;\s*' +
+         'RpcSocket\s*:=\s*0\s*;\s*' +
+         'RpcInitialized\s*:=\s*FALSE\s*;\s*' +
+         'if\s+setPositionCloseSocket\s*<>\s*0\s+then\s*' +
+         'LastOwnerDisconnectRequestRet\s*:=\s*' +
+         '_TCPIPServerInterface::SetSocketParameter\s*\(\s*' +
+         'dSock\s*:=\s*setPositionCloseSocket\s*,\s*' +
+         'Cmd\s*:=\s*100\s*,\s*SubCmd\s*:=\s*0\s*,\s*' +
+         'ParaValue\s*:=\s*0\s*\)\s*;\s*end_if\s*;\s*' +
+         'RETURN\s*;\s*end_if\s*;\s*$')) (
+        "$Owner no-response consumer order or exact close fence drifted.")
+
+    Assert-Match $msgParserBlock (
+        ('(?is)ControlCommands\.HandleRequest\s*\(.*?' +
+         'OwnerGeneration\s*:=\s*controlOwnerGeneration\s*\)\s*;\s*' +
+         'end_if\s*;\s*' +
+         '//[ \t]*LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE_BEGIN.*?' +
+         '//[ \t]*LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE_END\s*' +
+         'if\s+controlResponseSize\s*=\s*' +
+         'LMC_OWNER_SAFETY_DRAIN_PENDING\s+then.*?' +
+         'if\s+\(controlResponseSize\s*<=\s*0\)\s*\|')) (
+        "$Owner no-response consumer must stay immediately after the service " +
+        'call and before pending/generic error handling.')
+}
+
+function Invoke-LasalSetPositionCloseWithoutResponseVerifierSelfTest {
+    param(
+        [string]$ControlServiceText,
+        [string]$TcpText,
+        [string]$Owner
+    )
+
+    Assert-LasalSetPositionCloseWithoutResponseContract `
+        -ControlServiceText $ControlServiceText `
+        -TcpText $TcpText `
+        -Owner "$Owner current source"
+
+    $sentinelDefine =
+        '#define LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE -12'
+    $storeDefine =
+        '#define LMC_ADMIN_SET_POSITION_STORE_CONFIGURED FALSE'
+    $consumerMarkedMatches = [regex]::Matches(
+        $TcpText,
+        ('(?ims)^[ \t]*//[ \t]*' +
+         'LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE_BEGIN[ \t]*\r?$' +
+         '.*?' +
+         '^[ \t]*//[ \t]*' +
+         'LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE_END[ \t]*\r?$'))
+    if ($consumerMarkedMatches.Count -ne 1) {
+        throw "$Owner self-test consumer block was not found exactly once."
+    }
+    $consumerMarkedBlock = $consumerMarkedMatches[0].Value
+    $mutateConsumer = {
+        param([string]$Old, [string]$New)
+        $mutatedBlock = $consumerMarkedBlock.Replace($Old, $New)
+        if ($mutatedBlock -ceq $consumerMarkedBlock) {
+            throw "$Owner self-test mutation source was not found: $Old"
+        }
+        return $TcpText.Replace($consumerMarkedBlock, $mutatedBlock)
+    }
+    $insertBeforeReturn = {
+        param([string]$Statement)
+        return & $mutateConsumer `
+            'RETURN;' `
+            ($Statement + [Environment]::NewLine + '      RETURN;')
+    }
+
+    $disarmOutsideFenceBlock = ([regex]::new(
+        ('(?is)(PendingClosedSessionEpoch\s*:=\s*' +
+         'ActiveRequest\.SessionEpoch\s*;\s*)' +
+         '(?<Fence>callbackDisarmResult\s*:=\s*' +
+         'DisarmRpcCallbackEndpoint\s*\(\s*\)\s*;\s*' +
+         'SessionEpoch\s*\+=\s*1\s*;\s*' +
+         'if\s+SessionEpoch\s*=\s*0\s+then\s*' +
+         'SessionEpoch\s*:=\s*1\s*;\s*end_if\s*;)\s*' +
+         '(end_if\s*;)'))).Replace(
+            $consumerMarkedBlock,
+            '${1}${3}${Fence}',
+            1)
+    if ($disarmOutsideFenceBlock -ceq $consumerMarkedBlock) {
+        throw "$Owner self-test could not move the disarm fence."
+    }
+
+    $fixtures = [ordered]@{}
+    $fixtures['ServiceDefineRemoved'] = @{
+        Service = $ControlServiceText.Replace($sentinelDefine, '')
+        Tcp = $TcpText
+        Expected = 'service sentinel must be defined exactly once as -12'
+    }
+    $fixtures['ServiceDefineValueChanged'] = @{
+        Service = $ControlServiceText.Replace(
+            $sentinelDefine,
+            '#define LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE -13')
+        Tcp = $TcpText
+        Expected = 'service sentinel must be defined exactly once as -12'
+    }
+    $fixtures['ServiceProducerIdentifierAdded'] = @{
+        Service = $ControlServiceText.Replace(
+            $sentinelDefine,
+            ($sentinelDefine + [Environment]::NewLine +
+             'ResponseSize := LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE;'))
+        Tcp = $TcpText
+        Expected = 'service sentinel producer count must remain exactly one'
+    }
+    $fixtures['ServiceProducerLiteralAdded'] = @{
+        Service = $ControlServiceText.Replace(
+            $sentinelDefine,
+            ($sentinelDefine + [Environment]::NewLine +
+             'ResponseSize := -12;'))
+        Tcp = $TcpText
+        Expected = 'service sentinel producer count must remain exactly one'
+    }
+    $fixtures['ServiceProducerRemoved'] = @{
+        Service = ([regex]::new(
+            ('(?is)ResponseSize\s*:=\s*' +
+             'LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE\s*;'))).Replace(
+                $ControlServiceText,
+                'ResponseSize := -11;',
+                1)
+        Tcp = $TcpText
+        Expected = 'service sentinel producer count must remain exactly one'
+    }
+    $fixtures['StoreConfiguredTrue'] = @{
+        Service = $ControlServiceText.Replace(
+            $storeDefine,
+            '#define LMC_ADMIN_SET_POSITION_STORE_CONFIGURED TRUE')
+        Tcp = $TcpText
+        Expected = 'retained SetPosition store must remain configured FALSE'
+    }
+    $fixtures['NativeSetPositionAdded'] = @{
+        Service = $ControlServiceText.Replace(
+            $sentinelDefine,
+            ($sentinelDefine + [Environment]::NewLine +
+             'LMCAxis1.SetPosition(Position:=0);'))
+        Tcp = $TcpText
+        Expected = 'native SetPosition producer must remain absent'
+    }
+    $fixtures['TcpDefineRemoved'] = @{
+        Service = $ControlServiceText
+        Tcp = $TcpText.Replace($sentinelDefine, '')
+        Expected = 'TCP sentinel must be defined exactly once as -12'
+    }
+    $fixtures['TcpDefineValueChanged'] = @{
+        Service = $ControlServiceText
+        Tcp = $TcpText.Replace(
+            $sentinelDefine,
+            '#define LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE -13')
+        Expected = 'TCP sentinel must be defined exactly once as -12'
+    }
+    $fixtures['TcpSecondConsumerAdded'] = @{
+        Service = $ControlServiceText
+        Tcp = & $mutateConsumer `
+            'setPositionCloseSocket := ActiveRequest.Socket;' `
+            ('controlPendingResult := ' +
+             'LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE;' +
+             [Environment]::NewLine +
+             '      setPositionCloseSocket := ActiveRequest.Socket;')
+        Expected = 'TCP sentinel must have one definition and one consumer'
+    }
+    $fixtures['CloseSocketLocalTypeChanged'] = @{
+        Service = $ControlServiceText
+        Tcp = $TcpText.Replace(
+            'setPositionCloseSocket : DINT;',
+            'setPositionCloseSocket : UDINT;')
+        Expected = 'MsgPaser local setPositionCloseSocket'
+    }
+    $fixtures['CallbackLocalTypeChanged'] = @{
+        Service = $ControlServiceText
+        Tcp = $TcpText.Replace(
+            "`t`tcallbackDisarmResult : DINT;`n`t`tdiagnosticsResponseSize",
+            "`t`tcallbackDisarmResult : UDINT;`n`t`tdiagnosticsResponseSize")
+        Expected = 'MsgPaser local callbackDisarmResult'
+    }
+    $fixtures['CommandConditionChanged'] = @{
+        Service = $ControlServiceText
+        Tcp = & $mutateConsumer `
+            '(CommandID = 0x7D12)' `
+            '(CommandID = 0x7D14)'
+        Expected = 'consumer order or exact close fence drifted'
+    }
+    $fixtures['ConditionBroadened'] = @{
+        Service = $ControlServiceText
+        Tcp = & $mutateConsumer `
+            '(CommandID = 0x7D12) &' `
+            '(CommandID = 0x7D12) |'
+        Expected = 'consumer order or exact close fence drifted'
+    }
+    $fixtures['ConsumerNotImmediate'] = @{
+        Service = $ControlServiceText
+        Tcp = $TcpText.Replace(
+            '// LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE_BEGIN',
+            ('controlPendingResult := 0;' + [Environment]::NewLine +
+             '    // LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE_BEGIN'))
+        Expected = 'must stay immediately after the service call'
+    }
+    $fixtures['SocketSnapshotChanged'] = @{
+        Service = $ControlServiceText
+        Tcp = & $mutateConsumer `
+            'setPositionCloseSocket := ActiveRequest.Socket;' `
+            'setPositionCloseSocket := CurrentSock;'
+        Expected = 'consumer order or exact close fence drifted'
+    }
+    $fixtures['PendingGuardChanged'] = @{
+        Service = $ControlServiceText
+        Tcp = & $mutateConsumer `
+            '(PendingClosedSessionEpoch = 0)' `
+            '(PendingClosedSessionEpoch <> 0)'
+        Expected = 'consumer order or exact close fence drifted'
+    }
+    $fixtures['PendingEpochSourceChanged'] = @{
+        Service = $ControlServiceText
+        Tcp = & $mutateConsumer `
+            'PendingClosedSessionEpoch := ActiveRequest.SessionEpoch;' `
+            'PendingClosedSessionEpoch := SessionEpoch;'
+        Expected = 'consumer order or exact close fence drifted'
+    }
+    $fixtures['DisarmMovedOutsideFence'] = @{
+        Service = $ControlServiceText
+        Tcp = $TcpText.Replace(
+            $consumerMarkedBlock,
+            $disarmOutsideFenceBlock)
+        Expected = 'consumer order or exact close fence drifted'
+    }
+    $fixtures['DisarmRemoved'] = @{
+        Service = $ControlServiceText
+        Tcp = & $mutateConsumer `
+            'callbackDisarmResult := DisarmRpcCallbackEndpoint();' `
+            'callbackDisarmResult := 0;'
+        Expected = 'consumer order or exact close fence drifted'
+    }
+    $fixtures['SessionRollChanged'] = @{
+        Service = $ControlServiceText
+        Tcp = & $mutateConsumer 'SessionEpoch += 1;' 'SessionEpoch += 2;'
+        Expected = 'consumer order or exact close fence drifted'
+    }
+    $fixtures['ZeroCorrectionChanged'] = @{
+        Service = $ControlServiceText
+        Tcp = & $mutateConsumer 'SessionEpoch := 1;' 'SessionEpoch := 2;'
+        Expected = 'consumer order or exact close fence drifted'
+    }
+    $fixtures['IngressBlockedChanged'] = @{
+        Service = $ControlServiceText
+        Tcp = & $mutateConsumer 'IngressBlocked := TRUE;' 'IngressBlocked := FALSE;'
+        Expected = 'consumer order or exact close fence drifted'
+    }
+    $fixtures['IngressFaultPendingChanged'] = @{
+        Service = $ControlServiceText
+        Tcp = & $mutateConsumer `
+            'IngressFaultPending := FALSE;' `
+            'IngressFaultPending := TRUE;'
+        Expected = 'consumer order or exact close fence drifted'
+    }
+    $fixtures['IngressFaultCloseRequiredChanged'] = @{
+        Service = $ControlServiceText
+        Tcp = & $mutateConsumer `
+            'IngressFaultCloseRequired := TRUE;' `
+            'IngressFaultCloseRequired := FALSE;'
+        Expected = 'consumer order or exact close fence drifted'
+    }
+    $fixtures['RpcSocketChanged'] = @{
+        Service = $ControlServiceText
+        Tcp = & $mutateConsumer 'RpcSocket := 0;' 'RpcSocket := CurrentSock;'
+        Expected = 'consumer order or exact close fence drifted'
+    }
+    $fixtures['RpcInitializedChanged'] = @{
+        Service = $ControlServiceText
+        Tcp = & $mutateConsumer `
+            'RpcInitialized := FALSE;' `
+            'RpcInitialized := TRUE;'
+        Expected = 'consumer order or exact close fence drifted'
+    }
+    $fixtures['CloseGuardRemoved'] = @{
+        Service = $ControlServiceText
+        Tcp = & $mutateConsumer `
+            'if setPositionCloseSocket <> 0 then' `
+            'if TRUE then'
+        Expected = 'consumer order or exact close fence drifted'
+    }
+    $fixtures['CloseTargetChanged'] = @{
+        Service = $ControlServiceText
+        Tcp = & $mutateConsumer `
+            'dSock:=setPositionCloseSocket' `
+            'dSock:=CurrentSock'
+        Expected = 'consumer order or exact close fence drifted'
+    }
+    $fixtures['CloseCommandChanged'] = @{
+        Service = $ControlServiceText
+        Tcp = & $mutateConsumer 'Cmd:=100' 'Cmd:=101'
+        Expected = 'consumer order or exact close fence drifted'
+    }
+    $fixtures['CloseSubCommandChanged'] = @{
+        Service = $ControlServiceText
+        Tcp = & $mutateConsumer 'SubCmd:=0' 'SubCmd:=1'
+        Expected = 'consumer order or exact close fence drifted'
+    }
+    $fixtures['CloseParameterChanged'] = @{
+        Service = $ControlServiceText
+        Tcp = & $mutateConsumer 'ParaValue:=0' 'ParaValue:=1'
+        Expected = 'consumer order or exact close fence drifted'
+    }
+    $fixtures['ReturnRemoved'] = @{
+        Service = $ControlServiceText
+        Tcp = & $mutateConsumer 'RETURN;' 'controlPendingResult := 0;'
+        Expected = 'consumer order or exact close fence drifted'
+    }
+    $fixtures['SendDataAdded'] = @{
+        Service = $ControlServiceText
+        Tcp = & $insertBeforeReturn `
+            'SendData(pData:=#Sendbuf[0], udSize:=12, dSocket:=0, bDirect:=TRUE);'
+        Expected = 'must perform zero response writes'
+    }
+    $fixtures['SendbufWriteAdded'] = @{
+        Service = $ControlServiceText
+        Tcp = & $insertBeforeReturn 'Sendbuf[0]$UINT := 1;'
+        Expected = 'must perform zero response writes'
+    }
+    $fixtures['ResponsePointerWriteAdded'] = @{
+        Service = $ControlServiceText
+        Tcp = & $insertBeforeReturn 'pResponseFrame^$UINT := 1;'
+        Expected = 'must perform zero response writes'
+    }
+    $fixtures['ResponseMemsetAdded'] = @{
+        Service = $ControlServiceText
+        Tcp = & $insertBeforeReturn `
+            '_memset(dest:=#Sendbuf, usByte:=0, cntr:=12);'
+        Expected = 'must perform zero response writes'
+    }
+    $fixtures['ResponseSizeWriteAdded'] = @{
+        Service = $ControlServiceText
+        Tcp = & $insertBeforeReturn 'controlResponseSize := 12;'
+        Expected = 'must perform zero response writes'
+    }
+
+    $rejectedCount = 0
+    foreach ($fixture in $fixtures.GetEnumerator()) {
+        if (($fixture.Value.Service -ceq $ControlServiceText) -and
+            ($fixture.Value.Tcp -ceq $TcpText)) {
+            throw "$Owner negative fixture did not mutate: $($fixture.Key)"
+        }
+        $rejected = $false
+        try {
+            Assert-LasalSetPositionCloseWithoutResponseContract `
+                -ControlServiceText $fixture.Value.Service `
+                -TcpText $fixture.Value.Tcp `
+                -Owner "$Owner negative fixture $($fixture.Key)"
+        }
+        catch {
+            if ($_.Exception.Message -notlike
+                    "*$($fixture.Value.Expected)*") {
+                throw (
+                    "$Owner negative fixture $($fixture.Key) failed for " +
+                    "an unexpected reason: $($_.Exception.Message)")
+            }
+            $rejected = $true
+        }
+        if (-not $rejected) {
+            throw "$Owner verifier accepted negative fixture $($fixture.Key)."
+        }
+        $rejectedCount++
+    }
+    if ($rejectedCount -ne 38) {
+        throw "$Owner negative fixture count is $rejectedCount, expected 38."
+    }
+    return $rejectedCount
+}
+
+function Assert-LasalSetPositionOutcomeStoreWiringContract {
+    param(
+        [string]$ControlServiceText,
+        [string]$TcpText,
+        [string]$Owner
+    )
+
+    $serviceScan = Get-LasalScanText $ControlServiceText
+    $tcpScan = Get-LasalScanText $TcpText
+    $handleRequestMatches = [regex]::Matches(
+        $serviceScan,
+        ('(?ims)^[ \t]*FUNCTION[ \t]+GLOBAL[ \t]+' +
+         'LMCControlCommandService::HandleRequest[ \t]*\r?$' +
+         '.*?^[ \t]*END_FUNCTION[ \t]*\r?$'))
+    $adminHandlerMatches = [regex]::Matches(
+        $serviceScan,
+        ('(?ims)^[ \t]*FUNCTION[ \t]+' +
+         'LMCControlCommandService::HandleAdminCommands[ \t]*\r?$' +
+         '.*?^[ \t]*END_FUNCTION[ \t]*\r?$'))
+    $dispatchHandlerMatches = [regex]::Matches(
+        $serviceScan,
+        ('(?ims)^[ \t]*FUNCTION[ \t]+' +
+         'LMCControlCommandService::DispatchRequestCommand[ \t]*\r?$' +
+         '.*?^[ \t]*END_FUNCTION[ \t]*\r?$'))
+    $msgParserMatches = [regex]::Matches(
+        $tcpScan,
+        ('(?ims)^[ \t]*FUNCTION[ \t]+' +
+         'TCPMotionInterface::MsgPaser[ \t]*\r?$' +
+         '.*?^[ \t]*END_FUNCTION[ \t]*\r?$'))
+    if ($handleRequestMatches.Count -ne 1 -or
+        $adminHandlerMatches.Count -ne 1 -or
+        $dispatchHandlerMatches.Count -ne 1 -or
+        $msgParserMatches.Count -ne 1) {
+        throw "$Owner router or Admin handler was not found exactly once."
+    }
+    $handleRequestBlock = $handleRequestMatches[0].Value
+    $adminHandlerBlock = $adminHandlerMatches[0].Value
+    $dispatchHandlerBlock = $dispatchHandlerMatches[0].Value
+    $msgParserBlock = $msgParserMatches[0].Value
+
+    Assert-Match $adminHandlerBlock (
+        '(?is)END_VAR\s*ResponseSize\s*:=\s*-1\s*;\s*' +
+        'if\s+\(pRequestFrame\s*=\s*NIL\)\s*\|\s*' +
+        '\(pResponseFrame\s*=\s*NIL\)\s*\|\s*' +
+        '\(RequestFrameSize\s*<\s*8\)\s+then\s*' +
+        'RETURN\s*;\s*end_if\s*;\s*case\s+CommandId\s+of') (
+        "$Owner Admin prologue/null-frame fence drifted.")
+
+    foreach ($criticalLocal in ([ordered]@{
+            adminSchemaVersion = 'UINT'
+            adminRequestFlags = 'UINT'
+            adminRequestId = 'UDINT'
+            adminDiagnosticsBuild = 'UDINT'
+            adminBootId = 'UDINT'
+            adminCurrentBootId = 'UDINT'
+            adminMapRevision = 'UDINT'
+            adminOriginalRequestId = 'UDINT'
+            adminClientIntentId0 = 'UDINT'
+            adminClientIntentId1 = 'UDINT'
+            adminClientIntentId2 = 'UDINT'
+            adminClientIntentId3 = 'UDINT'
+            adminAxisPosition = 'DINT'
+            adminExpectedActualPosition = 'DINT'
+            adminRecordGeneration = 'UDINT'
+            adminDetailCode = 'UDINT'
+            adminStoreResult = 'DINT'
+            adminStoreRecordGeneration = 'UDINT'
+            adminStoreDetailCode = 'UDINT'
+            adminStoreSnapshotValid = 'BOOL'
+        }).GetEnumerator()) {
+        $localCount = [regex]::Matches(
+            $adminHandlerBlock,
+            ('(?im)^[ \t]*' + [regex]::Escape($criticalLocal.Key) +
+             '[ \t]*:[ \t]*' + [regex]::Escape($criticalLocal.Value) +
+             '[ \t]*;[ \t]*\r?$')).Count
+        if ($localCount -ne 1) {
+            throw (
+                "$Owner Admin recovery local $($criticalLocal.Key) must " +
+                "be declared exactly once as $($criticalLocal.Value).")
+        }
+    }
+    foreach ($arrayLocal in @(
+            @{
+                Name = 'adminSetPositionKey'
+                Pattern = 'ARRAY\s*\[\s*0\.\.47\s*\]\s*OF\s*USINT'
+            },
+            @{
+                Name = 'adminSetPositionSnapshot'
+                Pattern = 'ARRAY\s*\[\s*0\.\.67\s*\]\s*OF\s*USINT'
+            })) {
+        if ([regex]::Matches(
+                $adminHandlerBlock,
+                ('(?im)^[ \t]*' + [regex]::Escape($arrayLocal.Name) +
+                 '[ \t]*:[ \t]*' + $arrayLocal.Pattern +
+                 '[ \t]*;[ \t]*\r?$')).Count -ne 1) {
+            throw (
+                "$Owner Admin Store local $($arrayLocal.Name) must retain " +
+                'its exact bounded byte-array ABI.')
+        }
+    }
+
+    foreach ($route in @(
+            @{
+                Name = 'control-service'
+                Block = $dispatchHandlerBlock
+                Pattern = (
+                    '(?s)0x7D00,\s*0x7D10,\s*0x7D14,\s*0x7D1A,\s*' +
+                    '0x7D13,\s*0x7D18,\s*0x7D19,\s*0x7D20,\s*0x7D22:\s*')
+                Delegate = 'ResponseSize\s*:=\s*HandleAdminCommands\s*\('
+            },
+            @{
+                Name = 'TCP transport'
+                Block = $msgParserBlock
+                Pattern = (
+                    '(?s)0x7D00,\s*0x7D10,\s*0x7D12,\s*0x7D14,\s*0x7D1A,\s*' +
+                    '0x7D13,\s*0x7D18,\s*0x7D19,\s*0x7D20,\s*0x7D22:\s*')
+                Delegate = (
+                    'controlResponseSize\s*:=\s*' +
+                    'ControlCommands\.HandleRequest\s*\(')
+            })) {
+        $routeMatches = [regex]::Matches($route.Block, $route.Pattern)
+        if ($routeMatches.Count -ne 1) {
+            throw "$Owner $($route.Name) grouped route drifted."
+        }
+        $routeTail = $route.Block.Substring(
+            $routeMatches[0].Index + $routeMatches[0].Length)
+        Assert-Match $routeTail $route.Delegate (
+            "$Owner $($route.Name) 0x7D14/0x7D1A delegate drifted.")
+        if ($route.Name -eq 'TCP transport') {
+            Assert-Match $routeTail (
+                'RequestFrameSize\s*:=\s*\(Payload\s*\+\s*8\)\$UDINT') (
+                "$Owner TCP route must pass the full frame size.")
+        }
+    }
+
+    $adminCasePattern = (
+        '(?ims)^[ \t]*' +
+        '(?<Labels>0x[0-9A-F]+(?:[ \t]*,[ \t]*0x[0-9A-F]+)*)' +
+        '[ \t]*:[ \t]*\r?$' +
+        '(?<Body>.*?)' +
+        '(?=^[ \t]*0x[0-9A-F]+' +
+        '(?:[ \t]*,[ \t]*0x[0-9A-F]+)*[ \t]*:[ \t]*\r?$)')
+    $adminCases = [regex]::Matches($adminHandlerBlock, $adminCasePattern)
+    $outcomeCaseMatches = @(
+        $adminCases | Where-Object {
+            $_.Groups['Labels'].Value -match
+                '(?i)(?<![0-9A-F])0x7D14(?![0-9A-F])' -and
+            $_.Groups['Labels'].Value -match
+                '(?i)(?<![0-9A-F])0x7D1A(?![0-9A-F])'
+        })
+    $capabilityMatches = @(
+        $adminCases | Where-Object {
+            $_.Groups['Labels'].Value.Trim() -eq '0x7D00'
+        })
+    if ($outcomeCaseMatches.Count -ne 1 -or
+        $capabilityMatches.Count -ne 1) {
+        throw (
+            "$Owner Admin 0x7D00 and grouped 0x7D14/0x7D1A cases " +
+            'must each exist exactly once.')
+    }
+    $caseBlock = $outcomeCaseMatches[0].Groups['Body'].Value
+    $capabilityBody = $capabilityMatches[0].Groups['Body'].Value
+
+    $getExecutableHash = {
+        param([string]$Body)
+
+        $normalizedBody = [regex]::Replace($Body, '\s+', '')
+        $sha256 = [Security.Cryptography.SHA256]::Create()
+        try {
+            return ([BitConverter]::ToString(
+                $sha256.ComputeHash(
+                    [Text.Encoding]::UTF8.GetBytes($normalizedBody))
+                )).Replace('-', '')
+        }
+        finally {
+            $sha256.Dispose()
+        }
+    }
+    $controlRoutePattern = (
+        '(?ms)^(?<Indent>[ \t]*)(?<Labels>0x[0-9A-Fa-f]{4}' +
+        '(?:[ \t]*,[ \t]*(?:\r?\n[ \t]*)?' +
+        '0x[0-9A-Fa-f]{4})*)[ \t]*:' +
+        '(?<Body>.*?)(?=^\k<Indent>0x[0-9A-Fa-f]{4}|' +
+        '^(?!\k<Indent>[ \t])[ \t]*(?:else\b|end_case\b))')
+    foreach ($routeExecutable in @(
+            @{
+                Name = 'control-service Admin route'
+                Router = $dispatchHandlerBlock
+                Call = 'HandleAdminCommands\s*\('
+                Hash = (
+                    'FACB977E8F187C318C5FDEA2F085EE73C59E1912E58C74D' +
+                    '2A992847811B394B6')
+            },
+            @{
+                Name = 'TCP control-service route'
+                Router = $msgParserBlock
+                Call = 'ControlCommands\.HandleRequest\s*\('
+                Hash = (
+                    'C86A8A8FAD571586D5C78841B5C37CB2375711E7680D7' +
+                    '7AEFA128F9CAE530AF0')
+            })) {
+        $normalizedRouteRouter = [regex]::Replace(
+            $routeExecutable.Router,
+            '(?m)^[ \t]+',
+            { param($match) $match.Value.Replace("`t", '    ') })
+        $routeMatches = @(
+            [regex]::Matches(
+                $normalizedRouteRouter,
+                $controlRoutePattern) |
+                Where-Object {
+                    $_.Groups['Body'].Value -match $routeExecutable.Call
+                })
+        if ($routeMatches.Count -ne 1) {
+            throw (
+                "$Owner $($routeExecutable.Name) executable body was not " +
+                'found exactly once.')
+        }
+        $routeHash = & $getExecutableHash `
+            $routeMatches[0].Groups['Body'].Value
+        if ($routeHash -cne $routeExecutable.Hash) {
+            throw (
+                "$Owner $($routeExecutable.Name) executable fingerprint " +
+                "drifted: $routeHash")
+        }
+    }
+    $capabilityHash = & $getExecutableHash $capabilityBody
+    if ($capabilityHash -cne
+            '10508AA01D33FC2839B5CF7708B35C8903EB78DDE44E209EDFCDAC0C7C645C6A') {
+        throw "$Owner Admin capability executable fingerprint drifted."
+    }
+    $outcomeHash = & $getExecutableHash $caseBlock
+    $capabilityWrites = [regex]::Matches(
+        $capabilityBody,
+        ('(?i)\(pResponseFrame\s*\+\s*24\)\^\$UDINT\s*:=\s*' +
+         '(?<Rhs>[^;\r\n]+)\s*;'))
+    if ($capabilityWrites.Count -ne 1 -or
+        $capabilityWrites[0].Groups['Rhs'].Value.Trim() -cne '0x00000017') {
+        throw "$Owner Admin capability mask must remain exactly one 0x00000017 write."
+    }
+
+    foreach ($criticalMacro in ([ordered]@{
+            LMC_ADMIN_DIAGNOSTICS_BUILD = '1'
+            LMC_ADMIN_MAP_REVISION = '0x957F101E'
+            LMC_ADMIN_SET_POSITION_STORE_CONFIGURED = 'FALSE'
+            LMC_OWNER_TABLE_MAGIC = '0x4C4D434F'
+        }).GetEnumerator()) {
+        $exactCount = [regex]::Matches(
+            $serviceScan,
+            ('(?im)^[ \t]*#define[ \t]+' +
+             [regex]::Escape($criticalMacro.Key) + '[ \t]+' +
+             [regex]::Escape($criticalMacro.Value) + '[ \t]*\r?$')).Count
+        $allCount = [regex]::Matches(
+            $serviceScan,
+            ('(?im)^[ \t]*#define[ \t]+' +
+             [regex]::Escape($criticalMacro.Key) + '(?:[ \t]|$)')).Count
+        $undefCount = [regex]::Matches(
+            $serviceScan,
+            ('(?im)^[ \t]*#undef[ \t]+' +
+             [regex]::Escape($criticalMacro.Key) + '(?:[ \t]|$)')).Count
+        if ($exactCount -ne 1 -or $allCount -ne 1 -or $undefCount -ne 0) {
+            throw (
+                "$Owner macro $($criticalMacro.Key) must have exactly " +
+                "one $($criticalMacro.Value) definition and no undef.")
+        }
+    }
+    if ([regex]::Matches(
+            ($serviceScan + [Environment]::NewLine + $tcpScan),
+            '(?i)\.SetPosition\s*\(').Count -ne 0) {
+        throw "$Owner native .SetPosition call count must remain zero."
+    }
+
+    foreach ($storeCall in ([ordered]@{
+            BeginSetPosition = 0
+            CommitSetPositionTerminal = 0
+            ReadSetPositionOutcome = 1
+            RetireSetPositionOutcome = 1
+        }).GetEnumerator()) {
+        $callCount = [regex]::Matches(
+            $caseBlock,
+            ('(?i)SetPositionStore\.' + [regex]::Escape($storeCall.Key) +
+             '\s*\(')).Count
+        if ($callCount -ne $storeCall.Value) {
+            throw (
+                "$Owner 0x7D14/0x7D1A must call $($storeCall.Key) " +
+                "exactly $($storeCall.Value) time(s); found $callCount.")
+        }
+    }
+    foreach ($serviceStoreCall in ([ordered]@{
+            BeginSetPosition = 1
+            CommitSetPositionTerminal = 1
+            ReadSetPositionOutcome = 1
+            RetireSetPositionOutcome = 1
+        }).GetEnumerator()) {
+        $serviceCallCount = [regex]::Matches(
+            $serviceScan,
+            ('(?i)SetPositionStore\.' +
+             [regex]::Escape($serviceStoreCall.Key) + '\s*\(')).Count
+        if ($serviceCallCount -ne $serviceStoreCall.Value) {
+            throw (
+                "$Owner service-wide $($serviceStoreCall.Key) call count " +
+                "must remain exactly one; found $serviceCallCount.")
+        }
+    }
+    if ([regex]::Matches(
+            $caseBlock,
+            '(?i)LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE').Count -ne 0 -or
+        [regex]::Matches(
+            $caseBlock,
+            '(?i)adminStoreResult\s*:?=\s*-12').Count -ne 0) {
+        throw "$Owner Retire/outcome path must never produce or consume -12."
+    }
+    if ([regex]::Matches(
+            $caseBlock,
+            ('(?i)(?:adminStoreDetailCode\s*=\s*23|' +
+             'adminDetailCode\s*:=\s*23)')).Count -ne 0) {
+        throw "$Owner outcome detail 23 must remain forbidden."
+    }
+
+    Assert-Match $caseBlock (
+        '(?s)^.*?if\s+ResponseCapacity\s*<\s*24\s+then\s*' +
+        'RETURN\s*;\s*end_if\s*;') (
+        "$Owner 0x7D14/0x7D1A 24-byte failure capacity fence drifted.")
+    Assert-Match $caseBlock (
+        '(?s)elsif\s+adminCurrentBootId\s*<>\s*' +
+        'OwnershipState\[3\]\$UDINT\s+then\s*' +
+        'adminDetailCode\s*:=\s*17;.*?' +
+        'elsif\s+adminBootId\s*=\s*0\s+then\s*' +
+        'adminDetailCode\s*:=\s*17;.*?' +
+        'elsif\s+LMC_ADMIN_SET_POSITION_STORE_CONFIGURED\s*=\s*' +
+        'FALSE\s+then\s*adminDetailCode\s*:=\s*24;\s*' +
+        'elsif\s+IsClientConnected\s*\(\s*#SetPositionStore\s*\)\s*' +
+        '<>\s*1\s+then\s*adminDetailCode\s*:=\s*24;\s*' +
+        'else\s*if\s+ResponseCapacity\s*<\s*92\s+then\s*' +
+        'RETURN\s*;\s*end_if\s*;') (
+        "$Owner live-boot/macro/92-byte capacity-before-call order drifted.")
+
+    Assert-Match $caseBlock (
+        '(?s)adminSetPositionKey\[0\]\$UINT\s*:=\s*1;\s*' +
+        'adminSetPositionKey\[2\]\$UINT\s*:=\s*1;\s*' +
+        'adminSetPositionKey\[4\]\$UDINT\s*:=\s*adminDiagnosticsBuild;\s*' +
+        'adminSetPositionKey\[8\]\$UDINT\s*:=\s*adminBootId;\s*' +
+        'adminSetPositionKey\[12\]\$UDINT\s*:=\s*adminMapRevision;\s*' +
+        'adminSetPositionKey\[16\]\$UDINT\s*:=\s*adminOriginalRequestId;\s*' +
+        'adminSetPositionKey\[20\]\$UDINT\s*:=\s*adminClientIntentId0;\s*' +
+        'adminSetPositionKey\[24\]\$UDINT\s*:=\s*adminClientIntentId1;\s*' +
+        'adminSetPositionKey\[28\]\$UDINT\s*:=\s*adminClientIntentId2;\s*' +
+        'adminSetPositionKey\[32\]\$UDINT\s*:=\s*adminClientIntentId3;\s*' +
+        'adminSetPositionKey\[36\]\$UINT\s*:=\s*Reference;\s*' +
+        'adminSetPositionKey\[38\]\$UINT\s*:=\s*0;\s*' +
+        'adminSetPositionKey\[40\]\$DINT\s*:=\s*adminAxisPosition;\s*' +
+        'adminSetPositionKey\[44\]\$DINT\s*:=\s*' +
+        'adminExpectedActualPosition;') (
+        "$Owner cross-boot 48-byte retained key normalization drifted.")
+
+    Assert-Match $caseBlock (
+        '(?s)SetPositionStore\.ReadSetPositionOutcome\s*\(\s*' +
+        'pKey:=#adminSetPositionKey\[0\],\s*KeySize:=48,\s*' +
+        'pSnapshot:=#adminSetPositionSnapshot\[0\],\s*' +
+        'SnapshotCapacity:=68,\s*' +
+        'pDetailCode:=#adminStoreDetailCode\s*\)') (
+        "$Owner exact Read Store call ABI drifted.")
+    Assert-Match $caseBlock (
+        '(?s)SetPositionStore\.RetireSetPositionOutcome\s*\(\s*' +
+        'pKey:=#adminSetPositionKey\[0\],\s*KeySize:=48,\s*' +
+        'ExpectedRecordGeneration:=\s*adminRecordGeneration,\s*' +
+        'pSnapshot:=#adminSetPositionSnapshot\[0\],\s*' +
+        'SnapshotCapacity:=68,\s*' +
+        'pDetailCode:=#adminStoreDetailCode\s*\)') (
+        "$Owner exact Retire Store call ABI drifted.")
+
+    $caseToken = ConvertTo-LasalExactContractTokenStream $caseBlock
+    $configuredGateIndex = $caseToken.IndexOf(
+        'elsiflmc_admin_set_position_store_configured=falsethen' +
+        'admindetailcode:=24;')
+    $capacity92Index = $caseToken.IndexOf(
+        'ifresponsecapacity<92thenreturn;end_if;')
+    $readCallIndex = $caseToken.IndexOf(
+        'setpositionstore.readsetpositionoutcome(')
+    $retireCallIndex = $caseToken.IndexOf(
+        'setpositionstore.retiresetpositionoutcome(')
+    if ($configuredGateIndex -lt 0 -or
+        $capacity92Index -le $configuredGateIndex -or
+        $readCallIndex -le $capacity92Index -or
+        $retireCallIndex -le $capacity92Index) {
+        throw (
+            "$Owner Store calls must remain in the CONFIGURED TRUE branch " +
+            'after the 92-byte capacity reservation.')
+    }
+
+    Assert-Match $caseBlock (
+        '(?s)if\s+adminStoreResult\s*=\s*1\s+then.*?' +
+        'adminStoreRecordGeneration\s*:=\s*' +
+        'adminSetPositionSnapshot\[64\]\$UDINT;.*?' +
+        '\(adminSetPositionSnapshot\[8\]\$UDINT\s*=\s*adminBootId\).*?' +
+        '\(adminSetPositionSnapshot\[16\]\$UDINT\s*=\s*' +
+        'adminOriginalRequestId\).*?' +
+        'if\s+\(CommandId\s*=\s*0x7D1A\)\s*&\s*' +
+        '\(adminStoreRecordGeneration\s*<>\s*' +
+        'adminRecordGeneration\)\s+then\s*' +
+        'adminStoreSnapshotValid\s*:=\s*FALSE;.*?' +
+        '_memset\(dest:=pResponseFrame,\s*usByte:=0,\s*cntr:=92\);.*?' +
+        '_memcpy\(ptr1:=pResponseFrame\s*\+\s*24,\s*' +
+        'ptr2:=#adminSetPositionSnapshot\[0\],\s*cntr:=68\);.*?' +
+        'ResponseSize\s*:=\s*92;\s*RETURN\s*;') (
+        "$Owner retained snapshot validation/92-byte success contract drifted.")
+    Assert-Match $caseBlock (
+        '(?s)elsif\s+adminStoreResult\s*=\s*0\s+then\s*' +
+        'if\s+\(adminStoreDetailCode\s*=\s*19\)\s*\|\s*' +
+        '\(adminStoreDetailCode\s*=\s*20\)\s*\|\s*' +
+        '\(adminStoreDetailCode\s*=\s*21\)\s*\|\s*' +
+        '\(adminStoreDetailCode\s*=\s*22\)\s*\|\s*' +
+        '\(adminStoreDetailCode\s*=\s*24\)\s+then\s*' +
+        'adminDetailCode\s*:=\s*adminStoreDetailCode;\s*' +
+        'else\s*RETURN\s*;\s*end_if\s*;\s*' +
+        'else\s*RETURN\s*;\s*end_if\s*;') (
+        "$Owner exact 19/20/21/22/24 failure allowlist drifted.")
+    Assert-Match $caseBlock (
+        '(?s)_memset\(dest:=pResponseFrame,\s*usByte:=0,\s*cntr:=24\);.*?' +
+        '\(pResponseFrame\s*\+\s*2\)\^\$UINT\s*:=\s*16;.*?' +
+        '\(pResponseFrame\s*\+\s*12\)\^\$UINT\s*:=\s*1;.*?' +
+        '\(pResponseFrame\s*\+\s*14\)\^\$INT\s*:=\s*-31000;.*?' +
+        '\(pResponseFrame\s*\+\s*16\)\^\$UDINT\s*:=\s*adminRequestId;.*?' +
+        '\(pResponseFrame\s*\+\s*20\)\^\$UDINT\s*:=\s*adminDetailCode;.*?' +
+        'ResponseSize\s*:=\s*24;') (
+        "$Owner exact 24-byte failure response drifted.")
+    if ($outcomeHash -cne
+            '63902CD3BD975D2AB6162E8A4DE25BD0F66964FEAF2930BE4C07FA3AC1B2B03B') {
+        throw "$Owner 0x7D14/0x7D1A Store-wiring executable fingerprint drifted."
+    }
+}
+function Invoke-LasalSetPositionAdminStoreWiringVerifierSelfTest {
+    param(
+        [string]$ControlServiceText,
+        [string]$TcpText,
+        [string]$Owner
+    )
+
+    $coordinateOracleFixtureCount =
+        Invoke-LasalSetPositionCoordinateGateOracleSelfTest `
+            -Owner "$Owner pure coordinate gate"
+    if ($coordinateOracleFixtureCount -ne 15) {
+        throw "$Owner pure coordinate oracle fixture count drifted."
+    }
+
+    Assert-LasalAdminSetAxisPositionContract `
+        -ControlServiceText $ControlServiceText `
+        -TcpText $TcpText `
+        -Owner "$Owner 0x7D12 current source"
+    Assert-LasalSetPositionOutcomeStoreWiringContract `
+        -ControlServiceText $ControlServiceText `
+        -TcpText $TcpText `
+        -Owner "$Owner 0x7D14/0x7D1A current source"
+    Assert-LasalSetPositionCloseWithoutResponseContract `
+        -ControlServiceText $ControlServiceText `
+        -TcpText $TcpText `
+        -Owner "$Owner -12 producer/consumer current source"
+
+    $handleRequestMatches = [regex]::Matches(
+        $ControlServiceText,
+        ('(?ims)^[ \t]*FUNCTION[ \t]+GLOBAL[ \t]+' +
+         'LMCControlCommandService::HandleRequest[ \t]*\r?$' +
+         '.*?^[ \t]*END_FUNCTION[ \t]*\r?$'))
+    $adminHandlerMatches = [regex]::Matches(
+        $ControlServiceText,
+        ('(?ims)^[ \t]*FUNCTION[ \t]+' +
+         'LMCControlCommandService::HandleAdminCommands[ \t]*\r?$' +
+         '.*?^[ \t]*END_FUNCTION[ \t]*\r?$'))
+    $dispatchHandlerMatches = [regex]::Matches(
+        $ControlServiceText,
+        ('(?ims)^[ \t]*FUNCTION[ \t]+' +
+         'LMCControlCommandService::DispatchRequestCommand[ \t]*\r?$' +
+         '.*?^[ \t]*END_FUNCTION[ \t]*\r?$'))
+    $msgParserMatches = [regex]::Matches(
+        $TcpText,
+        ('(?ims)^[ \t]*FUNCTION[ \t]+' +
+         'TCPMotionInterface::MsgPaser[ \t]*\r?$' +
+         '.*?^[ \t]*END_FUNCTION[ \t]*\r?$'))
+    if ($handleRequestMatches.Count -ne 1 -or
+        $adminHandlerMatches.Count -ne 1 -or
+        $dispatchHandlerMatches.Count -ne 1 -or
+        $msgParserMatches.Count -ne 1) {
+        throw "$Owner self-test router/Admin blocks were not found exactly once."
+    }
+    $handleRequestBlock = $handleRequestMatches[0].Value
+    $adminHandlerBlock = $adminHandlerMatches[0].Value
+    $dispatchHandlerBlock = $dispatchHandlerMatches[0].Value
+    $msgParserBlock = $msgParserMatches[0].Value
+    $setCaseMatches = [regex]::Matches(
+        $ControlServiceText,
+        ('(?ims)^[ \t]*FUNCTION[ \t]+' +
+         'LMCControlCommandService::HandleAdminSetPosition[ \t]*\r?$' +
+         '.*?^[ \t]*END_FUNCTION[ \t]*\r?$'))
+    $outcomeCaseMatches = [regex]::Matches(
+        $adminHandlerBlock,
+        ('(?ims)^[ \t]*0x7D14[ \t]*,[ \t]*0x7D1A[ \t]*:' +
+         '[ \t]*\r?$.*?' +
+         '(?=^[ \t]*0x7D13[ \t]*,[ \t]*0x7D18[ \t]*,[ \t]*' +
+         '0x7D19[ \t]*:[ \t]*\r?$)'))
+    $otherAdminCaseMatches = [regex]::Matches(
+        $adminHandlerBlock,
+        ('(?ims)^[ \t]*0x7D10[ \t]*:[ \t]*\r?$' +
+         '.*?(?=^[ \t]*0x7D14[ \t]*,[ \t]*0x7D1A[ \t]*:' +
+         '[ \t]*\r?$)'))
+    $routeFixturePattern = (
+        '(?ms)^(?<Indent>[ \t]*)(?<Labels>0x[0-9A-Fa-f]{4}' +
+        '(?:[ \t]*,[ \t]*(?:\r?\n[ \t]*)?' +
+        '0x[0-9A-Fa-f]{4})*)[ \t]*:' +
+        '(?<Body>.*?)(?=^\k<Indent>0x[0-9A-Fa-f]{4}|' +
+        '^(?!\k<Indent>[ \t])[ \t]*(?:else\b|end_case\b))')
+    $serviceRouteMatches = @(
+        [regex]::Matches($dispatchHandlerBlock, $routeFixturePattern) |
+            Where-Object {
+                $_.Groups['Body'].Value -match 'HandleAdminCommands\s*\('
+            })
+    $setPositionServiceRouteMatches = @(
+        [regex]::Matches($dispatchHandlerBlock, $routeFixturePattern) |
+            Where-Object {
+                $_.Groups['Body'].Value -match 'HandleAdminSetPosition\s*\('
+            })
+    if ($setCaseMatches.Count -ne 1 -or
+        $outcomeCaseMatches.Count -ne 1 -or
+        $otherAdminCaseMatches.Count -ne 1 -or
+        $serviceRouteMatches.Count -ne 1 -or
+        $setPositionServiceRouteMatches.Count -ne 1) {
+        throw "$Owner self-test Store-wiring cases were not found exactly once."
+    }
+    $setCase = $setCaseMatches[0].Value
+    $outcomeCase = $outcomeCaseMatches[0].Value
+    $otherAdminCase = $otherAdminCaseMatches[0].Value
+    $serviceRoute = $serviceRouteMatches[0].Value
+    $setPositionServiceRoute = $setPositionServiceRouteMatches[0].Value
+    $reserveOwnershipCase = Get-LasalExactFunctionImplementationBlock `
+        -SourceText $ControlServiceText `
+        -ClassName 'LMCControlCommandService' `
+        -FunctionName 'ReserveAxisOwnership' `
+        -Owner "$Owner fixture ReserveAxisOwnership"
+    $validateOwnershipCase = Get-LasalExactFunctionImplementationBlock `
+        -SourceText $ControlServiceText `
+        -ClassName 'LMCControlCommandService' `
+        -FunctionName 'ValidateAxisOwnership' `
+        -Owner "$Owner fixture ValidateAxisOwnership"
+    $validateIdentityCase = Get-LasalExactFunctionImplementationBlock `
+        -SourceText $ControlServiceText `
+        -ClassName 'LMCControlCommandService' `
+        -FunctionName 'ValidateAxisOwnershipIdentity' `
+        -Owner "$Owner fixture ValidateAxisOwnershipIdentity"
+    $copyPreemptionCase = Get-LasalExactFunctionImplementationBlock `
+        -SourceText $ControlServiceText `
+        -ClassName 'LMCControlCommandService' `
+        -FunctionName 'CopyAxisOwnershipPreemption' `
+        -Owner "$Owner fixture CopyAxisOwnershipPreemption"
+    $rollbackPreemptBankCase = Get-LasalExactFunctionImplementationBlock `
+        -SourceText $ControlServiceText `
+        -ClassName 'LMCControlCommandService' `
+        -FunctionName 'ValidateAxisOwnershipRollbackPreemptBank' `
+        -Owner "$Owner fixture ValidateAxisOwnershipRollbackPreemptBank"
+    $processOwnershipCase = Get-LasalExactFunctionImplementationBlock `
+        -SourceText $ControlServiceText `
+        -ClassName 'LMCControlCommandService' `
+        -FunctionName 'ProcessAxisOwnership' `
+        -Owner "$Owner fixture ProcessAxisOwnership"
+    $notifyClosedCase = Get-LasalExactFunctionImplementationBlock `
+        -SourceText $ControlServiceText `
+        -ClassName 'LMCControlCommandService' `
+        -FunctionName 'NotifyAxisOwnershipSessionClosed' `
+        -Owner "$Owner fixture NotifyAxisOwnershipSessionClosed"
+    $tcpOrdinaryClassifierMatches = [regex]::Matches(
+        $TcpText,
+        ('(?ims)^[ \t]*//[ \t]*LMC_OWNER_ORDINARY_CLASSIFIER_BEGIN' +
+         '[ \t]*\r?$.*?' +
+         '^[ \t]*//[ \t]*LMC_OWNER_ORDINARY_CLASSIFIER_END' +
+         '[ \t]*\r?$'))
+    if ($tcpOrdinaryClassifierMatches.Count -ne 1) {
+        throw "$Owner fixture TCP ordinary classifier was not found once."
+    }
+    $tcpOrdinaryClassifierCase = $tcpOrdinaryClassifierMatches[0].Value
+
+    $replaceFirstLiteral = {
+        param(
+            [string]$Block,
+            [string]$Old,
+            [string]$New,
+            [string]$Label
+        )
+
+        $index = $Block.IndexOf($Old, [StringComparison]::Ordinal)
+        if ($index -lt 0) {
+            throw "$Owner self-test mutation anchor was not found: $Label"
+        }
+        $mutatedBlock = (
+            $Block.Substring(0, $index) + $New +
+            $Block.Substring($index + $Old.Length))
+        return $ControlServiceText.Replace($Block, $mutatedBlock)
+    }
+    $replaceLastLiteral = {
+        param(
+            [string]$Block,
+            [string]$Old,
+            [string]$New,
+            [string]$Label
+        )
+
+        $index = $Block.LastIndexOf($Old, [StringComparison]::Ordinal)
+        if ($index -lt 0) {
+            throw "$Owner self-test mutation anchor was not found: $Label"
+        }
+        $mutatedBlock = (
+            $Block.Substring(0, $index) + $New +
+            $Block.Substring($index + $Old.Length))
+        return $ControlServiceText.Replace($Block, $mutatedBlock)
+    }
+    $replaceTcpFirstLiteral = {
+        param(
+            [string]$Block,
+            [string]$Old,
+            [string]$New,
+            [string]$Label
+        )
+
+        $index = $Block.IndexOf($Old, [StringComparison]::Ordinal)
+        if ($index -lt 0) {
+            throw "$Owner self-test TCP mutation anchor was not found: $Label"
+        }
+        $mutatedBlock = (
+            $Block.Substring(0, $index) + $New +
+            $Block.Substring($index + $Old.Length))
+        return $TcpText.Replace($Block, $mutatedBlock)
+    }
+    $extractCall = {
+        param(
+            [string]$Block,
+            [string]$MethodName,
+            [string]$Label
+        )
+
+        $callMatches = [regex]::Matches(
+            $Block,
+            ('(?is)adminStoreResult\s*:=\s*SetPositionStore\.' +
+             [regex]::Escape($MethodName) + '\s*\(.*?\)\s*;'))
+        if ($callMatches.Count -ne 1) {
+            throw (
+                "$Owner self-test $Label call count is " +
+                "$($callMatches.Count), expected one.")
+        }
+        return $callMatches[0].Value
+    }
+    $beginCall = & $extractCall $setCase 'BeginSetPosition' 'Begin'
+    $commitCall = & $extractCall `
+        $setCase 'CommitSetPositionTerminal' 'Commit terminal'
+    $readCall = & $extractCall $outcomeCase 'ReadSetPositionOutcome' 'Read'
+    $retireCall = & $extractCall `
+        $outcomeCase 'RetireSetPositionOutcome' 'Retire'
+    $rollbackFenceMatch = [regex]::Match(
+        $setCase,
+        ('(?is)if\s+adminOwnerAcquired\s+then\s*' +
+         'adminOwnerRollbackResult\s*:=\s*RollbackAxisOwnership\s*\(.*?' +
+         'Reason:=0\s*\)\s*;\s*' +
+         'if\s+adminOwnerRollbackResult\s*<>\s*0\s+then\s*' +
+         'OwnershipState\[24\]\s*:=\s*1\s*;\s*' +
+         'end_if\s*;\s*end_if\s*;'))
+    if (-not $rollbackFenceMatch.Success) {
+        throw "$Owner self-test exact ownership rollback fence was not found."
+    }
+    $rollbackFence = $rollbackFenceMatch.Value
+    $setCaseWithoutRollback = $setCase.Remove(
+        $rollbackFenceMatch.Index,
+        $rollbackFenceMatch.Length)
+    $terminalProofAnchor = 'if (adminStoreResult <> 1) |'
+    $terminalProofAnchorIndex = $setCaseWithoutRollback.IndexOf(
+        $terminalProofAnchor,
+        [StringComparison]::Ordinal)
+    if ($terminalProofAnchorIndex -lt 0) {
+        throw "$Owner self-test terminal-proof anchor was not found."
+    }
+    $setCaseRollbackBeforeProof = (
+        $setCaseWithoutRollback.Substring(0, $terminalProofAnchorIndex) +
+        $rollbackFence + [Environment]::NewLine +
+        $setCaseWithoutRollback.Substring($terminalProofAnchorIndex))
+
+    $fixtures = [ordered]@{}
+    $addFixture = {
+        param(
+            [string]$Name,
+            [string]$Service,
+            [string]$Tcp,
+            [string]$Expected
+        )
+
+        if ($fixtures.Contains($Name)) {
+            throw "$Owner duplicate negative fixture name: $Name"
+        }
+        $fixtures[$Name] = @{
+            Service = $Service
+            Tcp = $Tcp
+            Expected = $Expected
+        }
+    }
+
+    & $addFixture 'StoreConfiguredTrue' (
+        $ControlServiceText.Replace(
+            '#define LMC_ADMIN_SET_POSITION_STORE_CONFIGURED FALSE',
+            '#define LMC_ADMIN_SET_POSITION_STORE_CONFIGURED TRUE')) `
+        $TcpText 'macro LMC_ADMIN_SET_POSITION_STORE_CONFIGURED'
+    & $addFixture 'CapabilityAdvertised' (
+        $ControlServiceText.Replace('0x00000017', '0x00000037')) `
+        $TcpText 'dormant SetPosition bits 3/5/7'
+    & $addFixture 'ServiceRouteCommandArgumentChanged' (
+        & $replaceFirstLiteral $serviceRoute 'CommandId:=CommandId' (
+            'CommandId:=0') 'service route CommandId argument') `
+        $TcpText 'control-service Admin route executable fingerprint drifted'
+    & $addFixture 'SetPositionHelperMadeGlobal' (
+        & $replaceFirstLiteral $setCase (
+            'FUNCTION LMCControlCommandService::HandleAdminSetPosition') (
+            'FUNCTION GLOBAL LMCControlCommandService::HandleAdminSetPosition') (
+            'SetPosition helper private header')) `
+        $TcpText 'private Admin handler was not found exactly once'
+    & $addFixture 'SetPositionHelperRequestPointerRemoved' (
+        & $replaceFirstLiteral $setCase '^USINT' 'USINT' (
+            'SetPosition helper request pointer')) `
+        $TcpText 'exact private five-input/one-output ABI'
+    & $addFixture 'SetPositionHelperGuardChanged' (
+        & $replaceFirstLiteral $setCase 'RequestFrameSize < 8' (
+            'RequestFrameSize < 7') 'SetPosition helper minimum-frame guard') `
+        $TcpText 'exact private five-input/one-output ABI'
+    & $addFixture 'SetPositionDedicatedRouteArgumentChanged' (
+        & $replaceFirstLiteral $setPositionServiceRoute (
+            'Reference:=Reference') 'Reference:=0' (
+            'SetPosition dedicated route Reference argument')) `
+        $TcpText 'dedicated 0x7D12 route drifted'
+    & $addFixture 'SetPositionAdminAggregateReabsorbs7D12' (
+        & $replaceFirstLiteral $serviceRoute (
+            '0x7D00, 0x7D10, 0x7D14') (
+            '0x7D00, 0x7D10, 0x7D12, 0x7D14') (
+            'remaining Admin aggregate labels')) `
+        $TcpText 'remaining Admin aggregate route drifted'
+    & $addFixture 'SetPositionExclusiveLocalRetainedInAdmin' (
+        & $replaceFirstLiteral $adminHandlerBlock (
+            'adminExpectedActualPosition : DINT;') (
+            'adminExpectedActualPosition : DINT;' +
+            [Environment]::NewLine +
+            "`t`tadminExecuteToken : UDINT;") (
+            'legacy Admin exclusive local')) `
+        $TcpText 'retained exclusive SetPosition local adminExecuteToken'
+    & $addFixture 'SetPositionHelperOversized' (
+        & $replaceFirstLiteral $setCase (
+            'FUNCTION LMCControlCommandService::HandleAdminSetPosition') (
+            'FUNCTION LMCControlCommandService::HandleAdminSetPosition' +
+            [Environment]::NewLine + '//' + ('X' * 40000)) (
+            'SetPosition helper oversized body')) `
+        $TcpText 'all must remain under 32768'
+    & $addFixture 'ReadCallOutsideConfiguredCasesAdded' (
+        & $replaceFirstLiteral $otherAdminCase (
+            '_memset(dest:=pResponseFrame') (
+            $readCall + [Environment]::NewLine +
+            '_memset(dest:=pResponseFrame') 'outside-case Read call') `
+        $TcpText 'service-wide ReadSetPositionOutcome call count must remain exactly one'
+    & $addFixture 'BeginCallDuplicated' (
+        & $replaceFirstLiteral $setCase $beginCall (
+            $beginCall + [Environment]::NewLine + $beginCall) 'duplicate Begin') `
+        $TcpText 'must call BeginSetPosition exactly 1'
+    & $addFixture 'BeginCallForcedFalse' (
+        & $replaceFirstLiteral $setCase $beginCall (
+            'if FALSE then' + [Environment]::NewLine + $beginCall +
+            [Environment]::NewLine + 'end_if;') 'forced-false Begin') `
+        $TcpText 'Begin/replay contract drifted'
+    & $addFixture 'BeginKeySizeChanged' (
+        & $replaceFirstLiteral $setCase 'KeySize:=48' 'KeySize:=47' (
+            'Begin KeySize')) `
+        $TcpText 'Begin/replay contract drifted'
+    & $addFixture 'BeginSnapshotCapacityChanged' (
+        & $replaceFirstLiteral $setCase 'SnapshotCapacity:=68' (
+            'SnapshotCapacity:=67') 'Begin snapshot capacity') `
+        $TcpText 'Begin/replay contract drifted'
+    & $addFixture 'BeginReplayResultChanged' (
+        & $replaceFirstLiteral $setCase 'if adminStoreResult = 2 then' (
+            'if adminStoreResult = 1 then') 'Begin replay result') `
+        $TcpText 'Begin/replay contract drifted'
+    & $addFixture 'BeginReplayRecordStateChanged' (
+        & $replaceFirstLiteral $setCase (
+            '(adminSetPositionSnapshot[0]$UINT = 2)') (
+            '(adminSetPositionSnapshot[0]$UINT = 3)') 'replay record state') `
+        $TcpText '0x7D12 Store-wiring executable fingerprint drifted'
+    & $addFixture 'BeginReplayDetailSourceChanged' (
+        & $replaceFirstLiteral $setCase (
+            'adminDetailCode := adminSetPositionSnapshot[56]$UDINT;') (
+            'adminDetailCode := adminSetPositionSnapshot[60]$UDINT;') (
+            'replay detail source')) `
+        $TcpText '0x7D12 Store-wiring executable fingerprint drifted'
+    & $addFixture 'BeginKeyBootChanged' (
+        & $replaceFirstLiteral $setCase (
+            'adminSetPositionKey[8]$UDINT := adminBootId;') (
+            'adminSetPositionKey[8]$UDINT := adminCurrentBootId;') (
+            'Begin key boot')) `
+        $TcpText 'durable 48-byte key normalization drifted'
+    & $addFixture 'CommitCallDuplicated' (
+        & $replaceFirstLiteral $setCase $commitCall (
+            $commitCall + [Environment]::NewLine + $commitCall) (
+            'duplicate Commit')) `
+        $TcpText 'must call CommitSetPositionTerminal exactly 1'
+    & $addFixture 'CommitRecordStateChanged' (
+        & $replaceFirstLiteral $setCase 'RecordState:=3' 'RecordState:=2' (
+            'Commit RecordState')) `
+        $TcpText 'dynamic-detail Commit/snapshot/fail-close contract drifted'
+    & $addFixture 'CommitDetailChanged' (
+        & $replaceFirstLiteral $setCase 'OriginalDetailCode:=adminDetailCode' (
+            'OriginalDetailCode:=10') 'Commit detail') `
+        $TcpText 'dynamic-detail Commit/snapshot/fail-close contract drifted'
+    & $addFixture 'CommitErrorChanged' (
+        & $replaceFirstLiteral $setCase 'OriginalErrorId:=-31000' (
+            'OriginalErrorId:=-1') 'Commit error') `
+        $TcpText 'dynamic-detail Commit/snapshot/fail-close contract drifted'
+    & $addFixture 'CommitSentinelComparatorChanged' (
+        & $replaceFirstLiteral $setCase '(adminStoreResult <> 1)' (
+            '(adminStoreResult = 1)') 'Commit sentinel comparator') `
+        $TcpText 'dynamic-detail Commit/snapshot/fail-close contract drifted'
+    & $addFixture 'CommitSnapshotProofBypassed' (
+        & $replaceFirstLiteral $setCase (
+            '(adminStoreSnapshotValid = FALSE)') (
+            '(adminStoreSnapshotValid = TRUE)') 'Commit snapshot proof') `
+        $TcpText 'dynamic-detail Commit/snapshot/fail-close contract drifted'
+    & $addFixture 'BeginConnectionGateReversed' (
+        & $replaceFirstLiteral $setCase (
+            'IsClientConnected(#SetPositionStore) <> 1') (
+            'IsClientConnected(#SetPositionStore) = 1') (
+            'Begin connection gate')) `
+        $TcpText 'exact connection gate'
+    & $addFixture 'SetCaseEarlyReturnAdded' (
+        & $replaceFirstLiteral $setCase 'adminStoreResult := -1;' (
+            'RETURN;' + [Environment]::NewLine + 'adminStoreResult := -1;') (
+            '0x7D12 early RETURN')) `
+        $TcpText '0x7D12 Store-wiring executable fingerprint drifted'
+    & $addFixture 'SetCaseNativeCallAdded' (
+        & $replaceFirstLiteral $setCase 'adminStoreResult := -1;' (
+            'LMCAxis1.SetPosition(Position:=0);' +
+            [Environment]::NewLine + 'adminStoreResult := -1;') (
+            '0x7D12 native call')) `
+        $TcpText 'native .SetPosition call count must remain zero'
+    & $addFixture 'MaxJumpAxis1Enabled' (
+        $ControlServiceText.Replace(
+            '#define LMC_ADMIN_SET_POSITION_MAX_JUMP_AXIS1 0',
+            '#define LMC_ADMIN_SET_POSITION_MAX_JUMP_AXIS1 1')) `
+        $TcpText 'MAX_JUMP_AXIS1 must have exactly one zero definition'
+    & $addFixture 'MaxJumpAxis4UndefAdded' (
+        $ControlServiceText.Replace(
+            '#define LMC_ADMIN_SET_POSITION_MAX_JUMP_AXIS4 0',
+            '#undef LMC_ADMIN_SET_POSITION_MAX_JUMP_AXIS4')) `
+        $TcpText 'MAX_JUMP_AXIS4 must have exactly one zero definition'
+    & $addFixture 'MaxJumpAxis5Added' (
+        $ControlServiceText.Replace(
+            '#define LMC_ADMIN_SET_POSITION_MAX_JUMP_AXIS4 0',
+            ('#define LMC_ADMIN_SET_POSITION_MAX_JUMP_AXIS4 0' +
+             [Environment]::NewLine +
+             '#define LMC_ADMIN_SET_POSITION_MAX_JUMP_AXIS5 0'))) `
+        $TcpText 'MAX_JUMP may define only AXIS1 through AXIS4'
+    & $addFixture 'CoordinateReadBeforeBeginAdded' (
+        & $replaceFirstLiteral $setCase (
+            'adminStoreResult := SetPositionStore.BeginSetPosition(') (
+            'adminActualPosition := LMCAxis1.ReadPosition(' +
+            'Mode:=LMCAXIS_ACTPOS_APPUNIT);' + [Environment]::NewLine +
+            'adminStoreResult := SetPositionStore.BeginSetPosition(') (
+            'coordinate read before Begin')) `
+        $TcpText 'coordinate reads must exist only in the fresh'
+    & $addFixture 'ReplayCoordinateReadAdded' (
+        & $replaceFirstLiteral $setCase 'if adminStoreResult = 2 then' (
+            'if adminStoreResult = 2 then' + [Environment]::NewLine +
+            'adminActualPosition := LMCAxis1.ReadPosition(' +
+            'Mode:=LMCAXIS_ACTPOS_APPUNIT);') 'replay coordinate read') `
+        $TcpText 'coordinate reads must exist only in the fresh'
+    & $addFixture 'BeginFailureCoordinateReadAdded' (
+        & $replaceFirstLiteral $setCase 'elsif adminStoreResult = 0 then' (
+            'elsif adminStoreResult = 0 then' + [Environment]::NewLine +
+            'adminActualPosition := LMCAxis1.ReadPosition(' +
+            'Mode:=LMCAXIS_ACTPOS_APPUNIT);') 'failure coordinate read') `
+        $TcpText 'coordinate reads must exist only in the fresh'
+    & $addFixture 'ZeroThresholdComparatorChanged' (
+        & $replaceFirstLiteral $setCase (
+            'if adminSetPositionMaxJump = 0 then') (
+            'if adminSetPositionMaxJump <> 0 then') (
+            'zero MAX_JUMP comparator')) `
+        $TcpText 'zero MAX_JUMP threshold must fail closed before every'
+    & $addFixture 'Axis1ConnectionComparatorChanged' (
+        & $replaceFirstLiteral $setCase (
+            'IsClientConnected(#LMCAxis1) = 1') (
+            'IsClientConnected(#LMCAxis1) <> 1') (
+            'axis 1 connection comparator')) `
+        $TcpText 'axis 1 connection coordinate gate'
+    & $addFixture 'Axis2ActualPositionMethodChanged' (
+        & $replaceFirstLiteral $setCase 'LMCAxis2.ReadPosition(' (
+            'LMCAxis2.ReadSWEndPos(') 'axis 2 ACTPOS method') `
+        $TcpText 'axis 2 ACTPOS coordinate gate'
+    & $addFixture 'Axis3SoftwareMinMethodChanged' (
+        & $replaceFirstLiteral $setCase (
+            'adminSoftwareLimitMin := LMCAxis3.ReadSWEndPos(') (
+            'adminSoftwareLimitMin := LMCAxis3.ReadPosition(') (
+            'axis 3 SWMIN method')) `
+        $TcpText 'axis 3 SWMIN coordinate gate'
+    & $addFixture 'Axis4SoftwareMaxMethodChanged' (
+        & $replaceFirstLiteral $setCase (
+            'adminSoftwareLimitMax := LMCAxis4.ReadSWEndPos(') (
+            'adminSoftwareLimitMax := LMCAxis4.ReadPosition(') (
+            'axis 4 SWMAX method')) `
+        $TcpText 'axis 4 SWMAX coordinate gate'
+    & $addFixture 'Axis5CoordinateReadAdded' (
+        & $replaceLastLiteral $setCase (
+            'adminAxisClientConnected := FALSE;') (
+            'adminAxisClientConnected := FALSE;' +
+            [Environment]::NewLine +
+            'adminActualPosition := LMCAxis5.ReadPosition(' +
+            'Mode:=LMCAXIS_ACTPOS_APPUNIT);') 'axis 5 coordinate read') `
+        $TcpText 'axis 5 ACTPOS coordinate gate'
+    & $addFixture 'ActualLowerEnvelopeMadeExclusive' (
+        & $replaceFirstLiteral $setCase (
+            '(adminActualPosition < adminSoftwareLimitMin)') (
+            '(adminActualPosition <= adminSoftwareLimitMin)') (
+            'actual lower envelope comparator')) `
+        $TcpText 'coordinate software envelope must remain inclusive'
+    & $addFixture 'TargetUpperEnvelopeMadeExclusive' (
+        & $replaceFirstLiteral $setCase (
+            '(adminAxisPosition > adminSoftwareLimitMax)') (
+            '(adminAxisPosition >= adminSoftwareLimitMax)') (
+            'target upper envelope comparator')) `
+        $TcpText 'coordinate software envelope must remain inclusive'
+    & $addFixture 'ExpectedActualComparatorReversed' (
+        & $replaceFirstLiteral $setCase 'adminActualPosition <>' (
+            'adminActualPosition =') 'expected actual comparator') `
+        $TcpText 'coordinate expected-actual equality gate'
+    & $addFixture 'TargetBiasMaskChanged' (
+        & $replaceFirstLiteral $setCase (
+            'adminAxisPosition$UDINT xor 0x80000000;') (
+            'adminAxisPosition$UDINT xor 0x7FFFFFFF;') (
+            'target sign bias mask')) `
+        $TcpText 'overflow-safe sign-biased UDINT ordering'
+    & $addFixture 'ActualBiasCastChanged' (
+        & $replaceFirstLiteral $setCase (
+            'adminActualPosition$UDINT xor 0x80000000;') (
+            'adminActualPosition$DINT xor 0x80000000;') (
+            'actual sign bias cast')) `
+        $TcpText 'overflow-safe sign-biased UDINT ordering'
+    & $addFixture 'SignedDeltaSubtractionAdded' (
+        & $replaceFirstLiteral $setCase (
+            'adminTargetOrder - adminActualOrder;') (
+            'adminAxisPosition - adminActualPosition;') (
+            'signed DINT delta subtraction')) `
+        $TcpText 'no ABS/LINT or signed DINT subtraction'
+    & $addFixture 'AbsDeltaAdded' (
+        & $replaceFirstLiteral $setCase (
+            'if adminPositionJump > adminSetPositionMaxJump then') (
+            'adminPositionJump := ABS(adminPositionJump);' +
+            [Environment]::NewLine +
+            'if adminPositionJump > adminSetPositionMaxJump then') (
+            'ABS coordinate delta')) `
+        $TcpText 'no ABS/LINT or signed DINT subtraction'
+    & $addFixture 'LIntDeltaLocalAdded' (
+        & $replaceFirstLiteral $setCase 'adminPositionJump : UDINT;' (
+            'adminPositionJump : UDINT;' + [Environment]::NewLine +
+            'adminPositionJumpLInt : LINT;') 'LINT delta local') `
+        $TcpText 'SetPosition helper local declaration inventory drifted'
+    & $addFixture 'JumpComparatorMadeExclusive' (
+        & $replaceFirstLiteral $setCase (
+            'if adminPositionJump > adminSetPositionMaxJump then') (
+            'if adminPositionJump >= adminSetPositionMaxJump then') (
+            'maximum jump comparator')) `
+        $TcpText 'overflow-safe sign-biased UDINT ordering'
+    & $addFixture 'CoordinateDefaultDetailChanged' (
+        & $replaceFirstLiteral $setCase 'adminDetailCode := 10;' (
+            'adminDetailCode := 14;') 'coordinate default detail') `
+        $TcpText 'fresh coordinate MAX_JUMP selection/zero guard drifted'
+    & $addFixture 'CoordinateDetailInventoryChanged' (
+        $ControlServiceText.Replace(
+            $setCase,
+            $setCase.Replace(
+                'adminDetailCode := 15;',
+                'adminDetailCode := 14;'))) `
+        $TcpText 'coordinate detail 10/14/15 assignment inventory'
+    & $addFixture 'CommitSnapshotDynamicDetailChanged' (
+        & $replaceLastLiteral $setCase (
+            'adminSetPositionSnapshot[56]$UDINT =') (
+            'adminSetPositionSnapshot[56]$UDINT <>') (
+            'Commit snapshot dynamic detail')) `
+        $TcpText 'dynamic-detail Commit/snapshot/fail-close contract drifted'
+    & $addFixture 'CoordinateNativeMethodAdded' (
+        & $replaceLastLiteral $setCase (
+            'adminAxisClientConnected := FALSE;') (
+            'LMCAxis1.Stop();' + [Environment]::NewLine +
+            'adminAxisClientConnected := FALSE;') (
+            'coordinate native method inventory')) `
+        $TcpText 'coordinate helper native method inventory'
+    & $addFixture 'SourceWideCoordinateReadAdded' (
+        & $replaceFirstLiteral $otherAdminCase (
+            '_memset(dest:=pResponseFrame') (
+            'adminAxisValue := LMCAxis1.ReadPosition(' +
+            'Mode:=LMCAXIS_ACTPOS_APPUNIT);' + [Environment]::NewLine +
+            '_memset(dest:=pResponseFrame') 'source-wide coordinate read') `
+        $TcpText 'source-wide axis 1 coordinate read inventory'
+
+    & $addFixture 'OwnerAxisMaskMappingChanged' (
+        & $replaceFirstLiteral $setCase (
+            '1: adminOwnerAxisMask := 0x00000001;') (
+            '1: adminOwnerAxisMask := 0x00000002;') (
+            'owner axis-mask mapping')) `
+        $TcpText 'ownership axis-mask mapping must remain exact 1..4'
+    & $addFixture 'OwnerScratchSessionZeroAccepted' (
+        & $replaceFirstLiteral $setCase (
+            '(OwnershipState[16]$UDINT <> 0)') (
+            '(OwnershipState[16]$UDINT = 0)') (
+            'owner scratch session proof')) `
+        $TcpText 'ownership scratch tuple/copy drifted'
+    & $addFixture 'OwnerScratchCommandChanged' (
+        & $replaceFirstLiteral $setCase (
+            '(OwnershipState[20] = 0x7D12)') (
+            '(OwnershipState[20] = 0x7D11)') (
+            'owner scratch command proof')) `
+        $TcpText 'HandleAdminSetPosition 0x7D12 ownership occurrence count'
+    & $addFixture 'OwnerReserveCommandChanged' (
+        & $replaceFirstLiteral $setCase 'CommandId:=0x7D12' (
+            'CommandId:=0x7D11') ('owner Reserve command')) `
+        $TcpText 'HandleAdminSetPosition 0x7D12 ownership occurrence count'
+    & $addFixture 'OwnerReserveIdentityPointerChanged' (
+        & $replaceFirstLiteral $setCase (
+            'pIdentity:=(pRequestFrame + 8)$^void') (
+            'pIdentity:=(pRequestFrame + 12)$^void') (
+            'owner Reserve identity pointer')) `
+        $TcpText 'ReserveAxisOwnership exact 48-byte ABI drifted'
+    & $addFixture 'OwnerReserveIdentitySizeChanged' (
+        & $replaceFirstLiteral $setCase 'IdentitySize:=48' (
+            'IdentitySize:=47') ('owner Reserve identity size')) `
+        $TcpText 'ReserveAxisOwnership exact 48-byte ABI drifted'
+    & $addFixture 'OwnerReserveAdmissionChanged' (
+        & $replaceFirstLiteral $setCase (
+            'AdmissionMode:=LMC_OWNER_ADMISSION_ORDINARY') (
+            'AdmissionMode:=LMC_OWNER_ADMISSION_SAFETY') (
+            'owner Reserve admission')) `
+        $TcpText 'ReserveAxisOwnership exact 48-byte ABI drifted'
+    & $addFixture 'OwnerReserveSessionChanged' (
+        & $replaceFirstLiteral $setCase (
+            'CallerSessionEpoch:=adminOwnerSession') (
+            'CallerSessionEpoch:=0') ('owner Reserve session')) `
+        $TcpText 'ReserveAxisOwnership exact 48-byte ABI drifted'
+    & $addFixture 'OwnerAcquiredResultComparatorChanged' (
+        & $replaceFirstLiteral $setCase (
+            '(adminOwnerReserveResult = 0)') (
+            '(adminOwnerReserveResult <> 0)') (
+            'owner acquired result comparator')) `
+        $TcpText 'acquisition must treat only -2 as normal conflict'
+    & $addFixture 'OwnerAcquiredMaskProofRemoved' (
+        & $replaceFirstLiteral $setCase (
+            '(adminOwnerEffectiveAxisMask = adminOwnerAxisMask)') (
+            '(adminOwnerEffectiveAxisMask <> adminOwnerAxisMask)') (
+            'owner acquired mask proof')) `
+        $TcpText 'acquisition must treat only -2 as normal conflict'
+    & $addFixture 'OwnerAcquiredTokenProofRemoved' (
+        & $replaceFirstLiteral $setCase (
+            '(adminOwnerAdmissionToken <> 0)') (
+            '(adminOwnerAdmissionToken = 0)') (
+            'owner acquired token proof')) `
+        $TcpText 'acquisition must treat only -2 as normal conflict'
+    & $addFixture 'OwnerConflictLatchComparatorChanged' (
+        & $replaceFirstLiteral $setCase (
+            '(adminOwnerReserveResult <> -2)') (
+            '(adminOwnerReserveResult = -2)') (
+            'owner conflict latch comparator')) `
+        $TcpText 'acquisition must treat only -2 as normal conflict'
+    & $addFixture 'OwnerInternalFailureLatchRemoved' (
+        & $replaceFirstLiteral $setCase 'OwnershipState[24] := 1;' (
+            'adminOwnerRollbackResult := adminOwnerRollbackResult;') (
+            'owner internal failure latch')) `
+        $TcpText 'acquisition must treat only -2 as normal conflict'
+    & $addFixture 'OwnerScratchFailureLatchRemoved' (
+        & $replaceFirstLiteral $setCase (
+            ('end_if;' + [Environment]::NewLine +
+             "`t`t`telse" + [Environment]::NewLine +
+             "`t`t`t`tOwnershipState[24] := 1;" +
+             [Environment]::NewLine + "`t`t`tend_if;" +
+             [Environment]::NewLine +
+             "`t`t`tif adminOwnerAcquired then")) (
+            ('end_if;' + [Environment]::NewLine +
+             "`t`t`telse" + [Environment]::NewLine +
+             "`t`t`t`tadminOwnerAcquired := FALSE;" +
+             [Environment]::NewLine + "`t`t`tend_if;" +
+             [Environment]::NewLine +
+             "`t`t`tif adminOwnerAcquired then")) (
+            'owner scratch failure latch')) `
+        $TcpText 'acquisition must treat only -2 as normal conflict'
+    & $addFixture 'OwnerCoordinateGuardRemoved' (
+        & $replaceFirstLiteral $setCase 'if adminOwnerAcquired then' (
+            'if TRUE then') ('owner coordinate guard')) `
+        $TcpText 'acquisition must treat only -2 as normal conflict'
+    & $addFixture 'OwnerRollbackMovedBeforeTerminalProof' (
+        $ControlServiceText.Replace($setCase, $setCaseRollbackBeforeProof)) `
+        $TcpText 'Reserve/acquired/read/terminal-proof/rollback/response order drifted'
+    & $addFixture 'OwnerRollbackReasonChanged' (
+        & $replaceFirstLiteral $setCase 'Reason:=0' 'Reason:=1' (
+            'owner rollback reason')) `
+        $TcpText 'rollback must follow terminal proof'
+    & $addFixture 'OwnerRollbackTokenChanged' (
+        & $replaceFirstLiteral $setCase (
+            'AdmissionToken:=adminOwnerAdmissionToken') (
+            'AdmissionToken:=0') ('owner rollback token')) `
+        $TcpText 'rollback must follow terminal proof'
+    & $addFixture 'OwnerRollbackGuardRemoved' (
+        & $replaceLastLiteral $setCase 'if adminOwnerAcquired then' (
+            'if TRUE then') ('owner rollback acquired guard')) `
+        $TcpText 'rollback must follow terminal proof'
+    & $addFixture 'OwnerRollbackFailureLatchRemoved' (
+        & $replaceLastLiteral $setCase 'OwnershipState[24] := 1;' '' (
+            'owner rollback failure latch')) `
+        $TcpText 'may write only three internal-failure'
+    & $addFixture 'ReserveStoreFalseGlobalWriteAdded' (
+        & $replaceFirstLiteral $reserveOwnershipCase (
+            'if (CommandId = 0x7D12) &') (
+            ('OwnershipState[24] := 1;' + [Environment]::NewLine +
+             "`tif (CommandId = 0x7D12) &")) (
+            'Reserve store-FALSE global write')) `
+        $TcpText 'before any global-state access'
+    & $addFixture 'ReserveOrdinaryExceptionRemoved' (
+        & $replaceFirstLiteral $reserveOwnershipCase (
+            '(CommandId <> 0x7D12)') (
+            '(CommandId <> 0x7D11)') (
+            'Reserve ordinary exception')) `
+        $TcpText 'ReserveAxisOwnership 0x7D12 ownership occurrence count'
+    & $addFixture 'ReserveAxis4LimitExpanded' (
+        & $replaceFirstLiteral $reserveOwnershipCase (
+            '(referenceAxisMask > 0x00000008)') (
+            '(referenceAxisMask > 0x00000010)') (
+            'Reserve 0x7D12 axis limit')) `
+        $TcpText 'Reserve 0x7D12 tuple must remain exact'
+    & $addFixture 'ReserveRebaseExceptionAdded' (
+        & $replaceFirstLiteral $reserveOwnershipCase (
+            '(AdmissionMode = LMC_OWNER_ADMISSION_SAFETY) |') (
+            ('(CommandId = 0x7D12) |' + [Environment]::NewLine +
+             "`t`t`t(AdmissionMode = LMC_OWNER_ADMISSION_SAFETY) |")) (
+            'Reserve rebase exception')) `
+        $TcpText 'ReserveAxisOwnership 0x7D12 ownership occurrence count'
+    & $addFixture 'ValidateAxis4LimitExpanded' (
+        & $replaceFirstLiteral $validateOwnershipCase (
+            '(referenceAxisMask <= 0x00000008)') (
+            '(referenceAxisMask <= 0x00000010)') (
+            'Validate 0x7D12 axis limit')) `
+        $TcpText 'ValidateAxisOwnership 0x7D12 tuple drifted'
+    & $addFixture 'ValidateIdentitySizeChanged' (
+        & $replaceFirstLiteral $validateIdentityCase (
+            '(IdentitySize = 48)') '(IdentitySize = 44)' (
+            'Validate identity 0x7D12 size')) `
+        $TcpText 'ValidateAxisOwnershipIdentity 0x7D12 identity drifted'
+    & $addFixture 'CopyPreemptionIdentitySizeChanged' (
+        & $replaceFirstLiteral $copyPreemptionCase (
+            'identityExpectedSize := 48;') (
+            'identityExpectedSize := 47;') (
+            'Copy preemption 0x7D12 identity size')) `
+        $TcpText 'CopyAxisOwnershipPreemption 0x7D12 tuple/identity drifted'
+    & $addFixture 'RollbackBankIdentitySizeChanged' (
+        & $replaceFirstLiteral $rollbackPreemptBankCase (
+            'identityExpectedSize := 48;') (
+            'identityExpectedSize := 47;') (
+            'rollback bank 0x7D12 identity size')) `
+        $TcpText 'rollback preempt-bank 0x7D12 tuple/identity drifted'
+    & $addFixture 'ProcessAutoReleaseAdded' (
+        & $replaceFirstLiteral $processOwnershipCase (
+            'if OwnershipState[0]$UDINT <> LMC_OWNER_TABLE_MAGIC then') (
+            ('if commandId = 0x7D12 then RETURN; end_if;' +
+             [Environment]::NewLine +
+             "`tif OwnershipState[0]`$UDINT <> " +
+             'LMC_OWNER_TABLE_MAGIC then')) (
+            'Process 0x7D12 auto release')) `
+        $TcpText 'ProcessAxisOwnership 0x7D12 ownership occurrence count'
+    & $addFixture 'HandleRequestOuterManagedAdded' (
+        & $replaceFirstLiteral $handleRequestBlock 'ResponseSize := -1;' (
+            ('if CommandId = 0x7D12 then ownershipManagedCommand := TRUE; ' +
+             'end_if;' + [Environment]::NewLine +
+             "`tResponseSize := -1;")) (
+            'HandleRequest outer 0x7D12 classifier')) `
+        $TcpText 'HandleRequest 0x7D12 ownership occurrence count'
+    & $addFixture 'NotifySetPositionExceptionAdded' (
+        & $replaceFirstLiteral $notifyClosedCase (
+            'if SessionEpoch = 0 then') (
+            ('if 0x7D12 = 0x7D12 then RETURN; end_if;' +
+             [Environment]::NewLine + "`tif SessionEpoch = 0 then")) (
+            'Notify 0x7D12 exception')) `
+        $TcpText 'NotifyAxisOwnershipSessionClosed 0x7D12 ownership occurrence count'
+    & $addFixture 'NotifyReservedTransitionChanged' (
+        & $replaceFirstLiteral $notifyClosedCase (
+            'LMC_OWNER_STATE_RESERVED) then') (
+            'LMC_OWNER_STATE_DIRECT_ACTIVE) then') (
+            'Notify Reserved transition')) `
+        $TcpText 'session close must quarantine an immediate Reserved owner'
+    & $addFixture 'TcpOrdinaryClassifierAddsSetPosition' `
+        $ControlServiceText (
+            & $replaceTcpFirstLiteral $tcpOrdinaryClassifierCase (
+                '// LMC_OWNER_ORDINARY_CLASSIFIER_BEGIN') (
+                ('// LMC_OWNER_ORDINARY_CLASSIFIER_BEGIN' +
+                 [Environment]::NewLine +
+                 'if CommandID = 0x7D12 then controlManaged := TRUE; end_if;')) (
+                'TCP ordinary 0x7D12 classifier')) `
+        'TCP ordinary classifier must exclude 0x7D12'
+
+    & $addFixture 'ReadCallDuplicated' (
+        & $replaceFirstLiteral $outcomeCase $readCall (
+            $readCall + [Environment]::NewLine + $readCall) 'duplicate Read') `
+        $TcpText 'must call ReadSetPositionOutcome exactly 1'
+    & $addFixture 'RetireCallDuplicated' (
+        & $replaceFirstLiteral $outcomeCase $retireCall (
+            $retireCall + [Environment]::NewLine + $retireCall) (
+            'duplicate Retire')) `
+        $TcpText 'must call RetireSetPositionOutcome exactly 1'
+    & $addFixture 'OutcomeCapacityChanged' (
+        & $replaceFirstLiteral $outcomeCase 'ResponseCapacity < 92' (
+            'ResponseCapacity < 91') 'outcome success capacity') `
+        $TcpText 'capacity-before-call order drifted'
+    & $addFixture 'OutcomeOriginalBootKeyChanged' (
+        & $replaceFirstLiteral $outcomeCase (
+            'adminSetPositionKey[8]$UDINT := adminBootId;') (
+            'adminSetPositionKey[8]$UDINT := adminCurrentBootId;') (
+            'outcome original boot key')) `
+        $TcpText 'cross-boot 48-byte retained key normalization drifted'
+    & $addFixture 'OutcomeOriginalRequestKeyChanged' (
+        & $replaceFirstLiteral $outcomeCase (
+            'adminSetPositionKey[16]$UDINT := adminOriginalRequestId;') (
+            'adminSetPositionKey[16]$UDINT := adminRequestId;') (
+            'outcome original request key')) `
+        $TcpText 'cross-boot 48-byte retained key normalization drifted'
+    & $addFixture 'OutcomeLiveBootCheckChanged' (
+        & $replaceFirstLiteral $outcomeCase (
+            'adminCurrentBootId <> OwnershipState[3]$UDINT') (
+            'adminBootId <> OwnershipState[3]$UDINT') (
+            'outcome live boot check')) `
+        $TcpText 'live-boot/macro/92-byte capacity-before-call order drifted'
+    & $addFixture 'ReadKeySizeChanged' (
+        & $replaceFirstLiteral $outcomeCase 'KeySize:=48' 'KeySize:=47' (
+            'Read KeySize')) `
+        $TcpText 'exact Read Store call ABI drifted'
+    & $addFixture 'ReadSnapshotCapacityChanged' (
+        & $replaceFirstLiteral $outcomeCase 'SnapshotCapacity:=68' (
+            'SnapshotCapacity:=67') 'Read snapshot capacity') `
+        $TcpText 'exact Read Store call ABI drifted'
+    & $addFixture 'RetireGenerationSourceChanged' (
+        & $replaceFirstLiteral $outcomeCase (
+            'adminRecordGeneration,') (
+            'adminStoreRecordGeneration,') (
+            'Retire generation source')) `
+        $TcpText 'exact Retire Store call ABI drifted'
+    & $addFixture 'OutcomeSnapshotBootChanged' (
+        & $replaceFirstLiteral $outcomeCase (
+            '(adminSetPositionSnapshot[8]$UDINT = adminBootId)') (
+            '(adminSetPositionSnapshot[8]$UDINT = adminCurrentBootId)') (
+            'outcome snapshot boot')) `
+        $TcpText 'retained snapshot validation/92-byte success contract drifted'
+    & $addFixture 'OutcomeGenerationProofReversed' (
+        & $replaceFirstLiteral $outcomeCase (
+            'adminRecordGeneration) then') (
+            'adminStoreRecordGeneration) then') 'outcome generation proof') `
+        $TcpText 'retained snapshot validation/92-byte success contract drifted'
+    & $addFixture 'OutcomeSnapshotProofBypassed' (
+        & $replaceFirstLiteral $outcomeCase (
+            'if adminStoreSnapshotValid = FALSE then') (
+            'if adminStoreSnapshotValid = TRUE then') (
+            'outcome snapshot proof')) `
+        $TcpText '0x7D14/0x7D1A Store-wiring executable fingerprint drifted'
+    & $addFixture 'OutcomeSuccessSizeChanged' (
+        & $replaceFirstLiteral $outcomeCase 'ResponseSize := 92;' (
+            'ResponseSize := 24;') 'outcome success size') `
+        $TcpText 'retained snapshot validation/92-byte success contract drifted'
+    & $addFixture 'OutcomeSuccessMemsetChanged' (
+        & $replaceFirstLiteral $outcomeCase 'cntr:=92' 'cntr:=88' (
+            'outcome success memset')) `
+        $TcpText 'retained snapshot validation/92-byte success contract drifted'
+    & $addFixture 'OutcomeSnapshotOffsetChanged' (
+        & $replaceFirstLiteral $outcomeCase (
+            'ptr1:=pResponseFrame + 24') 'ptr1:=pResponseFrame + 20' (
+            'outcome response snapshot offset')) `
+        $TcpText 'retained snapshot validation/92-byte success contract drifted'
+    & $addFixture 'OutcomeSnapshotLengthChanged' (
+        & $replaceFirstLiteral $outcomeCase (
+            'ptr2:=#adminSetPositionSnapshot[0], cntr:=68') (
+            'ptr2:=#adminSetPositionSnapshot[0], cntr:=64') (
+            'outcome response snapshot length')) `
+        $TcpText 'retained snapshot validation/92-byte success contract drifted'
+    & $addFixture 'OutcomeDetail23Allowed' (
+        & $replaceFirstLiteral $outcomeCase (
+            '(adminStoreDetailCode = 19)') (
+            '(adminStoreDetailCode = 23)') 'outcome detail 23') `
+        $TcpText 'outcome detail 23 must remain forbidden'
+    & $addFixture 'OutcomeFailureSizeChanged' (
+        & $replaceFirstLiteral $outcomeCase 'ResponseSize := 24;' (
+            'ResponseSize := 92;') 'outcome failure size') `
+        $TcpText 'exact 24-byte failure response drifted'
+    & $addFixture 'OutcomeSentinelAdded' (
+        & $replaceFirstLiteral $outcomeCase 'adminStoreResult := -1;' (
+            'ResponseSize := LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE;' +
+            [Environment]::NewLine + 'adminStoreResult := -1;') (
+            'outcome sentinel')) `
+        $TcpText 'must never produce or consume -12'
+    & $addFixture 'OutcomeMinus12ResultAdded' (
+        & $replaceFirstLiteral $outcomeCase 'adminStoreResult := -1;' (
+            'adminStoreResult := -12;' + [Environment]::NewLine +
+            'adminStoreResult := -1;') 'outcome -12 result') `
+        $TcpText 'must never produce or consume -12'
+    & $addFixture 'OutcomeConnectionGateReversed' (
+        & $replaceFirstLiteral $outcomeCase (
+            'IsClientConnected(#SetPositionStore) <> 1') (
+            'IsClientConnected(#SetPositionStore) = 1') (
+            'outcome connection gate')) `
+        $TcpText 'live-boot/macro/92-byte capacity-before-call order drifted'
+    & $addFixture 'OutcomeReadForcedFalse' (
+        & $replaceFirstLiteral $outcomeCase (
+            'if CommandId = 0x7D14 then') 'if FALSE then' (
+            'outcome Read selector')) `
+        $TcpText '0x7D14/0x7D1A Store-wiring executable fingerprint drifted'
+    & $addFixture 'OutcomeEarlyReturnAdded' (
+        & $replaceFirstLiteral $outcomeCase 'adminStoreResult := -1;' (
+            'RETURN;' + [Environment]::NewLine + 'adminStoreResult := -1;') (
+            'outcome early RETURN')) `
+        $TcpText '0x7D14/0x7D1A Store-wiring executable fingerprint drifted'
+
+    $fixtureNameSha256 = [Security.Cryptography.SHA256]::Create()
+    try {
+        $fixtureNameHash = ([BitConverter]::ToString(
+                $fixtureNameSha256.ComputeHash(
+                    [Text.Encoding]::UTF8.GetBytes(
+                        (@($fixtures.Keys) -join "`n"))))).
+            Replace('-', '').ToLowerInvariant()
+    }
+    finally {
+        $fixtureNameSha256.Dispose()
+    }
+    if ($fixtureNameHash -cne
+            'b5347edfa8c1a39060c34c9161b02bef8f47c05cdad94321d3a8cdba8549cf02') {
+        throw "$Owner negative fixture ordered-name inventory drifted."
+    }
+
+    $rejectedCount = 0
+    foreach ($fixture in $fixtures.GetEnumerator()) {
+        if (($fixture.Value.Service -ceq $ControlServiceText) -and
+            ($fixture.Value.Tcp -ceq $TcpText)) {
+            throw "$Owner negative fixture did not mutate: $($fixture.Key)"
+        }
+        $rejected = $false
+        try {
+            Assert-LasalAdminSetAxisPositionContract `
+                -ControlServiceText $fixture.Value.Service `
+                -TcpText $fixture.Value.Tcp `
+                -Owner "$Owner negative fixture $($fixture.Key)"
+            Assert-LasalSetPositionOutcomeStoreWiringContract `
+                -ControlServiceText $fixture.Value.Service `
+                -TcpText $fixture.Value.Tcp `
+                -Owner "$Owner negative fixture $($fixture.Key)"
+            Assert-LasalSetPositionCloseWithoutResponseContract `
+                -ControlServiceText $fixture.Value.Service `
+                -TcpText $fixture.Value.Tcp `
+                -Owner "$Owner negative fixture $($fixture.Key)"
+        }
+        catch {
+            if ($_.Exception.Message -notlike
+                    "*$($fixture.Value.Expected)*") {
+                throw (
+                    "$Owner negative fixture $($fixture.Key) failed for " +
+                    "an unexpected reason: $($_.Exception.Message)")
+            }
+            $rejected = $true
+        }
+        if (-not $rejected) {
+            throw "$Owner verifier accepted negative fixture $($fixture.Key)."
+        }
+        $rejectedCount++
+    }
+    if ($rejectedCount -ne 110) {
+        throw "$Owner negative fixture count is $rejectedCount, expected 110."
+    }
+    return $rejectedCount
 }
 
 function Assert-LasalAxisZeroHomeRtMailboxContract {
@@ -17448,6 +20872,1161 @@ function Assert-LasalAxisZeroHomeRtMailboxContract {
         "$blocker copy is not a stable terminal-only request/applied seqlock copy.")
 }
 
+function Assert-LasalAxisSetPositionPreflightRtContract {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$InputLatchText,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ControlServiceText,
+
+        [Parameter(Mandatory = $true)]
+        [string]$SetPositionStoreText,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Owner,
+
+        [switch]$SkipExactBodyFingerprint
+    )
+
+    $scan = Get-LasalScanText $InputLatchText
+    $controlScan = Get-LasalScanText $ControlServiceText
+    $storeScan = Get-LasalScanText $SetPositionStoreText
+    $blocker = "$Owner Axis SetPosition RT preflight contract:"
+
+    $classMatches = [regex]::Matches(
+        $InputLatchText,
+        '(?is)LMCEcatInputLatch\s*:\s*CLASS\b.*?END_CLASS\s*;')
+    if ($classMatches.Count -ne 1) {
+        throw "$blocker expected one generated LMCEcatInputLatch class block."
+    }
+    $classBlock = $classMatches[0].Value
+    foreach ($member in @(
+            @{ Name = 'AxisSetPositionPreflightRequestSequence'; Type = 'UDINT' },
+            @{ Name = 'AxisSetPositionPreflightAppliedSequence'; Type = 'UDINT' },
+            @{
+                Name = 'AxisSetPositionPreflightMailbox'
+                Type = 'ARRAY [0..15] OF DINT'
+            },
+            @{
+                Name = 'AxisSetPositionPreflightResult'
+                Type = 'ARRAY [0..31] OF DINT'
+            })) {
+        Assert-LasalExactDeclaredType `
+            -Text $classBlock `
+            -Name $member.Name `
+            -ExpectedType $member.Type `
+            -Owner "$blocker generated $($member.Name)"
+    }
+
+    $resultOutput = @(@{ Name = 'Result'; Type = 'DINT' })
+    Assert-ExactLasalFunctionAbi `
+        -ClassBlock $classBlock `
+        -FunctionName 'SubmitAxisSetPositionPreflight' `
+        -IsGlobal $true `
+        -Inputs @(
+            @{ Name = 'OperationToken'; Type = 'UDINT' },
+            @{ Name = 'OwnerGeneration'; Type = 'UDINT' },
+            @{ Name = 'StoreRecordGeneration'; Type = 'UDINT' },
+            @{ Name = 'CallerSessionEpoch'; Type = 'UDINT' },
+            @{ Name = 'RequestSequence'; Type = 'UDINT' },
+            @{ Name = 'AxisReference'; Type = 'DINT' },
+            @{ Name = 'TargetPosition'; Type = 'DINT' },
+            @{ Name = 'ExpectedActualPosition'; Type = 'DINT' },
+            @{ Name = 'MaxJump'; Type = 'UDINT' },
+            @{ Name = 'ExpectedAxisMask'; Type = 'UDINT' }) `
+        -Outputs $resultOutput `
+        -Owner $blocker
+    Assert-ExactLasalFunctionAbi `
+        -ClassBlock $classBlock `
+        -FunctionName 'CopyAxisSetPositionPreflightResult' `
+        -IsGlobal $true `
+        -Inputs @(
+            @{ Name = 'OperationToken'; Type = 'UDINT' },
+            @{ Name = 'OwnerGeneration'; Type = 'UDINT' },
+            @{ Name = 'StoreRecordGeneration'; Type = 'UDINT' },
+            @{ Name = 'pDest'; Type = '^void' },
+            @{ Name = 'DestSize'; Type = 'UDINT' }) `
+        -Outputs $resultOutput `
+        -Owner $blocker
+    Assert-ExactLasalFunctionAbi `
+        -ClassBlock $classBlock `
+        -FunctionName 'ProcessAxisSetPositionPreflightRt' `
+        -IsGlobal $false `
+        -Inputs @(
+            @{ Name = 'ObservationCycle'; Type = 'UDINT' }) `
+        -Outputs @() `
+        -Owner $blocker
+    Assert-Match (Get-LasalScanText $classBlock) (
+        '(?is)FUNCTION\s+GLOBAL\s+SubmitAxisSetPositionPreflight\b.*?' +
+        'FUNCTION\s+GLOBAL\s+CopyAxisSetPositionPreflightResult\b.*?' +
+        'FUNCTION\s+ProcessAxisSetPositionPreflightRt\b') (
+        "$blocker generated method order must remain Submit, Copy, Process.")
+
+    $rtBlock = Get-LasalExactFunctionImplementationBlock `
+        -SourceText $InputLatchText `
+        -ClassName 'LMCEcatInputLatch' `
+        -FunctionName 'RtWork' `
+        -Owner "$blocker RtWork"
+    $submitBlock = Get-LasalExactFunctionImplementationBlock `
+        -SourceText $InputLatchText `
+        -ClassName 'LMCEcatInputLatch' `
+        -FunctionName 'SubmitAxisSetPositionPreflight' `
+        -Owner "$blocker Submit"
+    $copyBlock = Get-LasalExactFunctionImplementationBlock `
+        -SourceText $InputLatchText `
+        -ClassName 'LMCEcatInputLatch' `
+        -FunctionName 'CopyAxisSetPositionPreflightResult' `
+        -Owner "$blocker Copy"
+    $processBlock = Get-LasalExactFunctionImplementationBlock `
+        -SourceText $InputLatchText `
+        -ClassName 'LMCEcatInputLatch' `
+        -FunctionName 'ProcessAxisSetPositionPreflightRt' `
+        -Owner "$blocker Process"
+    foreach ($implementation in @(
+            @{
+                Name = 'SubmitAxisSetPositionPreflight'
+                Block = $submitBlock
+                Header = ('(?im)^\s*FUNCTION\s+GLOBAL\s+' +
+                    'LMCEcatInputLatch::SubmitAxisSetPositionPreflight\s*$')
+            },
+            @{
+                Name = 'CopyAxisSetPositionPreflightResult'
+                Block = $copyBlock
+                Header = ('(?im)^\s*FUNCTION\s+GLOBAL\s+' +
+                    'LMCEcatInputLatch::CopyAxisSetPositionPreflightResult\s*$')
+            },
+            @{
+                Name = 'ProcessAxisSetPositionPreflightRt'
+                Block = $processBlock
+                Header = ('(?im)^\s*FUNCTION\s+' +
+                    'LMCEcatInputLatch::ProcessAxisSetPositionPreflightRt\s*$')
+            })) {
+        if ([regex]::Matches(
+                $implementation.Block,
+                $implementation.Header).Count -ne 1) {
+            throw (
+                "$blocker $($implementation.Name) implementation scope " +
+                'must remain exact.')
+        }
+        if (@($implementation.Block.ToCharArray() | Where-Object {
+                    [int]$_ -gt 127
+                }).Count -ne 0) {
+            throw "$blocker $($implementation.Name) must remain 7-bit ASCII."
+        }
+    }
+
+    $constantSpecifications = [ordered]@{
+        LMC_SET_POSITION_PREFLIGHT_EMPTY = '0'
+        LMC_SET_POSITION_PREFLIGHT_READY = '1'
+        LMC_SET_POSITION_PREFLIGHT_REJECTED = '2'
+        LMC_SET_POSITION_PREFLIGHT_CORRUPT = '3'
+        LMC_SET_POSITION_PREFLIGHT_INVALID = '-1'
+        LMC_SET_POSITION_PREFLIGHT_BUSY = '-2'
+        LMC_SET_POSITION_PREFLIGHT_BAD_DATA = '-3'
+        LMC_SET_POSITION_PREFLIGHT_CLIENT = '-4'
+        LMC_SET_POSITION_PREFLIGHT_STATE = '-5'
+        LMC_SET_POSITION_PREFLIGHT_CONFIG = '-6'
+        LMC_SET_POSITION_PREFLIGHT_VELOCITY = '-7'
+        LMC_SET_POSITION_PREFLIGHT_AXIS_ERROR = '-8'
+        LMC_SET_POSITION_PREFLIGHT_COORDINATE = '-9'
+        LMC_SET_POSITION_REQUIRED_STATUS = '0x02000002'
+        LMC_SET_POSITION_FORBIDDEN_STATUS = '0x1D2E0E01'
+        LMC_SET_POSITION_ERROR_STATUS = '0x18000600'
+        LMC_SET_POSITION_CONFIG_STATUS = '0x002C0000'
+        LMC_SET_POSITION_UNSAFE_STATUS = '0x05020801'
+        LMC_SET_POSITION_MODULO_STATUS = '0x00010000'
+        LMC_SET_POSITION_EVIDENCE_IDENTITY = '0x00000001'
+        LMC_SET_POSITION_EVIDENCE_AXIS_MASK = '0x00000002'
+        LMC_SET_POSITION_EVIDENCE_CLIENT = '0x00000004'
+        LMC_SET_POSITION_EVIDENCE_STATUS_ERROR = '0x00000008'
+        LMC_SET_POSITION_EVIDENCE_PARAMETER = '0x00000010'
+        LMC_SET_POSITION_EVIDENCE_VELOCITY = '0x00000020'
+        LMC_SET_POSITION_EVIDENCE_LIMITS = '0x00000040'
+        LMC_SET_POSITION_EVIDENCE_CAS = '0x00000080'
+        LMC_SET_POSITION_EVIDENCE_JUMP = '0x00000100'
+        LMC_SET_POSITION_EVIDENCE_READY = '0x00000200'
+        LMC_SET_POSITION_EVIDENCE_ACTIVATION_OFF = '0x80000000'
+    }
+    foreach ($constant in $constantSpecifications.GetEnumerator()) {
+        $allDefinitions = [regex]::Matches(
+            $scan,
+            ('(?im)^\s*#define\s+' + [regex]::Escape($constant.Key) +
+             '\s+(?<Value>[^\s]+)\s*$'))
+        if ($allDefinitions.Count -ne 1 -or
+            $allDefinitions[0].Groups['Value'].Value -cne $constant.Value) {
+            throw (
+                "$blocker $($constant.Key) must be defined exactly once as " +
+                "$($constant.Value).")
+        }
+    }
+    $statusMask = {
+        param([string]$Name)
+        [Convert]::ToUInt32(
+            $constantSpecifications[$Name].Substring(2),
+            16)
+    }
+    $forbiddenPartition =
+        (& $statusMask 'LMC_SET_POSITION_ERROR_STATUS') -bor
+        (& $statusMask 'LMC_SET_POSITION_CONFIG_STATUS') -bor
+        (& $statusMask 'LMC_SET_POSITION_UNSAFE_STATUS')
+    if ($forbiddenPartition -ne
+        (& $statusMask 'LMC_SET_POSITION_FORBIDDEN_STATUS')) {
+        throw (
+            "$blocker ERROR|CONFIG|UNSAFE status partitions must equal the " +
+            'exact 0x1D2E0E01 forbidden mask.')
+    }
+    $forbiddenParts = @(
+        (& $statusMask 'LMC_SET_POSITION_ERROR_STATUS'),
+        (& $statusMask 'LMC_SET_POSITION_CONFIG_STATUS'),
+        (& $statusMask 'LMC_SET_POSITION_UNSAFE_STATUS'))
+    if ((($forbiddenParts[0] -band $forbiddenParts[1]) -ne 0) -or
+        (($forbiddenParts[0] -band $forbiddenParts[2]) -ne 0) -or
+        (($forbiddenParts[1] -band $forbiddenParts[2]) -ne 0)) {
+        throw "$blocker ERROR/CONFIG/UNSAFE status partitions must be disjoint."
+    }
+
+    $submitScan = Get-LasalScanText $submitBlock
+    $copyScan = Get-LasalScanText $copyBlock
+    $processScan = Get-LasalScanText $processBlock
+    $rtScan = Get-LasalScanText $rtBlock
+
+    Assert-Match $submitScan (
+        '(?is)Result\s*:=\s*LMC_SET_POSITION_PREFLIGHT_INVALID\s*;.*?' +
+        'case\s+AxisReference\s+of\s*' +
+        '1\s*:\s*expectedAxisMaskValue\s*:=\s*0x00000001\s*;\s*' +
+        '2\s*:\s*expectedAxisMaskValue\s*:=\s*0x00000002\s*;\s*' +
+        '3\s*:\s*expectedAxisMaskValue\s*:=\s*0x00000004\s*;\s*' +
+        '4\s*:\s*expectedAxisMaskValue\s*:=\s*0x00000008\s*;.*?' +
+        'OperationToken\s*=\s*0.*?OwnerGeneration\s*=\s*0.*?' +
+        'StoreRecordGeneration\s*=\s*0.*?CallerSessionEpoch\s*=\s*0.*?' +
+        'RequestSequence\s*=\s*0.*?expectedAxisMaskValue\s*=\s*0.*?' +
+        'ExpectedAxisMask\s*<>\s*expectedAxisMaskValue.*?' +
+        'RETURN\s*;') (
+        "$blocker Submit input, physical-axis mask, or zero-sentinel guard drifted.")
+    if ($submitScan -match '(?i)MaxJump\s*=\s*0') {
+        throw "$blocker Submit must structurally accept and publish MaxJump zero."
+    }
+    Assert-Match $submitScan (
+        '(?is)if\s+requestSequenceBefore\s*<>\s*appliedSequenceBefore\s+then.*?' +
+        'pendingExact\s*:=.*?' +
+        'AxisSetPositionPreflightMailbox\[0\]\$UDINT\s*(?<!:)=\s*OperationToken.*?' +
+        'AxisSetPositionPreflightMailbox\[1\]\$UDINT\s*(?<!:)=\s*OwnerGeneration.*?' +
+        'AxisSetPositionPreflightMailbox\[2\]\$UDINT\s*(?<!:)=\s*StoreRecordGeneration.*?' +
+        'AxisSetPositionPreflightMailbox\[3\]\$UDINT\s*(?<!:)=\s*CallerSessionEpoch.*?' +
+        'AxisSetPositionPreflightMailbox\[4\]\$UDINT\s*(?<!:)=\s*' +
+        'RequestSequence\s*\)\s*&.*?' +
+        'AxisSetPositionPreflightMailbox\[5\]\s*(?<!:)=\s*AxisReference.*?' +
+        'AxisSetPositionPreflightMailbox\[6\]\s*(?<!:)=\s*TargetPosition.*?' +
+        'AxisSetPositionPreflightMailbox\[7\]\s*(?<!:)=\s*ExpectedActualPosition.*?' +
+        'AxisSetPositionPreflightMailbox\[8\]\$UDINT\s*(?<!:)=\s*MaxJump.*?' +
+        'AxisSetPositionPreflightMailbox\[9\]\$UDINT\s*(?<!:)=\s*ExpectedAxisMask.*?' +
+        'AxisSetPositionPreflightMailbox\[10\]\$UDINT\s*(?<!:)=\s*requestSequenceBefore.*?' +
+        'AxisSetPositionPreflightMailbox\[11\]\s*(?<!:)=\s*0.*?' +
+        'AxisSetPositionPreflightMailbox\[12\]\s*(?<!:)=\s*0.*?' +
+        'AxisSetPositionPreflightMailbox\[13\]\s*(?<!:)=\s*0.*?' +
+        'AxisSetPositionPreflightMailbox\[14\]\s*(?<!:)=\s*0.*?' +
+        'AxisSetPositionPreflightMailbox\[15\]\s*(?<!:)=\s*0.*?' +
+        'if\s+pendingExact\s+then\s*Result\s*:=\s*1\s*;\s*' +
+        'else\s*Result\s*:=\s*LMC_SET_POSITION_PREFLIGHT_BUSY\s*;') (
+        "$blocker Submit outstanding exact-retry/busy fence drifted.")
+    Assert-Match $submitScan (
+        '(?is)if\s+previousCoherent\s*=\s*FALSE\s+then\s*' +
+        'Result\s*:=\s*LMC_SET_POSITION_PREFLIGHT_BAD_DATA\s*;\s*RETURN\s*;.*?' +
+        'if\s+previousTripleExact\s+then\s*' +
+        'if\s+previousTupleExact\s+then\s*Result\s*:=\s*0\s*;\s*' +
+        'else\s*Result\s*:=\s*LMC_SET_POSITION_PREFLIGHT_BAD_DATA\s*;.*?' +
+        'RETURN\s*;\s*end_if\s*;\s*' +
+        'nextRequestSequence\s*:=\s*requestSequenceBefore\s*\+\s*1\s*;\s*' +
+        'if\s+nextRequestSequence\s*=\s*0\s+then\s*' +
+        'nextRequestSequence\s*:=\s*1\s*;\s*end_if\s*;') (
+        "$blocker Submit previous-result retry or internal sequence allocation drifted.")
+    foreach ($submitLocal in @(
+            @{ Name = 'initialIndex'; Type = 'UINT' },
+            @{ Name = 'initialMailboxZero'; Type = 'BOOL' },
+            @{ Name = 'initialResultZero'; Type = 'BOOL' })) {
+        Assert-LasalExactDeclaredType `
+            -Text $submitBlock `
+            -Name $submitLocal.Name `
+            -ExpectedType $submitLocal.Type `
+            -Owner "$blocker Submit local $($submitLocal.Name)"
+    }
+    Assert-Match $submitScan (
+        '(?is)initialMailboxZero\s*:=\s*TRUE\s*;\s*' +
+        'initialResultZero\s*:=\s*TRUE\s*;\s*' +
+        'if\s+appliedSequenceBefore\s*=\s*0\s+then\s*' +
+        'for\s+initialIndex\s*:=\s*0\s+to\s+15\s+do\s*' +
+        'if\s+AxisSetPositionPreflightMailbox\[initialIndex\]\s*<>\s*0\s+then\s*' +
+        'initialMailboxZero\s*:=\s*FALSE\s*;\s*end_if\s*;\s*end_for\s*;\s*' +
+        'for\s+initialIndex\s*:=\s*0\s+to\s+31\s+do\s*' +
+        'if\s+AxisSetPositionPreflightResult\[initialIndex\]\s*<>\s*0\s+then\s*' +
+        'initialResultZero\s*:=\s*FALSE\s*;\s*end_if\s*;\s*end_for\s*;\s*' +
+        'previousCoherent\s*:=\s*initialMailboxZero\s*&\s*initialResultZero\s*;') (
+        "$blocker Submit EMPTY state must scan all 16 mailbox and 32 result words for zero.")
+    Assert-Match $submitScan (
+        '(?is)requestSequenceAfter\s*:=\s*sigclib_atomic_getU32\s*\(\s*' +
+        'pValue\s*:=\s*#AxisSetPositionPreflightRequestSequence\s*\)\s*;\s*' +
+        'appliedSequenceAfter\s*:=\s*sigclib_atomic_getU32\s*\(\s*' +
+        'pValue\s*:=\s*#AxisSetPositionPreflightAppliedSequence\s*\)\s*;\s*' +
+        'if\s*\(requestSequenceAfter\s*<>\s*requestSequenceBefore\)\s*\|\s*' +
+        '\(appliedSequenceAfter\s*<>\s*appliedSequenceBefore\)\s+then\s*' +
+        'Result\s*:=\s*LMC_SET_POSITION_PREFLIGHT_BUSY\s*;\s*' +
+        'RETURN\s*;\s*end_if\s*;') (
+        "$blocker Submit pre-publication request/applied stability fence drifted.")
+
+    $submitRequestReads = [regex]::Matches(
+        $submitScan,
+        ('(?is)sigclib_atomic_getU32\s*\(\s*pValue\s*:=\s*' +
+         '#AxisSetPositionPreflightRequestSequence\s*\)'))
+    $submitAppliedReads = [regex]::Matches(
+        $submitScan,
+        ('(?is)sigclib_atomic_getU32\s*\(\s*pValue\s*:=\s*' +
+         '#AxisSetPositionPreflightAppliedSequence\s*\)'))
+    if ($submitRequestReads.Count -ne 2 -or
+        $submitAppliedReads.Count -ne 2) {
+        throw (
+            "$blocker Submit must read request/applied exactly once at entry " +
+            'and once again immediately before payload publication.')
+    }
+
+    $mailboxWritesAll = [regex]::Matches(
+        $scan,
+        '(?i)AxisSetPositionPreflightMailbox\s*\[\s*\d+\s*\]' +
+        '(?:\s*\$UDINT)?\s*:=\s*[^;]+;')
+    $mailboxWritesSubmit = [regex]::Matches(
+        $submitScan,
+        '(?i)AxisSetPositionPreflightMailbox\s*\[\s*\d+\s*\]' +
+        '(?:\s*\$UDINT)?\s*:=\s*[^;]+;')
+    if ($mailboxWritesAll.Count -ne 16 -or
+        $mailboxWritesSubmit.Count -ne 16) {
+        throw (
+            "$blocker the frozen mailbox must have exactly sixteen Submit-owned " +
+            'typed payload writes and no other writer.')
+    }
+    $mailboxWriteSpecifications = @(
+        @{ Slot = 0; Cast = '\$UDINT'; Rhs = 'OperationToken' },
+        @{ Slot = 1; Cast = '\$UDINT'; Rhs = 'OwnerGeneration' },
+        @{ Slot = 2; Cast = '\$UDINT'; Rhs = 'StoreRecordGeneration' },
+        @{ Slot = 3; Cast = '\$UDINT'; Rhs = 'CallerSessionEpoch' },
+        @{ Slot = 4; Cast = '\$UDINT'; Rhs = 'RequestSequence' },
+        @{ Slot = 5; Cast = ''; Rhs = 'AxisReference' },
+        @{ Slot = 6; Cast = ''; Rhs = 'TargetPosition' },
+        @{ Slot = 7; Cast = ''; Rhs = 'ExpectedActualPosition' },
+        @{ Slot = 8; Cast = '\$UDINT'; Rhs = 'MaxJump' },
+        @{ Slot = 9; Cast = '\$UDINT'; Rhs = 'ExpectedAxisMask' },
+        @{ Slot = 10; Cast = '\$UDINT'; Rhs = 'nextRequestSequence' },
+        @{ Slot = 11; Cast = ''; Rhs = '0' },
+        @{ Slot = 12; Cast = ''; Rhs = '0' },
+        @{ Slot = 13; Cast = ''; Rhs = '0' },
+        @{ Slot = 14; Cast = ''; Rhs = '0' },
+        @{ Slot = 15; Cast = ''; Rhs = '0' })
+    $lastMailboxWriteEnd = -1
+    foreach ($specification in $mailboxWriteSpecifications) {
+        $matches = [regex]::Matches(
+            $submitScan,
+            ('(?i)AxisSetPositionPreflightMailbox\s*\[\s*' +
+             $specification.Slot + '\s*\]\s*' +
+             $specification.Cast + '\s*:=\s*' +
+             [regex]::Escape($specification.Rhs) + '\s*;'))
+        if ($matches.Count -ne 1) {
+            throw (
+                "$blocker mailbox slot $($specification.Slot) must be written " +
+                "exactly once from $($specification.Rhs).")
+        }
+        $lastMailboxWriteEnd = [Math]::Max(
+            $lastMailboxWriteEnd,
+            $matches[0].Index + $matches[0].Length)
+    }
+    $requestPublishMatches = [regex]::Matches(
+        $submitScan,
+        ('(?is)sigclib_atomic_setU32\s*\(\s*' +
+         'pValue\s*:=\s*#AxisSetPositionPreflightRequestSequence\s*,\s*' +
+         'value\s*:=\s*nextRequestSequence\s*\)\s*;'))
+    $allRequestPublishMatches = [regex]::Matches(
+        $scan,
+        ('(?is)sigclib_atomic_setU32\s*\(\s*' +
+         'pValue\s*:=\s*#AxisSetPositionPreflightRequestSequence\s*,.*?\)\s*;'))
+    if ($requestPublishMatches.Count -ne 1 -or
+        $allRequestPublishMatches.Count -ne 1 -or
+        $requestPublishMatches[0].Index -le $lastMailboxWriteEnd) {
+        throw (
+            "$blocker request payload slots 0..15 must precede the one exact " +
+             'atomic RequestSequence publication.')
+    }
+    $submitPairFence = [regex]::Match(
+        $submitScan,
+        ('(?is)requestSequenceAfter\s*:=\s*sigclib_atomic_getU32.*?' +
+         'if\s*\(requestSequenceAfter\s*<>\s*requestSequenceBefore\).*?' +
+         'RETURN\s*;\s*end_if\s*;'))
+    $firstMailboxWrite = @($mailboxWritesSubmit | Sort-Object Index)[0]
+    if (-not $submitPairFence.Success -or
+        ($submitPairFence.Index + $submitPairFence.Length) -ge
+            $firstMailboxWrite.Index) {
+        throw (
+            "$blocker Submit must finish its request/applied stability fence " +
+            'before the first mailbox payload write.')
+    }
+    if ($submitScan.Substring(
+            $requestPublishMatches[0].Index +
+            $requestPublishMatches[0].Length) -match
+            '(?i)AxisSetPositionPreflightMailbox\s*\[.*?:=') {
+        throw "$blocker Submit mutates mailbox payload after sequence publication."
+    }
+
+    $snapshotSpecifications = @(
+        @{ Slot = 0; Cast = '\$UDINT'; Local = 'operationToken'; Type = 'UDINT' },
+        @{ Slot = 1; Cast = '\$UDINT'; Local = 'ownerGeneration'; Type = 'UDINT' },
+        @{ Slot = 2; Cast = '\$UDINT'; Local = 'storeRecordGeneration'; Type = 'UDINT' },
+        @{ Slot = 3; Cast = '\$UDINT'; Local = 'callerSessionEpoch'; Type = 'UDINT' },
+        @{ Slot = 4; Cast = '\$UDINT'; Local = 'callerRequestSequence'; Type = 'UDINT' },
+        @{ Slot = 5; Cast = ''; Local = 'axisReference'; Type = 'DINT' },
+        @{ Slot = 6; Cast = ''; Local = 'targetPosition'; Type = 'DINT' },
+        @{ Slot = 7; Cast = ''; Local = 'expectedActualPosition'; Type = 'DINT' },
+        @{ Slot = 8; Cast = '\$UDINT'; Local = 'maxJump'; Type = 'UDINT' },
+        @{ Slot = 9; Cast = '\$UDINT'; Local = 'expectedAxisMask'; Type = 'UDINT' },
+        @{ Slot = 10; Cast = '\$UDINT'; Local = 'mailboxSequenceEcho'; Type = 'UDINT' },
+        @{ Slot = 11; Cast = ''; Local = 'dispatchClaim'; Type = 'DINT' },
+        @{ Slot = 12; Cast = ''; Local = 'cancelEcho'; Type = 'DINT' },
+        @{ Slot = 13; Cast = ''; Local = 'reserved13'; Type = 'DINT' },
+        @{ Slot = 14; Cast = ''; Local = 'reserved14'; Type = 'DINT' },
+        @{ Slot = 15; Cast = ''; Local = 'reserved15'; Type = 'DINT' })
+    $mailboxReads = [regex]::Matches(
+        $processScan,
+        '(?i)AxisSetPositionPreflightMailbox\s*\[\s*\d+\s*\]')
+    if ($mailboxReads.Count -ne 16) {
+        throw (
+            "$blocker Process must copy each of the sixteen mailbox words once " +
+            'and never re-read shared payload directly.')
+    }
+    $lastMailboxReadEnd = -1
+    foreach ($specification in $snapshotSpecifications) {
+        Assert-LasalExactDeclaredType `
+            -Text $processBlock `
+            -Name $specification.Local `
+            -ExpectedType $specification.Type `
+            -Owner "$blocker Process local $($specification.Local)"
+        $matches = [regex]::Matches(
+            $processScan,
+            ('(?i)' + [regex]::Escape($specification.Local) +
+             '\s*:=\s*AxisSetPositionPreflightMailbox\s*\[\s*' +
+             $specification.Slot + '\s*\]\s*' +
+             $specification.Cast + '\s*;'))
+        if ($matches.Count -ne 1) {
+            throw (
+                "$blocker Process mailbox slot $($specification.Slot) must " +
+                "snapshot exactly once into $($specification.Local).")
+        }
+        $lastMailboxReadEnd = [Math]::Max(
+            $lastMailboxReadEnd,
+            $matches[0].Index + $matches[0].Length)
+    }
+    Assert-LasalExactDeclaredType `
+        -Text $processBlock `
+        -Name 'requestSequenceAfterSnapshot' `
+        -ExpectedType 'UDINT' `
+        -Owner "$blocker Process local requestSequenceAfterSnapshot"
+    $snapshotFence = [regex]::Match(
+        $processScan,
+        ('(?is)requestSequenceAfterSnapshot\s*:=\s*' +
+         'sigclib_atomic_getU32\s*\(\s*pValue\s*:=\s*' +
+         '#AxisSetPositionPreflightRequestSequence\s*\)\s*;\s*' +
+         'if\s+requestSequenceAfterSnapshot\s*<>\s*requestSequence\s+then\s*' +
+         'RETURN\s*;\s*end_if\s*;'))
+    $firstAxisAccess = [regex]::Match(
+        $processScan,
+        '(?i)(?:IsClientConnected\s*\(\s*#LMCAxis[1-4]|LMCAxis[1-4]\.)')
+    $firstResultMutation = [regex]::Match(
+        $processScan,
+        ('(?i)(?:_memset\s*\(\s*dest\s*:=\s*' +
+         '#AxisSetPositionPreflightResult\[0\]|' +
+         'AxisSetPositionPreflightResult\s*\[\s*\d+\s*\]' +
+         '(?:\s*\$UDINT)?\s*:=)'))
+    $firstAppliedPublish = [regex]::Match(
+        $processScan,
+        ('(?is)sigclib_atomic_setU32\s*\(\s*pValue\s*:=\s*' +
+         '#AxisSetPositionPreflightAppliedSequence\s*,'))
+    $snapshotFenceEnd = if ($snapshotFence.Success) {
+        $snapshotFence.Index + $snapshotFence.Length
+    }
+    else {
+        [int]::MaxValue
+    }
+    if (-not $snapshotFence.Success -or
+        -not $firstAxisAccess.Success -or
+        -not $firstResultMutation.Success -or
+        -not $firstAppliedPublish.Success -or
+        $snapshotFence.Index -le $lastMailboxReadEnd -or
+        $snapshotFenceEnd -ge $firstAxisAccess.Index -or
+        $snapshotFenceEnd -ge $firstResultMutation.Index -or
+        $snapshotFenceEnd -ge $firstAppliedPublish.Index) {
+        throw (
+            "$blocker the post-snapshot request-sequence fence must run after " +
+            'all sixteen local copies and before any axis access, result ' +
+            'mutation, or AppliedSequence publication.')
+    }
+    Assert-Match $processScan (
+        '(?is)derivedAxisMask\s*:=\s*0\s*;\s*' +
+        'case\s+axisReference\s+of\s*' +
+        '1\s*:\s*derivedAxisMask\s*:=\s*0x00000001\s*;\s*' +
+        '2\s*:\s*derivedAxisMask\s*:=\s*0x00000002\s*;\s*' +
+        '3\s*:\s*derivedAxisMask\s*:=\s*0x00000004\s*;\s*' +
+        '4\s*:\s*derivedAxisMask\s*:=\s*0x00000008\s*;') (
+        "$blocker Process physical-axis mask derivation drifted.")
+    Assert-Match $processScan (
+        '(?is)mailboxValid\s*:=\s*' +
+        '\(requestSequence\s*<>\s*0\).*?' +
+        '\(operationToken\s*<>\s*0\).*?' +
+        '\(ownerGeneration\s*<>\s*0\).*?' +
+        '\(storeRecordGeneration\s*<>\s*0\).*?' +
+        '\(callerSessionEpoch\s*<>\s*0\).*?' +
+        '\(callerRequestSequence\s*<>\s*0\).*?' +
+        '\(derivedAxisMask\s*<>\s*0\).*?' +
+        '\(expectedAxisMask\s*=\s*derivedAxisMask\).*?' +
+        '\(mailboxSequenceEcho\s*=\s*requestSequence\).*?' +
+        '\(dispatchClaim\s*=\s*0\).*?\(cancelEcho\s*=\s*0\).*?' +
+        '\(reserved13\s*=\s*0\).*?\(reserved14\s*=\s*0\).*?' +
+        '\(reserved15\s*=\s*0\)\s*;') (
+        "$blocker Process mailbox identity/claim/cancel/reserved gate drifted.")
+    $mailboxValidExpression = [regex]::Match(
+        $processScan,
+        '(?is)mailboxValid\s*:=\s*(?<Expression>.*?);')
+    if (-not $mailboxValidExpression.Success -or
+        $mailboxValidExpression.Groups['Expression'].Value -match
+            '(?i)\bmaxJump\b') {
+        throw "$blocker Process mailbox validity must structurally accept MaxJump zero."
+    }
+    foreach ($processLocal in @(
+            @{ Name = 'initialResultIndex'; Type = 'UINT' },
+            @{ Name = 'initialResultZero'; Type = 'BOOL' },
+            @{ Name = 'setVelocityCaptured'; Type = 'BOOL' })) {
+        Assert-LasalExactDeclaredType `
+            -Text $processBlock `
+            -Name $processLocal.Name `
+            -ExpectedType $processLocal.Type `
+            -Owner "$blocker Process local $($processLocal.Name)"
+    }
+    Assert-Match $processScan (
+        '(?is)previousResultValid\s*:=\s*FALSE\s*;\s*' +
+        'initialResultZero\s*:=\s*TRUE\s*;\s*' +
+        'if\s+appliedSequence\s*=\s*0\s+then\s*' +
+        'for\s+initialResultIndex\s*:=\s*0\s+to\s+31\s+do\s*' +
+        'if\s+AxisSetPositionPreflightResult\[initialResultIndex\]\s*<>\s*0\s+then\s*' +
+        'initialResultZero\s*:=\s*FALSE\s*;\s*end_if\s*;\s*end_for\s*;\s*' +
+        'previousResultValid\s*:=\s*initialResultZero\s*;') (
+        "$blocker Process EMPTY state must scan all 32 prior result words for zero.")
+    if ($processScan -match '(?i)\bcurrentResultExact\b') {
+        throw "$blocker Process must not promote a partial current result via an early Applied write."
+    }
+
+    $processRequestReads = [regex]::Matches(
+        $processScan,
+        ('(?is)sigclib_atomic_getU32\s*\(\s*pValue\s*:=\s*' +
+         '#AxisSetPositionPreflightRequestSequence\s*\)'))
+    $processAppliedReads = [regex]::Matches(
+        $processScan,
+        ('(?is)sigclib_atomic_getU32\s*\(\s*pValue\s*:=\s*' +
+         '#AxisSetPositionPreflightAppliedSequence\s*\)'))
+    if ($processRequestReads.Count -ne 3 -or
+        $processAppliedReads.Count -ne 1) {
+        throw (
+            "$blocker Process must perform initial/snapshot/publication request " +
+            'reads and one initial applied read exactly.')
+    }
+    Assert-Match $processScan (
+        '(?is)if\s+sigclib_atomic_getU32\s*\(\s*pValue\s*:=\s*' +
+        '#AxisSetPositionPreflightRequestSequence\s*\)\s*<>\s*' +
+        'requestSequence\s+then\s*RETURN\s*;\s*end_if\s*;\s*' +
+        '_memset\s*\(\s*dest\s*:=\s*#AxisSetPositionPreflightResult\[0\]') (
+        "$blocker Process must revalidate request sequence immediately before result publication.")
+
+    $resultWriteSpecifications = @(
+        @{ Slot = 0; Cast = '\$UDINT'; Rhs = 'operationToken' },
+        @{ Slot = 1; Cast = '\$UDINT'; Rhs = 'ownerGeneration' },
+        @{ Slot = 2; Cast = '\$UDINT'; Rhs = 'storeRecordGeneration' },
+        @{ Slot = 3; Cast = '\$UDINT'; Rhs = 'callerSessionEpoch' },
+        @{ Slot = 4; Cast = '\$UDINT'; Rhs = 'callerRequestSequence' },
+        @{ Slot = 5; Cast = ''; Rhs = 'axisReference' },
+        @{ Slot = 6; Cast = ''; Rhs = 'targetPosition' },
+        @{ Slot = 7; Cast = ''; Rhs = 'expectedActualPosition' },
+        @{ Slot = 8; Cast = '\$UDINT'; Rhs = 'maxJump' },
+        @{ Slot = 9; Cast = '\$UDINT'; Rhs = 'expectedAxisMask' },
+        @{ Slot = 10; Cast = '\$UDINT'; Rhs = 'requestSequence' },
+        @{ Slot = 11; Cast = ''; Rhs = 'resultState' },
+        @{ Slot = 12; Cast = ''; Rhs = 'failure' },
+        @{ Slot = 13; Cast = ''; Rhs = 'detail' },
+        @{ Slot = 14; Cast = '\$UDINT'; Rhs = 'ObservationCycle' },
+        @{ Slot = 15; Cast = '\$UDINT'; Rhs = 'axisStatusValue' },
+        @{ Slot = 16; Cast = '\$UDINT'; Rhs = 'axisErrorValue' },
+        @{ Slot = 17; Cast = ''; Rhs = 'actualPosition' },
+        @{ Slot = 18; Cast = ''; Rhs = 'setPosition' },
+        @{ Slot = 19; Cast = ''; Rhs = 'actualVelocity' },
+        @{ Slot = 20; Cast = ''; Rhs = 'setVelocity' },
+        @{ Slot = 21; Cast = ''; Rhs = 'softwareLimitMin' },
+        @{ Slot = 22; Cast = ''; Rhs = 'softwareLimitMax' },
+        @{ Slot = 23; Cast = ''; Rhs = 'simulateMode' },
+        @{ Slot = 24; Cast = ''; Rhs = 'modulo' },
+        @{ Slot = 25; Cast = ''; Rhs = 'masterLock' },
+        @{ Slot = 26; Cast = ''; Rhs = 'delayedMasterLock' },
+        @{ Slot = 27; Cast = '\$UDINT'; Rhs = 'positionJump' },
+        @{ Slot = 28; Cast = '\$UDINT'; Rhs = 'evidence' },
+        @{ Slot = 29; Cast = ''; Rhs = '0' },
+        @{ Slot = 30; Cast = ''; Rhs = '0' },
+        @{ Slot = 31; Cast = ''; Rhs = '0' })
+    $resultWritesAll = [regex]::Matches(
+        $scan,
+        '(?i)AxisSetPositionPreflightResult\s*\[\s*\d+\s*\]' +
+        '(?:\s*\$UDINT)?\s*:=\s*[^;]+;')
+    $resultWritesProcess = [regex]::Matches(
+        $processScan,
+        '(?i)AxisSetPositionPreflightResult\s*\[\s*\d+\s*\]' +
+        '(?:\s*\$UDINT)?\s*:=\s*[^;]+;')
+    if ($resultWritesAll.Count -ne 32 -or
+        $resultWritesProcess.Count -ne 32) {
+        throw (
+            "$blocker the frozen result must have exactly 32 Process-owned " +
+            'typed payload writes and no other writer.')
+    }
+    $lastResultWriteEnd = -1
+    foreach ($specification in $resultWriteSpecifications) {
+        $matches = [regex]::Matches(
+            $processScan,
+            ('(?i)AxisSetPositionPreflightResult\s*\[\s*' +
+             $specification.Slot + '\s*\]\s*' +
+             $specification.Cast + '\s*:=\s*' +
+             [regex]::Escape($specification.Rhs) + '\s*;'))
+        if ($matches.Count -ne 1) {
+            throw (
+                "$blocker result slot $($specification.Slot) must be written " +
+                "exactly once from $($specification.Rhs).")
+        }
+        $lastResultWriteEnd = [Math]::Max(
+            $lastResultWriteEnd,
+            $matches[0].Index + $matches[0].Length)
+    }
+    if ([regex]::Matches(
+            $processScan,
+            ('(?is)_memset\s*\(\s*dest\s*:=\s*' +
+             '#AxisSetPositionPreflightResult\[0\]\s*,\s*' +
+             'usByte\s*:=\s*0\s*,\s*cntr\s*:=\s*128\s*\)\s*;')).Count -ne 1) {
+        throw "$blocker Process must clear the exact 32-DINT result once."
+    }
+    $appliedPublishMatches = [regex]::Matches(
+        $processScan,
+        ('(?is)sigclib_atomic_setU32\s*\(\s*' +
+         'pValue\s*:=\s*#AxisSetPositionPreflightAppliedSequence\s*,\s*' +
+         'value\s*:=\s*requestSequence\s*\)\s*;'))
+    $allAppliedPublishMatches = [regex]::Matches(
+        $scan,
+        ('(?is)sigclib_atomic_setU32\s*\(\s*' +
+         'pValue\s*:=\s*#AxisSetPositionPreflightAppliedSequence\s*,.*?\)\s*;'))
+    $terminalAppliedPublishes = @($appliedPublishMatches | Where-Object {
+            $_.Index -gt $lastResultWriteEnd
+        })
+    if ($appliedPublishMatches.Count -ne 1 -or
+        $allAppliedPublishMatches.Count -ne 1 -or
+        $terminalAppliedPublishes.Count -ne 1) {
+        throw (
+            "$blocker AppliedSequence must publish exactly once, only after " +
+            'all 32 result payload slots are written.')
+    }
+    if ($processScan.Substring(
+            $terminalAppliedPublishes[0].Index +
+            $terminalAppliedPublishes[0].Length) -match
+            '(?i)AxisSetPositionPreflightResult\s*\[.*?:=') {
+        throw "$blocker Process mutates result payload after AppliedSequence publication."
+    }
+
+    Assert-Match $copyScan (
+        '(?is)Result\s*:=\s*LMC_SET_POSITION_PREFLIGHT_INVALID\s*;\s*' +
+        'if\s*\(OperationToken\s*=\s*0\).*?' +
+        '\(OwnerGeneration\s*=\s*0\).*?' +
+        '\(StoreRecordGeneration\s*=\s*0\).*?' +
+        '\(pDest\s*=\s*NIL\).*?\(DestSize\s*<>\s*128\).*?RETURN\s*;') (
+        "$blocker Copy identity/pointer/exact-128-byte capacity guard drifted.")
+    Assert-Match $copyScan (
+        '(?is)retryCount\s*:=\s*0\s*;\s*while\s+retryCount\s*<\s*3\s+do.*?' +
+        'requestSequenceBefore\s*:=\s*sigclib_atomic_getU32.*?' +
+        'appliedSequenceBefore\s*:=\s*sigclib_atomic_getU32.*?' +
+        'requestSequenceBefore\s*<>\s*appliedSequenceBefore.*?' +
+        'AxisSetPositionPreflightMailbox\[10\]\$UDINT\s*=\s*requestSequenceBefore.*?' +
+        'AxisSetPositionPreflightMailbox\[11\]\s*=\s*0.*?' +
+        'AxisSetPositionPreflightMailbox\[15\]\s*=\s*0.*?' +
+        'Result\s*:=\s*1.*?Result\s*:=\s*LMC_SET_POSITION_PREFLIGHT_BAD_DATA.*?' +
+        'appliedSequenceBefore\s*=\s*0.*?' +
+        'AxisSetPositionPreflightResult\[0\]\$UDINT\s*<>\s*OperationToken.*?' +
+        'AxisSetPositionPreflightResult\[10\]\$UDINT\s*<>\s*appliedSequenceBefore.*?' +
+        'AxisSetPositionPreflightResult\[29\]\s*<>\s*0.*?' +
+        'AxisSetPositionPreflightResult\[31\]\s*<>\s*0') (
+        "$blocker Copy pending/coherence/reserved-state fence drifted.")
+    $copyMailboxSlots = @([regex]::Matches(
+            $copyScan,
+            '(?i)AxisSetPositionPreflightMailbox\s*\[\s*(?<Slot>\d+)\s*\]') |
+        ForEach-Object { [int]$_.Groups['Slot'].Value })
+    $expectedCopyMailboxSlots = @(0, 1, 2, 10, 11, 12, 13, 14, 15)
+    if ([string]::Join(',', $copyMailboxSlots) -cne
+        [string]::Join(',', $expectedCopyMailboxSlots)) {
+        throw (
+            "$blocker Copy pending check must use only owner triple, internal " +
+            'publication echo, and inactive/reserved slots 11..15.')
+    }
+    $copyMemcpys = [regex]::Matches(
+        $copyScan,
+        ('(?is)_memcpy\s*\(\s*ptr1\s*:=\s*pDest\s*,\s*' +
+         'ptr2\s*:=\s*#AxisSetPositionPreflightResult\[0\]\s*,\s*' +
+         'cntr\s*:=\s*128\s*\)\s*;'))
+    if ($copyMemcpys.Count -ne 1) {
+        throw "$blocker Copy must transfer the exact 32-DINT/128-byte result once."
+    }
+    Assert-Match $copyScan (
+        '(?is)_memcpy\s*\(.*?cntr\s*:=\s*128\s*\)\s*;\s*' +
+        'requestSequenceAfter\s*:=\s*sigclib_atomic_getU32\s*\(\s*' +
+        'pValue\s*:=\s*#AxisSetPositionPreflightRequestSequence\s*\)\s*;\s*' +
+        'appliedSequenceAfter\s*:=\s*sigclib_atomic_getU32\s*\(\s*' +
+        'pValue\s*:=\s*#AxisSetPositionPreflightAppliedSequence\s*\)\s*;\s*' +
+        'if\s*\(requestSequenceBefore\s*=\s*requestSequenceAfter\).*?' +
+        '\(appliedSequenceBefore\s*=\s*appliedSequenceAfter\).*?' +
+        '\(requestSequenceAfter\s*=\s*appliedSequenceAfter\)\s+then\s*' +
+        'Result\s*:=\s*0\s*;\s*RETURN\s*;') (
+        "$blocker Copy result payload is not enclosed by stable request/applied reads.")
+
+    $assignmentSequence = {
+        param([string]$Text, [string]$Variable)
+        return [string]::Join(
+            '|',
+            @([regex]::Matches(
+                    $Text,
+                    ('(?im)^\s*' + [regex]::Escape($Variable) +
+                     '\s*:=\s*(?<Rhs>[^;]+);')) |
+                ForEach-Object {
+                    ([regex]::Replace(
+                            $_.Groups['Rhs'].Value,
+                            '\s+',
+                            ' ')).Trim()
+                }))
+    }
+    $expectedAssignmentSequences = [ordered]@{
+        resultState = (
+            'LMC_SET_POSITION_PREFLIGHT_REJECTED|' +
+            'LMC_SET_POSITION_PREFLIGHT_CORRUPT|' +
+            'LMC_SET_POSITION_PREFLIGHT_READY')
+        failure = (
+            'LMC_SET_POSITION_PREFLIGHT_INVALID|' +
+            'LMC_SET_POSITION_PREFLIGHT_BAD_DATA|' +
+            'LMC_SET_POSITION_PREFLIGHT_CLIENT|' +
+            'LMC_SET_POSITION_PREFLIGHT_CONFIG|' +
+            'LMC_SET_POSITION_PREFLIGHT_STATE|' +
+            'LMC_SET_POSITION_PREFLIGHT_AXIS_ERROR|' +
+            'LMC_SET_POSITION_PREFLIGHT_VELOCITY|' +
+            'LMC_SET_POSITION_PREFLIGHT_CONFIG|' +
+            'LMC_SET_POSITION_PREFLIGHT_COORDINATE|' +
+            'LMC_SET_POSITION_PREFLIGHT_COORDINATE|0')
+        detail = '0|0|10|14|10|13|12|14|15|15|0'
+        evidence = (
+            'LMC_SET_POSITION_EVIDENCE_ACTIVATION_OFF|' +
+            'evidence or LMC_SET_POSITION_EVIDENCE_IDENTITY|' +
+            'evidence or LMC_SET_POSITION_EVIDENCE_AXIS_MASK|' +
+            'evidence or LMC_SET_POSITION_EVIDENCE_CLIENT|' +
+            'evidence or LMC_SET_POSITION_EVIDENCE_STATUS_ERROR|' +
+            'evidence or LMC_SET_POSITION_EVIDENCE_PARAMETER|' +
+            'evidence or LMC_SET_POSITION_EVIDENCE_VELOCITY|' +
+            'evidence or LMC_SET_POSITION_EVIDENCE_LIMITS|' +
+            'evidence or LMC_SET_POSITION_EVIDENCE_CAS|' +
+            'evidence or LMC_SET_POSITION_EVIDENCE_JUMP|' +
+            'evidence or LMC_SET_POSITION_EVIDENCE_READY')
+    }
+    foreach ($assignmentContract in
+        $expectedAssignmentSequences.GetEnumerator()) {
+        $actualSequence = & $assignmentSequence `
+            -Text $processScan `
+            -Variable $assignmentContract.Key
+        if ($actualSequence -cne $assignmentContract.Value) {
+            throw (
+                "$blocker $($assignmentContract.Key) assignment mapping " +
+                'or order drifted.')
+        }
+    }
+
+    Assert-Match $processScan (
+        '(?is)if\s*\(mailboxValid\s*=\s*FALSE\).*?' +
+        'resultState\s*:=\s*LMC_SET_POSITION_PREFLIGHT_CORRUPT\s*;\s*' +
+        'failure\s*:=\s*LMC_SET_POSITION_PREFLIGHT_BAD_DATA\s*;\s*' +
+        'detail\s*:=\s*0\s*;') (
+        "$blocker corrupt state/failure/detail-zero mapping drifted.")
+    Assert-Match $processScan (
+        '(?is)evidence\s*:=\s*evidence\s+or\s*' +
+        'LMC_SET_POSITION_EVIDENCE_IDENTITY\s*;\s*' +
+        'evidence\s*:=\s*evidence\s+or\s*' +
+        'LMC_SET_POSITION_EVIDENCE_AXIS_MASK\s*;.*?' +
+        'if\s+axisConnected\s*=\s*FALSE\s+then\s*' +
+        'failure\s*:=\s*LMC_SET_POSITION_PREFLIGHT_CLIENT\s*;\s*' +
+        'detail\s*:=\s*10\s*;\s*else\s*' +
+        'evidence\s*:=\s*evidence\s+or\s*' +
+        'LMC_SET_POSITION_EVIDENCE_CLIENT\s*;\s*' +
+        'evidence\s*:=\s*evidence\s+or\s*' +
+        'LMC_SET_POSITION_EVIDENCE_STATUS_ERROR\s*;\s*' +
+        'evidence\s*:=\s*evidence\s+or\s*' +
+        'LMC_SET_POSITION_EVIDENCE_PARAMETER\s*;\s*' +
+        'if\s+setVelocityCaptured\s+then\s*' +
+        'evidence\s*:=\s*evidence\s+or\s*' +
+        'LMC_SET_POSITION_EVIDENCE_VELOCITY\s*;\s*end_if\s*;\s*' +
+        'evidence\s*:=\s*evidence\s+or\s*' +
+        'LMC_SET_POSITION_EVIDENCE_LIMITS\s*;\s*' +
+        'if\s*\(maxJump\s*=\s*0\)') (
+        "$blocker evidence identity/axis/capture placement or MaxJump-zero classification drifted.")
+    Assert-Match $processScan (
+        '(?is)if\s*\(\(axisStatusValue\s+and\s+' +
+        'LMC_SET_POSITION_REQUIRED_STATUS\)\s*<>\s*' +
+        'LMC_SET_POSITION_REQUIRED_STATUS\)\s*\|\s*' +
+        '\(\(axisStatusValue\s+and\s+LMC_SET_POSITION_UNSAFE_STATUS\)\s*' +
+        '<>\s*0\)\s+then\s*' +
+        'failure\s*:=\s*LMC_SET_POSITION_PREFLIGHT_STATE\s*;\s*' +
+        'detail\s*:=\s*10\s*;') (
+        "$blocker required/unsafe status gate or state/detail mapping drifted.")
+    Assert-Match $processScan (
+        '(?is)if\s*\(maxJump\s*=\s*0\)\s*\|\s*' +
+        '\(simulateMode\s*<>\s*0\)\s*\|\s*\(modulo\s*<>\s*0\)\s*\|\s*' +
+        '\(\(axisStatusValue\s+and\s+LMC_SET_POSITION_CONFIG_STATUS\)\s*' +
+        '<>\s*0\)\s*\|\s*' +
+        '\(\(axisStatusValue\s+and\s+LMC_SET_POSITION_MODULO_STATUS\)\s*' +
+        '<>\s*0\)\s*\|\s*' +
+        '\(\(moveType\s*<>\s*0\)\s*&\s*\(moveType\s*<>\s*1\)\s*&\s*' +
+        '\(moveType\s*<>\s*10\)\)\s+then\s*' +
+        'failure\s*:=\s*LMC_SET_POSITION_PREFLIGHT_CONFIG\s*;\s*' +
+        'detail\s*:=\s*14\s*;') (
+        "$blocker MaxJump/config/modulo/MoveType rejection gate drifted.")
+    Assert-Match $processScan (
+        '(?is)if\s*\(axisErrorValue\s*<>\s*0\)\s*\|\s*' +
+        '\(\(axisStatusValue\s+and\s+LMC_SET_POSITION_ERROR_STATUS\)\s*' +
+        '<>\s*0\)\s+then\s*' +
+        'failure\s*:=\s*LMC_SET_POSITION_PREFLIGHT_AXIS_ERROR\s*;\s*' +
+        'detail\s*:=\s*13\s*;') (
+        "$blocker axis-error/status-error rejection gate drifted.")
+    Assert-Match $processScan (
+        '(?is)if\s*\(actualVelocity\s*<>\s*0\)\s*\|\s*' +
+        '\(setVelocity\s*<>\s*0\)\s+then\s*' +
+        'failure\s*:=\s*LMC_SET_POSITION_PREFLIGHT_VELOCITY\s*;\s*' +
+        'detail\s*:=\s*12\s*;') (
+        "$blocker actual/set velocity rejection gate drifted.")
+    Assert-Match $processScan (
+        '(?is)if\s*\(softwareLimitMin\s*>=\s*softwareLimitMax\)\s*\|\s*' +
+        '\(actualPosition\s*<\s*softwareLimitMin\)\s*\|\s*' +
+        '\(actualPosition\s*>\s*softwareLimitMax\)\s*\|\s*' +
+        '\(targetPosition\s*<\s*softwareLimitMin\)\s*\|\s*' +
+        '\(targetPosition\s*>\s*softwareLimitMax\)\s+then\s*' +
+        'failure\s*:=\s*LMC_SET_POSITION_PREFLIGHT_CONFIG\s*;\s*' +
+        'detail\s*:=\s*14\s*;') (
+        "$blocker software-limit rejection gate drifted.")
+    Assert-Match $processScan (
+        '(?is)if\s+actualPosition\s*<>\s*expectedActualPosition\s+then\s*' +
+        'failure\s*:=\s*LMC_SET_POSITION_PREFLIGHT_COORDINATE\s*;\s*' +
+        'detail\s*:=\s*15\s*;\s*else\s*' +
+        'evidence\s*:=\s*evidence\s+or\s*' +
+        'LMC_SET_POSITION_EVIDENCE_CAS\s*;') (
+        "$blocker compare-and-swap coordinate rejection/evidence gate drifted.")
+    foreach ($mapping in @(
+            @{
+                Condition = 'axisConnected\s*=\s*FALSE'
+                Failure = 'LMC_SET_POSITION_PREFLIGHT_CLIENT'
+                Detail = '10'
+            },
+            @{
+                Condition = 'maxJump\s*=\s*0'
+                Failure = 'LMC_SET_POSITION_PREFLIGHT_CONFIG'
+                Detail = '14'
+            },
+            @{
+                Condition = 'simulateMode\s*<>\s*0'
+                Failure = 'LMC_SET_POSITION_PREFLIGHT_CONFIG'
+                Detail = '14'
+            },
+            @{
+                Condition = 'LMC_SET_POSITION_REQUIRED_STATUS'
+                Failure = 'LMC_SET_POSITION_PREFLIGHT_STATE'
+                Detail = '10'
+            },
+            @{
+                Condition = 'axisErrorValue\s*<>\s*0'
+                Failure = 'LMC_SET_POSITION_PREFLIGHT_AXIS_ERROR'
+                Detail = '13'
+            },
+            @{
+                Condition = 'actualVelocity\s*<>\s*0'
+                Failure = 'LMC_SET_POSITION_PREFLIGHT_VELOCITY'
+                Detail = '12'
+            },
+            @{
+                Condition = 'softwareLimitMin\s*>=\s*softwareLimitMax'
+                Failure = 'LMC_SET_POSITION_PREFLIGHT_CONFIG'
+                Detail = '14'
+            },
+            @{
+                Condition = 'actualPosition\s*<>\s*expectedActualPosition'
+                Failure = 'LMC_SET_POSITION_PREFLIGHT_COORDINATE'
+                Detail = '15'
+            },
+            @{
+                Condition = 'positionJump\s*>\s*maxJump'
+                Failure = 'LMC_SET_POSITION_PREFLIGHT_COORDINATE'
+                Detail = '15'
+            })) {
+        Assert-Match $processScan (
+            ('(?is)' + $mapping.Condition + '.*?' +
+             'failure\s*:=\s*' + $mapping.Failure + '\s*;\s*' +
+             'detail\s*:=\s*' + $mapping.Detail + '\s*;')) (
+            "$blocker failure/detail mapping for $($mapping.Failure) drifted.")
+    }
+    Assert-Match $processScan (
+        '(?is)if\s+positionJump\s*>\s*maxJump\s+then\s*' +
+        'failure\s*:=\s*LMC_SET_POSITION_PREFLIGHT_COORDINATE\s*;\s*' +
+        'detail\s*:=\s*15\s*;\s*else\s*' +
+        'evidence\s*:=\s*evidence\s+or\s*' +
+        'LMC_SET_POSITION_EVIDENCE_JUMP\s*;\s*' +
+        'evidence\s*:=\s*evidence\s+or\s*' +
+        'LMC_SET_POSITION_EVIDENCE_READY\s*;\s*' +
+        'resultState\s*:=\s*LMC_SET_POSITION_PREFLIGHT_READY\s*;\s*' +
+        'failure\s*:=\s*0\s*;\s*detail\s*:=\s*0\s*;') (
+        "$blocker ready/none/detail-zero mapping drifted.")
+    Assert-Match $processScan (
+        '(?is)targetOrder\s*:=\s*targetPosition\$UDINT\s+xor\s+0x80000000\s*;\s*' +
+        'actualOrder\s*:=\s*actualPosition\$UDINT\s+xor\s+0x80000000\s*;\s*' +
+        'if\s+targetOrder\s*>=\s*actualOrder\s+then\s*' +
+        'positionJump\s*:=\s*targetOrder\s*-\s*actualOrder\s*;\s*' +
+        'else\s*positionJump\s*:=\s*actualOrder\s*-\s*targetOrder\s*;') (
+        "$blocker overflow-safe biased coordinate-distance calculation drifted.")
+    if ($processScan -match '(?i)\bABS\s*\(') {
+        throw "$blocker signed ABS must not implement overflow-safe distance."
+    }
+
+    $axisCases = @([regex]::Matches(
+            $processScan,
+            '(?is)case\s+axisReference\s+of(?<Body>.*?)end_case\s*;') |
+        Where-Object { $_.Groups['Body'].Value -match '(?i)ReadAxisStatus' })
+    if ($axisCases.Count -ne 1) {
+        throw "$blocker expected one four-axis RT observation case."
+    }
+    $axisCaseBody = $axisCases[0].Groups['Body'].Value
+    $axisLabels = [regex]::Matches(
+        $axisCaseBody,
+        '(?im)^\s*(?<Axis>[1-4])\s*:')
+    if ($axisLabels.Count -ne 4 -or
+        [string]::Join(',', @($axisLabels | ForEach-Object {
+                    $_.Groups['Axis'].Value
+                })) -cne '1,2,3,4') {
+        throw "$blocker physical-axis observation labels must be exactly 1,2,3,4."
+    }
+    foreach ($axis in 1..4) {
+        $label = $axisLabels[$axis - 1]
+        $axisBodyStart = $label.Index + $label.Length
+        $axisBodyEnd = if ($axis -lt 4) {
+            $axisLabels[$axis].Index
+        }
+        else {
+            $axisCaseBody.Length
+        }
+        $axisBody = $axisCaseBody.Substring(
+            $axisBodyStart,
+            $axisBodyEnd - $axisBodyStart)
+        Assert-Match $axisBody (
+            ('(?is)axisConnected\s*:=\s*IsClientConnected\s*\(\s*' +
+             '#LMCAxis' + $axis + '\s*\)\s*<>\s*0\s*;\s*' +
+             'if\s+axisConnected\s+then.*?' +
+             'moveType\s*:=\s*LMCAxis' + $axis +
+             '\.ReadParameter\s*\(\s*ParNr\s*:=\s*' +
+             'LMCAXIS_PAR_RD_MOVETYPE\s*,\s*mode\s*:=\s*0\s*\)\s*;\s*' +
+             'if\s+moveType\s*=\s*10\s+then\s*' +
+             'setVelocity\s*:=\s*LMCAxis' + $axis +
+             '\.ReadVelocity\s*\(\s*Mode\s*:=\s*' +
+             'LMCAXIS_SETVEL_APPUNIT_SEC_JERK\s*\)\s*;\s*' +
+             'setVelocityCaptured\s*:=\s*TRUE\s*;\s*' +
+             'elsif\s*\(moveType\s*=\s*0\)\s*\|\s*' +
+             '\(moveType\s*=\s*1\)\s+then\s*' +
+             'setVelocity\s*:=\s*LMCAxis' + $axis +
+             '\.ReadVelocity\s*\(\s*Mode\s*:=\s*' +
+             'LMCAXIS_SETVEL_APPUNIT_SEC\s*\)\s*;\s*' +
+             'setVelocityCaptured\s*:=\s*TRUE\s*;\s*' +
+             'end_if\s*;\s*end_if\s*;')) (
+            "$blocker physical axis $axis MoveType/SetVelocity capture gate drifted.")
+        foreach ($axisRead in @(
+                ('IsClientConnected\s*\(\s*#LMCAxis' + $axis + '\s*\)'),
+                ('LMCAxis' + $axis + '\.ReadAxisStatus\s*\(\s*\)'),
+                ('LMCAxis' + $axis + '\.ReadAxisError\s*\(\s*\)'),
+                ('LMCAxis' + $axis + '\.ReadPosition\s*\(\s*' +
+                 'Mode\s*:=\s*LMCAXIS_ACTPOS_APPUNIT\s*\)'),
+                ('LMCAxis' + $axis + '\.ReadPosition\s*\(\s*' +
+                 'Mode\s*:=\s*LMCAXIS_SETPOS_APPUNIT\s*\)'),
+                ('LMCAxis' + $axis + '\.ReadVelocity\s*\(\s*' +
+                 'Mode\s*:=\s*LMCAXIS_ACTVEL_APPUNIT_SEC\s*\)'),
+                ('LMCAxis' + $axis + '\.ReadVelocity\s*\(\s*' +
+                 'Mode\s*:=\s*LMCAXIS_SETVEL_APPUNIT_SEC\s*\)'),
+                ('LMCAxis' + $axis + '\.ReadVelocity\s*\(\s*' +
+                 'Mode\s*:=\s*LMCAXIS_SETVEL_APPUNIT_SEC_JERK\s*\)'),
+                ('LMCAxis' + $axis + '\.ReadSWEndPos\s*\(\s*' +
+                 'Mode\s*:=\s*LMCAXIS_RD_SWMIN_APPUNIT\s*\)'),
+                ('LMCAxis' + $axis + '\.ReadSWEndPos\s*\(\s*' +
+                 'Mode\s*:=\s*LMCAXIS_RD_SWMAX_APPUNIT\s*\)'),
+                ('LMCAxis' + $axis + '\.ReadParameter\s*\(\s*' +
+                 'ParNr\s*:=\s*LMCAXIS_PAR_RD_SIMULATE_MODE\s*,\s*mode\s*:=\s*0\s*\)'),
+                ('LMCAxis' + $axis + '\.ReadParameter\s*\(\s*' +
+                 'ParNr\s*:=\s*LMCAXIS_PAR_RD_MODULO\s*,\s*mode\s*:=\s*0\s*\)'),
+                ('LMCAxis' + $axis + '\.ReadParameter\s*\(\s*' +
+                 'ParNr\s*:=\s*LMCAXIS_PAR_RD_MOVETYPE\s*,\s*mode\s*:=\s*0\s*\)'))) {
+            if ([regex]::Matches($axisBody, '(?is)' + $axisRead).Count -ne 1) {
+                throw (
+                    "$blocker physical axis $axis read inventory is incomplete " +
+                    "or duplicated for '$axisRead'.")
+            }
+        }
+    }
+    Assert-Match $processScan (
+        '(?is)if\s+axisConnected\s+then\s*' +
+        'targetOrder\s*:=\s*targetPosition\$UDINT\s+xor\s+0x80000000\s*;\s*' +
+        'actualOrder\s*:=\s*actualPosition\$UDINT\s+xor\s+0x80000000\s*;\s*' +
+        'if\s+targetOrder\s*>=\s*actualOrder\s+then\s*' +
+        'positionJump\s*:=\s*targetOrder\s*-\s*actualOrder\s*;\s*' +
+        'else\s*positionJump\s*:=\s*actualOrder\s*-\s*targetOrder\s*;\s*' +
+        'end_if\s*;\s*end_if\s*;\s*' +
+        'if\s+axisConnected\s*=\s*FALSE\s+then') (
+        "$blocker disconnected/no-axis paths must retain zero observed jump state.")
+
+    $preflightBlocks = $submitScan + "`n" + $copyScan + "`n" + $processScan
+    if ($preflightBlocks -match
+            '(?i)(?:LMCAxis[1-4]|_LMCAxis)\s*\.\s*SetPosition\s*\(' -or
+        $preflightBlocks -match '(?i)\.\s*Write\s*\(' -or
+        $preflightBlocks -match
+            '(?i)(?:ControlCommands|RecorderStore|SetPositionStore)\s*\.') {
+        throw (
+            "$blocker preflight-only Submit/Copy/Process must have zero native, " +
+            'Control, Store, recorder, or write wiring.')
+    }
+    foreach ($foreignSource in @(
+            @{ Name = 'Control'; Text = $controlScan },
+            @{ Name = 'Store'; Text = $storeScan })) {
+        if ($foreignSource.Text -match
+                '(?i)AxisSetPositionPreflight|SubmitAxisSetPositionPreflight|' +
+                'CopyAxisSetPositionPreflightResult|' +
+                'ProcessAxisSetPositionPreflightRt') {
+            throw (
+                "$blocker $($foreignSource.Name) must have zero preflight " +
+                'runtime wiring in this tranche.')
+        }
+    }
+    foreach ($inactiveMacro in @(
+            @{ Name = 'LMC_ADMIN_SET_POSITION_STORE_CONFIGURED'; Value = 'FALSE' },
+            @{ Name = 'LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED'; Value = 'FALSE' },
+            @{ Name = 'LMC_ADMIN_SET_POSITION_MAX_JUMP_AXIS1'; Value = '0' },
+            @{ Name = 'LMC_ADMIN_SET_POSITION_MAX_JUMP_AXIS2'; Value = '0' },
+            @{ Name = 'LMC_ADMIN_SET_POSITION_MAX_JUMP_AXIS3'; Value = '0' },
+            @{ Name = 'LMC_ADMIN_SET_POSITION_MAX_JUMP_AXIS4'; Value = '0' })) {
+        $macroMatches = [regex]::Matches(
+            $controlScan,
+            ('(?im)^\s*#define\s+' + [regex]::Escape($inactiveMacro.Name) +
+             '\s+(?<Value>[^\s]+)\s*$'))
+        if ($macroMatches.Count -ne 1 -or
+            $macroMatches[0].Groups['Value'].Value -cne
+                $inactiveMacro.Value) {
+            throw (
+                "$blocker $($inactiveMacro.Name) must remain exactly " +
+                "$($inactiveMacro.Value).")
+        }
+    }
+    $capabilityCases = [regex]::Matches(
+        $controlScan,
+        '(?ims)^\s*0x7D00\s*:\s*(?<Body>.*?)(?=^\s*0x7D10\s*:)')
+    if ($capabilityCases.Count -ne 1 -or
+        [regex]::Matches(
+            $capabilityCases[0].Groups['Body'].Value,
+            ('(?i)\(pResponseFrame\s*\+\s*24\)\^\$UDINT\s*:=\s*' +
+             '0x00000017\s*;')).Count -ne 1) {
+        throw (
+            "$blocker Admin capability must remain one exact 0x00000017 " +
+            'write with bits 3/5/7 off.')
+    }
+    $adminSetPositionBlock = Get-LasalExactFunctionImplementationBlock `
+        -SourceText $ControlServiceText `
+        -ClassName 'LMCControlCommandService' `
+        -FunctionName 'HandleAdminSetPosition' `
+        -Owner "$blocker Control HandleAdminSetPosition"
+    if (($adminSetPositionBlock + "`n" + $SetPositionStoreText) -match
+            '(?i)(?:LMCAxis[1-4]|_LMCAxis)\s*\.\s*SetPosition\s*\(') {
+        throw "$blocker current Admin/Store native SetPosition call count must be zero."
+    }
+
+    $rtCalls = [regex]::Matches(
+        $rtScan,
+        ('(?im)^\s*ProcessAxisSetPositionPreflightRt\s*\(\s*' +
+         'ObservationCycle\s*:=\s*cycleCounter\s*\)\s*;\s*$'))
+    $allProcessCalls = [regex]::Matches(
+        $scan,
+        ('(?im)^\s*ProcessAxisSetPositionPreflightRt\s*\(\s*' +
+         'ObservationCycle\s*:=\s*cycleCounter\s*\)\s*;\s*$'))
+    $cycleMatches = [regex]::Matches(
+        $rtScan,
+        '(?i)cycleCounter\s*:=\s*SnapshotBytes\[0\]\$UDINT\s*\+\s*1\s*;')
+    $writerOpenStarts = [regex]::Matches(
+        $rtScan,
+        ('(?i)writeSequence\s*:=\s*sigclib_atomic_getU32\s*\(\s*' +
+         'pValue\s*:=\s*#PublishSequence\s*\)\s*\+\s*1\s*;'))
+    if ($rtCalls.Count -ne 1 -or
+        $allProcessCalls.Count -ne 1 -or
+        $cycleMatches.Count -ne 1 -or
+        $writerOpenStarts.Count -ne 1 -or
+        $cycleMatches[0].Index -ge $rtCalls[0].Index -or
+        $rtCalls[0].Index -ge $writerOpenStarts[0].Index -or
+        (Get-LasalControlDepthAtIndex `
+            -Text $rtBlock `
+            -Index $rtCalls[0].Index) -ne 0) {
+        throw (
+            "$blocker RtWork must call Process once at top level after cycle " +
+            'calculation and before PublishSequence writer-open.')
+    }
+    $rtLf = $rtBlock -replace "`r`n?", "`n"
+    $rtCrlf = $rtLf -replace "`n", "`r`n"
+    $rtLfBytes = [Text.Encoding]::UTF8.GetByteCount($rtLf)
+    $rtCrlfBytes = [Text.Encoding]::UTF8.GetByteCount($rtCrlf)
+    if ($rtLfBytes -gt 71436 -or $rtCrlfBytes -gt 73285) {
+        throw (
+            "$blocker RtWork grew beyond the pre-tranche LF/CRLF ceilings " +
+            "71436/73285 (actual $rtLfBytes/$rtCrlfBytes).")
+    }
+    foreach ($sizedMethod in @(
+            @{ Name = 'Submit'; Block = $submitBlock },
+            @{ Name = 'Copy'; Block = $copyBlock },
+            @{ Name = 'Process'; Block = $processBlock })) {
+        $methodLf = $sizedMethod.Block -replace "`r`n?", "`n"
+        $methodCrlf = $methodLf -replace "`n", "`r`n"
+        if ([Text.Encoding]::UTF8.GetByteCount($methodLf) -ge 32768 -or
+            [Text.Encoding]::UTF8.GetByteCount($methodCrlf) -ge 32768) {
+            throw "$blocker $($sizedMethod.Name) exceeds the LASAL method-size limit."
+        }
+    }
+
+    $semanticTokenStream = [string]::Join(
+        '|',
+        @(
+            ConvertTo-LasalExactContractTokenStream $submitBlock
+            ConvertTo-LasalExactContractTokenStream $copyBlock
+            ConvertTo-LasalExactContractTokenStream $processBlock))
+    $semanticSha = [Security.Cryptography.SHA256]::Create()
+    try {
+        $semanticSha256 = ([BitConverter]::ToString(
+                $semanticSha.ComputeHash(
+                    [Text.Encoding]::UTF8.GetBytes($semanticTokenStream)))).
+            Replace('-', '')
+    }
+    finally {
+        $semanticSha.Dispose()
+    }
+    if (-not $SkipExactBodyFingerprint) {
+        $expectedSemanticSha256 =
+            'A5BDF88EFA2C1942B1CFF7AA7BAF512A2B5ECF3BFE852BFC33F68449258DB508'
+        if ($semanticSha256 -cne $expectedSemanticSha256) {
+            throw (
+                "$blocker Submit/Copy/Process executable fingerprint drifted " +
+                "($semanticSha256).")
+        }
+    }
+}
+
 function Assert-LasalDs402SafetyDrainRetryContract {
     param(
         [string]$ControlServiceText,
@@ -17875,6 +22454,10 @@ function Assert-LasalAdminLmcHomeContract {
     $handleRequestBlock = [regex]::Match(
         $serviceScan,
         '(?is)FUNCTION\s+GLOBAL\s+LMCControlCommandService::HandleRequest.*?END_FUNCTION').Value
+    $dispatchHandlerBlock = [regex]::Match(
+        $serviceScan,
+        ('(?is)FUNCTION\s+' +
+         'LMCControlCommandService::DispatchRequestCommand.*?END_FUNCTION')).Value
     $adminHandlerBlock = [regex]::Match(
         $serviceScan,
         '(?is)FUNCTION\s+LMCControlCommandService::HandleAdminCommands.*?END_FUNCTION').Value
@@ -17913,6 +22496,7 @@ function Assert-LasalAdminLmcHomeContract {
             'end_if\s*;\s*expectedResourceKind\s*:=\s*0\s*;'
     }
     if ([string]::IsNullOrWhiteSpace($handleRequestBlock) -or
+        [string]::IsNullOrWhiteSpace($dispatchHandlerBlock) -or
         [string]::IsNullOrWhiteSpace($adminHandlerBlock) -or
         [string]::IsNullOrWhiteSpace($zeroHomeHandlerBlock) -or
         [string]::IsNullOrWhiteSpace($msgParserBlock) -or
@@ -17979,14 +22563,19 @@ function Assert-LasalAdminLmcHomeContract {
             "$Owner Home owner-receipt constant $($homeReceiptConstant.Key) drifted.")
     }
 
-    $routePattern = (
-        '(?s)0x7D00,\s*0x7D10,\s*0x7D12,\s*0x7D13,\s*' +
+    $serviceRoutePattern = (
+        '(?s)0x7D00,\s*0x7D10,\s*' +
+        '0x7D14,\s*0x7D1A,\s*0x7D13,\s*' +
         '0x7D18,\s*0x7D19,\s*0x7D20,\s*0x7D22:')
-    Assert-Match $handleRequestBlock (
-        $routePattern + '.*?HandleAdminCommands\s*\(') (
+    $tcpRoutePattern = (
+        '(?s)0x7D00,\s*0x7D10,\s*0x7D12,\s*' +
+        '0x7D14,\s*0x7D1A,\s*0x7D13,\s*' +
+        '0x7D18,\s*0x7D19,\s*0x7D20,\s*0x7D22:')
+    Assert-Match $dispatchHandlerBlock (
+        $serviceRoutePattern + '.*?HandleAdminCommands\s*\(') (
         "$Owner control service does not own the complete 0x7D13/18/19 triad.")
     Assert-Match $msgParserBlock (
-        $routePattern + '.*?ControlCommands\.HandleRequest\s*\(') (
+        $tcpRoutePattern + '.*?ControlCommands\.HandleRequest\s*\(') (
         "$Owner TCP parser does not delegate the complete 0x7D13/18/19 triad.")
     Assert-Match $adminHandlerBlock (
         '(?s)0x7D13\s*,\s*0x7D18\s*,\s*0x7D19\s*:\s*' +
@@ -18343,7 +22932,12 @@ function Assert-LasalAdminLmcHomeContract {
          '\(ownershipAdmissionMode\s*=\s*LMC_OWNER_ADMISSION_SAFETY\)\s*then' +
          '(?<Body>.*?)' +
          'end_if\s*;\s*if\s+ownershipInvokeHandler\s+then\s*' +
-         'case\s+CommandId\s+of'))
+         'ResponseSize\s*:=\s*DispatchRequestCommand\s*\(\s*' +
+         'CommandId:=CommandId\s*,\s*Reference:=Reference\s*,\s*' +
+         'pRequestFrame:=pRequestFrame\s*,\s*' +
+         'RequestFrameSize:=RequestFrameSize\s*,\s*' +
+         'pResponseFrame:=pResponseFrame\s*,\s*' +
+         'ResponseCapacity:=ResponseCapacity\s*\)\s*;\s*end_if\s*;'))
     if (-not $safetyPumpMatch.Success) {
         throw "$Owner exact Home safety-pump block was not found."
     }
@@ -25693,7 +30287,7 @@ function Get-LasalTopLevelCommandCaseIds {
             }
         }
         $potentialLabelPattern =
-            '(?i)(?:^|;)\s*(?<Expression>[^;:\r\n]+?)\s*:(?!=)'
+            '(?i)(?:^|;)\s*(?<Expression>[^;:\r\n]+?)\s*:(?![:=])'
         foreach ($potentialLabel in [regex]::Matches(
                 $line,
                 $potentialLabelPattern)) {
@@ -26494,6 +31088,5247 @@ function Get-LasalExactFunctionImplementationBlock {
             "$Owner implementation count is $($matches.Count), expected one.")
     }
     return $matches[0].Value
+}
+
+function Assert-LasalSetPositionStoreReadOnlyScanContract {
+    param(
+        [Parameter(Mandatory = $true)][string]$StoreText,
+        [Parameter(Mandatory = $true)][string]$GlobalText,
+        [Parameter(Mandatory = $true)][string]$ControlServiceText,
+        [Parameter(Mandatory = $true)][string]$Owner
+    )
+
+    $storeScan = Get-LasalScanText $StoreText
+    $controlServiceScan = Get-LasalScanText $ControlServiceText
+    $configuredFalseCount = [regex]::Matches(
+        $controlServiceScan,
+        ('(?im)^[ \t]*#define[ \t]+' +
+         'LMC_ADMIN_SET_POSITION_STORE_CONFIGURED[ \t]+FALSE[ \t]*\r?$')).Count
+    if ($configuredFalseCount -ne 1) {
+        throw (
+            "$Owner Control Store-configured macro must remain exactly one FALSE define.")
+    }
+    $globalToken = ConvertTo-LasalExactContractTokenStream $GlobalText
+    $expectedGlobalToken =
+        'var_globalretaing_lmcsetpositionstorewords:' +
+        'array[0..335]ofudint;end_var'
+    if ($globalToken -cne $expectedGlobalToken) {
+        throw (
+            "$Owner global RETAIN layout must be exactly 336 UDINT / " +
+            '1344 bytes and contain no additional storage.')
+    }
+
+    $classMatches = [regex]::Matches(
+        $storeScan,
+        ('(?ims)^[ \t]*LMCSetPositionStore[ \t]*:[ \t]*CLASS[ \t]*\r?$' +
+         '.*?^[ \t]*END_CLASS[ \t]*;[ \t]*\r?$'))
+    if ($classMatches.Count -ne 1) {
+        throw "$Owner class declaration was not found exactly once."
+    }
+    $classBlock = $classMatches[0].Value
+    $variableRegion = [regex]::Match(
+        $classBlock,
+        ('(?is)CheckSum\s*:\s*CltChCmd__CheckSum\s*;' +
+         '(?<Variables>.*?)' +
+         'FUNCTION\s+GLOBAL\s+BeginSetPosition\b'))
+    if (-not $variableRegion.Success) {
+        throw "$Owner volatile field region was not found."
+    }
+    $actualVariableToken = ConvertTo-LasalExactContractTokenStream (
+        $variableRegion.Groups['Variables'].Value)
+    $expectedVariableToken = (
+        'transactionactive:bool;' +
+        'transactionaxisreference:uint;' +
+        'transactionintentstoregeneration:udint;' +
+        'transactionrecordgeneration:udint;' +
+        'transactionterminaltargetslot:uint;' +
+        'transactionreservedterminaltargetslot:uint;' +
+        'transactionterminalstoregeneration:udint;' +
+        'transactionreservedterminalstoregeneration:udint;' +
+        'transactionkeywords:array[0..11]ofudint;' +
+        'transactionterminaltargetbeforewords:array[0..20]ofudint;')
+    if ($actualVariableToken -cne $expectedVariableToken) {
+        throw "$Owner volatile field inventory must remain the exact 10-field layout."
+    }
+
+    $publicFunctionNames = @(
+        [regex]::Matches(
+            $classBlock,
+            ('(?im)^[ \t]*FUNCTION[ \t]+GLOBAL[ \t]+' +
+             '(?<Name>(?!TAB\b)[A-Za-z][A-Za-z0-9_]*)[ \t]*\r?$')) |
+            ForEach-Object { $_.Groups['Name'].Value })
+    $privateFunctionNames = @(
+        [regex]::Matches(
+            $classBlock,
+            ('(?im)^[ \t]*FUNCTION[ \t]+' +
+             '(?!GLOBAL\b|@)(?<Name>[A-Za-z][A-Za-z0-9_]*)' +
+             '[ \t]*\r?$')) |
+            ForEach-Object { $_.Groups['Name'].Value })
+    if (($publicFunctionNames -join ',') -cne (
+            'BeginSetPosition,CommitSetPositionTerminal,' +
+            'ReadSetPositionOutcome,RetireSetPositionOutcome') -or
+        ($privateFunctionNames -join ',') -cne (
+            'ScanAxisStore,RecordMatchesKey,SelectTerminalSlot,CommitRecord')) {
+        throw (
+            "$Owner public/private function inventory must remain exactly " +
+            'four public and four private methods.')
+    }
+
+    $resultOutput = @(
+        [pscustomobject]@{ Name = 'Result'; Type = 'DINT' })
+    $abiSpecs = @(
+        [pscustomobject]@{
+            Name = 'BeginSetPosition'
+            IsGlobal = $true
+            Inputs = @(
+                [pscustomobject]@{ Name = 'pKey'; Type = '^void' },
+                [pscustomobject]@{ Name = 'KeySize'; Type = 'UDINT' },
+                [pscustomobject]@{ Name = 'pSnapshot'; Type = '^void' },
+                [pscustomobject]@{ Name = 'SnapshotCapacity'; Type = 'UDINT' },
+                [pscustomobject]@{ Name = 'pRecordGeneration'; Type = '^UDINT' },
+                [pscustomobject]@{ Name = 'pDetailCode'; Type = '^UDINT' })
+            Outputs = $resultOutput
+        },
+        [pscustomobject]@{
+            Name = 'CommitSetPositionTerminal'
+            IsGlobal = $true
+            Inputs = @(
+                [pscustomobject]@{ Name = 'pKey'; Type = '^void' },
+                [pscustomobject]@{ Name = 'KeySize'; Type = 'UDINT' },
+                [pscustomobject]@{ Name = 'RecordGeneration'; Type = 'UDINT' },
+                [pscustomobject]@{ Name = 'RecordState'; Type = 'UINT' },
+                [pscustomobject]@{ Name = 'AppliedPosition'; Type = 'DINT' },
+                [pscustomobject]@{ Name = 'OriginalCommandStatus'; Type = 'UINT' },
+                [pscustomobject]@{ Name = 'OriginalErrorId'; Type = 'INT' },
+                [pscustomobject]@{ Name = 'OriginalDetailCode'; Type = 'UDINT' },
+                [pscustomobject]@{ Name = 'NativeCommandState'; Type = 'UDINT' },
+                [pscustomobject]@{ Name = 'pSnapshot'; Type = '^void' },
+                [pscustomobject]@{ Name = 'SnapshotCapacity'; Type = 'UDINT' },
+                [pscustomobject]@{ Name = 'pDetailCode'; Type = '^UDINT' })
+            Outputs = $resultOutput
+        },
+        [pscustomobject]@{
+            Name = 'ReadSetPositionOutcome'
+            IsGlobal = $true
+            Inputs = @(
+                [pscustomobject]@{ Name = 'pKey'; Type = '^void' },
+                [pscustomobject]@{ Name = 'KeySize'; Type = 'UDINT' },
+                [pscustomobject]@{ Name = 'pSnapshot'; Type = '^void' },
+                [pscustomobject]@{ Name = 'SnapshotCapacity'; Type = 'UDINT' },
+                [pscustomobject]@{ Name = 'pDetailCode'; Type = '^UDINT' })
+            Outputs = $resultOutput
+        },
+        [pscustomobject]@{
+            Name = 'RetireSetPositionOutcome'
+            IsGlobal = $true
+            Inputs = @(
+                [pscustomobject]@{ Name = 'pKey'; Type = '^void' },
+                [pscustomobject]@{ Name = 'KeySize'; Type = 'UDINT' },
+                [pscustomobject]@{ Name = 'ExpectedRecordGeneration'; Type = 'UDINT' },
+                [pscustomobject]@{ Name = 'pSnapshot'; Type = '^void' },
+                [pscustomobject]@{ Name = 'SnapshotCapacity'; Type = 'UDINT' },
+                [pscustomobject]@{ Name = 'pDetailCode'; Type = '^UDINT' })
+            Outputs = $resultOutput
+        },
+        [pscustomobject]@{
+            Name = 'ScanAxisStore'
+            IsGlobal = $false
+            Inputs = @(
+                [pscustomobject]@{ Name = 'AxisReference'; Type = 'UINT' },
+                [pscustomobject]@{ Name = 'pClassifications'; Type = '^USINT' },
+                [pscustomobject]@{ Name = 'pMaxStoreGeneration'; Type = '^UDINT' },
+                [pscustomobject]@{ Name = 'pMaxRecordGeneration'; Type = '^UDINT' })
+            Outputs = $resultOutput
+        },
+        [pscustomobject]@{
+            Name = 'RecordMatchesKey'
+            IsGlobal = $false
+            Inputs = @(
+                [pscustomobject]@{ Name = 'pRecord'; Type = '^void' },
+                [pscustomobject]@{ Name = 'pKey'; Type = '^void' })
+            Outputs = $resultOutput
+        },
+        [pscustomobject]@{
+            Name = 'SelectTerminalSlot'
+            IsGlobal = $false
+            Inputs = @(
+                [pscustomobject]@{ Name = 'AxisReference'; Type = 'UINT' },
+                [pscustomobject]@{ Name = 'ExcludedSlot'; Type = 'INT' },
+                [pscustomobject]@{ Name = 'pClassifications'; Type = '^USINT' })
+            Outputs = $resultOutput
+        },
+        [pscustomobject]@{
+            Name = 'CommitRecord'
+            IsGlobal = $false
+            Inputs = @(
+                [pscustomobject]@{ Name = 'AxisReference'; Type = 'UINT' },
+                [pscustomobject]@{ Name = 'Slot'; Type = 'UINT' },
+                [pscustomobject]@{ Name = 'pImage'; Type = '^void' })
+            Outputs = $resultOutput
+        })
+
+    $implementationBlocks = @{}
+    $implementationTokens = @{}
+    $implementationPrefixes = @{}
+    foreach ($abiSpec in $abiSpecs) {
+        $declarationParameters = @{
+            ClassBlock = $classBlock
+            FunctionName = $abiSpec.Name
+            IsGlobal = [bool]$abiSpec.IsGlobal
+            Inputs = @($abiSpec.Inputs)
+            Outputs = @($abiSpec.Outputs)
+            Owner = $Owner
+        }
+        Assert-ExactLasalFunctionAbi @declarationParameters
+
+        $implementationParameters = @{
+            SourceText = $storeScan
+            ClassName = 'LMCSetPositionStore'
+            FunctionName = $abiSpec.Name
+            Owner = "$Owner.$($abiSpec.Name)"
+        }
+        $implementationBlock =
+            Get-LasalExactFunctionImplementationBlock @implementationParameters
+        $implementationToken =
+            ConvertTo-LasalExactContractTokenStream $implementationBlock
+        $expectedPrefix = 'function'
+        if ($abiSpec.IsGlobal) {
+            $expectedPrefix += 'global'
+        }
+        $expectedPrefix += 'lmcsetpositionstore::' +
+            $abiSpec.Name.ToLowerInvariant() + 'var_input'
+        foreach ($inputVariable in @($abiSpec.Inputs)) {
+            $expectedPrefix += $inputVariable.Name.ToLowerInvariant() + ':' +
+                $inputVariable.Type.ToLowerInvariant() + ';'
+        }
+        $expectedPrefix += 'end_varvar_output'
+        foreach ($outputVariable in @($abiSpec.Outputs)) {
+            $expectedPrefix += $outputVariable.Name.ToLowerInvariant() + ':' +
+                $outputVariable.Type.ToLowerInvariant() + ';'
+        }
+        $expectedPrefix += 'end_var'
+        if (-not $implementationToken.StartsWith(
+                $expectedPrefix,
+                [StringComparison]::Ordinal)) {
+            throw (
+                "$Owner.$($abiSpec.Name) implementation does not match the " +
+                'exact public/private ordered ABI.')
+        }
+        $implementationBlocks[$abiSpec.Name] = $implementationBlock
+        $implementationTokens[$abiSpec.Name] = $implementationToken
+        $implementationPrefixes[$abiSpec.Name] = $expectedPrefix
+    }
+
+    $scanToken = $implementationTokens['ScanAxisStore']
+    $requireScanToken = {
+        param([string]$Token, [string]$Message)
+        if (-not $scanToken.Contains($Token)) {
+            throw "$Owner $Message"
+        }
+    }
+
+    & $requireScanToken (
+        'result:=-1;ifpclassifications<>nilthen' +
+        '_memset(dest:=pclassifications,usbyte:=0,cntr:=4);end_if;' +
+        'ifpmaxstoregeneration<>nilthenpmaxstoregeneration^:=0;end_if;' +
+        'ifpmaxrecordgeneration<>nilthenpmaxrecordgeneration^:=0;end_if;' +
+        'if(axisreference>=1)&(axisreference<=4)&' +
+        '(pclassifications<>nil)&(pmaxstoregeneration<>nil)&' +
+        '(pmaxrecordgeneration<>nil)&' +
+        '(isclientconnected(#checksum)<>0)then') (
+        'ScanAxisStore input/output boundary and four-slot initialization drifted.')
+    & $requireScanToken (
+        'axisbaseword:=(to_udint(axisreference)-1)*84;' +
+        'hascorrupt:=false;unsupersededterminalcount:=0;' +
+        'forslot:=0to3do' +
+        'slotclass[slot]:=0;retiredshadow[slot]:=false;' +
+        'recordbaseword:=axisbaseword+to_udint(slot*21);' +
+        'precord:=(#g_lmcsetpositionstorewords[' +
+        'to_dint(recordbaseword)])$^usint;' +
+        'anynonzero:=false;forwordindex:=0to20do') (
+        'ScanAxisStore axis/slot/word geometry drifted.')
+    & $requireScanToken (
+        'ifanynonzero=falsethenslotclass[slot]:=0;' +
+        'elsifmarker=0thenslotclass[slot]:=1;' +
+        'elsifmarker<>16#7d12c0dethenslotclass[slot]:=3;' +
+        'hascorrupt:=true;elsevalidslot:=true;') (
+        'four-way Blank/Incomplete/Valid/Corrupt classification drifted.')
+    & $requireScanToken (
+        'ifvalidslotthenslotclass[slot]:=2;' +
+        'storegeneration:=(precord+4)^$udint;' +
+        'recordgeneration:=(precord+72)^$udint;') (
+        'four-way Blank/Incomplete/Valid/Corrupt classification drifted.')
+    & $requireScanToken (
+        'elseslotclass[slot]:=3;hascorrupt:=true;end_if;' +
+        'end_if;(pclassifications+slot)^:=slotclass[slot];end_for;') (
+        'four-way Blank/Incomplete/Valid/Corrupt classification drifted.')
+    & $requireScanToken 'marker:=(precord+80)^$udint;' (
+        'record commit marker offset or value handling drifted.')
+    & $requireScanToken (
+        'computedcrc:=checksum.crc32(precord,76,0);' +
+        'storeflags:=(precord+2)^$uint;' +
+        'recordstate:=(precord+8)^$uint;' +
+        'ifcomputedcrc<>(precord+76)^$udintthenvalidslot:=false;') (
+        'CRC contract must remain CRC32(record,76,0) with stored offset 76.')
+
+    $recordAbiTokens = @(
+        'elsifprecord^$uint<>1thenvalidslot:=false;',
+        'elsif(storeflags<>0)&(storeflags<>1)thenvalidslot:=false;',
+        'elsif(precord+4)^$udint=0thenvalidslot:=false;',
+        ('elsif(recordstate<>1)&(recordstate<>2)&' +
+         '(recordstate<>3)thenvalidslot:=false;'),
+        'elsif(precord+10)^$uint<>1thenvalidslot:=false;',
+        ('elsif((precord+12)^$udint=0)|((precord+16)^$udint=0)|' +
+         '((precord+20)^$udint=0)|((precord+24)^$udint=0)then' +
+         'validslot:=false;'),
+        ('elsif((precord+28)^$udint=0)&((precord+32)^$udint=0)&' +
+         '((precord+36)^$udint=0)&((precord+40)^$udint=0)then' +
+         'validslot:=false;'),
+        'elsif(precord+44)^$uint<>axisreferencethenvalidslot:=false;',
+        'elsif(precord+46)^$uint<>0thenvalidslot:=false;',
+        'elsif(precord+72)^$udint=0thenvalidslot:=false;')
+    foreach ($recordAbiToken in $recordAbiTokens) {
+        & $requireScanToken $recordAbiToken 'record ABI field validation drifted.'
+    }
+
+    $payloadTokens = @(
+        ('elsif(slot=0)&((recordstate<>1)|(storeflags<>0))then' +
+         'validslot:=false;'),
+        ('elsif(slot<>0)&(recordstate<>2)&(recordstate<>3)then' +
+         'validslot:=false;'),
+        ('elsif(recordstate=1)&(((precord+56)^$dint<>0)|' +
+         '((precord+60)^$uint<>0)|((precord+62)^$int<>0)|' +
+         '((precord+64)^$udint<>0)|((precord+68)^$udint<>0))then' +
+         'validslot:=false;'),
+        ('elsif(recordstate=2)&' +
+         '(((precord+56)^$dint<>(precord+48)^$dint)|' +
+         '((precord+60)^$uint<>0)|((precord+62)^$int<>0)|' +
+         '((precord+64)^$udint<>0)|((precord+68)^$udint<>0))then' +
+         'validslot:=false;'),
+        ('elsif(recordstate=3)&(((precord+56)^$dint<>0)|' +
+         '((precord+60)^$uint<>1)|((precord+64)^$udint<10)|' +
+         '((precord+64)^$udint>15))thenvalidslot:=false;'),
+        ('elsif(recordstate=3)&((precord+64)^$udint=11)&' +
+         '(((precord+62)^$int<>-6)|((precord+68)^$udint=0))then' +
+         'validslot:=false;'),
+        ('elsif(recordstate=3)&((precord+64)^$udint<>11)&' +
+         '(((precord+62)^$int<>-31000)|' +
+         '((precord+68)^$udint<>0))thenvalidslot:=false;'))
+    foreach ($payloadToken in $payloadTokens) {
+        & $requireScanToken $payloadToken (
+            'slot-role or terminal payload validation drifted.')
+    }
+
+    $recordMatchesKeyToken = $implementationTokens['RecordMatchesKey']
+    $recordMatchesKeyRange = (
+        'if(precord<>nil)&(pkey<>nil)then' +
+        'if(_memcmp(ptr1:=precord,ptr2:=pkey,cntr:=2)=0)&' +
+        '(_memcmp(ptr1:=precord$^usint+10,ptr2:=pkey$^usint+2,cntr:=2)=0)&' +
+        '(_memcmp(ptr1:=precord$^usint+12,ptr2:=pkey$^usint+4,cntr:=32)=0)&' +
+        '(_memcmp(ptr1:=precord$^usint+44,ptr2:=pkey$^usint+36,cntr:=12)=0)' +
+        'thenresult:=1;end_if;end_if;')
+    if (-not $recordMatchesKeyToken.Contains($recordMatchesKeyRange)) {
+        throw "$Owner key/snapshot byte ranges drifted in RecordMatchesKey."
+    }
+    $sameKeyRange = (
+        'samekey:=(_memcmp(ptr1:=pleft,ptr2:=pright,cntr:=2)=0)&' +
+        '(_memcmp(ptr1:=pleft+10,ptr2:=pright+10,cntr:=2)=0)&' +
+        '(_memcmp(ptr1:=pleft+12,ptr2:=pright+12,cntr:=44)=0);')
+    $matchingKeyRange = (
+        'matchingkey:=' +
+        '(_memcmp(ptr1:=precord,ptr2:=pcandidate,cntr:=2)=0)&' +
+        '(_memcmp(ptr1:=precord+10,ptr2:=pcandidate+10,cntr:=2)=0)&' +
+        '(_memcmp(ptr1:=precord+12,ptr2:=pcandidate+12,cntr:=44)=0);')
+    if ([regex]::Matches(
+            $scanToken,
+            [regex]::Escape($sameKeyRange)).Count -ne 1 -or
+        [regex]::Matches(
+            $scanToken,
+            [regex]::Escape($matchingKeyRange)).Count -ne 3 -or
+        -not $scanToken.Contains(
+            'samesnapshot:=_memcmp(ptr1:=pleft+8,ptr2:=pright+8,' +
+            'cntr:=68)=0;') -or
+        -not $scanToken.Contains(
+            'matchingsnapshot:=_memcmp(ptr1:=precord+8,' +
+            'ptr2:=pcandidate+8,cntr:=68)=0;')) {
+        throw "$Owner key/snapshot byte ranges drifted in ScanAxisStore."
+    }
+
+    $generationTokens = @(
+        ('ifstoregeneration>pmaxstoregeneration^then' +
+         'pmaxstoregeneration^:=storegeneration;end_if;'),
+        ('ifrecordgeneration>pmaxrecordgeneration^then' +
+         'pmaxrecordgeneration^:=recordgeneration;end_if;'),
+        ('if(pleft+4)^$udint=(pright+4)^$udintthen' +
+         'hascorrupt:=true;end_if;'),
+        ('if((pleft+72)^$udint=(pright+72)^$udint)&' +
+         '(samekey=false)thenhascorrupt:=true;end_if;'),
+        ('ifsamekey&((pleft+72)^$udint<>(pright+72)^$udint)then' +
+         'hascorrupt:=true;end_if;'))
+    foreach ($generationToken in $generationTokens) {
+        & $requireScanToken $generationToken (
+            'store/record generation invariant drifted.')
+    }
+
+    $tombstoneTokens = @(
+        ('ifleftterminal&rightterminal&samekey&' +
+         '((pleft+72)^$udint=(pright+72)^$udint)then'),
+        ('iflefttombstone&(righttombstone=false)&' +
+         '((pleft+4)^$udint<=(pright+4)^$udint)then' +
+         'hascorrupt:=true;end_if;'),
+        ('ifrighttombstone&(lefttombstone=false)&' +
+         '((pright+4)^$udint<=(pleft+4)^$udint)then' +
+         'hascorrupt:=true;end_if;'),
+        ('ifcandidatetombstone&matchingkey&matchingsnapshot&' +
+         '((pcandidate+4)^$udint>(precord+4)^$udint)then' +
+         'retiredshadow[slot]:=true;end_if;'))
+    foreach ($tombstoneToken in $tombstoneTokens) {
+        & $requireScanToken $tombstoneToken (
+            'tombstone snapshot/order invariant drifted.')
+    }
+
+    $activeGraphTokens = @(
+        ('if(((recordstate=2)|(recordstate=3))&' +
+         '((precord+2)^$uint=0)&(retiredshadow[slot]=false))then' +
+         'unsupersededterminalcount+=1;matchinglowerarmedcount:=0;'),
+        ('if((pcandidate+8)^$uint=1)&matchingkey&' +
+         '((pcandidate+72)^$udint=(precord+72)^$udint)&' +
+         '((pcandidate+4)^$udint<(precord+4)^$udint)then' +
+         'matchinglowerarmedcount:=1;end_if;'),
+        'ifmatchinglowerarmedcount<>1thenhascorrupt:=true;end_if;',
+        'ifunsupersededterminalcount>1thenhascorrupt:=true;end_if;',
+        ('if(slotclass[0]=2)&((pcandidate+8)^$uint=1)&' +
+         '(unsupersededterminalcount=1)then'),
+        ('if(matchingkey=false)|' +
+         '((precord+72)^$udint<>(pcandidate+72)^$udint)then' +
+         'hascorrupt:=true;end_if;'),
+        'ifhascorruptthenresult:=0;elseresult:=1;end_if;')
+    foreach ($activeGraphToken in $activeGraphTokens) {
+        & $requireScanToken $activeGraphToken (
+            'active Armed/terminal graph invariant drifted.')
+    }
+
+    $getExecutableFingerprint = {
+        param([string]$ImplementationToken, [string]$FunctionName)
+        $bodyMatch = [regex]::Match(
+            $ImplementationToken,
+            '(?s)\A.*end_var(?<Body>.*)end_function\z')
+        if (-not $bodyMatch.Success) {
+            throw "$Owner $FunctionName executable body was not isolated."
+        }
+        $sha256 = [Security.Cryptography.SHA256]::Create()
+        try {
+            $bodyBytes = [Text.Encoding]::UTF8.GetBytes(
+                $bodyMatch.Groups['Body'].Value)
+            return ([BitConverter]::ToString(
+                    $sha256.ComputeHash($bodyBytes))).
+                Replace('-', '').ToLowerInvariant()
+        }
+        finally {
+            $sha256.Dispose()
+        }
+    }
+    $getExactPrefixedExecutableFingerprint = {
+        param(
+            [string]$ImplementationToken,
+            [string]$ExactPrefix,
+            [string]$FunctionName
+        )
+        $endToken = 'end_function'
+        if (-not $ImplementationToken.StartsWith(
+                $ExactPrefix,
+                [StringComparison]::Ordinal) -or
+            -not $ImplementationToken.EndsWith(
+                $endToken,
+                [StringComparison]::Ordinal) -or
+            $ImplementationToken.Length -lt
+                ($ExactPrefix.Length + $endToken.Length)) {
+            throw "$Owner $FunctionName exact executable body was not isolated."
+        }
+        $bodyLength =
+            $ImplementationToken.Length - $ExactPrefix.Length - $endToken.Length
+        $body = $ImplementationToken.Substring($ExactPrefix.Length, $bodyLength)
+        $sha256 = [Security.Cryptography.SHA256]::Create()
+        try {
+            $bodyBytes = [Text.Encoding]::UTF8.GetBytes($body)
+            return ([BitConverter]::ToString(
+                    $sha256.ComputeHash($bodyBytes))).
+                Replace('-', '').ToLowerInvariant()
+        }
+        finally {
+            $sha256.Dispose()
+        }
+    }
+
+    $beginToken = $implementationTokens['BeginSetPosition']
+    $requireBeginToken = {
+        param([string]$Token, [string]$Message)
+        if (-not $beginToken.Contains($Token)) {
+            throw "$Owner $Message"
+        }
+    }
+    $beginLocalInventory = (
+        'varclassifications:array[0..3]ofusint;' +
+        'armedwords:array[0..20]ofudint;' +
+        'targetbeforewords:array[0..20]ofudint;' +
+        'pkeybytes:^usint;precord:^usint;pcandidate:^usint;' +
+        'parmed:^usint;ptarget:^usint;axisbaseword:udint;' +
+        'recordbaseword:udint;candidatebaseword:udint;' +
+        'targetbaseword:udint;maxstoregeneration:udint;' +
+        'maxrecordgeneration:udint;intentstoregeneration:udint;' +
+        'terminalstoregeneration:udint;recordgeneration:udint;' +
+        'bestterminalstoregeneration:udint;axisreference:uint;' +
+        'slot:dint;candidateslot:dint;bestterminalslot:dint;' +
+        'targetslot:dint;scanresult:dint;commitresult:dint;' +
+        'activedifferent:bool;armedinactive:bool;' +
+        'terminalretired:bool;matchingkey:bool;' +
+        'matchingsnapshot:bool;end_var')
+    if ([regex]::Matches(
+            $beginToken,
+            [regex]::Escape($beginLocalInventory)).Count -ne 1) {
+        throw "$Owner BeginSetPosition local transaction inventory drifted."
+    }
+    & $requireBeginToken (
+        'result:=-1;' +
+        'ifprecordgeneration<>nilthenprecordgeneration^:=0;end_if;' +
+        'ifpdetailcode<>nilthenpdetailcode^:=0;end_if;' +
+        'if(psnapshot<>nil)&(snapshotcapacity>=68)then' +
+        '_memset(dest:=psnapshot,usbyte:=0,cntr:=68);end_if;' +
+        'if(pkey=nil)|(keysize<>48)|(psnapshot=nil)|' +
+        '(precordgeneration=nil)|(pdetailcode=nil)thenreturn;end_if;') (
+        'BeginSetPosition boundary/output zero initialization drifted.')
+    & $requireBeginToken (
+        'pkeybytes:=pkey$^usint;' +
+        'axisreference:=(pkeybytes+36)^$uint;' +
+        'if(pkeybytes^$uint<>1)|((pkeybytes+2)^$uint<>1)|' +
+        '((pkeybytes+4)^$udint=0)|((pkeybytes+8)^$udint=0)|' +
+        '((pkeybytes+12)^$udint=0)|((pkeybytes+16)^$udint=0)|' +
+        '(((pkeybytes+20)^$udint=0)&' +
+        '((pkeybytes+24)^$udint=0)&' +
+        '((pkeybytes+28)^$udint=0)&' +
+        '((pkeybytes+32)^$udint=0))|' +
+        '(axisreference<1)|(axisreference>4)|' +
+        '((pkeybytes+38)^$uint<>0)thenreturn;end_if;') (
+        'BeginSetPosition fixed 48-byte key ABI validation drifted.')
+    & $requireBeginToken (
+        'iftransactionactivethenresult:=0;pdetailcode^:=24;' +
+        'return;end_if;' +
+        'transactionactive:=false;transactionaxisreference:=0;' +
+        'transactionintentstoregeneration:=0;' +
+        'transactionrecordgeneration:=0;' +
+        'transactionterminaltargetslot:=0;' +
+        'transactionreservedterminaltargetslot:=0;' +
+        'transactionterminalstoregeneration:=0;' +
+        'transactionreservedterminalstoregeneration:=0;' +
+        '_memset(dest:=#transactionkeywords[0],usbyte:=0,cntr:=48);' +
+        '_memset(dest:=#transactionterminaltargetbeforewords[0],' +
+        'usbyte:=0,cntr:=84);result:=0;pdetailcode^:=24;' +
+        'ifsnapshotcapacity<68thenreturn;end_if;') (
+        'BeginSetPosition active guard/exact 10-field clear drifted.')
+    & $requireBeginToken (
+        'scanresult:=scanaxisstore(' +
+        'axisreference:=axisreference,' +
+        'pclassifications:=#classifications[0],' +
+        'pmaxstoregeneration:=#maxstoregeneration,' +
+        'pmaxrecordgeneration:=#maxrecordgeneration);' +
+        'ifscanresult<0thenreturn;' +
+        'elsifscanresult=0thenpdetailcode^:=21;return;end_if;') (
+        'BeginSetPosition fresh ScanAxisStore result contract drifted.')
+    if ([regex]::Matches($beginToken, 'scanaxisstore\(').Count -ne 1) {
+        throw "$Owner BeginSetPosition must call fresh ScanAxisStore exactly once."
+    }
+    & $requireBeginToken (
+        'axisbaseword:=(to_udint(axisreference)-1)*84;' +
+        'bestterminalslot:=-1;bestterminalstoregeneration:=0;' +
+        'forslot:=1to3doifclassifications[slot]=2then' +
+        'recordbaseword:=axisbaseword+to_udint(slot*21);' +
+        'precord:=(#g_lmcsetpositionstorewords[' +
+        'to_dint(recordbaseword)])$^usint;' +
+        'if(((precord+8)^$uint=2)|((precord+8)^$uint=3))&' +
+        '(recordmatcheskey(precord:=precord,pkey:=pkey)=1)then' +
+        'if(bestterminalslot<0)|' +
+        '((precord+4)^$udint>bestterminalstoregeneration)then' +
+        'bestterminalslot:=slot;bestterminalstoregeneration:=' +
+        '(precord+4)^$udint;end_if;end_if;end_if;end_for;' +
+        'ifbestterminalslot>=1thenrecordbaseword:=axisbaseword+' +
+        'to_udint(bestterminalslot*21);' +
+        'precord:=(#g_lmcsetpositionstorewords[' +
+        'to_dint(recordbaseword)])$^usint;' +
+        '_memcpy(ptr1:=psnapshot,ptr2:=precord+8,cntr:=68);' +
+        'precordgeneration^:=(precord+72)^$udint;' +
+        'pdetailcode^:=0;result:=2;return;end_if;') (
+        'BeginSetPosition exact newest-terminal replay/result 2 drifted.')
+    & $requireBeginToken (
+        'ifclassifications[0]=2then' +
+        'precord:=(#g_lmcsetpositionstorewords[' +
+        'to_dint(axisbaseword)])$^usint;' +
+        'if((precord+8)^$uint=1)&' +
+        '(recordmatcheskey(precord:=precord,pkey:=pkey)=1)then' +
+        'pdetailcode^:=20;return;end_if;end_if;') (
+        'BeginSetPosition exact Armed/DetailCode 20 contract drifted.')
+
+    & $requireBeginToken (
+        'activedifferent:=false;ifclassifications[0]=2then' +
+        'precord:=(#g_lmcsetpositionstorewords[' +
+        'to_dint(axisbaseword)])$^usint;armedinactive:=false;' +
+        'forcandidateslot:=1to3do' +
+        'ifclassifications[candidateslot]=2then' +
+        'candidatebaseword:=axisbaseword+' +
+        'to_udint(candidateslot*21);' +
+        'pcandidate:=(#g_lmcsetpositionstorewords[' +
+        'to_dint(candidatebaseword)])$^usint;' +
+        'matchingkey:=' +
+        '(_memcmp(ptr1:=precord,ptr2:=pcandidate,cntr:=2)=0)&' +
+        '(_memcmp(ptr1:=precord+10,ptr2:=pcandidate+10,cntr:=2)=0)&' +
+        '(_memcmp(ptr1:=precord+12,ptr2:=pcandidate+12,cntr:=44)=0);' +
+        'if(((pcandidate+8)^$uint=2)|' +
+        '((pcandidate+8)^$uint=3))&matchingkey&' +
+        '((pcandidate+72)^$udint=(precord+72)^$udint)&' +
+        '((pcandidate+4)^$udint>(precord+4)^$udint)then' +
+        'armedinactive:=true;end_if;end_if;end_for;' +
+        'ifarmedinactive=falsethenactivedifferent:=true;' +
+        'end_if;end_if;') (
+        'BeginSetPosition different-key Armed activity proof drifted.')
+    & $requireBeginToken (
+        'forslot:=1to3doifclassifications[slot]=2then' +
+        'recordbaseword:=axisbaseword+to_udint(slot*21);' +
+        'precord:=(#g_lmcsetpositionstorewords[' +
+        'to_dint(recordbaseword)])$^usint;' +
+        'if(precord+2)^$uint=0thenterminalretired:=false;' +
+        'forcandidateslot:=1to3doif(candidateslot<>slot)&' +
+        '(classifications[candidateslot]=2)then' +
+        'candidatebaseword:=axisbaseword+' +
+        'to_udint(candidateslot*21);' +
+        'pcandidate:=(#g_lmcsetpositionstorewords[' +
+        'to_dint(candidatebaseword)])$^usint;' +
+        'matchingkey:=' +
+        '(_memcmp(ptr1:=precord,ptr2:=pcandidate,cntr:=2)=0)&' +
+        '(_memcmp(ptr1:=precord+10,ptr2:=pcandidate+10,cntr:=2)=0)&' +
+        '(_memcmp(ptr1:=precord+12,ptr2:=pcandidate+12,cntr:=44)=0);' +
+        'matchingsnapshot:=_memcmp(ptr1:=precord+8,' +
+        'ptr2:=pcandidate+8,cntr:=68)=0;' +
+        'if((pcandidate+2)^$uint=1)&matchingkey&matchingsnapshot&' +
+        '((pcandidate+4)^$udint>(precord+4)^$udint)then' +
+        'terminalretired:=true;end_if;end_if;end_for;' +
+        'ifterminalretired=falsethenactivedifferent:=true;' +
+        'end_if;end_if;end_if;end_for;' +
+        'ifactivedifferentthenpdetailcode^:=23;return;end_if;') (
+        'BeginSetPosition different active terminal/DetailCode 23 drifted.')
+    & $requireBeginToken (
+        'if(maxstoregeneration>=16#fffffffe)|' +
+        '(maxrecordgeneration=16#ffffffff)thenreturn;end_if;' +
+        'intentstoregeneration:=maxstoregeneration+1;' +
+        'terminalstoregeneration:=intentstoregeneration+1;' +
+        'recordgeneration:=maxrecordgeneration+1;') (
+        'BeginSetPosition generation no-wrap reservation drifted.')
+    & $requireBeginToken (
+        'targetslot:=selectterminalslot(' +
+        'axisreference:=axisreference,excludedslot:=-1,' +
+        'pclassifications:=#classifications[0]);' +
+        'if(targetslot<1)|(targetslot>3)then' +
+        'ifisclientconnected(#checksum)<>0then' +
+        'pdetailcode^:=23;end_if;return;end_if;') (
+        'BeginSetPosition SelectTerminalSlot result contract drifted.')
+    if ([regex]::Matches($beginToken, 'selectterminalslot\(').Count -ne 1) {
+        throw "$Owner BeginSetPosition must call SelectTerminalSlot exactly once."
+    }
+    & $requireBeginToken (
+        'targetbaseword:=axisbaseword+to_udint(targetslot*21);' +
+        'ptarget:=(#g_lmcsetpositionstorewords[' +
+        'to_dint(targetbaseword)])$^usint;' +
+        '_memcpy(ptr1:=#targetbeforewords[0],ptr2:=ptarget,cntr:=84);') (
+        'BeginSetPosition reserved terminal preimage capture drifted.')
+    & $requireBeginToken (
+        '_memset(dest:=#armedwords[0],usbyte:=0,cntr:=84);' +
+        'parmed:=(#armedwords[0])$^usint;' +
+        'parmed^$uint:=pkeybytes^$uint;' +
+        '(parmed+4)^$udint:=intentstoregeneration;' +
+        '(parmed+8)^$uint:=1;' +
+        '_memcpy(ptr1:=parmed+10,ptr2:=pkeybytes+2,cntr:=46);' +
+        '(parmed+72)^$udint:=recordgeneration;' +
+        'ifisclientconnected(#checksum)=0thenreturn;end_if;' +
+        '(parmed+76)^$udint:=checksum.crc32(parmed,76,0);' +
+        '(parmed+80)^$udint:=16#7d12c0de;') (
+        'BeginSetPosition Armed image/CRC76/marker build drifted.')
+    & $requireBeginToken (
+        'commitresult:=commitrecord(' +
+        'axisreference:=axisreference,slot:=0,pimage:=parmed);' +
+        'ifcommitresult<>1thenreturn;end_if;') (
+        'BeginSetPosition CommitRecord durable commit contract drifted.')
+    if ([regex]::Matches($beginToken, 'commitrecord\(').Count -ne 1) {
+        throw "$Owner BeginSetPosition must call CommitRecord exactly once."
+    }
+    & $requireBeginToken (
+        'transactionaxisreference:=axisreference;' +
+        'transactionintentstoregeneration:=intentstoregeneration;' +
+        'transactionrecordgeneration:=recordgeneration;' +
+        'transactionterminaltargetslot:=to_uint(targetslot);' +
+        'transactionreservedterminaltargetslot:=to_uint(targetslot);' +
+        'transactionterminalstoregeneration:=terminalstoregeneration;' +
+        'transactionreservedterminalstoregeneration:=' +
+        'terminalstoregeneration;' +
+        '_memcpy(ptr1:=#transactionkeywords[0],' +
+        'ptr2:=pkeybytes,cntr:=48);' +
+        '_memcpy(ptr1:=#transactionterminaltargetbeforewords[0],' +
+        'ptr2:=#targetbeforewords[0],cntr:=84);' +
+        'transactionactive:=true;' +
+        'precordgeneration^:=recordgeneration;' +
+        'pdetailcode^:=0;result:=1;') (
+        'BeginSetPosition transaction publish/Active-last drifted.')
+    if ([regex]::Matches(
+            $beginToken,
+            'transactionactive:=true;').Count -ne 1) {
+        throw "$Owner BeginSetPosition must publish TransactionActive TRUE once and last."
+    }
+
+    $commitTerminalToken =
+        $implementationTokens['CommitSetPositionTerminal']
+    $requireCommitTerminalToken = {
+        param([string]$Token, [string]$Message)
+        if (-not $commitTerminalToken.Contains($Token)) {
+            throw "$Owner $Message"
+        }
+    }
+    $commitTerminalLocalInventory = (
+        'varclassifications:array[0..3]ofusint;' +
+        'frozenkeywords:array[0..11]ofudint;' +
+        'frozentargetbeforewords:array[0..20]ofudint;' +
+        'terminalwords:array[0..20]ofudint;' +
+        'pkeybytes:^usint;pfrozenkey:^usint;parmed:^usint;' +
+        'ptarget:^usint;pterminal:^usint;axisbaseword:udint;' +
+        'targetbaseword:udint;frozenintentstoregeneration:udint;' +
+        'frozenrecordgeneration:udint;' +
+        'frozenterminalstoregeneration:udint;' +
+        'frozenreservedterminalstoregeneration:udint;' +
+        'maxstoregeneration:udint;maxrecordgeneration:udint;' +
+        'frozenaxisreference:uint;frozentargetslot:uint;' +
+        'frozenreservedtargetslot:uint;scanresult:dint;' +
+        'commitresult:dint;hadtransaction:bool;boundaryvalid:bool;' +
+        'reservationvalid:bool;matchingarmed:bool;payloadvalid:bool;' +
+        'continuecommit:bool;end_var')
+    $commitTerminalVarBlockCount = [regex]::Matches(
+        $implementationBlocks['CommitSetPositionTerminal'],
+        '(?im)^[ \t]*VAR(?:_INPUT|_OUTPUT)?[ \t]*\r?$').Count
+    $commitTerminalEndVarCount = [regex]::Matches(
+        $implementationBlocks['CommitSetPositionTerminal'],
+        '(?im)^[ \t]*END_VAR[ \t]*\r?$').Count
+    $commitTerminalExactExecutablePrefix =
+        $implementationPrefixes['CommitSetPositionTerminal'] +
+        $commitTerminalLocalInventory +
+        'result:=-1;'
+    if ($commitTerminalVarBlockCount -ne 3 -or
+        $commitTerminalEndVarCount -ne 3 -or
+        -not $commitTerminalToken.StartsWith(
+            $commitTerminalExactExecutablePrefix,
+            [StringComparison]::Ordinal)) {
+        throw "$Owner CommitSetPositionTerminal local transaction inventory drifted."
+    }
+    if ([regex]::Matches($commitTerminalToken, 'return;').Count -ne 1) {
+        throw (
+            "$Owner CommitSetPositionTerminal active path must contain no early " +
+            'RETURN.')
+    }
+    if ([regex]::Matches(
+            $commitTerminalToken,
+            'transactionactive:=false;').Count -ne 1) {
+        throw (
+            "$Owner CommitSetPositionTerminal must clear TransactionActive " +
+            'exactly once in common active cleanup.')
+    }
+    $commitTerminalRetainedAliasWritePattern = (
+        '(?i)(?:\(\s*)?(?:pArmed|pTarget)' +
+        '(?:\s*\+\s*[^)]+)?\s*\)?\s*\^' +
+        '(?:\$[A-Za-z0-9_]+)?\s*:=' +
+        '|_(?:memcpy|memset)\s*\(\s*(?:ptr1|dest)\s*:=\s*' +
+        '(?:pArmed|pTarget)')
+    if ([regex]::Matches(
+            $implementationBlocks['CommitSetPositionTerminal'],
+            $commitTerminalRetainedAliasWritePattern).Count -ne 0) {
+        throw (
+            "$Owner CommitSetPositionTerminal retained alias write count must " +
+            'remain zero.')
+    }
+    & $requireCommitTerminalToken (
+        'result:=-1;' +
+        'ifpdetailcode<>nilthenpdetailcode^:=0;end_if;' +
+        'if(psnapshot<>nil)&(snapshotcapacity>=68)then' +
+        '_memset(dest:=psnapshot,usbyte:=0,cntr:=68);end_if;' +
+        'hadtransaction:=transactionactive;') (
+        'CommitSetPositionTerminal output initialization/fence capture drifted.')
+    & $requireCommitTerminalToken (
+        'boundaryvalid:=(pkey<>nil)&(keysize=48)&' +
+        '(recordgeneration<>0)&(psnapshot<>nil)&' +
+        '(snapshotcapacity>=68)&(pdetailcode<>nil);' +
+        'ifboundaryvalidthenpkeybytes:=pkey$^usint;' +
+        'if(pkeybytes+38)^$uint<>0then' +
+        'boundaryvalid:=false;end_if;end_if;') (
+        'CommitSetPositionTerminal boundary/fixed-key contract drifted.')
+    & $requireCommitTerminalToken (
+        'ifhadtransaction=falsethenifboundaryvalidthen' +
+        'result:=0;pdetailcode^:=24;end_if;return;end_if;') (
+        'CommitSetPositionTerminal inactive transaction result contract drifted.')
+    & $requireCommitTerminalToken (
+        'frozenaxisreference:=transactionaxisreference;' +
+        'frozenintentstoregeneration:=transactionintentstoregeneration;' +
+        'frozenrecordgeneration:=transactionrecordgeneration;' +
+        'frozentargetslot:=transactionterminaltargetslot;' +
+        'frozenreservedtargetslot:=' +
+        'transactionreservedterminaltargetslot;' +
+        'frozenterminalstoregeneration:=' +
+        'transactionterminalstoregeneration;' +
+        'frozenreservedterminalstoregeneration:=' +
+        'transactionreservedterminalstoregeneration;' +
+        '_memcpy(ptr1:=#frozenkeywords[0],' +
+        'ptr2:=#transactionkeywords[0],cntr:=48);' +
+        '_memcpy(ptr1:=#frozentargetbeforewords[0],' +
+        'ptr2:=#transactionterminaltargetbeforewords[0],cntr:=84);' +
+        'result:=-12;continuecommit:=boundaryvalid;' +
+        'pfrozenkey:=(#frozenkeywords[0])$^usint;') (
+        'CommitSetPositionTerminal frozen reservation/-12 sentinel drifted.')
+    & $requireCommitTerminalToken (
+        'ifcontinuecommitthenreservationvalid:=true;' +
+        'if_memcmp(ptr1:=pkeybytes,ptr2:=pfrozenkey,cntr:=48)<>0then' +
+        'reservationvalid:=false;' +
+        'elsifrecordgeneration<>frozenrecordgenerationthen' +
+        'reservationvalid:=false;') (
+        'CommitSetPositionTerminal key/RecordGeneration proof drifted.')
+    & $requireCommitTerminalToken (
+        'elsif(frozenaxisreference<1)|(frozenaxisreference>4)|' +
+        '((pkeybytes+36)^$uint<>frozenaxisreference)then' +
+        'reservationvalid:=false;') (
+        'CommitSetPositionTerminal frozen axis proof drifted.')
+    & $requireCommitTerminalToken (
+        'elsif(frozentargetslot<1)|(frozentargetslot>3)|' +
+        '(frozentargetslot<>frozenreservedtargetslot)then' +
+        'reservationvalid:=false;') (
+        'CommitSetPositionTerminal target/reserved slot proof drifted.')
+    & $requireCommitTerminalToken (
+        'elsif(frozenintentstoregeneration=0)|' +
+        '(frozenrecordgeneration=0)|' +
+        '(frozenterminalstoregeneration=0)|' +
+        '(frozenterminalstoregeneration<>' +
+        'frozenreservedterminalstoregeneration)then' +
+        'reservationvalid:=false;' +
+        'elsiffrozenintentstoregeneration=16#ffffffffthen' +
+        'reservationvalid:=false;' +
+        'elsiffrozenterminalstoregeneration<>' +
+        '(frozenintentstoregeneration+1)then' +
+        'reservationvalid:=false;end_if;' +
+        'ifreservationvalid=falsethencontinuecommit:=false;' +
+        'end_if;end_if;') (
+        'CommitSetPositionTerminal reserved generation/no-wrap proof drifted.')
+    & $requireCommitTerminalToken (
+        'ifcontinuecommitthenscanresult:=scanaxisstore(' +
+        'axisreference:=frozenaxisreference,' +
+        'pclassifications:=#classifications[0],' +
+        'pmaxstoregeneration:=#maxstoregeneration,' +
+        'pmaxrecordgeneration:=#maxrecordgeneration);' +
+        'ifscanresult<>1thencontinuecommit:=false;end_if;end_if;') (
+        'CommitSetPositionTerminal fresh ScanAxisStore proof drifted.')
+    if ([regex]::Matches(
+            $commitTerminalToken,
+            'scanaxisstore\(').Count -ne 1) {
+        throw (
+            "$Owner CommitSetPositionTerminal must call ScanAxisStore exactly once.")
+    }
+    & $requireCommitTerminalToken (
+        'ifcontinuecommitthenaxisbaseword:=' +
+        '(to_udint(frozenaxisreference)-1)*84;' +
+        'parmed:=(#g_lmcsetpositionstorewords[' +
+        'to_dint(axisbaseword)])$^usint;' +
+        'matchingarmed:=(classifications[0]=2)&' +
+        '((parmed+8)^$uint=1)&' +
+        '((parmed+4)^$udint=frozenintentstoregeneration)&' +
+        '((parmed+72)^$udint=frozenrecordgeneration)&' +
+        '(recordmatcheskey(precord:=parmed,pkey:=pfrozenkey)=1);' +
+        'if(matchingarmed=false)|' +
+        '(maxstoregeneration<>frozenintentstoregeneration)then' +
+        'continuecommit:=false;end_if;end_if;') (
+        'CommitSetPositionTerminal Armed/max-generation proof drifted.')
+    if ([regex]::Matches(
+            $commitTerminalToken,
+            'recordmatcheskey\(').Count -ne 1) {
+        throw (
+            "$Owner CommitSetPositionTerminal must call RecordMatchesKey exactly once.")
+    }
+    & $requireCommitTerminalToken (
+        'ifcontinuecommitthentargetbaseword:=axisbaseword+' +
+        '(to_udint(frozentargetslot)*21);' +
+        'ptarget:=(#g_lmcsetpositionstorewords[' +
+        'to_dint(targetbaseword)])$^usint;' +
+        'if_memcmp(ptr1:=ptarget,' +
+        'ptr2:=#frozentargetbeforewords[0],cntr:=84)<>0then' +
+        'continuecommit:=false;end_if;end_if;') (
+        'CommitSetPositionTerminal reserved target preimage proof drifted.')
+    & $requireCommitTerminalToken (
+        'ifcontinuecommitthenpayloadvalid:=false;' +
+        'ifrecordstate=2then' +
+        'if(appliedposition=(pfrozenkey+40)^$dint)&' +
+        '(originalcommandstatus=0)&(originalerrorid=0)&' +
+        '(originaldetailcode=0)&(nativecommandstate=0)then' +
+        'payloadvalid:=true;end_if;' +
+        'elsifrecordstate=3thenif(appliedposition=0)&' +
+        '(originalcommandstatus=1)then' +
+        'if(originaldetailcode=11)&(originalerrorid=-6)&' +
+        '(nativecommandstate<>0)thenpayloadvalid:=true;' +
+        'elsif(originaldetailcode>=10)&' +
+        '(originaldetailcode<=15)&(originaldetailcode<>11)&' +
+        '(originalerrorid=-31000)&(nativecommandstate=0)then' +
+        'payloadvalid:=true;end_if;end_if;end_if;' +
+        'ifpayloadvalid=falsethencontinuecommit:=false;' +
+        'end_if;end_if;') (
+        'CommitSetPositionTerminal terminal payload domain drifted.')
+    & $requireCommitTerminalToken (
+        'ifcontinuecommitthen' +
+        '_memset(dest:=#terminalwords[0],usbyte:=0,cntr:=84);' +
+        'pterminal:=(#terminalwords[0])$^usint;' +
+        'pterminal^$uint:=pfrozenkey^$uint;' +
+        '(pterminal+4)^$udint:=frozenterminalstoregeneration;' +
+        '(pterminal+8)^$uint:=recordstate;' +
+        '_memcpy(ptr1:=pterminal+10,ptr2:=pfrozenkey+2,cntr:=46);' +
+        '(pterminal+56)^$dint:=appliedposition;' +
+        '(pterminal+60)^$uint:=originalcommandstatus;' +
+        '(pterminal+62)^$int:=originalerrorid;' +
+        '(pterminal+64)^$udint:=originaldetailcode;' +
+        '(pterminal+68)^$udint:=nativecommandstate;' +
+        '(pterminal+72)^$udint:=frozenrecordgeneration;' +
+        'ifisclientconnected(#checksum)=0then' +
+        'continuecommit:=false;else' +
+        '(pterminal+76)^$udint:=checksum.crc32(pterminal,76,0);' +
+        '(pterminal+80)^$udint:=16#7d12c0de;' +
+        'end_if;end_if;') (
+        'CommitSetPositionTerminal terminal image/CRC/marker build drifted.')
+    if ([regex]::Matches(
+            $commitTerminalToken,
+            'checksum\.crc32\(').Count -ne 1) {
+        throw (
+            "$Owner CommitSetPositionTerminal must call CRC32 exactly once.")
+    }
+    & $requireCommitTerminalToken (
+        'ifcontinuecommitthencommitresult:=commitrecord(' +
+        'axisreference:=frozenaxisreference,' +
+        'slot:=frozentargetslot,pimage:=pterminal);' +
+        'ifcommitresult=1then' +
+        '_memcpy(ptr1:=psnapshot,ptr2:=ptarget+8,cntr:=68);' +
+        'pdetailcode^:=0;result:=1;end_if;end_if;') (
+        'CommitSetPositionTerminal CommitRecord/result/snapshot contract drifted.')
+    if ([regex]::Matches(
+            $commitTerminalToken,
+            'commitrecord\(').Count -ne 1) {
+        throw (
+            "$Owner CommitSetPositionTerminal must call CommitRecord exactly once.")
+    }
+    $commitTerminalCleanupTail = (
+        'transactionactive:=false;transactionaxisreference:=0;' +
+        'transactionintentstoregeneration:=0;' +
+        'transactionrecordgeneration:=0;' +
+        'transactionterminaltargetslot:=0;' +
+        'transactionreservedterminaltargetslot:=0;' +
+        'transactionterminalstoregeneration:=0;' +
+        'transactionreservedterminalstoregeneration:=0;' +
+        '_memset(dest:=#transactionkeywords[0],usbyte:=0,cntr:=48);' +
+        '_memset(dest:=#transactionterminaltargetbeforewords[0],' +
+        'usbyte:=0,cntr:=84);')
+    $commitTerminalBodyMatch = [regex]::Match(
+        $commitTerminalToken,
+        '(?s)\A.*end_var(?<Body>.*)end_function\z')
+    if (-not $commitTerminalBodyMatch.Success -or
+        -not $commitTerminalBodyMatch.Groups['Body'].Value.EndsWith(
+            $commitTerminalCleanupTail,
+            [StringComparison]::Ordinal)) {
+        throw (
+            "$Owner CommitSetPositionTerminal exact common active cleanup " +
+            'tail drifted.')
+    }
+
+    $readToken = $implementationTokens['ReadSetPositionOutcome']
+    $requireReadToken = {
+        param([string]$Token, [string]$Message)
+        if (-not $readToken.Contains($Token)) {
+            throw "$Owner $Message"
+        }
+    }
+    $readLocalInventory = (
+        'varclassifications:array[0..3]ofusint;' +
+        'pkeybytes:^usint;precord:^usint;axisbaseword:udint;' +
+        'recordbaseword:udint;maxstoregeneration:udint;' +
+        'maxrecordgeneration:udint;' +
+        'bestterminalstoregeneration:udint;axisreference:uint;' +
+        'slot:dint;bestterminalslot:dint;scanresult:dint;' +
+        'hasvalidrecord:bool;end_var')
+    $readExactExecutablePrefix =
+        $implementationPrefixes['ReadSetPositionOutcome'] +
+        $readLocalInventory +
+        'result:=-1;'
+    if (-not $readToken.StartsWith(
+            $readExactExecutablePrefix,
+            [StringComparison]::Ordinal)) {
+        throw "$Owner ReadSetPositionOutcome local read-only inventory drifted."
+    }
+    if ([regex]::Matches($readToken, 'return;').Count -ne 8) {
+        throw (
+            "$Owner ReadSetPositionOutcome control-flow RETURN inventory must " +
+            'remain exactly eight.')
+    }
+    if ([regex]::Matches($readToken, 'scanaxisstore\(').Count -ne 1) {
+        throw "$Owner ReadSetPositionOutcome must call ScanAxisStore exactly once."
+    }
+    if ([regex]::Matches($readToken, 'recordmatcheskey\(').Count -ne 2) {
+        throw (
+            "$Owner ReadSetPositionOutcome must call RecordMatchesKey exactly twice.")
+    }
+    if ([regex]::Matches($readToken, 'pdetailcode\^:=23;').Count -ne 0) {
+        throw "$Owner ReadSetPositionOutcome must never produce detail 23."
+    }
+    $readRetainedAliasWritePattern = (
+        '(?i)(?:\(\s*)?pRecord' +
+        '(?:\s*\+\s*[^)]+)?\s*\)?\s*\^' +
+        '(?:\$[A-Za-z0-9_]+)?\s*:=' +
+        '|_(?:memcpy|memset)\s*\(\s*(?:ptr1|dest)\s*:=\s*pRecord')
+    if ([regex]::Matches(
+            $implementationBlocks['ReadSetPositionOutcome'],
+            $readRetainedAliasWritePattern).Count -ne 0) {
+        throw (
+            "$Owner ReadSetPositionOutcome retained alias write count must " +
+            'remain zero.')
+    }
+    $readTransactionWritePattern = (
+        '(?i)#?Transaction[A-Za-z0-9_]*' +
+        '(?:\s*\[[^\]]+\])?\s*:=' +
+        '|_(?:memcpy|memset)\s*\(\s*(?:ptr1|dest)\s*:=\s*' +
+        '#?Transaction[A-Za-z0-9_]*')
+    if ([regex]::Matches(
+            $implementationBlocks['ReadSetPositionOutcome'],
+            $readTransactionWritePattern).Count -ne 0) {
+        throw (
+            "$Owner ReadSetPositionOutcome transaction write count must remain zero.")
+    }
+    foreach ($forbiddenReadCall in @(
+            'beginsetposition(',
+            'commitsetpositionterminal(',
+            'readsetpositionoutcome(',
+            'retiresetpositionoutcome(',
+            'selectterminalslot(',
+            'commitrecord(',
+            'checksum.crc32(')) {
+        if ($readToken.Contains($forbiddenReadCall)) {
+            throw (
+                "$Owner ReadSetPositionOutcome mutating/direct helper call count " +
+                "must remain zero; found $forbiddenReadCall.")
+        }
+    }
+    & $requireReadToken (
+        'result:=-1;' +
+        'ifpdetailcode<>nilthenpdetailcode^:=0;end_if;' +
+        'if(psnapshot<>nil)&(snapshotcapacity>=68)then' +
+        '_memset(dest:=psnapshot,usbyte:=0,cntr:=68);end_if;' +
+        'if(pkey=nil)|(keysize<>48)|(psnapshot=nil)|' +
+        '(pdetailcode=nil)thenreturn;end_if;') (
+        'ReadSetPositionOutcome output/malformed boundary drifted.')
+    & $requireReadToken (
+        'pkeybytes:=pkey$^usint;' +
+        'axisreference:=(pkeybytes+36)^$uint;' +
+        'if(pkeybytes^$uint<>1)|((pkeybytes+2)^$uint<>1)|' +
+        '((pkeybytes+4)^$udint=0)|((pkeybytes+8)^$udint=0)|' +
+        '((pkeybytes+12)^$udint=0)|((pkeybytes+16)^$udint=0)|' +
+        '(((pkeybytes+20)^$udint=0)&' +
+        '((pkeybytes+24)^$udint=0)&' +
+        '((pkeybytes+28)^$udint=0)&' +
+        '((pkeybytes+32)^$udint=0))|' +
+        '(axisreference<1)|(axisreference>4)|' +
+        '((pkeybytes+38)^$uint<>0)thenreturn;end_if;') (
+        'ReadSetPositionOutcome fixed 48-byte key ABI validation drifted.')
+    & $requireReadToken (
+        'result:=0;pdetailcode^:=24;' +
+        'iftransactionactive&' +
+        '(transactionaxisreference=axisreference)thenreturn;end_if;' +
+        'ifsnapshotcapacity<68thenreturn;end_if;') (
+        'ReadSetPositionOutcome same-axis fence/capacity detail 24 drifted.')
+    & $requireReadToken (
+        'scanresult:=scanaxisstore(' +
+        'axisreference:=axisreference,' +
+        'pclassifications:=#classifications[0],' +
+        'pmaxstoregeneration:=#maxstoregeneration,' +
+        'pmaxrecordgeneration:=#maxrecordgeneration);' +
+        'ifscanresult<0thenreturn;' +
+        'elsifscanresult=0thenpdetailcode^:=21;return;end_if;') (
+        'ReadSetPositionOutcome Scan detail 24/21 precedence drifted.')
+    & $requireReadToken (
+        'axisbaseword:=(to_udint(axisreference)-1)*84;' +
+        'hasvalidrecord:=false;bestterminalslot:=-1;' +
+        'bestterminalstoregeneration:=0;' +
+        'forslot:=0to3doifclassifications[slot]=2then' +
+        'hasvalidrecord:=true;' +
+        'recordbaseword:=axisbaseword+to_udint(slot*21);' +
+        'precord:=(#g_lmcsetpositionstorewords[' +
+        'to_dint(recordbaseword)])$^usint;' +
+        'if(slot>=1)&(((precord+8)^$uint=2)|' +
+        '((precord+8)^$uint=3))&' +
+        '(recordmatcheskey(precord:=precord,pkey:=pkey)=1)then' +
+        'if(bestterminalslot<0)|' +
+        '((precord+4)^$udint>bestterminalstoregeneration)then' +
+        'bestterminalslot:=slot;' +
+        'bestterminalstoregeneration:=(precord+4)^$udint;' +
+        'end_if;end_if;end_if;end_for;') (
+        'ReadSetPositionOutcome newest exact terminal precedence drifted.')
+    & $requireReadToken (
+        'ifbestterminalslot>=1then' +
+        'recordbaseword:=axisbaseword+' +
+        'to_udint(bestterminalslot*21);' +
+        'precord:=(#g_lmcsetpositionstorewords[' +
+        'to_dint(recordbaseword)])$^usint;' +
+        '_memcpy(ptr1:=psnapshot,ptr2:=precord+8,cntr:=68);' +
+        'pdetailcode^:=0;result:=1;return;end_if;') (
+        'ReadSetPositionOutcome exact terminal snapshot/result 1 drifted.')
+    & $requireReadToken (
+        'ifclassifications[0]=2then' +
+        'precord:=(#g_lmcsetpositionstorewords[' +
+        'to_dint(axisbaseword)])$^usint;' +
+        'if((precord+8)^$uint=1)&' +
+        '(recordmatcheskey(precord:=precord,pkey:=pkey)=1)then' +
+        'pdetailcode^:=20;return;end_if;end_if;') (
+        'ReadSetPositionOutcome exact Armed/detail 20 precedence drifted.')
+    & $requireReadToken (
+        'ifhasvalidrecordthenpdetailcode^:=22;' +
+        'elsepdetailcode^:=19;end_if;') (
+        'ReadSetPositionOutcome other-key 22/not-found 19 precedence drifted.')
+
+    $retireToken = $implementationTokens['RetireSetPositionOutcome']
+    $requireRetireToken = {
+        param([string]$Token, [string]$Message)
+        if (-not $retireToken.Contains($Token)) {
+            throw "$Owner $Message"
+        }
+    }
+    $retireLocalInventory = (
+        'varclassifications:array[0..3]ofusint;' +
+        'rescanclassifications:array[0..3]ofusint;' +
+        'frozensourcewords:array[0..20]ofudint;' +
+        'tombstonewords:array[0..20]ofudint;' +
+        'pkeybytes:^usint;precord:^usint;psource:^usint;' +
+        'pfrozensource:^usint;ptombstone:^usint;ptarget:^usint;' +
+        'axisbaseword:udint;recordbaseword:udint;sourcebaseword:udint;' +
+        'targetbaseword:udint;maxstoregeneration:udint;' +
+        'maxrecordgeneration:udint;rescanmaxstoregeneration:udint;' +
+        'rescanmaxrecordgeneration:udint;nextstoregeneration:udint;' +
+        'bestterminalstoregeneration:udint;axisreference:uint;' +
+        'slot:dint;bestterminalslot:dint;sourceslot:dint;' +
+        'targetslot:dint;scanresult:dint;commitresult:dint;' +
+        'rescanresult:dint;hasvalidrecord:bool;end_var')
+    $retireExactExecutablePrefix =
+        $implementationPrefixes['RetireSetPositionOutcome'] +
+        $retireLocalInventory +
+        'result:=-1;'
+    if (-not $retireToken.StartsWith(
+            $retireExactExecutablePrefix,
+            [StringComparison]::Ordinal)) {
+        throw "$Owner RetireSetPositionOutcome local mutation inventory drifted."
+    }
+    if ([regex]::Matches($retireToken, 'return;').Count -ne 18) {
+        throw (
+            "$Owner RetireSetPositionOutcome control-flow RETURN inventory must " +
+            'remain exactly eighteen.')
+    }
+    if ([regex]::Matches($retireToken, 'scanaxisstore\(').Count -ne 2) {
+        throw "$Owner RetireSetPositionOutcome must call ScanAxisStore exactly twice."
+    }
+    if ([regex]::Matches($retireToken, 'recordmatcheskey\(').Count -ne 2) {
+        throw (
+            "$Owner RetireSetPositionOutcome must call RecordMatchesKey exactly " +
+            'twice.')
+    }
+    if ([regex]::Matches($retireToken, 'selectterminalslot\(').Count -ne 1) {
+        throw (
+            "$Owner RetireSetPositionOutcome must call SelectTerminalSlot exactly " +
+            'once.')
+    }
+    if ([regex]::Matches($retireToken, 'commitrecord\(').Count -ne 1) {
+        throw "$Owner RetireSetPositionOutcome must call CommitRecord exactly once."
+    }
+    if ([regex]::Matches($retireToken, 'checksum\.crc32\(').Count -ne 1) {
+        throw "$Owner RetireSetPositionOutcome must call CRC32 exactly once."
+    }
+    if ([regex]::Matches($retireToken, 'pdetailcode\^:=23;').Count -ne 0) {
+        throw "$Owner RetireSetPositionOutcome must never produce detail 23."
+    }
+    if ([regex]::Matches($retireToken, 'result:=-12;').Count -ne 0) {
+        throw "$Owner RetireSetPositionOutcome must never produce Result -12."
+    }
+    if ([regex]::Matches($retireToken, 'result:=1;').Count -ne 3 -or
+        [regex]::Matches($retireToken, 'result:=0;').Count -ne 1 -or
+        [regex]::Matches($retireToken, 'result:=-1;').Count -ne 1) {
+        throw "$Owner RetireSetPositionOutcome result envelope drifted."
+    }
+    $retireDetailInventory = @(
+        [regex]::Matches($retireToken, 'pdetailcode\^:=0;').Count,
+        [regex]::Matches($retireToken, 'pdetailcode\^:=19;').Count,
+        [regex]::Matches($retireToken, 'pdetailcode\^:=20;').Count,
+        [regex]::Matches($retireToken, 'pdetailcode\^:=21;').Count,
+        [regex]::Matches($retireToken, 'pdetailcode\^:=22;').Count,
+        [regex]::Matches($retireToken, 'pdetailcode\^:=24;').Count)
+    if (($retireDetailInventory -join ',') -cne '4,1,1,4,2,1') {
+        throw (
+            "$Owner RetireSetPositionOutcome detail allowlist/inventory must " +
+            'remain exactly 0/19/20/21/22/24 with no detail 23.')
+    }
+
+    $retireRetainedAliasWritePattern = (
+        '(?i)(?:\(\s*)?(?:pRecord|pSource|pFrozenSource|pTarget)' +
+        '(?:\s*\+\s*[^)]+)?\s*\)?\s*\^' +
+        '(?:\$[A-Za-z0-9_]+)?\s*:=' +
+        '|_(?:memcpy|memset)\s*\(\s*(?:ptr1|dest)\s*:=\s*' +
+        '(?:pRecord|pSource|pFrozenSource|pTarget)')
+    if ([regex]::Matches(
+            $implementationBlocks['RetireSetPositionOutcome'],
+            $retireRetainedAliasWritePattern).Count -ne 0) {
+        throw (
+            "$Owner RetireSetPositionOutcome retained alias write count must " +
+            'remain zero; CommitRecord is the only retained mutation owner.')
+    }
+    $retireTransactionWritePattern = (
+        '(?i)#?Transaction[A-Za-z0-9_]*' +
+        '(?:\s*\[[^\]]+\])?\s*:=' +
+        '|_(?:memcpy|memset)\s*\(\s*(?:ptr1|dest)\s*:=\s*' +
+        '#?Transaction[A-Za-z0-9_]*')
+    if ([regex]::Matches(
+            $implementationBlocks['RetireSetPositionOutcome'],
+            $retireTransactionWritePattern).Count -ne 0) {
+        throw (
+            "$Owner RetireSetPositionOutcome transaction/intent write count " +
+            'must remain zero.')
+    }
+    foreach ($forbiddenRetireCall in @(
+            'beginsetposition(',
+            'commitsetpositionterminal(',
+            'readsetpositionoutcome(',
+            'retiresetpositionoutcome(')) {
+        if ($retireToken.Contains($forbiddenRetireCall)) {
+            throw (
+                "$Owner RetireSetPositionOutcome public mutation/read call count " +
+                "must remain zero; found $forbiddenRetireCall.")
+        }
+    }
+
+    & $requireRetireToken (
+        'result:=-1;' +
+        'ifpdetailcode<>nilthenpdetailcode^:=0;end_if;' +
+        'if(psnapshot<>nil)&(snapshotcapacity>=68)then' +
+        '_memset(dest:=psnapshot,usbyte:=0,cntr:=68);end_if;' +
+        'if(pkey=nil)|(keysize<>48)|' +
+        '(expectedrecordgeneration=0)|(psnapshot=nil)|' +
+        '(pdetailcode=nil)thenreturn;end_if;') (
+        'RetireSetPositionOutcome output/malformed/CAS boundary drifted.')
+    & $requireRetireToken (
+        'pkeybytes:=pkey$^usint;' +
+        'axisreference:=(pkeybytes+36)^$uint;' +
+        'if(pkeybytes^$uint<>1)|((pkeybytes+2)^$uint<>1)|' +
+        '((pkeybytes+4)^$udint=0)|((pkeybytes+8)^$udint=0)|' +
+        '((pkeybytes+12)^$udint=0)|((pkeybytes+16)^$udint=0)|' +
+        '(((pkeybytes+20)^$udint=0)&' +
+        '((pkeybytes+24)^$udint=0)&' +
+        '((pkeybytes+28)^$udint=0)&' +
+        '((pkeybytes+32)^$udint=0))|' +
+        '(axisreference<1)|(axisreference>4)|' +
+        '((pkeybytes+38)^$uint<>0)thenreturn;end_if;') (
+        'RetireSetPositionOutcome fixed 48-byte key ABI validation drifted.')
+    & $requireRetireToken (
+        'result:=0;pdetailcode^:=24;' +
+        'iftransactionactive&' +
+        '(transactionaxisreference=axisreference)thenreturn;end_if;' +
+        'ifsnapshotcapacity<68thenreturn;end_if;') (
+        'RetireSetPositionOutcome same-axis fence/capacity detail 24 drifted.')
+    & $requireRetireToken (
+        'scanresult:=scanaxisstore(' +
+        'axisreference:=axisreference,' +
+        'pclassifications:=#classifications[0],' +
+        'pmaxstoregeneration:=#maxstoregeneration,' +
+        'pmaxrecordgeneration:=#maxrecordgeneration);' +
+        'ifscanresult<0thenreturn;' +
+        'elsifscanresult=0thenpdetailcode^:=21;return;end_if;') (
+        'RetireSetPositionOutcome initial Scan detail 24/21 precedence drifted.')
+    & $requireRetireToken (
+        'axisbaseword:=(to_udint(axisreference)-1)*84;' +
+        'hasvalidrecord:=false;bestterminalslot:=-1;' +
+        'bestterminalstoregeneration:=0;' +
+        'forslot:=0to3doifclassifications[slot]=2then' +
+        'hasvalidrecord:=true;' +
+        'recordbaseword:=axisbaseword+to_udint(slot*21);' +
+        'precord:=(#g_lmcsetpositionstorewords[' +
+        'to_dint(recordbaseword)])$^usint;' +
+        'if(slot>=1)&(((precord+8)^$uint=2)|' +
+        '((precord+8)^$uint=3))&' +
+        '(recordmatcheskey(precord:=precord,pkey:=pkey)=1)then' +
+        'if(bestterminalslot<0)|' +
+        '((precord+4)^$udint>bestterminalstoregeneration)then' +
+        'bestterminalslot:=slot;' +
+        'bestterminalstoregeneration:=(precord+4)^$udint;' +
+        'end_if;end_if;end_if;end_for;') (
+        'RetireSetPositionOutcome newest exact terminal/tombstone precedence drifted.')
+    & $requireRetireToken (
+        'ifbestterminalslot<1then' +
+        'ifclassifications[0]=2then' +
+        'precord:=(#g_lmcsetpositionstorewords[' +
+        'to_dint(axisbaseword)])$^usint;' +
+        'if((precord+8)^$uint=1)&' +
+        '(recordmatcheskey(precord:=precord,pkey:=pkey)=1)then' +
+        'pdetailcode^:=20;return;end_if;end_if;' +
+        'ifhasvalidrecordthenpdetailcode^:=22;' +
+        'elsepdetailcode^:=19;end_if;return;end_if;') (
+        'RetireSetPositionOutcome Armed 20/other 22/not-found 19 precedence drifted.')
+    & $requireRetireToken (
+        'sourceslot:=bestterminalslot;' +
+        'sourcebaseword:=axisbaseword+to_udint(sourceslot*21);' +
+        'psource:=(#g_lmcsetpositionstorewords[' +
+        'to_dint(sourcebaseword)])$^usint;' +
+        'if(psource+72)^$udint<>expectedrecordgenerationthen' +
+        'pdetailcode^:=22;return;end_if;' +
+        'if(psource+2)^$uint=1then' +
+        '_memcpy(ptr1:=psnapshot,ptr2:=psource+8,cntr:=68);' +
+        'pdetailcode^:=0;result:=1;return;end_if;') (
+        'RetireSetPositionOutcome CAS/duplicate-tombstone zero-write drifted.')
+    & $requireRetireToken (
+        '_memcpy(ptr1:=#frozensourcewords[0],ptr2:=psource,cntr:=84);' +
+        'pfrozensource:=(#frozensourcewords[0])$^usint;' +
+        'ifmaxstoregeneration=16#ffffffffthenreturn;end_if;' +
+        'nextstoregeneration:=maxstoregeneration+1;') (
+        'RetireSetPositionOutcome source freeze/max-generation no-wrap drifted.')
+    & $requireRetireToken (
+        'targetslot:=selectterminalslot(' +
+        'axisreference:=axisreference,excludedslot:=to_int(sourceslot),' +
+        'pclassifications:=#classifications[0]);' +
+        'if(targetslot<1)|(targetslot>3)then' +
+        'ifisclientconnected(#checksum)<>0then' +
+        'pdetailcode^:=21;end_if;return;end_if;') (
+        'RetireSetPositionOutcome source-excluding Select target envelope drifted.')
+    & $requireRetireToken (
+        '_memcpy(ptr1:=#tombstonewords[0],' +
+        'ptr2:=#frozensourcewords[0],cntr:=84);' +
+        'ptombstone:=(#tombstonewords[0])$^usint;' +
+        '(ptombstone+2)^$uint:=1;' +
+        '(ptombstone+4)^$udint:=nextstoregeneration;' +
+        'ifisclientconnected(#checksum)=0thenreturn;end_if;' +
+        '(ptombstone+76)^$udint:=checksum.crc32(ptombstone,76,0);' +
+        '(ptombstone+80)^$udint:=16#7d12c0de;') (
+        'RetireSetPositionOutcome tombstone snapshot preservation drifted.')
+    $retireTombstoneWriteInventory = @(
+        [regex]::Matches(
+            $retireToken,
+            '(?:(?:\([^)]*ptombstone[^)]*\))|ptombstone)' +
+            '\^(?:\$[a-z0-9_]+)?:=' ) |
+            ForEach-Object { $_.Value }) -join ','
+    $retireTombstoneBulkWriteCount = [regex]::Matches(
+        $retireToken,
+        '_(?:memcpy|memset)\((?:ptr1|dest):=ptombstone').Count
+    if ($retireTombstoneWriteInventory -cne (
+            '(ptombstone+2)^$uint:=,' +
+            '(ptombstone+4)^$udint:=,' +
+            '(ptombstone+76)^$udint:=,' +
+            '(ptombstone+80)^$udint:=') -or
+        $retireTombstoneBulkWriteCount -ne 0) {
+        throw (
+            "$Owner RetireSetPositionOutcome tombstone writes must change only " +
+            'flags/StoreGeneration/CRC/marker and preserve bytes 8..75/RG.')
+    }
+    & $requireRetireToken (
+        'targetbaseword:=axisbaseword+to_udint(targetslot*21);' +
+        'ptarget:=(#g_lmcsetpositionstorewords[' +
+        'to_dint(targetbaseword)])$^usint;' +
+        'commitresult:=commitrecord(' +
+        'axisreference:=axisreference,slot:=to_uint(targetslot),' +
+        'pimage:=ptombstone);' +
+        'ifcommitresult=1then' +
+        '_memcpy(ptr1:=psnapshot,ptr2:=ptarget+8,cntr:=68);' +
+        'pdetailcode^:=0;result:=1;return;end_if;') (
+        'RetireSetPositionOutcome CommitRecord publication/success drifted.')
+    & $requireRetireToken (
+        'rescanresult:=scanaxisstore(' +
+        'axisreference:=axisreference,' +
+        'pclassifications:=#rescanclassifications[0],' +
+        'pmaxstoregeneration:=#rescanmaxstoregeneration,' +
+        'pmaxrecordgeneration:=#rescanmaxrecordgeneration);' +
+        'ifrescanresult<0thenreturn;' +
+        'elsifrescanresult=0thenpdetailcode^:=21;return;end_if;') (
+        'RetireSetPositionOutcome post-Commit rescan detail 24/21 drifted.')
+    & $requireRetireToken (
+        'ifrescanclassifications[targetslot]=2then' +
+        'ptarget:=(#g_lmcsetpositionstorewords[' +
+        'to_dint(targetbaseword)])$^usint;' +
+        'if_memcmp(ptr1:=ptarget,ptr2:=ptombstone,cntr:=84)=0then' +
+        '_memcpy(ptr1:=psnapshot,ptr2:=ptarget+8,cntr:=68);' +
+        'pdetailcode^:=0;result:=1;return;end_if;end_if;') (
+        'RetireSetPositionOutcome durable target rescan closure drifted.')
+    & $requireRetireToken (
+        'ifrescanclassifications[sourceslot]=2then' +
+        'psource:=(#g_lmcsetpositionstorewords[' +
+        'to_dint(sourcebaseword)])$^usint;' +
+        'if_memcmp(ptr1:=psource,ptr2:=pfrozensource,cntr:=84)=0then' +
+        'return;end_if;end_if;pdetailcode^:=21;') (
+        'RetireSetPositionOutcome frozen-source 24/lost-source 21 closure drifted.')
+    $retireCommitOffset = $retireToken.IndexOf(
+        'commitresult:=commitrecord(',
+        [StringComparison]::Ordinal)
+    if ($retireCommitOffset -lt 0) {
+        throw "$Owner RetireSetPositionOutcome post-Commit closure was not isolated."
+    }
+    $retirePostCommitToken = $retireToken.Substring($retireCommitOffset)
+    if ($retirePostCommitToken.Contains('result:=-') -or
+        $retirePostCommitToken.Contains('pdetailcode^:=19;') -or
+        $retirePostCommitToken.Contains('pdetailcode^:=20;') -or
+        $retirePostCommitToken.Contains('pdetailcode^:=22;') -or
+        $retirePostCommitToken.Contains('pdetailcode^:=23;')) {
+        throw (
+            "$Owner RetireSetPositionOutcome after CommitRecord must never return " +
+            'negative/-12 or a non-closure detail.')
+    }
+
+    $selectToken = $implementationTokens['SelectTerminalSlot']
+    $requireSelectToken = {
+        param([string]$Token, [string]$Message)
+        if (-not $selectToken.Contains($Token)) {
+            throw "$Owner $Message"
+        }
+    }
+    $selectLocalInventory = (
+        'varaxisbaseword:udint;recordbaseword:udint;' +
+        'candidatebaseword:udint;slot:dint;candidateslot:dint;' +
+        'protectedslot:dint;bestslot:dint;precord:^usint;' +
+        'pcandidate:^usint;' +
+        'freshclassifications:array[0..3]ofusint;' +
+        'maxstoregeneration:udint;maxrecordgeneration:udint;' +
+        'protectedgeneration:udint;bestgeneration:udint;' +
+        'storegeneration:udint;scanresult:dint;retiredshadow:bool;' +
+        'matchingkey:bool;matchingsnapshot:bool;end_var')
+    if ([regex]::Matches(
+            $selectToken,
+            [regex]::Escape($selectLocalInventory)).Count -ne 1) {
+        throw "$Owner SelectTerminalSlot local read-only inventory drifted."
+    }
+    & $requireSelectToken (
+        'result:=-1;if(axisreference<1)|(axisreference>4)|' +
+        '((excludedslot<>-1)&((excludedslot<1)|(excludedslot>3)))|' +
+        '(pclassifications=nil)thenreturn;end_if;') (
+        'SelectTerminalSlot Axis/ExcludedSlot/pointer boundary drifted.')
+    & $requireSelectToken (
+        'scanresult:=scanaxisstore(' +
+        'axisreference:=axisreference,' +
+        'pclassifications:=#freshclassifications[0],' +
+        'pmaxstoregeneration:=#maxstoregeneration,' +
+        'pmaxrecordgeneration:=#maxrecordgeneration);' +
+        'ifscanresult<>1thenreturn;end_if;' +
+        'forslot:=0to3doif(pclassifications+slot)^<>' +
+        'freshclassifications[slot]thenreturn;end_if;end_for;') (
+        'SelectTerminalSlot fresh Scan/classification drift rejection drifted.')
+    if ([regex]::Matches($selectToken, 'scanaxisstore\(').Count -ne 1) {
+        throw "$Owner SelectTerminalSlot must call fresh ScanAxisStore exactly once."
+    }
+    & $requireSelectToken (
+        'forslot:=1to3doif(slot<>excludedslot)&' +
+        '(freshclassifications[slot]=0)thenresult:=slot;return;' +
+        'end_if;end_for;' +
+        'forslot:=1to3doif(slot<>excludedslot)&' +
+        '(freshclassifications[slot]=1)thenresult:=slot;return;' +
+        'end_if;end_for;') (
+        'SelectTerminalSlot Blank-before-Incomplete global priority drifted.')
+    & $requireSelectToken (
+        'axisbaseword:=(to_udint(axisreference)-1)*84;' +
+        'protectedslot:=-1;protectedgeneration:=0;' +
+        'forslot:=1to3doiffreshclassifications[slot]=2then' +
+        'recordbaseword:=axisbaseword+to_udint(slot*21);' +
+        'precord:=(#g_lmcsetpositionstorewords[' +
+        'to_dint(recordbaseword)])$^usint;' +
+        'storegeneration:=(precord+4)^$udint;' +
+        'if((precord+2)^$uint=1)&((protectedslot<0)|' +
+        '(storegeneration>protectedgeneration))then' +
+        'protectedslot:=slot;' +
+        'protectedgeneration:=storegeneration;end_if;end_if;end_for;') (
+        'SelectTerminalSlot newest-tombstone protection drifted.')
+    & $requireSelectToken (
+        'bestslot:=-1;bestgeneration:=0;forslot:=1to3do' +
+        'if(freshclassifications[slot]=2)&(slot<>excludedslot)&' +
+        '(slot<>protectedslot)then' +
+        'recordbaseword:=axisbaseword+to_udint(slot*21);' +
+        'precord:=(#g_lmcsetpositionstorewords[' +
+        'to_dint(recordbaseword)])$^usint;' +
+        'retiredshadow:=(precord+2)^$uint=1;' +
+        'ifretiredshadow=falsethenforcandidateslot:=1to3do' +
+        'if(candidateslot<>slot)&' +
+        '(freshclassifications[candidateslot]=2)then' +
+        'candidatebaseword:=axisbaseword+' +
+        'to_udint(candidateslot*21);' +
+        'pcandidate:=(#g_lmcsetpositionstorewords[' +
+        'to_dint(candidatebaseword)])$^usint;') (
+        'SelectTerminalSlot replaceable-candidate envelope drifted.')
+    & $requireSelectToken (
+        'matchingkey:=' +
+        '(_memcmp(ptr1:=precord,ptr2:=pcandidate,cntr:=2)=0)&' +
+        '(_memcmp(ptr1:=precord+10,ptr2:=pcandidate+10,cntr:=2)=0)&' +
+        '(_memcmp(ptr1:=precord+12,ptr2:=pcandidate+12,cntr:=44)=0);' +
+        'matchingsnapshot:=_memcmp(ptr1:=precord+8,' +
+        'ptr2:=pcandidate+8,cntr:=68)=0;' +
+        'if((pcandidate+2)^$uint=1)&matchingkey&matchingsnapshot&' +
+        '((pcandidate+4)^$udint>(precord+4)^$udint)then' +
+        'retiredshadow:=true;end_if;end_if;end_for;end_if;') (
+        'SelectTerminalSlot exact newer-tombstone shadow proof drifted.')
+    & $requireSelectToken (
+        'ifretiredshadowthenstoregeneration:=' +
+        '(precord+4)^$udint;if(bestslot<0)|' +
+        '(storegeneration<bestgeneration)|' +
+        '((storegeneration=bestgeneration)&(slot<bestslot))then' +
+        'bestslot:=slot;bestgeneration:=storegeneration;end_if;' +
+        'end_if;end_if;end_for;result:=bestslot;') (
+        'SelectTerminalSlot lowest-generation/slot tie-break drifted.')
+
+    $selectRetainedWritePattern = (
+        '(?i)(?:\(\s*)?(?:pRecord|pCandidate|pClassifications)' +
+        '(?:\s*\+\s*[^)]+)?\s*\)?\s*\^' +
+        '(?:\$[A-Za-z0-9_]+)?\s*:=' +
+        '|_(?:memcpy|memset)\s*\(\s*(?:ptr1|dest)\s*:=\s*' +
+        '(?:pRecord|pCandidate|pClassifications)')
+    if ([regex]::Matches(
+            $implementationBlocks['SelectTerminalSlot'],
+            $selectRetainedWritePattern).Count -ne 0) {
+        throw "$Owner SelectTerminalSlot retained/caller write count must remain zero."
+    }
+    foreach ($forbiddenSelectCall in @(
+            'beginsetposition(',
+            'commitsetpositionterminal(',
+            'readsetpositionoutcome(',
+            'retiresetpositionoutcome(',
+            'commitrecord(')) {
+        if ($selectToken.Contains($forbiddenSelectCall)) {
+            throw (
+                "$Owner SelectTerminalSlot public/CommitRecord call count " +
+                "must remain zero; found $forbiddenSelectCall.")
+        }
+    }
+    $commitToken = $implementationTokens['CommitRecord']
+    $requireCommitToken = {
+        param([string]$Token, [string]$Message)
+        if (-not $commitToken.Contains($Token)) {
+            throw "$Owner $Message"
+        }
+    }
+    $commitLocalInventory = (
+        'varstagedwords:array[0..20]ofudint;' +
+        'readbackwords:array[0..20]ofudint;' +
+        'classifications:array[0..3]ofusint;' +
+        'pstaged:^usint;preadback:^usint;ptarget:^usint;' +
+        'targetbaseword:udint;computedcrc:udint;readbackcrc:udint;' +
+        'markerreadback:udint;maxstoregeneration:udint;' +
+        'maxrecordgeneration:udint;storeflags:uint;recordstate:uint;' +
+        'scanresult:dint;imagevalid:bool;end_var')
+    if ([regex]::Matches(
+            $commitToken,
+            [regex]::Escape($commitLocalInventory)).Count -ne 1) {
+        throw "$Owner CommitRecord local staging inventory drifted."
+    }
+    & $requireCommitToken (
+        'result:=-1;if(pimage=nil)|(axisreference<1)|' +
+        '(axisreference>4)|(slot>3)thenreturn;end_if;' +
+        'ifisclientconnected(#checksum)=0thenreturn;end_if;' +
+        '_memcpy(ptr1:=#stagedwords[0],ptr2:=pimage,cntr:=84);' +
+        'pstaged:=(#stagedwords[0])$^usint;' +
+        'preadback:=(#readbackwords[0])$^usint;' +
+        'computedcrc:=checksum.crc32(pstaged,76,0);' +
+        'storeflags:=(pstaged+2)^$uint;' +
+        'recordstate:=(pstaged+8)^$uint;imagevalid:=true;') (
+        'CommitRecord input/image staging contract drifted.')
+
+    $commitValidationTokens = @(
+        ('if(pstaged+80)^$udint<>16#7d12c0dethen' +
+         'imagevalid:=false;'),
+        ('elsifcomputedcrc<>(pstaged+76)^$udintthen' +
+         'imagevalid:=false;'))
+    foreach ($recordAbiToken in $recordAbiTokens) {
+        $commitValidationTokens += $recordAbiToken.
+            Replace('precord', 'pstaged').
+            Replace('validslot', 'imagevalid')
+    }
+    foreach ($payloadToken in $payloadTokens) {
+        $commitValidationTokens += $payloadToken.
+            Replace('precord', 'pstaged').
+            Replace('validslot', 'imagevalid')
+    }
+    $previousValidationOffset = -1
+    foreach ($commitValidationToken in $commitValidationTokens) {
+        $validationOffset = $commitToken.IndexOf(
+            $commitValidationToken,
+            $previousValidationOffset + 1,
+            [StringComparison]::Ordinal)
+        if ($validationOffset -lt 0) {
+            throw "$Owner CommitRecord staged image ABI/payload validation drifted."
+        }
+        $previousValidationOffset = $validationOffset
+    }
+
+    & $requireCommitToken (
+        'end_if;ifimagevalid=falsethenreturn;end_if;' +
+        'scanresult:=scanaxisstore(' +
+        'axisreference:=axisreference,' +
+        'pclassifications:=#classifications[0],' +
+        'pmaxstoregeneration:=#maxstoregeneration,' +
+        'pmaxrecordgeneration:=#maxrecordgeneration);' +
+        'ifscanresult<>1thenreturn;end_if;' +
+        'targetbaseword:=((to_udint(axisreference)-1)*84)+' +
+        '(to_udint(slot)*21);' +
+        'ptarget:=(#g_lmcsetpositionstorewords[' +
+        'to_dint(targetbaseword)])$^usint;') (
+        'CommitRecord preflight Scan/target geometry drifted.')
+    & $requireCommitToken (
+        '(ptarget+80)^$udint:=0;' +
+        'markerreadback:=(ptarget+80)^$udint;' +
+        'ifmarkerreadback<>0thenreturn;end_if;') (
+        'CommitRecord marker-clear/readback fence drifted.')
+    & $requireCommitToken (
+        '_memcpy(ptr1:=ptarget,ptr2:=pstaged,cntr:=80);' +
+        '_memcpy(ptr1:=preadback,ptr2:=ptarget,cntr:=80);' +
+        'if_memcmp(ptr1:=pstaged,ptr2:=preadback,cntr:=80)<>0then' +
+        'return;end_if;') (
+        'CommitRecord marker-zero 80-byte body proof drifted.')
+    & $requireCommitToken (
+        'ifisclientconnected(#checksum)=0thenreturn;end_if;' +
+        'readbackcrc:=checksum.crc32(preadback,76,0);' +
+        'ifreadbackcrc<>(preadback+76)^$udintthenreturn;end_if;' +
+        'markerreadback:=(ptarget+80)^$udint;' +
+        'ifmarkerreadback<>0thenreturn;end_if;' +
+        'ifisclientconnected(#checksum)=0thenreturn;end_if;') (
+        'CommitRecord body CRC/marker-zero publication fence drifted.')
+    & $requireCommitToken (
+        '(ptarget+80)^$udint:=(pstaged+80)^$udint;' +
+        'markerreadback:=(ptarget+80)^$udint;' +
+        'ifmarkerreadback<>16#7d12c0dethenreturn;end_if;') (
+        'CommitRecord marker-last publication/readback drifted.')
+    & $requireCommitToken (
+        '_memcpy(ptr1:=preadback,ptr2:=ptarget,cntr:=84);' +
+        'if_memcmp(ptr1:=pstaged,ptr2:=preadback,cntr:=84)<>0then' +
+        'return;end_if;') (
+        'CommitRecord final 84-byte image proof drifted.')
+    & $requireCommitToken (
+        'scanresult:=scanaxisstore(' +
+        'axisreference:=axisreference,' +
+        'pclassifications:=#classifications[0],' +
+        'pmaxstoregeneration:=#maxstoregeneration,' +
+        'pmaxrecordgeneration:=#maxrecordgeneration);' +
+        'if(scanresult=1)&' +
+        '(classifications[to_dint(slot)]=2)thenresult:=1;end_if;') (
+        'CommitRecord final Scan/classification proof drifted.')
+    if ([regex]::Matches($commitToken, 'scanaxisstore\(').Count -ne 2) {
+        throw "$Owner CommitRecord must call ScanAxisStore exactly twice."
+    }
+
+    foreach ($forbiddenCommitCallerName in @(
+            'ReadSetPositionOutcome',
+            'SelectTerminalSlot')) {
+        if ($implementationTokens[$forbiddenCommitCallerName].Contains(
+                'commitrecord(')) {
+            throw (
+                "$Owner Read/Select CommitRecord call count must remain " +
+                "zero; found a call in $forbiddenCommitCallerName.")
+        }
+    }
+
+    $directRetainedAssignmentPattern = (
+        '(?i)(?:\(\s*)?#?g_LMCSetPositionStoreWords\s*\[[^\]]+\]' +
+        '\s*\)?(?:\s*\^(?:\$[A-Za-z0-9_]+)?)?\s*:=|' +
+        '_(?:memcpy|memset)\s*\(\s*(?:ptr1|dest)\s*:=\s*' +
+        '(?:\(\s*)?#?g_LMCSetPositionStoreWords')
+    $directRetainedAssignmentCount = [regex]::Matches(
+        $storeScan,
+        $directRetainedAssignmentPattern).Count
+    if ($directRetainedAssignmentCount -ne 0) {
+        throw (
+            "$Owner direct retained assignment count must remain zero; found " +
+            "$directRetainedAssignmentCount.")
+    }
+    $targetMarkerWriteCount = [regex]::Matches(
+        $commitToken,
+        '\(ptarget\+80\)\^\$udint:=').Count
+    $targetTypedWriteCount = [regex]::Matches(
+        $commitToken,
+        '(?:\([^)]*ptarget[^)]*\)|ptarget)\^\$[a-z0-9_]+:=').Count
+    $targetBodyWriteCount = [regex]::Matches(
+        $commitToken,
+        '_memcpy\(ptr1:=ptarget,').Count
+    if ($targetMarkerWriteCount -ne 2 -or
+        $targetTypedWriteCount -ne 2 -or
+        $targetBodyWriteCount -ne 1) {
+        throw (
+            "$Owner CommitRecord retained write inventory must be exactly " +
+            'two offset-80 marker assignments and one body memcpy.')
+    }
+    $nativeSetPositionCount = [regex]::Matches(
+        ($storeScan + [Environment]::NewLine + $controlServiceScan),
+        '(?i)\.SetPosition\s*\(').Count
+    if ($nativeSetPositionCount -ne 0) {
+        throw (
+            "$Owner native SetPosition call count must remain zero; found " +
+            "$nativeSetPositionCount.")
+    }
+
+    $beginExecutableFingerprint =
+        & $getExecutableFingerprint $beginToken 'BeginSetPosition'
+    if ($beginExecutableFingerprint -cne
+            'd2bfab90616ab5b8eee5a3659a97d0c226907129b6f1ed46f9f6f3d90faca8e6') {
+        throw "$Owner BeginSetPosition executable/control-flow fingerprint drifted."
+    }
+    $commitTerminalExecutableFingerprint =
+        & $getExactPrefixedExecutableFingerprint `
+            $commitTerminalToken `
+            ($implementationPrefixes['CommitSetPositionTerminal'] +
+             $commitTerminalLocalInventory) `
+            'CommitSetPositionTerminal'
+    if ($commitTerminalExecutableFingerprint -cne
+            'b23604211ea1037bd4479386b6f37010b2fbc5cbd326b63ca8db150f35283936') {
+        throw (
+            "$Owner CommitSetPositionTerminal executable/control-flow " +
+            'fingerprint drifted.')
+    }
+    $readExecutableFingerprint =
+        & $getExactPrefixedExecutableFingerprint `
+            $readToken `
+            ($implementationPrefixes['ReadSetPositionOutcome'] +
+             $readLocalInventory) `
+            'ReadSetPositionOutcome'
+    if ($readExecutableFingerprint -cne
+            'dcc97c9adce3a590eb60d9854dfa032d367b2266a8b80751e092c5d1a4c04772') {
+        throw (
+            "$Owner ReadSetPositionOutcome executable/control-flow fingerprint " +
+            'drifted.')
+    }
+    $retireExecutableFingerprint =
+        & $getExactPrefixedExecutableFingerprint `
+            $retireToken `
+            ($implementationPrefixes['RetireSetPositionOutcome'] +
+             $retireLocalInventory) `
+            'RetireSetPositionOutcome'
+    if ($retireExecutableFingerprint -cne
+            'dd0fcbc69716fab5b72208a3b0ac6512d56d519e394df96ceb427667cd2a68ba') {
+        throw (
+            "$Owner RetireSetPositionOutcome executable/control-flow fingerprint " +
+            'drifted.')
+    }
+    $selectExecutableFingerprint =
+        & $getExecutableFingerprint $selectToken 'SelectTerminalSlot'
+    if ($selectExecutableFingerprint -cne
+            'acccdb2142ac88d3ea585ce62b508945d118a8d8842b7eb1c3b118eb37b0eb61') {
+        throw "$Owner SelectTerminalSlot executable/control-flow fingerprint drifted."
+    }
+
+}
+
+function Invoke-LasalSetPositionStoreReadOnlyScanVerifierSelfTest {
+    param(
+        [Parameter(Mandatory = $true)][string]$StoreText,
+        [Parameter(Mandatory = $true)][string]$GlobalText,
+        [Parameter(Mandatory = $true)][string]$ControlServiceText,
+        [Parameter(Mandatory = $true)][string]$Owner
+    )
+
+    $currentParameters = @{
+        StoreText = $StoreText
+        GlobalText = $GlobalText
+        ControlServiceText = $ControlServiceText
+        Owner = "$Owner current source"
+    }
+    Assert-LasalSetPositionStoreReadOnlyScanContract @currentParameters
+
+    $classRawMatches = [regex]::Matches(
+        $StoreText,
+        ('(?ims)^[ \t]*LMCSetPositionStore[ \t]*:[ \t]*CLASS[ \t]*\r?$' +
+         '.*?^[ \t]*END_CLASS[ \t]*;[ \t]*\r?$'))
+    if ($classRawMatches.Count -ne 1) {
+        throw "$Owner self-test class block was not found exactly once."
+    }
+    $classRawBlock = $classRawMatches[0].Value
+    $implementationRawBlocks = @{}
+    foreach ($functionName in @(
+            'BeginSetPosition',
+            'CommitSetPositionTerminal',
+            'ReadSetPositionOutcome',
+            'RetireSetPositionOutcome',
+            'ScanAxisStore',
+            'RecordMatchesKey',
+            'SelectTerminalSlot',
+            'CommitRecord')) {
+        $blockParameters = @{
+            SourceText = $StoreText
+            ClassName = 'LMCSetPositionStore'
+            FunctionName = $functionName
+            Owner = "$Owner self-test $functionName"
+        }
+        $implementationRawBlocks[$functionName] =
+            Get-LasalExactFunctionImplementationBlock @blockParameters
+    }
+
+    $replaceFirst = {
+        param(
+            [string]$Text,
+            [string]$Pattern,
+            [string]$Replacement,
+            [string]$Label
+        )
+        $options =
+            [Text.RegularExpressions.RegexOptions]::IgnoreCase -bor
+            [Text.RegularExpressions.RegexOptions]::Singleline
+        $regex = New-Object Text.RegularExpressions.Regex(
+            $Pattern,
+            $options)
+        if ($regex.Matches($Text).Count -lt 1) {
+            throw "$Owner self-test mutation anchor was not found: $Label"
+        }
+        $safeReplacement = $Replacement.Replace('$', '$$')
+        return $regex.Replace($Text, $safeReplacement, 1)
+    }
+    $mutateStoreBlock = {
+        param(
+            [string]$Block,
+            [string]$Pattern,
+            [string]$Replacement,
+            [string]$Label
+        )
+        $mutatedBlock = & $replaceFirst $Block $Pattern $Replacement $Label
+        if ($mutatedBlock -ceq $Block) {
+            throw "$Owner self-test block mutation did not change: $Label"
+        }
+        return $StoreText.Replace($Block, $mutatedBlock)
+    }
+    $mutateClass = {
+        param([string]$Pattern, [string]$Replacement, [string]$Label)
+        $arguments = @($classRawBlock, $Pattern, $Replacement, $Label)
+        return & $mutateStoreBlock @arguments
+    }
+    $mutateScan = {
+        param([string]$Pattern, [string]$Replacement, [string]$Label)
+        $arguments = @(
+            $implementationRawBlocks['ScanAxisStore'],
+            $Pattern,
+            $Replacement,
+            $Label)
+        return & $mutateStoreBlock @arguments
+    }
+    $mutateFunction = {
+        param(
+            [string]$FunctionName,
+            [string]$Pattern,
+            [string]$Replacement,
+            [string]$Label
+        )
+        $arguments = @(
+            $implementationRawBlocks[$FunctionName],
+            $Pattern,
+            $Replacement,
+            $Label)
+        return & $mutateStoreBlock @arguments
+    }
+
+    $fixtures = [ordered]@{}
+    $addFixture = {
+        param(
+            [string]$Name,
+            [string]$MutatedStore,
+            [string]$MutatedGlobal,
+            [string]$Expected,
+            [string]$MutatedControl = $ControlServiceText
+        )
+        if ($fixtures.Contains($Name)) {
+            throw "$Owner duplicate negative fixture name: $Name"
+        }
+        $fixtures[$Name] = @{
+            Store = $MutatedStore
+            Global = $MutatedGlobal
+            Control = $MutatedControl
+            Expected = $Expected
+        }
+    }
+
+    & $addFixture 'GlobalRetainRemoved' $StoreText (
+        $GlobalText.Replace('VAR_GLOBAL RETAIN', 'VAR_GLOBAL')) (
+        'global RETAIN layout must be exactly 336 UDINT / 1344 bytes')
+    & $addFixture 'GlobalWordCountChanged' $StoreText (
+        $GlobalText.Replace('[0..335]', '[0..334]')) (
+        'global RETAIN layout must be exactly 336 UDINT / 1344 bytes')
+    & $addFixture 'ControlStoreConfiguredTrue' $StoreText $GlobalText (
+        'Control Store-configured macro must remain exactly one FALSE define') (
+        $ControlServiceText.Replace(
+            '#define LMC_ADMIN_SET_POSITION_STORE_CONFIGURED FALSE',
+            '#define LMC_ADMIN_SET_POSITION_STORE_CONFIGURED TRUE'))
+    & $addFixture 'VolatileFieldTypeChanged' (
+        & $mutateClass 'TransactionActive\s*:\s*BOOL\s*;' (
+            'TransactionActive : UINT;') 'TransactionActive type') $GlobalText (
+        'volatile field inventory must remain the exact 10-field layout')
+    & $addFixture 'VolatileFieldAdded' (
+        & $mutateClass (
+            'TransactionTerminalTargetBeforeWords\s*:\s*ARRAY\s*' +
+            '\[0\.\.20\]\s*OF\s*UDINT\s*;') (
+            'TransactionTerminalTargetBeforeWords : ARRAY [0..20] OF UDINT;' +
+            [Environment]::NewLine + 'TransactionExtra : UDINT;') (
+            'extra volatile field')) $GlobalText (
+        'volatile field inventory must remain the exact 10-field layout')
+    & $addFixture 'PublicDeclarationAbiChanged' (
+        & $mutateClass 'KeySize\s*:\s*UDINT\s*;' 'KeySize : UINT;' (
+            'BeginSetPosition KeySize declaration')) $GlobalText (
+        'BeginSetPosition declaration does not match')
+    & $addFixture 'PrivateDeclarationAbiChanged' (
+        & $mutateClass 'pMaxRecordGeneration\s*:\s*\^UDINT\s*;' (
+            'pMaxRecordGeneration : ^UINT;') (
+            'ScanAxisStore pMaxRecordGeneration declaration')) $GlobalText (
+        'ScanAxisStore declaration does not match')
+    & $addFixture 'PrivateImplementationScopeChanged' (
+        & $mutateScan (
+            'FUNCTION\s+LMCSetPositionStore::ScanAxisStore') (
+            'FUNCTION GLOBAL LMCSetPositionStore::ScanAxisStore') (
+            'ScanAxisStore private implementation scope')) $GlobalText (
+        'ScanAxisStore implementation does not match')
+    & $addFixture 'AxisBoundaryChanged' (
+        & $mutateScan 'AxisReference\s*<=\s*4' 'AxisReference <= 5' (
+            'axis upper boundary')) $GlobalText (
+        'input/output boundary and four-slot initialization drifted')
+    & $addFixture 'ClassificationInitializationChanged' (
+        & $mutateScan (
+            '_memset\(dest:=pClassifications,\s*usByte:=0,\s*cntr:=4\)') (
+            '_memset(dest:=pClassifications, usByte:=0, cntr:=3)') (
+            'classification output byte count')) $GlobalText (
+        'input/output boundary and four-slot initialization drifted')
+    & $addFixture 'AxisGeometryChanged' (
+        & $mutateScan (
+            'recordBaseWord\s*:=\s*axisBaseWord\s*\+\s*' +
+            'TO_UDINT\(slot\s*\*\s*21\)') (
+            'recordBaseWord := axisBaseWord + TO_UDINT(slot * 20)') (
+            'slot word stride')) $GlobalText 'axis/slot/word geometry drifted'
+    & $addFixture 'BlankClassificationChanged' (
+        & $mutateScan (
+            'if\s+anyNonzero\s*=\s*FALSE\s+then\s*' +
+            'slotClass\[slot\]\s*:=\s*0\s*;') (
+            'if anyNonzero = FALSE then slotClass[slot] := 1;') (
+            'Blank classification')) $GlobalText (
+        'four-way Blank/Incomplete/Valid/Corrupt classification drifted')
+    & $addFixture 'IncompleteClassificationChanged' (
+        & $mutateScan (
+            'elsif\s+marker\s*=\s*0\s+then\s*' +
+            'slotClass\[slot\]\s*:=\s*1\s*;') (
+            'elsif marker = 0 then slotClass[slot] := 2;') (
+            'Incomplete classification')) $GlobalText (
+        'four-way Blank/Incomplete/Valid/Corrupt classification drifted')
+    & $addFixture 'CorruptClassificationChanged' (
+        & $mutateScan (
+            'elsif\s+marker\s*<>\s*16#7D12C0DE\s+then\s*' +
+            'slotClass\[slot\]\s*:=\s*3\s*;') (
+            'elsif marker <> 16#7D12C0DE then slotClass[slot] := 2;') (
+            'Corrupt classification')) $GlobalText (
+        'four-way Blank/Incomplete/Valid/Corrupt classification drifted')
+    & $addFixture 'ValidClassificationChanged' (
+        & $mutateScan (
+            'if\s+validSlot\s+then\s*slotClass\[slot\]\s*:=\s*2\s*;') (
+            'if validSlot then slotClass[slot] := 3;') (
+            'Valid classification')) $GlobalText (
+        'four-way Blank/Incomplete/Valid/Corrupt classification drifted')
+    & $addFixture 'CommitMarkerOffsetChanged' (
+        & $mutateScan (
+            'marker\s*:=\s*\(pRecord\s*\+\s*80\)\^\$UDINT\s*;') (
+            'marker := (pRecord + 79)^$UDINT;') (
+            'commit marker offset')) $GlobalText (
+        'record commit marker offset or value handling drifted')
+    & $addFixture 'CrcLengthChanged' (
+        & $mutateScan 'CheckSum\.CRC32\(pRecord,\s*76,\s*0\)' (
+            'CheckSum.CRC32(pRecord, 72, 0)') 'CRC length') $GlobalText (
+        'CRC contract must remain CRC32(record,76,0)')
+    & $addFixture 'CrcSeedChanged' (
+        & $mutateScan 'CheckSum\.CRC32\(pRecord,\s*76,\s*0\)' (
+            'CheckSum.CRC32(pRecord, 76, 1)') 'CRC seed') $GlobalText (
+        'CRC contract must remain CRC32(record,76,0)')
+    & $addFixture 'SchemaAbiChanged' (
+        & $mutateScan 'pRecord\^\$UINT\s*<>\s*1' (
+            'pRecord^$UINT <> 2') 'schema ABI') $GlobalText (
+        'record ABI field validation drifted')
+    & $addFixture 'FlagsAbiChanged' (
+        & $mutateScan (
+            '\(storeFlags\s*<>\s*0\)\s*&\s*\(storeFlags\s*<>\s*1\)') (
+            '(storeFlags <> 0) & (storeFlags <> 2)') 'flags ABI') $GlobalText (
+        'record ABI field validation drifted')
+    & $addFixture 'IntentRangeChanged' (
+        & $mutateScan '\(pRecord\s*\+\s*40\)\^\$UDINT' (
+            '(pRecord + 41)^$UDINT') 'intent byte range') $GlobalText (
+        'record ABI field validation drifted')
+    & $addFixture 'SlotZeroRoleChanged' (
+        & $mutateScan 'elsif\s+\(slot\s*=\s*0\)\s*&' (
+            'elsif (slot = 1) &') 'slot zero role') $GlobalText (
+        'slot-role or terminal payload validation drifted')
+    & $addFixture 'SuccessPayloadChanged' (
+        & $mutateScan (
+            '\(pRecord\s*\+\s*56\)\^\$DINT\s*<>\s*' +
+            '\(pRecord\s*\+\s*48\)\^\$DINT') (
+            '(pRecord + 56)^$DINT <> (pRecord + 52)^$DINT') (
+            'success applied-position payload')) $GlobalText (
+        'slot-role or terminal payload validation drifted')
+    & $addFixture 'RejectedDetailRangeChanged' (
+        & $mutateScan '\(pRecord\s*\+\s*64\)\^\$UDINT\s*>\s*15' (
+            '(pRecord + 64)^$UDINT > 14') (
+            'rejected detail upper bound')) $GlobalText (
+        'slot-role or terminal payload validation drifted')
+    & $addFixture 'RecordKeyRangeChanged' (
+        & $mutateFunction 'RecordMatchesKey' (
+            'ptr2:=pKey\$\^USINT\s*\+\s*4,\s*cntr:=32') (
+            'ptr2:=pKey$^USINT + 4, cntr:=31') (
+            'RecordMatchesKey key range')) $GlobalText (
+        'key/snapshot byte ranges drifted in RecordMatchesKey')
+    & $addFixture 'ScanKeyRangeChanged' (
+        & $mutateScan 'cntr:=44' 'cntr:=43' (
+            'ScanAxisStore key range')) $GlobalText (
+        'key/snapshot byte ranges drifted in ScanAxisStore')
+    & $addFixture 'SnapshotRangeChanged' (
+        & $mutateScan 'cntr:=68' 'cntr:=64' (
+            'terminal snapshot range')) $GlobalText (
+        'key/snapshot byte ranges drifted in ScanAxisStore')
+    & $addFixture 'MaxGenerationChanged' (
+        & $mutateScan 'if\s+storeGeneration\s*>\s*pMaxStoreGeneration\^' (
+            'if storeGeneration >= pMaxStoreGeneration^') (
+            'max StoreGeneration update')) $GlobalText (
+        'store/record generation invariant drifted')
+    & $addFixture 'DuplicateStoreGenerationAllowed' (
+        & $mutateScan (
+            'if\s+\(pLeft\s*\+\s*4\)\^\$UDINT\s*=\s*' +
+            '\(pRight\s*\+\s*4\)\^\$UDINT') (
+            'if (pLeft + 4)^$UDINT <> (pRight + 4)^$UDINT') (
+            'duplicate StoreGeneration')) $GlobalText (
+        'store/record generation invariant drifted')
+    & $addFixture 'TombstoneOrderChanged' (
+        & $mutateScan (
+            '\(pLeft\s*\+\s*4\)\^\$UDINT\s*<=\s*' +
+            '\(pRight\s*\+\s*4\)\^\$UDINT') (
+            '(pLeft + 4)^$UDINT < (pRight + 4)^$UDINT') (
+            'tombstone StoreGeneration ordering')) $GlobalText (
+        'tombstone snapshot/order invariant drifted')
+    & $addFixture 'TombstoneSnapshotMatchChanged' (
+        & $mutateScan (
+            'candidateTombstone\s*&\s*matchingKey\s*&\s*' +
+            'matchingSnapshot\s*&') (
+            'candidateTombstone & matchingKey | matchingSnapshot &') (
+            'tombstone exact snapshot condition')) $GlobalText (
+        'tombstone snapshot/order invariant drifted')
+    & $addFixture 'LowerArmedCountChanged' (
+        & $mutateScan 'matchingLowerArmedCount\s*:=\s*1\s*;' (
+            'matchingLowerArmedCount := 2;') (
+            'matching lower Armed count')) $GlobalText (
+        'active Armed/terminal graph invariant drifted')
+    & $addFixture 'MultipleActiveTerminalsAllowed' (
+        & $mutateScan 'unsupersededTerminalCount\s*>\s*1' (
+            'unsupersededTerminalCount > 2') (
+            'active terminal cardinality')) $GlobalText (
+        'active Armed/terminal graph invariant drifted')
+    & $addFixture 'ActiveKeyMismatchAllowed' (
+        & $mutateScan '\(matchingKey\s*=\s*FALSE\)\s*\|' (
+            '(matchingKey = FALSE) &') 'active Armed key match') $GlobalText (
+        'active Armed/terminal graph invariant drifted')
+    & $addFixture 'RetainedAssignmentAdded' (
+        & $mutateFunction 'SelectTerminalSlot' 'Result\s*:=\s*-1\s*;' (
+            'g_LMCSetPositionStoreWords[0] := 1;' +
+            [Environment]::NewLine + 'Result := -1;') (
+            'retained assignment')) $GlobalText (
+        'direct retained assignment count must remain zero')
+    & $addFixture 'CommitRecordExtraAliasWriteAdded' (
+        & $mutateFunction 'CommitRecord' (
+            '\(pTarget\s*\+\s*80\)\^\$UDINT\s*:=\s*0\s*;') (
+            '(pTarget + 76)^$UDINT := 0;' +
+            [Environment]::NewLine + '(pTarget + 80)^$UDINT := 0;') (
+            'extra retained alias write')) $GlobalText (
+        'retained write inventory must be exactly two offset-80 marker assignments')
+    & $addFixture 'PublicCommitRecordCallAdded' (
+        & $mutateFunction 'BeginSetPosition' 'Result\s*:=\s*-1\s*;' (
+            'Result := CommitRecord(AxisReference:=1, Slot:=0, pImage:=pSnapshot);' +
+            [Environment]::NewLine + 'Result := -1;') (
+            'public CommitRecord call')) $GlobalText (
+        'BeginSetPosition must call CommitRecord exactly once')
+    & $addFixture 'NativeSetPositionAdded' (
+        & $mutateFunction 'SelectTerminalSlot' 'Result\s*:=\s*-1\s*;' (
+            'LMCAxis1.SetPosition(Position:=0);' +
+            [Environment]::NewLine + 'Result := -1;') (
+            'native SetPosition call')) $GlobalText (
+        'native SetPosition call count must remain zero')
+    & $addFixture 'BeginStubChanged' (
+        & $mutateFunction 'BeginSetPosition' 'Result\s*:=\s*-1\s*;' (
+            'Result := -2;') 'BeginSetPosition initial result') $GlobalText (
+        'BeginSetPosition boundary/output zero initialization drifted')
+    & $addFixture 'BeginDetailInitializationChanged' (
+        & $mutateFunction 'BeginSetPosition' (
+            'pDetailCode\^\s*:=\s*0\s*;') (
+            'pDetailCode^ := 1;') (
+            'BeginSetPosition detail zero initialization')) $GlobalText (
+        'BeginSetPosition boundary/output zero initialization drifted')
+    & $addFixture 'BeginSnapshotInitializationChanged' (
+        & $mutateFunction 'BeginSetPosition' (
+            '_memset\(dest:=pSnapshot,\s*usByte:=0,\s*cntr:=68\)') (
+            '_memset(dest:=pSnapshot, usByte:=0, cntr:=64)') (
+            'BeginSetPosition snapshot zero initialization')) $GlobalText (
+        'BeginSetPosition boundary/output zero initialization drifted')
+    & $addFixture 'BeginKeyAxisOffsetChanged' (
+        & $mutateFunction 'BeginSetPosition' (
+            'axisReference\s*:=\s*\(pKeyBytes\s*\+\s*36\)\^\$UINT') (
+            'axisReference := (pKeyBytes + 34)^$UINT') (
+            'BeginSetPosition key axis offset')) $GlobalText (
+        'BeginSetPosition fixed 48-byte key ABI validation drifted')
+    & $addFixture 'BeginActiveGuardChanged' (
+        & $mutateFunction 'BeginSetPosition' (
+            'if\s+TransactionActive\s+then') (
+            'if TransactionActive = FALSE then') (
+            'BeginSetPosition active transaction guard')) $GlobalText (
+        'BeginSetPosition active guard/exact 10-field clear drifted')
+    & $addFixture 'BeginTransactionClearChanged' (
+        & $mutateFunction 'BeginSetPosition' (
+            'TransactionReservedTerminalStoreGeneration\s*:=\s*0\s*;') (
+            'TransactionReservedTerminalStoreGeneration := 1;') (
+            'BeginSetPosition exact transaction clear')) $GlobalText (
+        'BeginSetPosition active guard/exact 10-field clear drifted')
+    & $addFixture 'BeginScanResultChanged' (
+        & $mutateFunction 'BeginSetPosition' (
+            'if\s+scanResult\s*<\s*0\s+then') (
+            'if scanResult <= 0 then') (
+            'BeginSetPosition Scan result split')) $GlobalText (
+        'BeginSetPosition fresh ScanAxisStore result contract drifted')
+    & $addFixture 'BeginSecondScanAdded' (
+        & $mutateFunction 'BeginSetPosition' (
+            'Result\s*:=\s*1\s*;') (
+            'Result := 1;' + [Environment]::NewLine +
+            'scanResult := ScanAxisStore(' +
+            'AxisReference:=axisReference, ' +
+            'pClassifications:=#classifications[0], ' +
+            'pMaxStoreGeneration:=#maxStoreGeneration, ' +
+            'pMaxRecordGeneration:=#maxRecordGeneration);') (
+            'BeginSetPosition duplicate Scan')) $GlobalText (
+        'BeginSetPosition must call fresh ScanAxisStore exactly once')
+    & $addFixture 'BeginTerminalStateChanged' (
+        & $mutateFunction 'BeginSetPosition' (
+            '\(pRecord\s*\+\s*8\)\^\$UINT\s*=\s*2') (
+            '(pRecord + 8)^$UINT = 1') (
+            'BeginSetPosition replay terminal state')) $GlobalText (
+        'BeginSetPosition exact newest-terminal replay/result 2 drifted')
+    & $addFixture 'BeginTerminalNewestChanged' (
+        & $mutateFunction 'BeginSetPosition' (
+            '\(pRecord\s*\+\s*4\)\^\$UDINT\s*>\s*' +
+            'bestTerminalStoreGeneration') (
+            '(pRecord + 4)^$UDINT < bestTerminalStoreGeneration') (
+            'BeginSetPosition newest terminal selection')) $GlobalText (
+        'BeginSetPosition exact newest-terminal replay/result 2 drifted')
+    & $addFixture 'BeginReplayResultChanged' (
+        & $mutateFunction 'BeginSetPosition' (
+            'Result\s*:=\s*2\s*;') (
+            'Result := 1;') (
+            'BeginSetPosition replay Result 2')) $GlobalText (
+        'BeginSetPosition exact newest-terminal replay/result 2 drifted')
+    & $addFixture 'BeginArmedDetailChanged' (
+        & $mutateFunction 'BeginSetPosition' (
+            'pDetailCode\^\s*:=\s*20\s*;') (
+            'pDetailCode^ := 21;') (
+            'BeginSetPosition Armed detail 20')) $GlobalText (
+        'BeginSetPosition exact Armed/DetailCode 20 contract drifted')
+    & $addFixture 'BeginDifferentArmedKeyRangeChanged' (
+        & $mutateFunction 'BeginSetPosition' 'cntr:=44' 'cntr:=40' (
+            'BeginSetPosition different Armed key range')) $GlobalText (
+        'BeginSetPosition different-key Armed activity proof drifted')
+    & $addFixture 'BeginDifferentActiveDetailChanged' (
+        & $mutateFunction 'BeginSetPosition' (
+            'if\s+activeDifferent\s+then\s*' +
+            'pDetailCode\^\s*:=\s*23\s*;') (
+            'if activeDifferent then pDetailCode^ := 22;') (
+            'BeginSetPosition active different detail')) $GlobalText (
+        'BeginSetPosition different active terminal/DetailCode 23 drifted')
+    & $addFixture 'BeginNoWrapChanged' (
+        & $mutateFunction 'BeginSetPosition' (
+            'maxStoreGeneration\s*>=\s*16#FFFFFFFE') (
+            'maxStoreGeneration >= 16#FFFFFFFF') (
+            'BeginSetPosition StoreGeneration no-wrap')) $GlobalText (
+        'BeginSetPosition generation no-wrap reservation drifted')
+    & $addFixture 'BeginSelectExcludedChanged' (
+        & $mutateFunction 'BeginSetPosition' (
+            'ExcludedSlot\s*:=\s*-1') (
+            'ExcludedSlot:=1') (
+            'BeginSetPosition Select excluded slot')) $GlobalText (
+        'BeginSetPosition SelectTerminalSlot result contract drifted')
+    & $addFixture 'BeginSelectUpperBoundChanged' (
+        & $mutateFunction 'BeginSetPosition' (
+            'targetSlot\s*>\s*3') (
+            'targetSlot > 4') (
+            'BeginSetPosition Select result upper bound')) $GlobalText (
+        'BeginSetPosition SelectTerminalSlot result contract drifted')
+    & $addFixture 'BeginTargetPreimageChanged' (
+        & $mutateFunction 'BeginSetPosition' (
+            '_memcpy\(ptr1:=#targetBeforeWords\[0\],\s*' +
+            'ptr2:=pTarget,\s*cntr:=84\)') (
+            '_memcpy(ptr1:=#targetBeforeWords[0], ptr2:=pTarget, cntr:=80)') (
+            'BeginSetPosition target preimage length')) $GlobalText (
+        'BeginSetPosition reserved terminal preimage capture drifted')
+    & $addFixture 'BeginArmedZeroChanged' (
+        & $mutateFunction 'BeginSetPosition' (
+            '_memset\(dest:=#armedWords\[0\],\s*usByte:=0,\s*cntr:=84\)') (
+            '_memset(dest:=#armedWords[0], usByte:=0, cntr:=80)') (
+            'BeginSetPosition Armed zero length')) $GlobalText (
+        'BeginSetPosition Armed image/CRC76/marker build drifted')
+    & $addFixture 'BeginArmedKeyCopyChanged' (
+        & $mutateFunction 'BeginSetPosition' (
+            '_memcpy\(ptr1:=pArmed\s*\+\s*10,\s*' +
+            'ptr2:=pKeyBytes\s*\+\s*2,\s*cntr:=46\)') (
+            '_memcpy(ptr1:=pArmed + 10, ptr2:=pKeyBytes + 2, cntr:=44)') (
+            'BeginSetPosition Armed key copy')) $GlobalText (
+        'BeginSetPosition Armed image/CRC76/marker build drifted')
+    & $addFixture 'BeginArmedCrcChanged' (
+        & $mutateFunction 'BeginSetPosition' (
+            'CheckSum\.CRC32\(pArmed,\s*76,\s*0\)') (
+            'CheckSum.CRC32(pArmed, 72, 0)') (
+            'BeginSetPosition Armed CRC length')) $GlobalText (
+        'BeginSetPosition Armed image/CRC76/marker build drifted')
+    & $addFixture 'BeginCommitSlotChanged' (
+        & $mutateFunction 'BeginSetPosition' (
+            'AxisReference:=axisReference,\s*Slot:=0,\s*pImage:=pArmed') (
+            'AxisReference:=axisReference, Slot:=1, pImage:=pArmed') (
+            'BeginSetPosition CommitRecord slot')) $GlobalText (
+        'BeginSetPosition CommitRecord durable commit contract drifted')
+    & $addFixture 'BeginCommitResultChanged' (
+        & $mutateFunction 'BeginSetPosition' (
+            'if\s+commitResult\s*<>\s*1\s+then') (
+            'if commitResult <> 0 then') (
+            'BeginSetPosition CommitRecord result')) $GlobalText (
+        'BeginSetPosition CommitRecord durable commit contract drifted')
+    & $addFixture 'BeginPublishReservedSlotChanged' (
+        & $mutateFunction 'BeginSetPosition' (
+            'TransactionReservedTerminalTargetSlot\s*:=\s*' +
+            'TO_UINT\(targetSlot\)') (
+            'TransactionReservedTerminalTargetSlot := 0') (
+            'BeginSetPosition reserved slot publish')) $GlobalText (
+        'BeginSetPosition transaction publish/Active-last drifted')
+    & $addFixture 'BeginPublishKeyCopyChanged' (
+        & $mutateFunction 'BeginSetPosition' (
+            '_memcpy\(ptr1:=#TransactionKeyWords\[0\],\s*' +
+            'ptr2:=pKeyBytes,\s*cntr:=48\)') (
+            '_memcpy(ptr1:=#TransactionKeyWords[0], ptr2:=pKeyBytes, cntr:=44)') (
+            'BeginSetPosition transaction key publish')) $GlobalText (
+        'BeginSetPosition transaction publish/Active-last drifted')
+    & $addFixture 'BeginActiveLastChanged' (
+        & $mutateFunction 'BeginSetPosition' (
+            'TransactionActive\s*:=\s*TRUE\s*;') (
+            'TransactionActive := FALSE;') (
+            'BeginSetPosition Active-last publish')) $GlobalText (
+        'BeginSetPosition transaction publish/Active-last drifted')
+    & $addFixture 'BeginDirectRetainedWriteAdded' (
+        & $mutateFunction 'BeginSetPosition' (
+            'Result\s*:=\s*1\s*;') (
+            'Result := 1;' + [Environment]::NewLine +
+            'g_LMCSetPositionStoreWords[0] := 1;') (
+            'BeginSetPosition direct retained write')) $GlobalText (
+        'direct retained assignment count must remain zero')
+    & $addFixture 'BeginEarlyReturnAdded' (
+        & $mutateFunction 'BeginSetPosition' (
+            'scanResult\s*:=\s*ScanAxisStore') (
+            'RETURN;' + [Environment]::NewLine +
+            'scanResult := ScanAxisStore') (
+            'BeginSetPosition early RETURN bypass')) $GlobalText (
+        'BeginSetPosition executable/control-flow fingerprint drifted')
+    & $addFixture 'CommitTerminalStubChanged' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            'pDetailCode\^\s*:=\s*24\s*;') (
+            'pDetailCode^ := 23;') (
+            'CommitSetPositionTerminal inactive detail')) $GlobalText (
+        'CommitSetPositionTerminal inactive transaction result contract drifted')
+    & $addFixture 'CommitTerminalLocalInventoryChanged' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            'payloadValid\s*:\s*BOOL\s*;') (
+            'payloadAccepted : BOOL;') (
+            'CommitSetPositionTerminal local inventory')) $GlobalText (
+        'CommitSetPositionTerminal local transaction inventory drifted')
+    & $addFixture 'CommitTerminalExtraLocalBlockAdded' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            'continueCommit\s*:\s*BOOL\s*;\s*END_VAR') (
+            'continueCommit : BOOL;' + [Environment]::NewLine +
+            'END_VAR' + [Environment]::NewLine +
+            'VAR' + [Environment]::NewLine +
+            'injected : BOOL;' + [Environment]::NewLine +
+            'END_VAR') (
+            'CommitSetPositionTerminal extra local block')) $GlobalText (
+        'CommitSetPositionTerminal local transaction inventory drifted')
+    & $addFixture 'CommitTerminalInlineExtraLocalBlockAdded' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            'END_VAR\s+VAR\s+classifications\s*:\s*ARRAY') (
+            'END_VAR' + [Environment]::NewLine +
+            'VAR injected : BOOL; END_VAR' + [Environment]::NewLine +
+            'VAR' + [Environment]::NewLine +
+            'classifications : ARRAY') (
+            'CommitSetPositionTerminal inline extra local block')) $GlobalText (
+        'CommitSetPositionTerminal local transaction inventory drifted')
+    & $addFixture 'CommitTerminalActiveEarlyClearAdded' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            'Result\s*:=\s*-12\s*;') (
+            'Result := -12;' + [Environment]::NewLine +
+            'TransactionActive := FALSE;') (
+            'CommitSetPositionTerminal active early clear')) $GlobalText (
+        'must clear TransactionActive exactly once in common active cleanup')
+    & $addFixture 'CommitTerminalActiveEarlyReturnAdded' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            'Result\s*:=\s*-12\s*;') (
+            'Result := -12;' + [Environment]::NewLine +
+            'RETURN;') (
+            'CommitSetPositionTerminal active early RETURN')) $GlobalText (
+        'active path must contain no early RETURN')
+    & $addFixture 'CommitTerminalInactiveMinus12Added' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            'if\s+boundaryValid\s+then\s*' +
+            'Result\s*:=\s*0\s*;') (
+            'if boundaryValid then' + [Environment]::NewLine +
+            'Result := -12;') (
+            'CommitSetPositionTerminal inactive -12')) $GlobalText (
+        'CommitSetPositionTerminal inactive transaction result contract drifted')
+    & $addFixture 'CommitTerminalBoundaryKeySizeChanged' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            'KeySize\s*=\s*48') (
+            'KeySize = 44') (
+            'CommitSetPositionTerminal boundary key size')) $GlobalText (
+        'CommitSetPositionTerminal boundary/fixed-key contract drifted')
+    & $addFixture 'CommitTerminalBoundaryRecordGenerationChanged' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            'RecordGeneration\s*<>\s*0') (
+            'RecordGeneration = 0') (
+            'CommitSetPositionTerminal boundary RecordGeneration')) $GlobalText (
+        'CommitSetPositionTerminal boundary/fixed-key contract drifted')
+    & $addFixture 'CommitTerminalReservedKeyOffsetChanged' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            '\(pKeyBytes\s*\+\s*38\)\^\$UINT') (
+            '(pKeyBytes + 36)^$UINT') (
+            'CommitSetPositionTerminal key reserved offset')) $GlobalText (
+        'CommitSetPositionTerminal boundary/fixed-key contract drifted')
+    & $addFixture 'CommitTerminalFrozenKeyLengthChanged' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            '_memcmp\(ptr1:=pKeyBytes,\s*ptr2:=pFrozenKey,\s*' +
+            'cntr:=48\)') (
+            '_memcmp(ptr1:=pKeyBytes, ptr2:=pFrozenKey, cntr:=44)') (
+            'CommitSetPositionTerminal frozen key length')) $GlobalText (
+        'CommitSetPositionTerminal key/RecordGeneration proof drifted')
+    & $addFixture 'CommitTerminalRecordGenerationProofChanged' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            'RecordGeneration\s*<>\s*frozenRecordGeneration') (
+            'RecordGeneration = frozenRecordGeneration') (
+            'CommitSetPositionTerminal RecordGeneration proof')) $GlobalText (
+        'CommitSetPositionTerminal key/RecordGeneration proof drifted')
+    & $addFixture 'CommitTerminalAxisUpperBoundChanged' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            'frozenAxisReference\s*>\s*4') (
+            'frozenAxisReference > 5') (
+            'CommitSetPositionTerminal axis upper bound')) $GlobalText (
+        'CommitSetPositionTerminal frozen axis proof drifted')
+    & $addFixture 'CommitTerminalTargetSlotUpperBoundChanged' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            'frozenTargetSlot\s*>\s*3') (
+            'frozenTargetSlot > 4') (
+            'CommitSetPositionTerminal target slot upper bound')) $GlobalText (
+        'CommitSetPositionTerminal target/reserved slot proof drifted')
+    & $addFixture 'CommitTerminalReservedSlotEqualityChanged' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            'frozenTargetSlot\s*<>\s*frozenReservedTargetSlot') (
+            'frozenTargetSlot = frozenReservedTargetSlot') (
+            'CommitSetPositionTerminal reserved slot equality')) $GlobalText (
+        'CommitSetPositionTerminal target/reserved slot proof drifted')
+    & $addFixture 'CommitTerminalReservedGenerationEqualityChanged' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            'frozenTerminalStoreGeneration\s*<>\s*' +
+            'frozenReservedTerminalStoreGeneration') (
+            'frozenTerminalStoreGeneration = ' +
+            'frozenReservedTerminalStoreGeneration') (
+            'CommitSetPositionTerminal reserved generation equality')) $GlobalText (
+        'CommitSetPositionTerminal reserved generation/no-wrap proof drifted')
+    & $addFixture 'CommitTerminalGenerationNoWrapChanged' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            'frozenIntentStoreGeneration\s*=\s*16#FFFFFFFF') (
+            'frozenIntentStoreGeneration = 16#FFFFFFFE') (
+            'CommitSetPositionTerminal no-wrap guard')) $GlobalText (
+        'CommitSetPositionTerminal reserved generation/no-wrap proof drifted')
+    & $addFixture 'CommitTerminalGenerationStepChanged' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            'frozenIntentStoreGeneration\s*\+\s*1') (
+            'frozenIntentStoreGeneration + 2') (
+            'CommitSetPositionTerminal terminal generation step')) $GlobalText (
+        'CommitSetPositionTerminal reserved generation/no-wrap proof drifted')
+    & $addFixture 'CommitTerminalScanResultChanged' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            'scanResult\s*<>\s*1') (
+            'scanResult <> 0') (
+            'CommitSetPositionTerminal Scan result')) $GlobalText (
+        'CommitSetPositionTerminal fresh ScanAxisStore proof drifted')
+    & $addFixture 'CommitTerminalSecondScanAdded' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            '// The reserved target must still equal its complete ' +
+            '84-byte preimage\.') (
+            'scanResult := ScanAxisStore(' +
+            'AxisReference:=frozenAxisReference, ' +
+            'pClassifications:=#classifications[0], ' +
+            'pMaxStoreGeneration:=#maxStoreGeneration, ' +
+            'pMaxRecordGeneration:=#maxRecordGeneration);' +
+            [Environment]::NewLine +
+            '// The reserved target must still equal its complete ' +
+            '84-byte preimage.') (
+            'CommitSetPositionTerminal duplicate ScanAxisStore')) $GlobalText (
+        'CommitSetPositionTerminal must call ScanAxisStore exactly once')
+    & $addFixture 'CommitTerminalArmedClassificationChanged' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            'classifications\[0\]\s*=\s*2') (
+            'classifications[0] = 1') (
+            'CommitSetPositionTerminal Armed classification')) $GlobalText (
+        'CommitSetPositionTerminal Armed/max-generation proof drifted')
+    & $addFixture 'CommitTerminalArmedStateChanged' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            '\(pArmed\s*\+\s*8\)\^\$UINT\s*=\s*1') (
+            '(pArmed + 8)^$UINT = 2') (
+            'CommitSetPositionTerminal Armed state')) $GlobalText (
+        'CommitSetPositionTerminal Armed/max-generation proof drifted')
+    & $addFixture 'CommitTerminalMaxStoreGenerationChanged' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            'maxStoreGeneration\s*<>\s*frozenIntentStoreGeneration') (
+            'maxStoreGeneration = frozenIntentStoreGeneration') (
+            'CommitSetPositionTerminal max StoreGeneration')) $GlobalText (
+        'CommitSetPositionTerminal Armed/max-generation proof drifted')
+    & $addFixture 'CommitTerminalSecondRecordMatchesKeyAdded' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            '// The reserved target must still equal its complete ' +
+            '84-byte preimage\.') (
+            'scanResult := RecordMatchesKey(' +
+            'pRecord:=pArmed, pKey:=pFrozenKey);' +
+            [Environment]::NewLine +
+            '// The reserved target must still equal its complete ' +
+            '84-byte preimage.') (
+            'CommitSetPositionTerminal duplicate RecordMatchesKey')) $GlobalText (
+        'CommitSetPositionTerminal must call RecordMatchesKey exactly once')
+    & $addFixture 'CommitTerminalTargetPreimageLengthChanged' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            'ptr2:=#frozenTargetBeforeWords\[0\],\s*cntr:=84') (
+            'ptr2:=#frozenTargetBeforeWords[0], cntr:=80') (
+            'CommitSetPositionTerminal target preimage length')) $GlobalText (
+        'CommitSetPositionTerminal reserved target preimage proof drifted')
+    & $addFixture 'CommitTerminalSuccessStateChanged' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            'RecordState\s*=\s*2') (
+            'RecordState = 4') (
+            'CommitSetPositionTerminal success state')) $GlobalText (
+        'CommitSetPositionTerminal terminal payload domain drifted')
+    & $addFixture 'CommitTerminalSuccessAppliedOffsetChanged' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            '\(pFrozenKey\s*\+\s*40\)\^\$DINT') (
+            '(pFrozenKey + 36)^$DINT') (
+            'CommitSetPositionTerminal success AppliedPosition')) $GlobalText (
+        'CommitSetPositionTerminal terminal payload domain drifted')
+    & $addFixture 'CommitTerminalSuccessErrorChanged' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            'OriginalErrorId\s*=\s*0') (
+            'OriginalErrorId = -1') (
+            'CommitSetPositionTerminal success error tuple')) $GlobalText (
+        'CommitSetPositionTerminal terminal payload domain drifted')
+    & $addFixture 'CommitTerminalRejectedStateChanged' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            'RecordState\s*=\s*3') (
+            'RecordState = 4') (
+            'CommitSetPositionTerminal rejected state')) $GlobalText (
+        'CommitSetPositionTerminal terminal payload domain drifted')
+    & $addFixture 'CommitTerminalSpecialRejectedErrorChanged' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            'OriginalErrorId\s*=\s*-6') (
+            'OriginalErrorId = -7') (
+            'CommitSetPositionTerminal special rejected error')) $GlobalText (
+        'CommitSetPositionTerminal terminal payload domain drifted')
+    & $addFixture 'CommitTerminalSpecialRejectedNativeChanged' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            'NativeCommandState\s*<>\s*0') (
+            'NativeCommandState = 0') (
+            'CommitSetPositionTerminal special rejected native state')) $GlobalText (
+        'CommitSetPositionTerminal terminal payload domain drifted')
+    & $addFixture 'CommitTerminalGenericRejectedRangeChanged' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            'OriginalDetailCode\s*<=\s*15') (
+            'OriginalDetailCode <= 14') (
+            'CommitSetPositionTerminal generic rejected detail range')) $GlobalText (
+        'CommitSetPositionTerminal terminal payload domain drifted')
+    & $addFixture 'CommitTerminalGenericRejectedErrorChanged' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            'OriginalErrorId\s*=\s*-31000') (
+            'OriginalErrorId = -6') (
+            'CommitSetPositionTerminal generic rejected error')) $GlobalText (
+        'CommitSetPositionTerminal terminal payload domain drifted')
+    & $addFixture 'CommitTerminalImageStateOffsetChanged' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            '\(pTerminal\s*\+\s*8\)\^\$UINT\s*:=\s*RecordState') (
+            '(pTerminal + 6)^$UINT := RecordState') (
+            'CommitSetPositionTerminal terminal state offset')) $GlobalText (
+        'CommitSetPositionTerminal terminal image/CRC/marker build drifted')
+    & $addFixture 'CommitTerminalImageAppliedOffsetChanged' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            '\(pTerminal\s*\+\s*56\)\^\$DINT\s*:=\s*AppliedPosition') (
+            '(pTerminal + 52)^$DINT := AppliedPosition') (
+            'CommitSetPositionTerminal terminal AppliedPosition offset')) $GlobalText (
+        'CommitSetPositionTerminal terminal image/CRC/marker build drifted')
+    & $addFixture 'CommitTerminalCrcLengthChanged' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            'CheckSum\.CRC32\(pTerminal,\s*76,\s*0\)') (
+            'CheckSum.CRC32(pTerminal, 72, 0)') (
+            'CommitSetPositionTerminal terminal CRC length')) $GlobalText (
+        'CommitSetPositionTerminal terminal image/CRC/marker build drifted')
+    & $addFixture 'CommitTerminalCrcDestinationOffsetChanged' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            '\(pTerminal\s*\+\s*76\)\^\$UDINT\s*:=\s*' +
+            'CheckSum\.CRC32') (
+            '(pTerminal + 72)^$UDINT := CheckSum.CRC32') (
+            'CommitSetPositionTerminal CRC destination offset')) $GlobalText (
+        'CommitSetPositionTerminal terminal image/CRC/marker build drifted')
+    & $addFixture 'CommitTerminalSecondCrcAdded' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            'if\s+continueCommit\s+then\s*' +
+            'commitResult\s*:=\s*CommitRecord') (
+            'maxStoreGeneration := CheckSum.CRC32(pTerminal, 76, 0);' +
+            [Environment]::NewLine +
+            'if continueCommit then' + [Environment]::NewLine +
+            'commitResult := CommitRecord') (
+            'CommitSetPositionTerminal duplicate CRC32')) $GlobalText (
+        'CommitSetPositionTerminal must call CRC32 exactly once')
+    & $addFixture 'CommitTerminalMarkerOffsetChanged' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            '\(pTerminal\s*\+\s*80\)\^\$UDINT\s*:=' ) (
+            '(pTerminal + 76)^$UDINT :=') (
+            'CommitSetPositionTerminal terminal marker offset')) $GlobalText (
+        'CommitSetPositionTerminal terminal image/CRC/marker build drifted')
+    & $addFixture 'CommitTerminalMarkerValueChanged' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            '16#7D12C0DE') (
+            '16#7D12C0DF') (
+            'CommitSetPositionTerminal terminal marker value')) $GlobalText (
+        'CommitSetPositionTerminal terminal image/CRC/marker build drifted')
+    & $addFixture 'CommitTerminalCommitSlotChanged' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            'Slot:=frozenTargetSlot') (
+            'Slot:=0') (
+            'CommitSetPositionTerminal CommitRecord slot')) $GlobalText (
+        'CommitSetPositionTerminal CommitRecord/result/snapshot contract drifted')
+    & $addFixture 'CommitTerminalCommitResultChanged' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            'commitResult\s*=\s*1') (
+            'commitResult = 0') (
+            'CommitSetPositionTerminal CommitRecord result')) $GlobalText (
+        'CommitSetPositionTerminal CommitRecord/result/snapshot contract drifted')
+    & $addFixture 'CommitTerminalSecondCommitRecordAdded' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            '// Common active-transaction cleanup preserves the fence ' +
+            'until completion\.') (
+            'commitResult := CommitRecord(' +
+            'AxisReference:=frozenAxisReference, ' +
+            'Slot:=frozenTargetSlot, pImage:=pTerminal);' +
+            [Environment]::NewLine +
+            '// Common active-transaction cleanup preserves the fence ' +
+            'until completion.') (
+            'CommitSetPositionTerminal duplicate CommitRecord')) $GlobalText (
+        'CommitSetPositionTerminal must call CommitRecord exactly once')
+    & $addFixture 'CommitTerminalSnapshotSourceChanged' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            'ptr2:=pTarget\s*\+\s*8') (
+            'ptr2:=pTerminal + 8') (
+            'CommitSetPositionTerminal snapshot source')) $GlobalText (
+        'CommitSetPositionTerminal CommitRecord/result/snapshot contract drifted')
+    & $addFixture 'CommitTerminalSnapshotLengthChanged' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            '_memcpy\(ptr1:=pSnapshot,\s*ptr2:=pTarget\s*\+\s*8,\s*' +
+            'cntr:=68\)') (
+            '_memcpy(ptr1:=pSnapshot, ptr2:=pTarget + 8, cntr:=64)') (
+            'CommitSetPositionTerminal snapshot length')) $GlobalText (
+        'CommitSetPositionTerminal CommitRecord/result/snapshot contract drifted')
+    & $addFixture 'CommitTerminalPointerRebindAdded' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            '// Common active-transaction cleanup preserves the fence ' +
+            'until completion\.') (
+            'pTerminal := pTarget;' + [Environment]::NewLine +
+            '// Common active-transaction cleanup preserves the fence ' +
+            'until completion.') (
+            'CommitSetPositionTerminal retained pointer rebind')) $GlobalText (
+        'CommitSetPositionTerminal executable/control-flow fingerprint drifted')
+    & $addFixture 'CommitTerminalResultOverrideAdded' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            '// Common active-transaction cleanup preserves the fence ' +
+            'until completion\.') (
+            'Result := 1;' + [Environment]::NewLine +
+            '// Common active-transaction cleanup preserves the fence ' +
+            'until completion.') (
+            'CommitSetPositionTerminal Result override')) $GlobalText (
+        'CommitSetPositionTerminal executable/control-flow fingerprint drifted')
+    & $addFixture 'CommitTerminalCleanupActiveChanged' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            'TransactionActive\s*:=\s*FALSE\s*;') (
+            'TransactionActive := TRUE;') (
+            'CommitSetPositionTerminal cleanup active clear')) $GlobalText (
+        'must clear TransactionActive exactly once in common active cleanup')
+    & $addFixture 'CommitTerminalCleanupIfFalseAdded' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            'TransactionAxisReference\s*:=\s*0\s*;') (
+            'if FALSE then TransactionAxisReference := 0; end_if;') (
+            'CommitSetPositionTerminal cleanup IF FALSE bypass')) $GlobalText (
+        'CommitSetPositionTerminal exact common active cleanup tail drifted')
+    & $addFixture 'CommitTerminalCleanupKeyLengthChanged' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            '_memset\(dest:=#TransactionKeyWords\[0\],\s*' +
+            'usByte:=0,\s*cntr:=48\)') (
+            '_memset(dest:=#TransactionKeyWords[0], usByte:=0, cntr:=44)') (
+            'CommitSetPositionTerminal cleanup key length')) $GlobalText (
+        'CommitSetPositionTerminal exact common active cleanup tail drifted')
+    & $addFixture 'CommitTerminalTypedAliasWriteAdded' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            'Result\s*:=\s*-12\s*;') (
+            'Result := -12;' + [Environment]::NewLine +
+            '(pArmed + 4)^$UDINT := 0;') (
+            'CommitSetPositionTerminal typed retained alias write')) $GlobalText (
+        'CommitSetPositionTerminal retained alias write count must remain zero')
+    & $addFixture 'CommitTerminalMemsetAliasWriteAdded' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            'Result\s*:=\s*-12\s*;') (
+            'Result := -12;' + [Environment]::NewLine +
+            '_memset(dest:=pTarget, usByte:=0, cntr:=84);') (
+            'CommitSetPositionTerminal memset retained alias write')) $GlobalText (
+        'CommitSetPositionTerminal retained alias write count must remain zero')
+    & $addFixture 'CommitTerminalUntypedAliasWriteAdded' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            'Result\s*:=\s*-12\s*;') (
+            'Result := -12;' + [Environment]::NewLine +
+            '(pTarget + 0)^ := 0;') (
+            'CommitSetPositionTerminal untyped retained alias write')) $GlobalText (
+        'CommitSetPositionTerminal retained alias write count must remain zero')
+    & $addFixture 'CommitTerminalDirectUntypedRetainedWriteAdded' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            'pFrozenKey\s*:=\s*\(#frozenKeyWords\[0\]\)\$\^USINT\s*;') (
+            'pFrozenKey := (#frozenKeyWords[0])$^USINT;' +
+            [Environment]::NewLine +
+            '(#g_LMCSetPositionStoreWords[0])^ := 0;') (
+            'CommitSetPositionTerminal untyped direct retained write')) $GlobalText (
+        'direct retained assignment count must remain zero')
+    & $addFixture 'CommitTerminalDirectMemcpyRetainedWriteAdded' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            'pFrozenKey\s*:=\s*\(#frozenKeyWords\[0\]\)\$\^USINT\s*;') (
+            'pFrozenKey := (#frozenKeyWords[0])$^USINT;' +
+            [Environment]::NewLine +
+            '_memcpy(ptr1:=#g_LMCSetPositionStoreWords[0], ' +
+            'ptr2:=pFrozenKey, cntr:=4);') (
+            'CommitSetPositionTerminal direct retained memcpy')) $GlobalText (
+        'direct retained assignment count must remain zero')
+    & $addFixture 'CommitTerminalIfFalseBypassAdded' (
+        & $mutateFunction 'CommitSetPositionTerminal' (
+            'pFrozenKey\s*:=\s*\(#frozenKeyWords\[0\]\)\$\^USINT\s*;') (
+            'pFrozenKey := (#frozenKeyWords[0])$^USINT;' +
+            [Environment]::NewLine + 'if FALSE then end_if;') (
+            'CommitSetPositionTerminal IF FALSE bypass')) $GlobalText (
+        'CommitSetPositionTerminal executable/control-flow fingerprint drifted')
+    & $addFixture 'ReadStubChanged' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            'SnapshotCapacity\s*>=\s*68') (
+            'SnapshotCapacity >= 64') (
+            'ReadSetPositionOutcome output snapshot boundary')) $GlobalText (
+        'ReadSetPositionOutcome output/malformed boundary drifted')
+    & $addFixture 'ReadLocalInventoryChanged' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            'hasValidRecord\s*:\s*BOOL\s*;') (
+            'hasAnyRecord : BOOL;') (
+            'ReadSetPositionOutcome local inventory')) $GlobalText (
+        'ReadSetPositionOutcome local read-only inventory drifted')
+    & $addFixture 'ReadImplementationAbiChanged' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            'SnapshotCapacity\s*:\s*UDINT\s*;') (
+            'SnapshotCapacity : UINT;') (
+            'ReadSetPositionOutcome implementation ABI')) $GlobalText (
+        'ReadSetPositionOutcome implementation does not match')
+    & $addFixture 'ReadInlineExtraLocalBlockAdded' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            'END_VAR\s+VAR\s+classifications\s*:\s*ARRAY') (
+            'END_VAR' + [Environment]::NewLine +
+            'VAR injected : BOOL; END_VAR' + [Environment]::NewLine +
+            'VAR' + [Environment]::NewLine +
+            'classifications : ARRAY') (
+            'ReadSetPositionOutcome inline extra local block')) $GlobalText (
+        'ReadSetPositionOutcome local read-only inventory drifted')
+    & $addFixture 'ReadEarlyReturnAdded' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            'Result\s*:=\s*0\s*;') (
+            'RETURN;' + [Environment]::NewLine +
+            'Result := 0;') (
+            'ReadSetPositionOutcome early RETURN')) $GlobalText (
+        'control-flow RETURN inventory must remain exactly eight')
+    & $addFixture 'ReadDetailInitializationChanged' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            'pDetailCode\^\s*:=\s*0\s*;') (
+            'pDetailCode^ := 24;') (
+            'ReadSetPositionOutcome detail initialization')) $GlobalText (
+        'ReadSetPositionOutcome output/malformed boundary drifted')
+    & $addFixture 'ReadSnapshotInitializationLengthChanged' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            '_memset\(dest:=pSnapshot,\s*usByte:=0,\s*cntr:=68\)') (
+            '_memset(dest:=pSnapshot, usByte:=0, cntr:=64)') (
+            'ReadSetPositionOutcome snapshot initialization')) $GlobalText (
+        'ReadSetPositionOutcome output/malformed boundary drifted')
+    & $addFixture 'ReadBoundaryKeySizeChanged' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            'KeySize\s*<>\s*48') (
+            'KeySize <> 44') (
+            'ReadSetPositionOutcome boundary KeySize')) $GlobalText (
+        'ReadSetPositionOutcome output/malformed boundary drifted')
+    & $addFixture 'ReadKeySchemaChanged' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            'pKeyBytes\^\$UINT\s*<>\s*1') (
+            'pKeyBytes^$UINT <> 2') (
+            'ReadSetPositionOutcome key schema')) $GlobalText (
+        'ReadSetPositionOutcome fixed 48-byte key ABI validation drifted')
+    & $addFixture 'ReadKeyReservedOffsetChanged' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            '\(pKeyBytes\s*\+\s*38\)\^\$UINT') (
+            '(pKeyBytes + 36)^$UINT') (
+            'ReadSetPositionOutcome key reserved offset')) $GlobalText (
+        'ReadSetPositionOutcome fixed 48-byte key ABI validation drifted')
+    & $addFixture 'ReadAxisUpperBoundChanged' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            'axisReference\s*>\s*4') (
+            'axisReference > 5') (
+            'ReadSetPositionOutcome axis upper bound')) $GlobalText (
+        'ReadSetPositionOutcome fixed 48-byte key ABI validation drifted')
+    & $addFixture 'ReadSameAxisFenceChanged' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            'TransactionAxisReference\s*=\s*axisReference') (
+            'TransactionAxisReference <> axisReference') (
+            'ReadSetPositionOutcome same-axis fence')) $GlobalText (
+        'ReadSetPositionOutcome same-axis fence/capacity detail 24 drifted')
+    & $addFixture 'ReadDifferentAxisBlocked' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            'TransactionActive\s*&\s*') (
+            'TransactionActive | ') (
+            'ReadSetPositionOutcome different-axis allowance')) $GlobalText (
+        'ReadSetPositionOutcome same-axis fence/capacity detail 24 drifted')
+    & $addFixture 'ReadCapacityGateChanged' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            'SnapshotCapacity\s*<\s*68') (
+            'SnapshotCapacity < 64') (
+            'ReadSetPositionOutcome snapshot capacity gate')) $GlobalText (
+        'ReadSetPositionOutcome same-axis fence/capacity detail 24 drifted')
+    & $addFixture 'ReadScanResultChanged' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            'scanResult\s*<\s*0') (
+            'scanResult <= 0') (
+            'ReadSetPositionOutcome Scan unavailable result')) $GlobalText (
+        'ReadSetPositionOutcome Scan detail 24/21 precedence drifted')
+    & $addFixture 'ReadCorruptDetailChanged' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            'pDetailCode\^\s*:=\s*21\s*;') (
+            'pDetailCode^ := 24;') (
+            'ReadSetPositionOutcome corrupt detail')) $GlobalText (
+        'ReadSetPositionOutcome Scan detail 24/21 precedence drifted')
+    & $addFixture 'ReadSecondScanAdded' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            'axisBaseWord\s*:=\s*\(TO_UDINT\(axisReference\)\s*-\s*1\)' +
+            '\s*\*\s*84\s*;') (
+            'scanResult := ScanAxisStore(' +
+            'AxisReference:=axisReference, ' +
+            'pClassifications:=#classifications[0], ' +
+            'pMaxStoreGeneration:=#maxStoreGeneration, ' +
+            'pMaxRecordGeneration:=#maxRecordGeneration);' +
+            [Environment]::NewLine +
+            'axisBaseWord := (TO_UDINT(axisReference) - 1) * 84;') (
+            'ReadSetPositionOutcome duplicate ScanAxisStore')) $GlobalText (
+        'ReadSetPositionOutcome must call ScanAxisStore exactly once')
+    & $addFixture 'ReadTerminalSlotBoundaryChanged' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            'slot\s*>=\s*1') (
+            'slot >= 0') (
+            'ReadSetPositionOutcome terminal slot boundary')) $GlobalText (
+        'ReadSetPositionOutcome newest exact terminal precedence drifted')
+    & $addFixture 'ReadTerminalSucceededStateChanged' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            '\(pRecord\s*\+\s*8\)\^\$UINT\s*=\s*2') (
+            '(pRecord + 8)^$UINT = 1') (
+            'ReadSetPositionOutcome succeeded state')) $GlobalText (
+        'ReadSetPositionOutcome newest exact terminal precedence drifted')
+    & $addFixture 'ReadTerminalRejectedStateChanged' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            '\(pRecord\s*\+\s*8\)\^\$UINT\s*=\s*3') (
+            '(pRecord + 8)^$UINT = 1') (
+            'ReadSetPositionOutcome rejected state')) $GlobalText (
+        'ReadSetPositionOutcome newest exact terminal precedence drifted')
+    & $addFixture 'ReadTerminalKeyMatchChanged' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            'RecordMatchesKey\(pRecord:=pRecord,\s*pKey:=pKey\)\s*=\s*1') (
+            'RecordMatchesKey(pRecord:=pRecord, pKey:=NIL) = 1') (
+            'ReadSetPositionOutcome terminal key match')) $GlobalText (
+        'ReadSetPositionOutcome newest exact terminal precedence drifted')
+    & $addFixture 'ReadNewestTerminalChanged' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            '\(pRecord\s*\+\s*4\)\^\$UDINT\s*>\s*' +
+            'bestTerminalStoreGeneration') (
+            '(pRecord + 4)^$UDINT < bestTerminalStoreGeneration') (
+            'ReadSetPositionOutcome newest terminal generation')) $GlobalText (
+        'ReadSetPositionOutcome newest exact terminal precedence drifted')
+    & $addFixture 'ReadTerminalSnapshotOffsetChanged' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            'ptr2:=pRecord\s*\+\s*8') (
+            'ptr2:=pRecord + 4') (
+            'ReadSetPositionOutcome snapshot offset')) $GlobalText (
+        'ReadSetPositionOutcome exact terminal snapshot/result 1 drifted')
+    & $addFixture 'ReadTerminalSnapshotLengthChanged' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            '_memcpy\(ptr1:=pSnapshot,\s*ptr2:=pRecord\s*\+\s*8,\s*' +
+            'cntr:=68\)') (
+            '_memcpy(ptr1:=pSnapshot, ptr2:=pRecord + 8, cntr:=64)') (
+            'ReadSetPositionOutcome snapshot length')) $GlobalText (
+        'ReadSetPositionOutcome exact terminal snapshot/result 1 drifted')
+    & $addFixture 'ReadTerminalResultChanged' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            'Result\s*:=\s*1\s*;') (
+            'Result := 2;') (
+            'ReadSetPositionOutcome terminal result')) $GlobalText (
+        'ReadSetPositionOutcome exact terminal snapshot/result 1 drifted')
+    & $addFixture 'ReadArmedClassificationChanged' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            'classifications\[0\]\s*=\s*2') (
+            'classifications[0] = 1') (
+            'ReadSetPositionOutcome Armed classification')) $GlobalText (
+        'ReadSetPositionOutcome exact Armed/detail 20 precedence drifted')
+    & $addFixture 'ReadArmedStateChanged' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            '\(pRecord\s*\+\s*8\)\^\$UINT\s*=\s*1') (
+            '(pRecord + 8)^$UINT = 2') (
+            'ReadSetPositionOutcome Armed state')) $GlobalText (
+        'ReadSetPositionOutcome exact Armed/detail 20 precedence drifted')
+    & $addFixture 'ReadArmedKeyMatchChanged' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            '\(\(pRecord\s*\+\s*8\)\^\$UINT\s*=\s*1\)\s*&\s*' +
+            '\(RecordMatchesKey\(pRecord:=pRecord,\s*pKey:=pKey\)' +
+            '\s*=\s*1\)') (
+            '((pRecord + 8)^$UINT = 1) & ' +
+            '(RecordMatchesKey(pRecord:=pRecord, pKey:=NIL) = 1)') (
+            'ReadSetPositionOutcome Armed key match')) $GlobalText (
+        'ReadSetPositionOutcome exact Armed/detail 20 precedence drifted')
+    & $addFixture 'ReadArmedDetailChanged' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            'pDetailCode\^\s*:=\s*20\s*;') (
+            'pDetailCode^ := 22;') (
+            'ReadSetPositionOutcome Armed detail')) $GlobalText (
+        'ReadSetPositionOutcome exact Armed/detail 20 precedence drifted')
+    & $addFixture 'ReadOtherDetailChanged' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            'if\s+hasValidRecord\s+then\s*' +
+            'pDetailCode\^\s*:=\s*22\s*;') (
+            'if hasValidRecord then' + [Environment]::NewLine +
+            'pDetailCode^ := 19;') (
+            'ReadSetPositionOutcome other-key detail')) $GlobalText (
+        'ReadSetPositionOutcome other-key 22/not-found 19 precedence drifted')
+    & $addFixture 'ReadNotFoundDetailChanged' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            'else\s*pDetailCode\^\s*:=\s*19\s*;') (
+            'else' + [Environment]::NewLine +
+            'pDetailCode^ := 22;') (
+            'ReadSetPositionOutcome not-found detail')) $GlobalText (
+        'ReadSetPositionOutcome other-key 22/not-found 19 precedence drifted')
+    & $addFixture 'ReadDetail23Added' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            'Result\s*:=\s*0\s*;') (
+            'Result := 0;' + [Environment]::NewLine +
+            'pDetailCode^ := 23;') (
+            'ReadSetPositionOutcome forbidden detail 23')) $GlobalText (
+        'ReadSetPositionOutcome must never produce detail 23')
+    & $addFixture 'ReadTypedAliasWriteAdded' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            'Result\s*:=\s*0\s*;') (
+            'Result := 0;' + [Environment]::NewLine +
+            '(pRecord + 4)^$UDINT := 0;') (
+            'ReadSetPositionOutcome typed retained alias write')) $GlobalText (
+        'ReadSetPositionOutcome retained alias write count must remain zero')
+    & $addFixture 'ReadMemsetAliasWriteAdded' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            'Result\s*:=\s*0\s*;') (
+            'Result := 0;' + [Environment]::NewLine +
+            '_memset(dest:=pRecord, usByte:=0, cntr:=84);') (
+            'ReadSetPositionOutcome retained alias memset')) $GlobalText (
+        'ReadSetPositionOutcome retained alias write count must remain zero')
+    & $addFixture 'ReadUntypedAliasWriteAdded' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            'Result\s*:=\s*0\s*;') (
+            'Result := 0;' + [Environment]::NewLine +
+            '(pRecord + 0)^ := 0;') (
+            'ReadSetPositionOutcome untyped retained alias write')) $GlobalText (
+        'ReadSetPositionOutcome retained alias write count must remain zero')
+    & $addFixture 'ReadTransactionWriteAdded' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            'Result\s*:=\s*0\s*;') (
+            'Result := 0;' + [Environment]::NewLine +
+            'TransactionActive := FALSE;') (
+            'ReadSetPositionOutcome transaction scalar write')) $GlobalText (
+        'ReadSetPositionOutcome transaction write count must remain zero')
+    & $addFixture 'ReadTransactionMemsetAdded' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            'Result\s*:=\s*0\s*;') (
+            'Result := 0;' + [Environment]::NewLine +
+            '_memset(dest:=#TransactionKeyWords[0], usByte:=0, cntr:=48);') (
+            'ReadSetPositionOutcome transaction array write')) $GlobalText (
+        'ReadSetPositionOutcome transaction write count must remain zero')
+    & $addFixture 'ReadCommitRecordCallAdded' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            'Result\s*:=\s*0\s*;') (
+            'Result := 0;' + [Environment]::NewLine +
+            'Result := CommitRecord(' +
+            'AxisReference:=axisReference, Slot:=1, pImage:=NIL);') (
+            'ReadSetPositionOutcome CommitRecord call')) $GlobalText (
+        'ReadSetPositionOutcome mutating/direct helper call count must remain zero')
+    & $addFixture 'ReadSelectCallAdded' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            'Result\s*:=\s*0\s*;') (
+            'Result := 0;' + [Environment]::NewLine +
+            'Result := SelectTerminalSlot(' +
+            'AxisReference:=axisReference, ExcludedSlot:=-1, ' +
+            'pClassifications:=#classifications[0]);') (
+            'ReadSetPositionOutcome SelectTerminalSlot call')) $GlobalText (
+        'ReadSetPositionOutcome mutating/direct helper call count must remain zero')
+    & $addFixture 'ReadSecondRecordMatchesKeyAdded' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            '// The newest exact terminal or tombstone wins the query\.') (
+            'scanResult := RecordMatchesKey(' +
+            'pRecord:=pRecord, pKey:=pKey);' +
+            [Environment]::NewLine +
+            '// The newest exact terminal or tombstone wins the query.') (
+            'ReadSetPositionOutcome duplicate RecordMatchesKey')) $GlobalText (
+        'ReadSetPositionOutcome must call RecordMatchesKey exactly twice')
+    & $addFixture 'ReadDirectRetainedWriteAdded' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            '// Classify this axis once; all remaining work is read-only\.') (
+            '(#g_LMCSetPositionStoreWords[0])^ := 0;' +
+            [Environment]::NewLine +
+            '// Classify this axis once; all remaining work is read-only.') (
+            'ReadSetPositionOutcome direct retained write')) $GlobalText (
+        'direct retained assignment count must remain zero')
+    & $addFixture 'ReadNativeSetPositionAdded' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            '// Classify this axis once; all remaining work is read-only\.') (
+            'pRecord.SetPosition();' + [Environment]::NewLine +
+            '// Classify this axis once; all remaining work is read-only.') (
+            'ReadSetPositionOutcome native SetPosition call')) $GlobalText (
+        'native SetPosition call count must remain zero')
+    & $addFixture 'ReadIfFalseBypassAdded' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            '// The newest exact terminal or tombstone wins the query\.') (
+            'if FALSE then end_if;' + [Environment]::NewLine +
+            '// The newest exact terminal or tombstone wins the query.') (
+            'ReadSetPositionOutcome IF FALSE bypass')) $GlobalText (
+        'ReadSetPositionOutcome executable/control-flow fingerprint drifted')
+    & $addFixture 'ReadResultOverrideAdded' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            'END_FUNCTION') (
+            'Result := 1;' + [Environment]::NewLine +
+            'END_FUNCTION') (
+            'ReadSetPositionOutcome Result override')) $GlobalText (
+        'ReadSetPositionOutcome executable/control-flow fingerprint drifted')
+    & $addFixture 'ReadPointerRebindAdded' (
+        & $mutateFunction 'ReadSetPositionOutcome' (
+            '// The newest exact terminal or tombstone wins the query\.') (
+            'pRecord := pSnapshot;' + [Environment]::NewLine +
+            '// The newest exact terminal or tombstone wins the query.') (
+            'ReadSetPositionOutcome pointer rebind')) $GlobalText (
+        'ReadSetPositionOutcome executable/control-flow fingerprint drifted')
+    & $addFixture 'RetireStubChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'ExpectedRecordGeneration\s*=\s*0') (
+            'ExpectedRecordGeneration = 1') (
+            'RetireSetPositionOutcome malformed CAS boundary')) $GlobalText (
+        'RetireSetPositionOutcome output/malformed/CAS boundary drifted')
+    & $addFixture 'RetireDeclarationAbiChanged' (
+        & $mutateClass (
+            'ExpectedRecordGeneration\s*:\s*UDINT\s*;') (
+            'ExpectedRecordGeneration : UINT;') (
+            'RetireSetPositionOutcome ExpectedRecordGeneration declaration')) (
+        $GlobalText) 'RetireSetPositionOutcome declaration does not match'
+    & $addFixture 'RetireImplementationScopeChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'FUNCTION\s+GLOBAL\s+LMCSetPositionStore::RetireSetPositionOutcome') (
+            'FUNCTION LMCSetPositionStore::RetireSetPositionOutcome') (
+            'RetireSetPositionOutcome implementation scope')) $GlobalText (
+        'RetireSetPositionOutcome implementation does not match')
+    & $addFixture 'RetireLocalInventoryChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'rescanResult\s*:\s*DINT\s*;') (
+            'rescanResult : UDINT;') (
+            'RetireSetPositionOutcome rescanResult local type')) $GlobalText (
+        'RetireSetPositionOutcome local mutation inventory drifted')
+    & $addFixture 'RetireInlineExtraLocalBlockAdded' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'VAR_OUTPUT\s+Result\s*:\s*DINT\s*;\s*END_VAR') (
+            'VAR_OUTPUT Result : DINT; END_VAR' + [Environment]::NewLine +
+            'VAR injected : BOOL; END_VAR') (
+            'RetireSetPositionOutcome inline extra local block')) $GlobalText (
+        'RetireSetPositionOutcome local mutation inventory drifted')
+    & $addFixture 'RetireSnapshotZeroLengthChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            '_memset\(dest:=pSnapshot,\s*usByte:=0,\s*cntr:=68\)') (
+            '_memset(dest:=pSnapshot, usByte:=0, cntr:=64)') (
+            'RetireSetPositionOutcome snapshot zero length')) $GlobalText (
+        'RetireSetPositionOutcome output/malformed/CAS boundary drifted')
+    & $addFixture 'RetireKeySizeBoundaryChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'KeySize\s*<>\s*48') 'KeySize <> 44' (
+            'RetireSetPositionOutcome key size boundary')) $GlobalText (
+        'RetireSetPositionOutcome output/malformed/CAS boundary drifted')
+    & $addFixture 'RetireDetailInitializationChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'pDetailCode\^\s*:=\s*0\s*;') 'pDetailCode^ := 24;' (
+            'RetireSetPositionOutcome detail initialization')) $GlobalText (
+        'RetireSetPositionOutcome detail allowlist/inventory')
+    & $addFixture 'RetireKeySchemaChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'pKeyBytes\^\$UINT\s*<>\s*1') 'pKeyBytes^$UINT <> 2' (
+            'RetireSetPositionOutcome key schema')) $GlobalText (
+        'RetireSetPositionOutcome fixed 48-byte key ABI validation drifted')
+    & $addFixture 'RetireKeySemanticChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            '\(pKeyBytes\s*\+\s*2\)\^\$UINT\s*<>\s*1') (
+            '(pKeyBytes + 2)^$UINT <> 2') (
+            'RetireSetPositionOutcome key semantic')) $GlobalText (
+        'RetireSetPositionOutcome fixed 48-byte key ABI validation drifted')
+    & $addFixture 'RetireKeyIdentityRangeChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            '\(pKeyBytes\s*\+\s*32\)\^\$UDINT\s*=\s*0') (
+            '(pKeyBytes + 32)^$UDINT <> 0') (
+            'RetireSetPositionOutcome identity word guard')) $GlobalText (
+        'RetireSetPositionOutcome fixed 48-byte key ABI validation drifted')
+    & $addFixture 'RetireAxisOffsetChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'axisReference\s*:=\s*\(pKeyBytes\s*\+\s*36\)\^\$UINT') (
+            'axisReference := (pKeyBytes + 38)^$UINT') (
+            'RetireSetPositionOutcome axis key offset')) $GlobalText (
+        'RetireSetPositionOutcome fixed 48-byte key ABI validation drifted')
+    & $addFixture 'RetireAxisUpperBoundaryChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'axisReference\s*>\s*4') 'axisReference > 5' (
+            'RetireSetPositionOutcome axis upper boundary')) $GlobalText (
+        'RetireSetPositionOutcome fixed 48-byte key ABI validation drifted')
+    & $addFixture 'RetireReservedKeyFieldChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            '\(pKeyBytes\s*\+\s*38\)\^\$UINT\s*<>\s*0') (
+            '(pKeyBytes + 38)^$UINT <> 1') (
+            'RetireSetPositionOutcome reserved key field')) $GlobalText (
+        'RetireSetPositionOutcome fixed 48-byte key ABI validation drifted')
+    & $addFixture 'RetireSameAxisFenceChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'TransactionAxisReference\s*=\s*axisReference') (
+            'TransactionAxisReference <> axisReference') (
+            'RetireSetPositionOutcome same-axis transaction fence')) $GlobalText (
+        'RetireSetPositionOutcome same-axis fence/capacity detail 24 drifted')
+    & $addFixture 'RetireDifferentAxisBlocked' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'if\s+TransactionActive\s*&') 'if TransactionActive |' (
+            'RetireSetPositionOutcome different-axis allowance')) $GlobalText (
+        'RetireSetPositionOutcome same-axis fence/capacity detail 24 drifted')
+    & $addFixture 'RetireSnapshotCapacityChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'SnapshotCapacity\s*<\s*68') 'SnapshotCapacity < 64' (
+            'RetireSetPositionOutcome snapshot capacity gate')) $GlobalText (
+        'RetireSetPositionOutcome same-axis fence/capacity detail 24 drifted')
+    & $addFixture 'RetireInitialScanDuplicated' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            '// Establish the query winner and generation frontier with one scan\.') (
+            'scanResult := ScanAxisStore(AxisReference:=axisReference, ' +
+            'pClassifications:=#classifications[0], ' +
+            'pMaxStoreGeneration:=#maxStoreGeneration, ' +
+            'pMaxRecordGeneration:=#maxRecordGeneration);' +
+            [Environment]::NewLine +
+            '// Establish the query winner and generation frontier with one scan.') (
+            'RetireSetPositionOutcome duplicate initial Scan')) $GlobalText (
+        'RetireSetPositionOutcome must call ScanAxisStore exactly twice')
+    & $addFixture 'RetireInitialScanNegativeChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'scanResult\s*<\s*0') 'scanResult <= 0' (
+            'RetireSetPositionOutcome initial Scan negative result')) $GlobalText (
+        'RetireSetPositionOutcome initial Scan detail 24/21 precedence drifted')
+    & $addFixture 'RetireInitialScanCorruptDetailChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'elsif\s+scanResult\s*=\s*0\s+then\s*' +
+            'pDetailCode\^\s*:=\s*21') (
+            'elsif scanResult = 0 then pDetailCode^ := 24') (
+            'RetireSetPositionOutcome initial corrupt detail')) $GlobalText (
+        'RetireSetPositionOutcome detail allowlist/inventory')
+    & $addFixture 'RetireWinnerLoopBoundaryChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'for\s+slot\s*:=\s*0\s+to\s+3\s+do') (
+            'for slot := 1 to 3 do') (
+            'RetireSetPositionOutcome query slot loop')) $GlobalText (
+        'RetireSetPositionOutcome newest exact terminal/tombstone precedence drifted')
+    & $addFixture 'RetireWinnerClassificationChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'if\s+classifications\[slot\]\s*=\s*2') (
+            'if classifications[slot] = 1') (
+            'RetireSetPositionOutcome valid classification')) $GlobalText (
+        'RetireSetPositionOutcome newest exact terminal/tombstone precedence drifted')
+    & $addFixture 'RetireTerminalStateChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            '\(pRecord\s*\+\s*8\)\^\$UINT\s*=\s*3') (
+            '(pRecord + 8)^$UINT = 1') (
+            'RetireSetPositionOutcome terminal state set')) $GlobalText (
+        'RetireSetPositionOutcome newest exact terminal/tombstone precedence drifted')
+    & $addFixture 'RetireWinnerKeyMatchInverted' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'RecordMatchesKey\(pRecord:=pRecord,\s*pKey:=pKey\)\s*=\s*1') (
+            'RecordMatchesKey(pRecord:=pRecord, pKey:=pKey) <> 1') (
+            'RetireSetPositionOutcome winner key match')) $GlobalText (
+        'RetireSetPositionOutcome newest exact terminal/tombstone precedence drifted')
+    & $addFixture 'RetireWinnerGenerationComparatorChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            '\(pRecord\s*\+\s*4\)\^\$UDINT\s*>\s*' +
+            'bestTerminalStoreGeneration') (
+            '(pRecord + 4)^$UDINT < bestTerminalStoreGeneration') (
+            'RetireSetPositionOutcome newest generation comparator')) $GlobalText (
+        'RetireSetPositionOutcome newest exact terminal/tombstone precedence drifted')
+    & $addFixture 'RetireArmedClassificationChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'if\s+classifications\[0\]\s*=\s*2') (
+            'if classifications[0] = 1') (
+            'RetireSetPositionOutcome Armed classification')) $GlobalText (
+        'RetireSetPositionOutcome Armed 20/other 22/not-found 19 precedence drifted')
+    & $addFixture 'RetireArmedStateChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            '\(\(pRecord\s*\+\s*8\)\^\$UINT\s*=\s*1\)') (
+            '((pRecord + 8)^$UINT = 2)') (
+            'RetireSetPositionOutcome Armed state')) $GlobalText (
+        'RetireSetPositionOutcome Armed 20/other 22/not-found 19 precedence drifted')
+    & $addFixture 'RetireArmedDetailChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'pDetailCode\^\s*:=\s*20') 'pDetailCode^ := 22' (
+            'RetireSetPositionOutcome Armed detail')) $GlobalText (
+        'RetireSetPositionOutcome detail allowlist/inventory')
+    & $addFixture 'RetireOtherAndNoneDetailsSwapped' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'if\s+hasValidRecord\s+then\s*' +
+            'pDetailCode\^\s*:=\s*22\s*;\s*else\s*' +
+            'pDetailCode\^\s*:=\s*19\s*;') (
+            'if hasValidRecord then pDetailCode^ := 19;' +
+            ' else pDetailCode^ := 22;') (
+            'RetireSetPositionOutcome 22/19 precedence')) $GlobalText (
+        'RetireSetPositionOutcome Armed 20/other 22/not-found 19 precedence drifted')
+    & $addFixture 'RetireDetail23Injected' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            '// Apply the exact RecordGeneration CAS before duplicate retirement\.') (
+            'pDetailCode^ := 23;' + [Environment]::NewLine +
+            '// Apply the exact RecordGeneration CAS before duplicate retirement.') (
+            'RetireSetPositionOutcome detail 23')) $GlobalText (
+        'RetireSetPositionOutcome must never produce detail 23')
+    & $addFixture 'RetireCasComparatorChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            '\(pSource\s*\+\s*72\)\^\$UDINT\s*<>\s*' +
+            'ExpectedRecordGeneration') (
+            '(pSource + 72)^$UDINT = ExpectedRecordGeneration') (
+            'RetireSetPositionOutcome CAS comparator')) $GlobalText (
+        'RetireSetPositionOutcome CAS/duplicate-tombstone zero-write drifted')
+    & $addFixture 'RetireCasOffsetChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            '\(pSource\s*\+\s*72\)\^\$UDINT') (
+            '(pSource + 68)^$UDINT') (
+            'RetireSetPositionOutcome CAS RecordGeneration offset')) $GlobalText (
+        'RetireSetPositionOutcome CAS/duplicate-tombstone zero-write drifted')
+    & $addFixture 'RetireDuplicateFlagOffsetChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            '\(pSource\s*\+\s*2\)\^\$UINT\s*=\s*1') (
+            '(pSource + 4)^$UINT = 1') (
+            'RetireSetPositionOutcome duplicate tombstone flag')) $GlobalText (
+        'RetireSetPositionOutcome CAS/duplicate-tombstone zero-write drifted')
+    & $addFixture 'RetireDuplicateSnapshotOffsetChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            '_memcpy\(ptr1:=pSnapshot,\s*ptr2:=pSource\s*\+\s*8,\s*' +
+            'cntr:=68\)') (
+            '_memcpy(ptr1:=pSnapshot, ptr2:=pSource + 10, cntr:=68)') (
+            'RetireSetPositionOutcome duplicate snapshot offset')) $GlobalText (
+        'RetireSetPositionOutcome CAS/duplicate-tombstone zero-write drifted')
+    & $addFixture 'RetireDuplicateSnapshotLengthChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            '_memcpy\(ptr1:=pSnapshot,\s*ptr2:=pSource\s*\+\s*8,\s*' +
+            'cntr:=68\)') (
+            '_memcpy(ptr1:=pSnapshot, ptr2:=pSource + 8, cntr:=64)') (
+            'RetireSetPositionOutcome duplicate snapshot length')) $GlobalText (
+        'RetireSetPositionOutcome CAS/duplicate-tombstone zero-write drifted')
+    & $addFixture 'RetireDuplicatePathWriteAdded' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'if\s+\(pSource\s*\+\s*2\)\^\$UINT\s*=\s*1\s+then') (
+            'if (pSource + 2)^$UINT = 1 then' + [Environment]::NewLine +
+            'commitResult := CommitRecord(AxisReference:=axisReference, ' +
+            'Slot:=TO_UINT(sourceSlot), pImage:=pSource);') (
+            'RetireSetPositionOutcome duplicate path CommitRecord')) $GlobalText (
+        'RetireSetPositionOutcome must call CommitRecord exactly once')
+    & $addFixture 'RetireSourceFreezeLengthChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'ptr1:=#frozenSourceWords\[0\],\s*ptr2:=pSource,\s*cntr:=84') (
+            'ptr1:=#frozenSourceWords[0], ptr2:=pSource, cntr:=80') (
+            'RetireSetPositionOutcome source freeze length')) $GlobalText (
+        'RetireSetPositionOutcome source freeze/max-generation no-wrap drifted')
+    & $addFixture 'RetireGenerationExhaustionChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'maxStoreGeneration\s*=\s*16#FFFFFFFF') (
+            'maxStoreGeneration = 16#FFFFFFFE') (
+            'RetireSetPositionOutcome StoreGeneration exhaustion')) $GlobalText (
+        'RetireSetPositionOutcome source freeze/max-generation no-wrap drifted')
+    & $addFixture 'RetireNextGenerationChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'nextStoreGeneration\s*:=\s*maxStoreGeneration\s*\+\s*1') (
+            'nextStoreGeneration := maxStoreGeneration + 2') (
+            'RetireSetPositionOutcome next StoreGeneration')) $GlobalText (
+        'RetireSetPositionOutcome source freeze/max-generation no-wrap drifted')
+    & $addFixture 'RetireSelectSourceExclusionChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'ExcludedSlot:=TO_INT\(sourceSlot\)') 'ExcludedSlot:=-1' (
+            'RetireSetPositionOutcome Select source exclusion')) $GlobalText (
+        'RetireSetPositionOutcome source-excluding Select target envelope drifted')
+    & $addFixture 'RetireSelectSourceCastRemoved' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'ExcludedSlot:=TO_INT\(sourceSlot\)') 'ExcludedSlot:=sourceSlot' (
+            'RetireSetPositionOutcome Select source INT cast')) $GlobalText (
+        'RetireSetPositionOutcome source-excluding Select target envelope drifted')
+    & $addFixture 'RetireSelectTargetRangeChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'targetSlot\s*>\s*3') 'targetSlot > 4' (
+            'RetireSetPositionOutcome target upper range')) $GlobalText (
+        'RetireSetPositionOutcome source-excluding Select target envelope drifted')
+    & $addFixture 'RetireSelectFailureDetailChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'IsClientConnected\(#CheckSum\)\s*<>\s*0') (
+            'IsClientConnected(#CheckSum) = 0') (
+            'RetireSetPositionOutcome Select failure detail')) $GlobalText (
+        'RetireSetPositionOutcome source-excluding Select target envelope drifted')
+    & $addFixture 'RetireSelectDuplicated' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            '// Preserve bytes 8\.\.75 and publish only a newer tombstone identity\.') (
+            'targetSlot := SelectTerminalSlot(AxisReference:=axisReference, ' +
+            'ExcludedSlot:=TO_INT(sourceSlot), ' +
+            'pClassifications:=#classifications[0]);' +
+            [Environment]::NewLine +
+            '// Preserve bytes 8..75 and publish only a newer tombstone identity.') (
+            'RetireSetPositionOutcome duplicate Select')) $GlobalText (
+        'RetireSetPositionOutcome must call SelectTerminalSlot exactly once')
+    & $addFixture 'RetireTombstoneCloneLengthChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'ptr2:=#frozenSourceWords\[0\],\s*cntr:=84') (
+            'ptr2:=#frozenSourceWords[0], cntr:=68') (
+            'RetireSetPositionOutcome tombstone clone length')) $GlobalText (
+        'RetireSetPositionOutcome tombstone snapshot preservation drifted')
+    & $addFixture 'RetireTombstoneFlagOffsetChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            '\(pTombstone\s*\+\s*2\)\^\$UINT\s*:=\s*1') (
+            '(pTombstone + 10)^$UINT := 1') (
+            'RetireSetPositionOutcome tombstone flag offset')) $GlobalText (
+        'RetireSetPositionOutcome tombstone snapshot preservation drifted')
+    & $addFixture 'RetireTombstoneFlagValueChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            '\(pTombstone\s*\+\s*2\)\^\$UINT\s*:=\s*1') (
+            '(pTombstone + 2)^$UINT := 0') (
+            'RetireSetPositionOutcome tombstone flag value')) $GlobalText (
+        'RetireSetPositionOutcome tombstone snapshot preservation drifted')
+    & $addFixture 'RetireTombstoneGenerationOffsetChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            '\(pTombstone\s*\+\s*4\)\^\$UDINT') (
+            '(pTombstone + 8)^$UDINT') (
+            'RetireSetPositionOutcome tombstone generation offset')) $GlobalText (
+        'RetireSetPositionOutcome tombstone snapshot preservation drifted')
+    & $addFixture 'RetireTombstoneGenerationValueChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            '\(pTombstone\s*\+\s*4\)\^\$UDINT\s*:=\s*' +
+            'nextStoreGeneration') (
+            '(pTombstone + 4)^$UDINT := maxStoreGeneration') (
+            'RetireSetPositionOutcome tombstone generation value')) $GlobalText (
+        'RetireSetPositionOutcome tombstone snapshot preservation drifted')
+    & $addFixture 'RetireTombstoneCrcOffsetChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            '\(pTombstone\s*\+\s*76\)\^\$UDINT') (
+            '(pTombstone + 72)^$UDINT') (
+            'RetireSetPositionOutcome tombstone CRC offset')) $GlobalText (
+        'RetireSetPositionOutcome tombstone snapshot preservation drifted')
+    & $addFixture 'RetireTombstoneCrcLengthChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'CheckSum\.CRC32\(pTombstone,\s*76,\s*0\)') (
+            'CheckSum.CRC32(pTombstone, 68, 0)') (
+            'RetireSetPositionOutcome tombstone CRC length')) $GlobalText (
+        'RetireSetPositionOutcome tombstone snapshot preservation drifted')
+    & $addFixture 'RetireTombstoneCrcSeedChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'CheckSum\.CRC32\(pTombstone,\s*76,\s*0\)') (
+            'CheckSum.CRC32(pTombstone, 76, 1)') (
+            'RetireSetPositionOutcome tombstone CRC seed')) $GlobalText (
+        'RetireSetPositionOutcome tombstone snapshot preservation drifted')
+    & $addFixture 'RetireTombstoneMarkerOffsetChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            '\(pTombstone\s*\+\s*80\)\^\$UDINT') (
+            '(pTombstone + 76)^$UDINT') (
+            'RetireSetPositionOutcome tombstone marker offset')) $GlobalText (
+        'RetireSetPositionOutcome tombstone snapshot preservation drifted')
+    & $addFixture 'RetireTombstoneMarkerValueChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            '16#7D12C0DE') '16#7D12C0DF' (
+            'RetireSetPositionOutcome tombstone marker value')) $GlobalText (
+        'RetireSetPositionOutcome tombstone snapshot preservation drifted')
+    & $addFixture 'RetireTombstonePayloadWriteAdded' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            '\(pTombstone\s*\+\s*80\)\^\$UDINT\s*:=\s*' +
+            '16#7D12C0DE\s*;') (
+            '(pTombstone + 80)^$UDINT := 16#7D12C0DE;' +
+            [Environment]::NewLine +
+            '(pTombstone + 8)^$UINT := 3;') (
+            'RetireSetPositionOutcome tombstone payload write')) $GlobalText (
+        'RetireSetPositionOutcome tombstone writes must change only')
+    & $addFixture 'RetireTombstoneRecordGenerationWriteAdded' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            '// Preserve bytes 8\.\.75 and publish only a newer tombstone identity\.') (
+            '(pTombstone + 72)^$UDINT := ExpectedRecordGeneration;' +
+            [Environment]::NewLine +
+            '// Preserve bytes 8..75 and publish only a newer tombstone identity.') (
+            'RetireSetPositionOutcome tombstone RecordGeneration write')) $GlobalText (
+        'RetireSetPositionOutcome tombstone writes must change only')
+    & $addFixture 'RetireTombstoneBaseWriteAdded' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            '// Preserve bytes 8\.\.75 and publish only a newer tombstone identity\.') (
+            'pTombstone^$UINT := 1;' + [Environment]::NewLine +
+            '// Preserve bytes 8..75 and publish only a newer tombstone identity.') (
+            'RetireSetPositionOutcome tombstone base write')) $GlobalText (
+        'RetireSetPositionOutcome tombstone writes must change only')
+    & $addFixture 'RetireTombstoneBulkWriteAdded' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            '// Preserve bytes 8\.\.75 and publish only a newer tombstone identity\.') (
+            '_memcpy(ptr1:=pTombstone, ptr2:=pFrozenSource, cntr:=84);' +
+            [Environment]::NewLine +
+            '// Preserve bytes 8..75 and publish only a newer tombstone identity.') (
+            'RetireSetPositionOutcome tombstone bulk write')) $GlobalText (
+        'RetireSetPositionOutcome tombstone writes must change only')
+    & $addFixture 'RetireCommitSlotChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'Slot:=TO_UINT\(targetSlot\)') 'Slot:=TO_UINT(sourceSlot)' (
+            'RetireSetPositionOutcome CommitRecord slot')) $GlobalText (
+        'RetireSetPositionOutcome CommitRecord publication/success drifted')
+    & $addFixture 'RetireCommitImageChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'pImage:=pTombstone') 'pImage:=pFrozenSource' (
+            'RetireSetPositionOutcome CommitRecord image')) $GlobalText (
+        'RetireSetPositionOutcome CommitRecord publication/success drifted')
+    & $addFixture 'RetireCommitResultComparatorChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'commitResult\s*=\s*1') 'commitResult <> 1' (
+            'RetireSetPositionOutcome CommitRecord result')) $GlobalText (
+        'RetireSetPositionOutcome CommitRecord publication/success drifted')
+    & $addFixture 'RetireCommitDuplicated' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'commitResult\s*:=\s*CommitRecord\([\s\S]*?' +
+            'pImage:=pTombstone\s*\);') (
+            'commitResult := CommitRecord(AxisReference:=axisReference, ' +
+            'Slot:=TO_UINT(targetSlot), pImage:=pTombstone);' +
+            [Environment]::NewLine +
+            'commitResult := CommitRecord(AxisReference:=axisReference, ' +
+            'Slot:=TO_UINT(targetSlot), pImage:=pTombstone);') (
+            'RetireSetPositionOutcome duplicate CommitRecord')) $GlobalText (
+        'RetireSetPositionOutcome must call CommitRecord exactly once')
+    & $addFixture 'RetireCommitSuccessSnapshotOffsetChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            '_memcpy\(ptr1:=pSnapshot,\s*ptr2:=pTarget\s*\+\s*8,\s*' +
+            'cntr:=68\)') (
+            '_memcpy(ptr1:=pSnapshot, ptr2:=pTarget + 10, cntr:=68)') (
+            'RetireSetPositionOutcome Commit success snapshot offset')) $GlobalText (
+        'RetireSetPositionOutcome CommitRecord publication/success drifted')
+    & $addFixture 'RetirePostCommitEarlyReturnAdded' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            '// CommitRecord may already have mutated the marker; close by fresh proof\.') (
+            'RETURN;' + [Environment]::NewLine +
+            '// CommitRecord may already have mutated the marker; close by fresh proof.') (
+            'RetireSetPositionOutcome post-Commit early RETURN')) $GlobalText (
+        'RetireSetPositionOutcome control-flow RETURN inventory')
+    & $addFixture 'RetirePostCommitNegativeAdded' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            '// CommitRecord may already have mutated the marker; close by fresh proof\.') (
+            'Result := -12;' + [Environment]::NewLine +
+            '// CommitRecord may already have mutated the marker; close by fresh proof.') (
+            'RetireSetPositionOutcome post-Commit negative result')) $GlobalText (
+        'RetireSetPositionOutcome must never produce Result -12')
+    & $addFixture 'RetirePostCommitDetail22Added' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            '// CommitRecord may already have mutated the marker; close by fresh proof\.') (
+            'pDetailCode^ := 22;' + [Environment]::NewLine +
+            '// CommitRecord may already have mutated the marker; close by fresh proof.') (
+            'RetireSetPositionOutcome post-Commit detail 22')) $GlobalText (
+        'RetireSetPositionOutcome detail allowlist/inventory')
+    & $addFixture 'RetireRescanRemoved' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'rescanResult\s*:=\s*ScanAxisStore\([\s\S]*?' +
+            'pMaxRecordGeneration:=#rescanMaxRecordGeneration\s*\);') (
+            'rescanResult := 1;') (
+            'RetireSetPositionOutcome post-Commit rescan removal')) $GlobalText (
+        'RetireSetPositionOutcome must call ScanAxisStore exactly twice')
+    & $addFixture 'RetireRescanDuplicated' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'rescanResult\s*:=\s*ScanAxisStore\([\s\S]*?' +
+            'pMaxRecordGeneration:=#rescanMaxRecordGeneration\s*\);') (
+            'rescanResult := ScanAxisStore(AxisReference:=axisReference, ' +
+            'pClassifications:=#rescanClassifications[0], ' +
+            'pMaxStoreGeneration:=#rescanMaxStoreGeneration, ' +
+            'pMaxRecordGeneration:=#rescanMaxRecordGeneration);' +
+            [Environment]::NewLine +
+            'rescanResult := ScanAxisStore(AxisReference:=axisReference, ' +
+            'pClassifications:=#rescanClassifications[0], ' +
+            'pMaxStoreGeneration:=#rescanMaxStoreGeneration, ' +
+            'pMaxRecordGeneration:=#rescanMaxRecordGeneration);') (
+            'RetireSetPositionOutcome duplicate post-Commit rescan')) $GlobalText (
+        'RetireSetPositionOutcome must call ScanAxisStore exactly twice')
+    & $addFixture 'RetireRescanNegativeChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'rescanResult\s*<\s*0') 'rescanResult <= 0' (
+            'RetireSetPositionOutcome rescan negative result')) $GlobalText (
+        'RetireSetPositionOutcome post-Commit rescan detail 24/21 drifted')
+    & $addFixture 'RetireRescanCorruptDetailChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'elsif\s+rescanResult\s*=\s*0\s+then\s*' +
+            'pDetailCode\^\s*:=\s*21') (
+            'elsif rescanResult = 0 then pDetailCode^ := 24') (
+            'RetireSetPositionOutcome rescan corrupt detail')) $GlobalText (
+        'RetireSetPositionOutcome detail allowlist/inventory')
+    & $addFixture 'RetireDurableTargetClassificationChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'rescanClassifications\[targetSlot\]\s*=\s*2') (
+            'rescanClassifications[targetSlot] = 1') (
+            'RetireSetPositionOutcome durable target classification')) $GlobalText (
+        'RetireSetPositionOutcome durable target rescan closure drifted')
+    & $addFixture 'RetireDurableTargetImageLengthChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'ptr1:=pTarget,\s*ptr2:=pTombstone,\s*cntr:=84') (
+            'ptr1:=pTarget, ptr2:=pTombstone, cntr:=68') (
+            'RetireSetPositionOutcome durable target image length')) $GlobalText (
+        'RetireSetPositionOutcome durable target rescan closure drifted')
+    & $addFixture 'RetireDurableTargetComparatorChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            '_memcmp\(ptr1:=pTarget,\s*ptr2:=pTombstone,\s*cntr:=84\)' +
+            '\s*=\s*0') (
+            '_memcmp(ptr1:=pTarget, ptr2:=pTombstone, cntr:=84) <> 0') (
+            'RetireSetPositionOutcome durable target comparator')) $GlobalText (
+        'RetireSetPositionOutcome durable target rescan closure drifted')
+    & $addFixture 'RetireDurableTargetSnapshotChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'if\s+_memcmp\(ptr1:=pTarget,\s*ptr2:=pTombstone,\s*' +
+            'cntr:=84\)\s*=\s*0\s+then\s*' +
+            '_memcpy\(ptr1:=pSnapshot,\s*ptr2:=pTarget\s*\+\s*8,\s*' +
+            'cntr:=68\)') (
+            'if _memcmp(ptr1:=pTarget, ptr2:=pTombstone, cntr:=84) = 0 then ' +
+            '_memcpy(ptr1:=pSnapshot, ptr2:=pTarget + 10, cntr:=68)') (
+            'RetireSetPositionOutcome durable target snapshot offset')) $GlobalText (
+        'RetireSetPositionOutcome durable target rescan closure drifted')
+    & $addFixture 'RetirePreservedSourceClassificationChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'rescanClassifications\[sourceSlot\]\s*=\s*2') (
+            'rescanClassifications[sourceSlot] = 1') (
+            'RetireSetPositionOutcome preserved source classification')) $GlobalText (
+        'RetireSetPositionOutcome frozen-source 24/lost-source 21 closure drifted')
+    & $addFixture 'RetirePreservedSourceImageLengthChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'ptr1:=pSource,\s*ptr2:=pFrozenSource,\s*cntr:=84') (
+            'ptr1:=pSource, ptr2:=pFrozenSource, cntr:=68') (
+            'RetireSetPositionOutcome preserved source image length')) $GlobalText (
+        'RetireSetPositionOutcome frozen-source 24/lost-source 21 closure drifted')
+    & $addFixture 'RetireLostSourceDetailChanged' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'end_if;\s*end_if;\s*pDetailCode\^\s*:=\s*21\s*;' +
+            '\s*END_FUNCTION') (
+            'end_if; end_if; pDetailCode^ := 24;' +
+            [Environment]::NewLine + 'END_FUNCTION') (
+            'RetireSetPositionOutcome lost source detail')) $GlobalText (
+        'RetireSetPositionOutcome detail allowlist/inventory')
+    & $addFixture 'RetireRetainedSourceWriteAdded' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            '// Freeze the exact active terminal before selecting another physical bank\.') (
+            'pSource^$UINT := 0;' + [Environment]::NewLine +
+            '// Freeze the exact active terminal before selecting another physical bank.') (
+            'RetireSetPositionOutcome retained source write')) $GlobalText (
+        'RetireSetPositionOutcome retained alias write count must remain zero')
+    & $addFixture 'RetireRetainedTargetWriteAdded' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            '// CommitRecord may already have mutated the marker; close by fresh proof\.') (
+            '_memcpy(ptr1:=pTarget, ptr2:=pTombstone, cntr:=84);' +
+            [Environment]::NewLine +
+            '// CommitRecord may already have mutated the marker; close by fresh proof.') (
+            'RetireSetPositionOutcome retained target write')) $GlobalText (
+        'RetireSetPositionOutcome retained alias write count must remain zero')
+    & $addFixture 'RetireDirectRetainedWriteAdded' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            '// Freeze the exact active terminal before selecting another physical bank\.') (
+            '#g_LMCSetPositionStoreWords[0] := 0;' + [Environment]::NewLine +
+            '// Freeze the exact active terminal before selecting another physical bank.') (
+            'RetireSetPositionOutcome direct retained write')) $GlobalText (
+        'direct retained assignment count must remain zero')
+    & $addFixture 'RetireTransactionClearAdded' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            '// Establish the query winner and generation frontier with one scan\.') (
+            'TransactionActive := FALSE;' + [Environment]::NewLine +
+            '// Establish the query winner and generation frontier with one scan.') (
+            'RetireSetPositionOutcome transaction clear')) $GlobalText (
+        'RetireSetPositionOutcome transaction/intent write count must remain zero')
+    & $addFixture 'RetireIntentClearAdded' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            '// Establish the query winner and generation frontier with one scan\.') (
+            'TransactionIntentStoreGeneration := 0;' + [Environment]::NewLine +
+            '// Establish the query winner and generation frontier with one scan.') (
+            'RetireSetPositionOutcome intent clear')) $GlobalText (
+        'RetireSetPositionOutcome transaction/intent write count must remain zero')
+    & $addFixture 'RetireReadCallAdded' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            '// Establish the query winner and generation frontier with one scan\.') (
+            'scanResult := ReadSetPositionOutcome(' +
+            'pKey:=pKey, KeySize:=KeySize, pSnapshot:=pSnapshot, ' +
+            'SnapshotCapacity:=SnapshotCapacity, pDetailCode:=pDetailCode);' +
+            [Environment]::NewLine +
+            '// Establish the query winner and generation frontier with one scan.') (
+            'RetireSetPositionOutcome Read call')) $GlobalText (
+        'RetireSetPositionOutcome public mutation/read call count must remain zero')
+    & $addFixture 'RetireNativeSetPositionAdded' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            '// Establish the query winner and generation frontier with one scan\.') (
+            'pSource.SetPosition();' + [Environment]::NewLine +
+            '// Establish the query winner and generation frontier with one scan.') (
+            'RetireSetPositionOutcome native SetPosition call')) $GlobalText (
+        'native SetPosition call count must remain zero')
+    & $addFixture 'RetirePointerRebindAdded' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            '// Preserve bytes 8\.\.75 and publish only a newer tombstone identity\.') (
+            'pTombstone := pSource;' + [Environment]::NewLine +
+            '// Preserve bytes 8..75 and publish only a newer tombstone identity.') (
+            'RetireSetPositionOutcome pointer rebind')) $GlobalText (
+        'RetireSetPositionOutcome executable/control-flow fingerprint drifted')
+    & $addFixture 'RetireIfFalseBypassAdded' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            '// Apply the exact RecordGeneration CAS before duplicate retirement\.') (
+            'if FALSE then end_if;' + [Environment]::NewLine +
+            '// Apply the exact RecordGeneration CAS before duplicate retirement.') (
+            'RetireSetPositionOutcome IF FALSE bypass')) $GlobalText (
+        'RetireSetPositionOutcome executable/control-flow fingerprint drifted')
+    & $addFixture 'RetireResultOverrideAdded' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            'END_FUNCTION') (
+            'Result := Result;' + [Environment]::NewLine +
+            'END_FUNCTION') (
+            'RetireSetPositionOutcome Result override')) $GlobalText (
+        'RetireSetPositionOutcome executable/control-flow fingerprint drifted')
+    & $addFixture 'RetireEarlyReturnAdded' (
+        & $mutateFunction 'RetireSetPositionOutcome' (
+            '// Preserve bytes 8\.\.75 and publish only a newer tombstone identity\.') (
+            'RETURN;' + [Environment]::NewLine +
+            '// Preserve bytes 8..75 and publish only a newer tombstone identity.') (
+            'RetireSetPositionOutcome early RETURN')) $GlobalText (
+        'RetireSetPositionOutcome control-flow RETURN inventory')
+    & $addFixture 'SelectStubChanged' (
+        & $mutateFunction 'SelectTerminalSlot' 'Result\s*:=\s*-1\s*;' (
+            'Result := 0;') 'SelectTerminalSlot initial result') $GlobalText (
+        'SelectTerminalSlot Axis/ExcludedSlot/pointer boundary drifted')
+    & $addFixture 'SelectAxisBoundaryChanged' (
+        & $mutateFunction 'SelectTerminalSlot' (
+            'AxisReference\s*>\s*4') (
+            'AxisReference > 5') (
+            'SelectTerminalSlot axis upper boundary')) $GlobalText (
+        'SelectTerminalSlot Axis/ExcludedSlot/pointer boundary drifted')
+    & $addFixture 'SelectExcludedBoundaryChanged' (
+        & $mutateFunction 'SelectTerminalSlot' (
+            'ExcludedSlot\s*<\s*1') (
+            'ExcludedSlot < 0') (
+            'SelectTerminalSlot excluded lower boundary')) $GlobalText (
+        'SelectTerminalSlot Axis/ExcludedSlot/pointer boundary drifted')
+    & $addFixture 'SelectClassificationPointerChanged' (
+        & $mutateFunction 'SelectTerminalSlot' (
+            'pClassifications\s*=\s*NIL') (
+            'pClassifications <> NIL') (
+            'SelectTerminalSlot classification pointer guard')) $GlobalText (
+        'SelectTerminalSlot Axis/ExcludedSlot/pointer boundary drifted')
+    & $addFixture 'SelectSecondScanAdded' (
+        & $mutateFunction 'SelectTerminalSlot' (
+            'Result\s*:=\s*bestSlot\s*;') (
+            'Result := bestSlot;' + [Environment]::NewLine +
+            'scanResult := ScanAxisStore(' +
+            'AxisReference:=AxisReference, ' +
+            'pClassifications:=#freshClassifications[0], ' +
+            'pMaxStoreGeneration:=#maxStoreGeneration, ' +
+            'pMaxRecordGeneration:=#maxRecordGeneration);') (
+            'SelectTerminalSlot duplicate Scan')) $GlobalText (
+        'SelectTerminalSlot must call fresh ScanAxisStore exactly once')
+    & $addFixture 'SelectClassificationDriftAllowed' (
+        & $mutateFunction 'SelectTerminalSlot' (
+            '\(pClassifications\s*\+\s*slot\)\^\s*<>\s*' +
+            'freshClassifications\[slot\]') (
+            '(pClassifications + slot)^ = freshClassifications[slot]') (
+            'SelectTerminalSlot stale classification rejection')) $GlobalText (
+        'SelectTerminalSlot fresh Scan/classification drift rejection drifted')
+    & $addFixture 'SelectBlankPriorityChanged' (
+        & $mutateFunction 'SelectTerminalSlot' (
+            'freshClassifications\[slot\]\s*=\s*0') (
+            'freshClassifications[slot] = 1') (
+            'SelectTerminalSlot Blank priority')) $GlobalText (
+        'SelectTerminalSlot Blank-before-Incomplete global priority drifted')
+    & $addFixture 'SelectIncompletePriorityChanged' (
+        & $mutateFunction 'SelectTerminalSlot' (
+            'freshClassifications\[slot\]\s*=\s*1') (
+            'freshClassifications[slot] = 2') (
+            'SelectTerminalSlot Incomplete priority')) $GlobalText (
+        'SelectTerminalSlot Blank-before-Incomplete global priority drifted')
+    & $addFixture 'SelectProtectedTombstoneFlagChanged' (
+        & $mutateFunction 'SelectTerminalSlot' (
+            '\(pRecord\s*\+\s*2\)\^\$UINT\s*=\s*1') (
+            '(pRecord + 2)^$UINT = 0') (
+            'SelectTerminalSlot protected tombstone flag')) $GlobalText (
+        'SelectTerminalSlot newest-tombstone protection drifted')
+    & $addFixture 'SelectProtectedGenerationChanged' (
+        & $mutateFunction 'SelectTerminalSlot' (
+            'storeGeneration\s*>\s*protectedGeneration') (
+            'storeGeneration < protectedGeneration') (
+            'SelectTerminalSlot newest tombstone generation')) $GlobalText (
+        'SelectTerminalSlot newest-tombstone protection drifted')
+    & $addFixture 'SelectProtectedSlotAllowed' (
+        & $mutateFunction 'SelectTerminalSlot' (
+            'slot\s*<>\s*protectedSlot') (
+            'slot = protectedSlot') (
+            'SelectTerminalSlot protected slot exclusion')) $GlobalText (
+        'SelectTerminalSlot replaceable-candidate envelope drifted')
+    & $addFixture 'SelectOldTombstoneChanged' (
+        & $mutateFunction 'SelectTerminalSlot' (
+            'retiredShadow\s*:=\s*\(pRecord\s*\+\s*2\)\^\$UINT\s*=\s*1') (
+            'retiredShadow := (pRecord + 2)^$UINT = 0') (
+            'SelectTerminalSlot old tombstone eligibility')) $GlobalText (
+        'SelectTerminalSlot replaceable-candidate envelope drifted')
+    & $addFixture 'SelectShadowKeyRangeChanged' (
+        & $mutateFunction 'SelectTerminalSlot' 'cntr:=44' 'cntr:=40' (
+            'SelectTerminalSlot shadow key range')) $GlobalText (
+        'SelectTerminalSlot exact newer-tombstone shadow proof drifted')
+    & $addFixture 'SelectShadowSnapshotRangeChanged' (
+        & $mutateFunction 'SelectTerminalSlot' 'cntr:=68' 'cntr:=64' (
+            'SelectTerminalSlot shadow snapshot range')) $GlobalText (
+        'SelectTerminalSlot exact newer-tombstone shadow proof drifted')
+    & $addFixture 'SelectShadowGenerationChanged' (
+        & $mutateFunction 'SelectTerminalSlot' (
+            '\(pCandidate\s*\+\s*4\)\^\$UDINT\s*>\s*' +
+            '\(pRecord\s*\+\s*4\)\^\$UDINT') (
+            '(pCandidate + 4)^$UDINT >= (pRecord + 4)^$UDINT') (
+            'SelectTerminalSlot newer tombstone ordering')) $GlobalText (
+        'SelectTerminalSlot exact newer-tombstone shadow proof drifted')
+    & $addFixture 'SelectLowestGenerationChanged' (
+        & $mutateFunction 'SelectTerminalSlot' (
+            'storeGeneration\s*<\s*bestGeneration') (
+            'storeGeneration > bestGeneration') (
+            'SelectTerminalSlot lowest generation')) $GlobalText (
+        'SelectTerminalSlot lowest-generation/slot tie-break drifted')
+    & $addFixture 'SelectSlotTieBreakChanged' (
+        & $mutateFunction 'SelectTerminalSlot' (
+            'slot\s*<\s*bestSlot') (
+            'slot > bestSlot') (
+            'SelectTerminalSlot slot tie-break')) $GlobalText (
+        'SelectTerminalSlot lowest-generation/slot tie-break drifted')
+    & $addFixture 'SelectAliasWriteAdded' (
+        & $mutateFunction 'SelectTerminalSlot' (
+            'Result\s*:=\s*bestSlot\s*;') (
+            'Result := bestSlot;' + [Environment]::NewLine +
+            '(pRecord + 4)^$UDINT := 0;') (
+            'SelectTerminalSlot retained alias write')) $GlobalText (
+        'SelectTerminalSlot retained/caller write count must remain zero')
+    & $addFixture 'SelectPublicCallAdded' (
+        & $mutateFunction 'SelectTerminalSlot' (
+            'Result\s*:=\s*bestSlot\s*;') (
+            'Result := bestSlot;' + [Environment]::NewLine +
+            'Result := BeginSetPosition(' +
+            'pKey:=NIL, KeySize:=0, pSnapshot:=NIL, ' +
+            'SnapshotCapacity:=0, pRecordGeneration:=NIL, ' +
+            'pDetailCode:=NIL);') (
+            'SelectTerminalSlot public call')) $GlobalText (
+        'SelectTerminalSlot public/CommitRecord call count must remain zero')
+    & $addFixture 'SelectCommitRecordCallAdded' (
+        & $mutateFunction 'SelectTerminalSlot' (
+            'Result\s*:=\s*bestSlot\s*;') (
+            'Result := bestSlot;' + [Environment]::NewLine +
+            'Result := CommitRecord(' +
+            'AxisReference:=AxisReference, Slot:=1, pImage:=NIL);') (
+            'SelectTerminalSlot CommitRecord call')) $GlobalText (
+        'SelectTerminalSlot public/CommitRecord call count must remain zero')
+    & $addFixture 'SelectEarlyReturnAdded' (
+        & $mutateFunction 'SelectTerminalSlot' (
+            'scanResult\s*:=\s*ScanAxisStore') (
+            'RETURN;' + [Environment]::NewLine +
+            'scanResult := ScanAxisStore') (
+            'SelectTerminalSlot early RETURN bypass')) $GlobalText (
+        'SelectTerminalSlot executable/control-flow fingerprint drifted')
+    & $addFixture 'SelectIfFalseAdded' (
+        & $mutateFunction 'SelectTerminalSlot' (
+            'scanResult\s*:=\s*ScanAxisStore') (
+            'if FALSE then end_if;' + [Environment]::NewLine +
+            'scanResult := ScanAxisStore') (
+            'SelectTerminalSlot IF FALSE bypass')) $GlobalText (
+        'SelectTerminalSlot executable/control-flow fingerprint drifted')
+    & $addFixture 'SelectResultOverrideAdded' (
+        & $mutateFunction 'SelectTerminalSlot' (
+            'Result\s*:=\s*bestSlot\s*;') (
+            'Result := bestSlot;' + [Environment]::NewLine +
+            'Result := 1;') (
+            'SelectTerminalSlot Result override bypass')) $GlobalText (
+        'SelectTerminalSlot executable/control-flow fingerprint drifted')
+    & $addFixture 'SelectMemsetAliasWriteAdded' (
+        & $mutateFunction 'SelectTerminalSlot' (
+            'Result\s*:=\s*bestSlot\s*;') (
+            'Result := bestSlot;' + [Environment]::NewLine +
+            '_memset(dest:=pRecord, usByte:=0, cntr:=84);') (
+            'SelectTerminalSlot retained memset bypass')) $GlobalText (
+        'SelectTerminalSlot retained/caller write count must remain zero')
+    & $addFixture 'SelectUntypedCallerWriteAdded' (
+        & $mutateFunction 'SelectTerminalSlot' (
+            'Result\s*:=\s*bestSlot\s*;') (
+            'Result := bestSlot;' + [Environment]::NewLine +
+            '(pClassifications + 0)^ := 0;') (
+            'SelectTerminalSlot untyped caller write bypass')) $GlobalText (
+        'SelectTerminalSlot retained/caller write count must remain zero')
+    & $addFixture 'CommitRecordBoundaryChanged' (
+        & $mutateFunction 'CommitRecord' 'Result\s*:=\s*-1\s*;' (
+            'Result := 0;') 'CommitRecord initial result') $GlobalText (
+        'CommitRecord input/image staging contract drifted')
+    & $addFixture 'CommitRecordStagingLengthChanged' (
+        & $mutateFunction 'CommitRecord' (
+            '_memcpy\(ptr1:=#stagedWords\[0\],\s*ptr2:=pImage,\s*cntr:=84\)') (
+            '_memcpy(ptr1:=#stagedWords[0], ptr2:=pImage, cntr:=80)') (
+            'CommitRecord staging length')) $GlobalText (
+        'CommitRecord input/image staging contract drifted')
+    & $addFixture 'CommitRecordStagedCrcSeedChanged' (
+        & $mutateFunction 'CommitRecord' (
+            'CheckSum\.CRC32\(pStaged,\s*76,\s*0\)') (
+            'CheckSum.CRC32(pStaged, 76, 1)') (
+            'CommitRecord staged CRC seed')) $GlobalText (
+        'CommitRecord input/image staging contract drifted')
+    & $addFixture 'CommitRecordStagedAbiChanged' (
+        & $mutateFunction 'CommitRecord' (
+            'pStaged\^\$UINT\s*<>\s*1') (
+            'pStaged^$UINT <> 2') (
+            'CommitRecord staged schema')) $GlobalText (
+        'CommitRecord staged image ABI/payload validation drifted')
+    & $addFixture 'CommitRecordPreflightScanChanged' (
+        & $mutateFunction 'CommitRecord' (
+            'if\s+scanResult\s*<>\s*1\s+then') (
+            'if scanResult <> 0 then') (
+            'CommitRecord preflight Scan result')) $GlobalText (
+        'CommitRecord preflight Scan/target geometry drifted')
+    & $addFixture 'CommitRecordMarkerClearChanged' (
+        & $mutateFunction 'CommitRecord' (
+            '\(pTarget\s*\+\s*80\)\^\$UDINT\s*:=\s*0\s*;') (
+            '(pTarget + 80)^$UDINT := 1;') (
+            'CommitRecord marker clear')) $GlobalText (
+        'CommitRecord marker-clear/readback fence drifted')
+    & $addFixture 'CommitRecordBodyLengthChanged' (
+        & $mutateFunction 'CommitRecord' (
+            '_memcpy\(ptr1:=pTarget,\s*ptr2:=pStaged,\s*cntr:=80\)') (
+            '_memcpy(ptr1:=pTarget, ptr2:=pStaged, cntr:=76)') (
+            'CommitRecord body write length')) $GlobalText (
+        'CommitRecord marker-zero 80-byte body proof drifted')
+    & $addFixture 'CommitRecordBodyReadbackChanged' (
+        & $mutateFunction 'CommitRecord' (
+            '_memcmp\(ptr1:=pStaged,\s*ptr2:=pReadback,\s*cntr:=80\)') (
+            '_memcmp(ptr1:=pStaged, ptr2:=pReadback, cntr:=79)') (
+            'CommitRecord body readback length')) $GlobalText (
+        'CommitRecord marker-zero 80-byte body proof drifted')
+    & $addFixture 'CommitRecordReadbackCrcSeedChanged' (
+        & $mutateFunction 'CommitRecord' (
+            'CheckSum\.CRC32\(pReadback,\s*76,\s*0\)') (
+            'CheckSum.CRC32(pReadback, 76, 1)') (
+            'CommitRecord readback CRC seed')) $GlobalText (
+        'CommitRecord body CRC/marker-zero publication fence drifted')
+    & $addFixture 'CommitRecordMarkerLastSourceChanged' (
+        & $mutateFunction 'CommitRecord' (
+            '\(pTarget\s*\+\s*80\)\^\$UDINT\s*:=\s*' +
+            '\(pStaged\s*\+\s*80\)\^\$UDINT\s*;') (
+            '(pTarget + 80)^$UDINT := 16#7D12C0DE;') (
+            'CommitRecord marker-last source')) $GlobalText (
+        'CommitRecord marker-last publication/readback drifted')
+    & $addFixture 'CommitRecordFinalLengthChanged' (
+        & $mutateFunction 'CommitRecord' (
+            '_memcpy\(ptr1:=pReadback,\s*ptr2:=pTarget,\s*cntr:=84\)') (
+            '_memcpy(ptr1:=pReadback, ptr2:=pTarget, cntr:=80)') (
+            'CommitRecord final readback length')) $GlobalText (
+        'CommitRecord final 84-byte image proof drifted')
+    & $addFixture 'CommitRecordFinalClassChanged' (
+        & $mutateFunction 'CommitRecord' (
+            'classifications\[TO_DINT\(Slot\)\]\s*=\s*2') (
+            'classifications[TO_DINT(Slot)] = 3') (
+            'CommitRecord final Scan classification')) $GlobalText (
+        'CommitRecord final Scan/classification proof drifted')
+
+    $fixtureNameSha256 = [Security.Cryptography.SHA256]::Create()
+    try {
+        $fixtureNameBytes = [Text.Encoding]::UTF8.GetBytes(
+            (@($fixtures.Keys) -join "`n"))
+        $fixtureNameHash = ([BitConverter]::ToString(
+                $fixtureNameSha256.ComputeHash($fixtureNameBytes))).
+            Replace('-', '').ToLowerInvariant()
+    }
+    finally {
+        $fixtureNameSha256.Dispose()
+    }
+    if ($fixtureNameHash -cne
+            '647d5f0c743cdc9c20c43f81dadb494ea5de1fa4f7c52ef4ee87a8476fc3a25c') {
+        throw "$Owner negative fixture ordered-name inventory drifted."
+    }
+
+    $rejectedCount = 0
+    foreach ($fixture in $fixtures.GetEnumerator()) {
+        if (($fixture.Value.Store -ceq $StoreText) -and
+            ($fixture.Value.Global -ceq $GlobalText) -and
+            ($fixture.Value.Control -ceq $ControlServiceText)) {
+            throw "$Owner negative fixture did not mutate: $($fixture.Key)"
+        }
+        $rejected = $false
+        try {
+            $fixtureParameters = @{
+                StoreText = $fixture.Value.Store
+                GlobalText = $fixture.Value.Global
+                ControlServiceText = $fixture.Value.Control
+                Owner = "$Owner negative fixture $($fixture.Key)"
+            }
+            Assert-LasalSetPositionStoreReadOnlyScanContract @fixtureParameters
+        }
+        catch {
+            if ($_.Exception.Message -notlike
+                    "*$($fixture.Value.Expected)*") {
+                throw (
+                    "$Owner negative fixture $($fixture.Key) failed for " +
+                    "an unexpected reason: $($_.Exception.Message)")
+            }
+            $rejected = $true
+        }
+        if (-not $rejected) {
+            throw "$Owner verifier accepted negative fixture $($fixture.Key)."
+        }
+        $rejectedCount++
+    }
+    if ($rejectedCount -ne 292) {
+        throw "$Owner negative fixture count is $rejectedCount, expected 292."
+    }
+    return $rejectedCount
+}
+
+function Get-LasalSetPositionCommBinaryContractParts {
+    param(
+        [Parameter(Mandatory = $true)][string]$NetworkDatabaseText,
+        [Parameter(Mandatory = $true)][string]$Owner
+    )
+
+    $blocker = "$Owner SetPosition Store generated wiring blocker:"
+    $commRecord = Get-LasalNetworkDatabaseRecord `
+        -DatabaseText $NetworkDatabaseText `
+        -SourcePath '.\Network\Comm_Network\Comm_Network.lcn' `
+        -NetworkName 'Comm_Network'
+    $connectionTableAnchor = [regex]::Match(
+        $commRecord,
+        ('(?s)(?<![0-9])000000(?![0-9]).{0,16}' +
+         '(?<![A-Za-z0-9_])TCPMotionInterface1' +
+         '(?![A-Za-z0-9_])'))
+    if (-not $connectionTableAnchor.Success) {
+        throw "$blocker Networks.lcb connection table could not be isolated."
+    }
+    $objectRegion = $commRecord.Substring(0, $connectionTableAnchor.Index)
+    $connectionTable = $commRecord.Substring($connectionTableAnchor.Index)
+    $connectionRecords = @(
+        [regex]::Matches(
+            $connectionTable,
+            ('(?s)(?<![0-9])(?<Id>[0-9]{6})(?![0-9])' +
+             '(?<Body>.*?)(?=(?<![0-9])[0-9]{6}(?![0-9])|\z)')) |
+            ForEach-Object {
+                [pscustomobject]@{
+                    Id = $_.Groups['Id'].Value
+                    Body = $_.Groups['Body'].Value
+                    Value = $_.Value
+                }
+            })
+    if ($connectionRecords.Count -lt 1) {
+        throw "$blocker Networks.lcb connection record inventory is empty."
+    }
+    return [pscustomobject]@{
+        CommRecord = $commRecord
+        ObjectRegion = $objectRegion
+        ConnectionRecords = $connectionRecords
+    }
+}
+
+function Get-LasalSetPositionCommGeneratedIndexContract {
+    param(
+        [Parameter(Mandatory = $true)][string]$CommNetworkTableText,
+        [Parameter(Mandatory = $true)][string]$Owner
+    )
+
+    $blocker = "$Owner SetPosition Store generated wiring blocker:"
+    $tableMatches = [regex]::Matches(
+        $CommNetworkTableText,
+        ('(?ims)^[ \t]*FUNCTION[ \t]+GLOBAL[ \t]+TAB[ \t]+' +
+         'ONE_Comm_Network[ \t]*\r?$.*?' +
+         '^[ \t]*END_FUNCTION[ \t]*;?[ \t]*\r?$'))
+    if ($tableMatches.Count -ne 1) {
+        throw "$blocker generated Comm table count is not exactly one."
+    }
+    $table = $tableMatches[0].Value
+    $internalMarker = [regex]::Match(
+        $table,
+        '(?im)^[ \t]*//Internal connections[ \t]*\r?$')
+    $initializationMarker = [regex]::Match(
+        $table,
+        '(?im)^[ \t]*//Initialization values[ \t]*\r?$')
+    if ((-not $internalMarker.Success) -or
+        (-not $initializationMarker.Success) -or
+        ($initializationMarker.Index -le $internalMarker.Index)) {
+        throw "$blocker generated internal connection section is incomplete."
+    }
+
+    $objectRegion = $table.Substring(0, $internalMarker.Index)
+    $objectScan = Get-LasalCommentStrippedText $objectRegion
+    $objectInventoryAnchor = [regex]::Match(
+        $objectScan,
+        ('(?is)TO_UDINT\s*\(3232495061\)\s*,\s*"VirtualBaseInit"\s*,' +
+         '\s*1\$UINT\s*,\s*3\$UINT\s*,\s*0\$UINT\s*,'))
+    if (-not $objectInventoryAnchor.Success) {
+        throw "$blocker generated object inventory boundary drifted."
+    }
+    $objectInventoryScan = $objectScan.Substring(
+        $objectInventoryAnchor.Index + $objectInventoryAnchor.Length)
+    $objectTuplePattern = (
+        '(?is)(?:_NO_ATTR|[0-9]+\$UINT)\s*,\s*' +
+        'TO_UDINT\s*\([0-9]+\)\s*,\s*"(?<Name>[^"]+)"\s*,')
+    $objectMatches = [regex]::Matches(
+        $objectInventoryScan,
+        $objectTuplePattern)
+    if ($objectMatches.Count -ne 17) {
+        throw (
+            "$blocker generated object index map count is " +
+            "$($objectMatches.Count), expected exactly 17.")
+    }
+    $objectNames = @($objectMatches | ForEach-Object {
+            $_.Groups['Name'].Value
+        })
+    $expectedObjectNames = @(
+        'LMCSETPOSITIONCHECKSUM1',
+        'TCPIPSERVER1\_BASE\CHECKSUM',
+        'LMCUDPTRANSCEIVER1',
+        'LMCUDPCALLBACKSENDER1\_BASE\CRITICALSECTION_UDP',
+        'LMCUDPTRANSCEIVER1\CRITICALSECTION_UDP',
+        'LMCCONTROLCOMMANDSERVICE1',
+        'LMCDIAGNOSTICSSERVICE1',
+        'LMCSETPOSITIONSTORE1',
+        'LMCUDPCALLBACKSENDER1',
+        'TCPIPSERVER1\_BASE\STRSEMANAME01\MERKEREX0',
+        'TCPIPSERVER1\_BASE\STRSEMANAME02\MERKEREX0',
+        'TCPIPSERVER1\_BASE\STRTASKNAME\MERKEREX0',
+        'TCPIPSERVER1\_BASE\STRSEMANAME01',
+        'TCPIPSERVER1\_BASE\STRSEMANAME02',
+        'TCPIPSERVER1\_BASE\STRTASKNAME',
+        'TCPIPSERVER1',
+        'TCPMOTIONINTERFACE1'
+    )
+    if ([string]::Join('|', $objectNames) -cne
+        [string]::Join('|', $expectedObjectNames)) {
+        throw "$blocker generated object index map identity/order drifted."
+    }
+    $objectRemainder = [regex]::Replace(
+        $objectInventoryScan,
+        $objectTuplePattern,
+        {
+            param($match)
+            [regex]::Replace($match.Value, '[^\r\n]', ' ')
+        })
+    if ($objectRemainder -match '\S') {
+        throw "$blocker generated object index region contains unparsed syntax."
+    }
+    $indexMap = [Collections.Generic.Dictionary[string, int]]::new(
+        [StringComparer]::OrdinalIgnoreCase)
+    for ($objectIndex = 0; $objectIndex -lt $objectNames.Count;
+            $objectIndex++) {
+        $objectName = $objectNames[$objectIndex]
+        if ($indexMap.ContainsKey($objectName)) {
+            throw "$blocker generated object index map contains duplicate $objectName."
+        }
+        $indexMap.Add($objectName, $objectIndex)
+    }
+    foreach ($expectedIndex in @(
+            @{ Name = 'LMCCONTROLCOMMANDSERVICE1'; Index = 5 },
+            @{ Name = 'LMCSETPOSITIONSTORE1'; Index = 7 },
+            @{ Name = 'LMCSETPOSITIONCHECKSUM1'; Index = 0 })) {
+        if ((-not $indexMap.ContainsKey($expectedIndex.Name)) -or
+            ($indexMap[$expectedIndex.Name] -ne $expectedIndex.Index)) {
+            throw (
+                "$blocker generated object index identity for " +
+                "$($expectedIndex.Name) is not $($expectedIndex.Index).")
+        }
+    }
+
+    $internalRegion = $table.Substring(
+        $internalMarker.Index,
+        $initializationMarker.Index - $internalMarker.Index)
+    $internalScan = Get-LasalCommentStrippedText $internalRegion
+    $channelTuplePattern = (
+        '(?is)TO_UDINT\s*\((?<SourceIndex>[0-9]+)\)\s*,\s*' +
+        '"(?<SourceChannel>[^"]+)"\s*,\s*' +
+        'TO_UDINT\s*\((?<DestinationIndex>[0-9]+)\)\s*,\s*' +
+        '"(?<DestinationChannel>[^"]+)"\s*,')
+    $channelMatches = [regex]::Matches(
+        $internalScan,
+        $channelTuplePattern)
+    if ($channelMatches.Count -ne 11) {
+        throw (
+            "$blocker generated indexed connection count is " +
+            "$($channelMatches.Count), expected exactly 11.")
+    }
+    $countPrefix = $internalScan.Substring(0, $channelMatches[0].Index)
+    $scalarMatches = [regex]::Matches(
+        $countPrefix,
+        '(?is)(?<Value>[0-9]+)\$UDINT\s*,')
+    $declaredCounts = @($scalarMatches | ForEach-Object {
+            $_.Groups['Value'].Value
+        })
+    if ([string]::Join('|', $declaredCounts) -cne '0|9|0|11') {
+        throw (
+            "$blocker generated internal connection header/count must be " +
+            'exactly 0/9/0/11.')
+    }
+    $internalLinkTuplePattern = (
+        '(?is)TO_UDINT\s*\((?<SourceIndex>[0-9]+)\)\s*,\s*' +
+        '"(?<SourceChannel>[^"]+)"\s*,\s*' +
+        'TO_UDINT\s*\((?<DestinationIndex>[0-9]+)\)\s*,')
+    $internalLinkMatches = [regex]::Matches(
+        $countPrefix,
+        $internalLinkTuplePattern)
+    $internalLinkIdentities = @($internalLinkMatches | ForEach-Object {
+            ($_.Groups['SourceIndex'].Value + '|' +
+             $_.Groups['SourceChannel'].Value + '|' +
+             $_.Groups['DestinationIndex'].Value)
+        })
+    $expectedInternalLinkIdentities = @(
+        '2|CriticalSection_UDP|4',
+        '8|CriticalSection_UDP|3',
+        '12|MerkerEx0|9',
+        '13|MerkerEx0|10',
+        '14|MerkerEx0|11',
+        '15|CheckSum|1',
+        '15|StrTaskName|14',
+        '15|StrSemaName01|12',
+        '15|StrSemaName02|13'
+    )
+    if (($internalLinkMatches.Count -ne 9) -or
+        ([string]::Join('|', $internalLinkIdentities) -cne
+            [string]::Join('|', $expectedInternalLinkIdentities))) {
+        throw "$blocker generated internal link identity/order drifted."
+    }
+    if (($scalarMatches.Count -ne 4) -or
+        (($scalarMatches[1].Index + $scalarMatches[1].Length) -gt
+            $internalLinkMatches[0].Index) -or
+        (($internalLinkMatches[8].Index + $internalLinkMatches[8].Length) -gt
+            $scalarMatches[2].Index)) {
+        throw "$blocker generated internal count/link layout drifted."
+    }
+    $prefixTokenPattern = (
+        '(?:' + $internalLinkTuplePattern + '|[0-9]+\$UDINT\s*,)')
+    $prefixRemainder = [regex]::Replace(
+        $countPrefix,
+        $prefixTokenPattern,
+        {
+            param($match)
+            [regex]::Replace($match.Value, '[^\r\n]', ' ')
+        })
+    if ($prefixRemainder -match '\S') {
+        throw "$blocker generated internal connection region contains unparsed syntax."
+    }
+    $channelRegion = $internalScan.Substring($channelMatches[0].Index)
+    $channelRemainder = [regex]::Replace(
+        $channelRegion,
+        $channelTuplePattern,
+        {
+            param($match)
+            [regex]::Replace($match.Value, '[^\r\n]', ' ')
+        })
+    if ($channelRemainder -match '\S') {
+        throw "$blocker generated internal connection region contains unparsed syntax."
+    }
+
+    $resolvedConnections = @()
+    foreach ($channelMatch in $channelMatches) {
+        $sourceIndex = [int]$channelMatch.Groups['SourceIndex'].Value
+        $destinationIndex =
+            [int]$channelMatch.Groups['DestinationIndex'].Value
+        if (($sourceIndex -lt 0) -or ($sourceIndex -ge $objectNames.Count) -or
+            ($destinationIndex -lt 0) -or
+            ($destinationIndex -ge $objectNames.Count)) {
+            throw "$blocker generated connection index escaped the object map."
+        }
+        $resolvedConnections += [pscustomobject]@{
+            SourceIndex = $sourceIndex
+            SourceObject = $objectNames[$sourceIndex]
+            SourceChannel = $channelMatch.Groups['SourceChannel'].Value
+            DestinationIndex = $destinationIndex
+            DestinationObject = $objectNames[$destinationIndex]
+            DestinationChannel =
+                $channelMatch.Groups['DestinationChannel'].Value
+        }
+    }
+    foreach ($expectedTuple in @(
+            @{
+                Label = 'Control-to-Store'
+                SourceIndex = 5
+                SourceObject = 'LMCCONTROLCOMMANDSERVICE1'
+                SourceChannel = 'SetPositionStore'
+                DestinationIndex = 7
+                DestinationObject = 'LMCSETPOSITIONSTORE1'
+                DestinationChannel = 'ClassSvr'
+            },
+            @{
+                Label = 'Store-to-CheckSum'
+                SourceIndex = 7
+                SourceObject = 'LMCSETPOSITIONSTORE1'
+                SourceChannel = 'CheckSum'
+                DestinationIndex = 0
+                DestinationObject = 'LMCSETPOSITIONCHECKSUM1'
+                DestinationChannel = 'ClassSvr'
+            })) {
+        $tupleCount = @($resolvedConnections | Where-Object {
+                ($_.SourceIndex -eq $expectedTuple.SourceIndex) -and
+                ($_.SourceObject -ceq $expectedTuple.SourceObject) -and
+                ($_.SourceChannel -ceq $expectedTuple.SourceChannel) -and
+                ($_.DestinationIndex -eq $expectedTuple.DestinationIndex) -and
+                ($_.DestinationObject -ceq $expectedTuple.DestinationObject) -and
+                ($_.DestinationChannel -ceq
+                    $expectedTuple.DestinationChannel)
+            }).Count
+        if ($tupleCount -ne 1) {
+            throw (
+                "$blocker generated indexed $($expectedTuple.Label) " +
+                "wiring tuple count is $tupleCount, expected exactly one.")
+        }
+        $sourceClosureCount = @($resolvedConnections | Where-Object {
+                ($_.SourceObject -ceq $expectedTuple.SourceObject) -and
+                ($_.SourceChannel -ceq $expectedTuple.SourceChannel)
+            }).Count
+        if ($sourceClosureCount -ne 1) {
+            throw (
+                "$blocker generated $($expectedTuple.Label) source closure " +
+                "count is $sourceClosureCount, expected exactly one.")
+        }
+        $destinationClosureCount = @($resolvedConnections | Where-Object {
+                ($_.DestinationObject -ceq
+                    $expectedTuple.DestinationObject) -and
+                ($_.DestinationChannel -ceq
+                    $expectedTuple.DestinationChannel)
+            }).Count
+        if ($destinationClosureCount -ne 1) {
+            throw (
+                "$blocker generated $($expectedTuple.Label) destination " +
+                "closure count is $destinationClosureCount, expected exactly one.")
+        }
+    }
+    return [pscustomobject]@{
+        IndexMap = $indexMap
+        ObjectNames = $objectNames
+        Connections = $resolvedConnections
+    }
+}
+
+function Assert-LasalSetPositionStoreGeneratedWiringContract {
+    param(
+        [Parameter(Mandatory = $true)][string]$StoreText,
+        [Parameter(Mandatory = $true)][string]$CommNetworkText,
+        [Parameter(Mandatory = $true)][string]$MotionNetworkText,
+        [Parameter(Mandatory = $true)][string]$EtherCatNetworkText,
+        [Parameter(Mandatory = $true)][string]$NetworkDatabaseText,
+        [Parameter(Mandatory = $true)][string]$CommNetworkTableText,
+        [Parameter(Mandatory = $true)][string]$Owner
+    )
+
+    $blocker = "$Owner SetPosition Store generated wiring blocker:"
+    $metadataMatches = [regex]::Matches(
+        $StoreText,
+        ('(?is)<Class\b(?=[^>]*\bName[ \t]*=[ \t]*' +
+         '"LMCSetPositionStore")[^>]*>.*?</Class>'))
+    if ($metadataMatches.Count -ne 1) {
+        throw "$blocker Store class metadata count is not exactly one."
+    }
+    $metadata = $metadataMatches[0].Value
+    try {
+        [xml]$metadataXml = $metadata
+    }
+    catch {
+        throw "$blocker Store class metadata XML could not be parsed."
+    }
+    $metadataServers = @($metadataXml.SelectNodes('/Class/Channels/Server'))
+    $metadataClients = @($metadataXml.SelectNodes('/Class/Channels/Client'))
+    $expectedServerAttributes = [ordered]@{
+        Name = 'ClassSvr'
+        GUID = '{17070400-FCA6-48AE-8F63-516F68E8272D}'
+        Visualized = 'false'
+        Initialize = 'false'
+        WriteProtected = 'true'
+        Retentive = 'false'
+    }
+    $expectedClientAttributes = [ordered]@{
+        Name = 'CheckSum'
+        Required = 'true'
+        Internal = 'false'
+    }
+    $serverAttributesExact = $metadataServers.Count -eq 1
+    if ($serverAttributesExact) {
+        $serverAttributesExact =
+            $metadataServers[0].Attributes.Count -eq
+            $expectedServerAttributes.Count
+        foreach ($attributeName in $expectedServerAttributes.Keys) {
+            if ($metadataServers[0].GetAttribute($attributeName) -cne
+                $expectedServerAttributes[$attributeName]) {
+                $serverAttributesExact = $false
+            }
+        }
+    }
+    $clientAttributesExact = $metadataClients.Count -eq 1
+    if ($clientAttributesExact) {
+        $clientAttributesExact =
+            $metadataClients[0].Attributes.Count -eq
+            $expectedClientAttributes.Count
+        foreach ($attributeName in $expectedClientAttributes.Keys) {
+            if ($metadataClients[0].GetAttribute($attributeName) -cne
+                $expectedClientAttributes[$attributeName]) {
+                $clientAttributesExact = $false
+            }
+        }
+    }
+    if (($metadataServers.Count -ne 1) -or
+        ($metadataClients.Count -ne 1) -or
+        (-not $serverAttributesExact) -or
+        (-not $clientAttributesExact)) {
+        throw (
+            "$blocker Store channel metadata must be the exact canonical " +
+            'ClassSvr server and Required=true/Internal=false CheckSum client.')
+    }
+
+    $storeScan = Get-LasalScanText $StoreText
+    $classMatches = [regex]::Matches(
+        $storeScan,
+        ('(?ims)^[ \t]*LMCSetPositionStore[ \t]*:[ \t]*CLASS[ \t]*\r?$' +
+         '.*?^[ \t]*END_CLASS[ \t]*;[ \t]*\r?$'))
+    if ($classMatches.Count -ne 1) {
+        throw "$blocker Store class declaration count is not exactly one."
+    }
+    $typedServers = [regex]::Matches(
+        $classMatches[0].Value,
+        ('(?is)(?<![A-Za-z0-9_])' +
+         '(?<Name>[A-Za-z_][A-Za-z0-9_]*)\s*:\s*' +
+         '(?<Type>SvrCh(?:Cmd)?_[A-Za-z_][A-Za-z0-9_]*)' +
+         '\s*;'))
+    $serverTypeTokens = [regex]::Matches(
+        $classMatches[0].Value,
+        '(?is)(?<![A-Za-z0-9_])SvrCh(?:Cmd)?_[A-Za-z_][A-Za-z0-9_]*')
+    if (($typedServers.Count -ne 1) -or
+        ($serverTypeTokens.Count -ne 1) -or
+        ($typedServers[0].Groups['Name'].Value -cne 'ClassSvr') -or
+        ($typedServers[0].Groups['Type'].Value -cne 'SvrChCmd_DINT')) {
+        throw "$blocker Store typed server must be exactly ClassSvr:SvrChCmd_DINT."
+    }
+    $typedClients = [regex]::Matches(
+        $classMatches[0].Value,
+        ('(?is)(?<![A-Za-z0-9_])' +
+         '(?<Name>[A-Za-z_][A-Za-z0-9_]*)\s*:\s*' +
+         '(?<Type>CltCh(?:Cmd)?_(?<Class>[A-Za-z_][A-Za-z0-9_]*))' +
+         '\s*;'))
+    $clientTypeTokens = [regex]::Matches(
+        $classMatches[0].Value,
+        '(?is)(?<![A-Za-z0-9_])CltCh(?:Cmd)?_[A-Za-z_][A-Za-z0-9_]*')
+    if (($typedClients.Count -ne 1) -or
+        ($clientTypeTokens.Count -ne 1) -or
+        ($typedClients[0].Groups['Name'].Value -cne 'CheckSum') -or
+        ($typedClients[0].Groups['Type'].Value -cne
+            'CltChCmd__CheckSum') -or
+        ($typedClients[0].Groups['Class'].Value -cne '_CheckSum')) {
+        throw "$blocker Store typed CheckSum client must be exactly CltChCmd__CheckSum."
+    }
+    if ($storeScan -match '\\[^\S\r\n]*\r?\n') {
+        throw "$blocker Store preprocessor line splicing is forbidden."
+    }
+    $hashLines = [regex]::Matches(
+        $storeScan,
+        '(?im)^[^\S\r\n]*#[^\r\n]*\r?$')
+    $pragmaCount = 0
+    $generatorDefineCount = 0
+    foreach ($hashLineMatch in $hashLines) {
+        $hashLine = $hashLineMatch.Value
+        if ([regex]::IsMatch(
+                $hashLine,
+                ('^[^\S\r\n]*#[^\S\r\n]*pragma[^\S\r\n]+' +
+                 'usingLtd[^\S\r\n]+_CheckSum[^\S\r\n]*\r?$'))) {
+            $pragmaCount++
+            continue
+        }
+        if ([regex]::IsMatch(
+                $hashLine,
+                ('^[^\S\r\n]*#[^\S\r\n]*define[^\S\r\n]+' +
+                 'USER_CNT_LMCSetPositionStore[^\S\r\n]+0' +
+                 '[^\S\r\n]*\r?$'))) {
+            $generatorDefineCount++
+            continue
+        }
+        throw (
+            "$blocker Store unsupported preprocessor line " +
+            "'$($hashLine.Trim())'.")
+    }
+    if (($hashLines.Count -ne 2) -or
+        ($pragmaCount -ne 1) -or
+        ($generatorDefineCount -ne 1)) {
+        throw (
+            "$blocker Store preprocessor allowlist must contain exactly " +
+            'one #pragma usingLtd _CheckSum and the one generated USER_CNT define.')
+    }
+
+    $tableMatches = [regex]::Matches(
+        $StoreText,
+        ('(?ims)^[ \t]*FUNCTION[ \t]+GLOBAL[ \t]+TAB[ \t]+' +
+         'LMCSetPositionStore::@CT_[ \t]*\r?$.*?' +
+         '^[ \t]*END_FUNCTION[ \t]*;?[ \t]*\r?$'))
+    if ($tableMatches.Count -ne 1) {
+        throw "$blocker Store generated @CT table count is not exactly one."
+    }
+    $storeTable = $tableMatches[0].Value
+    $storeTableScan = Get-LasalScanText $storeTable
+    if ([regex]::Matches(
+            $storeTable,
+            '(?m)^[ \t]*1\$UINT,[ \t]*1\$UINT,[ \t]*0\$UINT,[ \t]*\r?$'
+            ).Count -ne 1) {
+        throw "$blocker Store generated @CT counts must be exactly 1/1/0."
+    }
+    if ([regex]::Matches(
+            $storeTable,
+            ('(?m)^[ \t]*TO_UDINT\(2393574248\),[ \t]*' +
+             '"LMCSetPositionStore",[ \t]*//Class[ \t]*\r?$')).Count -ne 1) {
+        throw "$blocker Store generated exact class tuple drifted."
+    }
+    $generatedServerLines = [regex]::Matches(
+        $storeTableScan,
+        ('(?is)\(\s*::\s*' +
+         '(?:[A-Za-z_][A-Za-z0-9_]*\s*(?:::|\.)\s*)+' +
+         '(?<Name>[A-Za-z_][A-Za-z0-9_]*)\s*\.pMeth\s*\)' +
+         '\s*\$UINT\s*,'))
+    $generatedServerTokens = [regex]::Matches(
+        $storeTableScan,
+        '(?is)(?<![A-Za-z0-9_])pMeth(?![A-Za-z0-9_])')
+    $exactGeneratedServer = [regex]::Matches(
+            $storeTable,
+            ('(?m)^[ \t]*\(::LMCSetPositionStore\.ClassSvr\.pMeth\)' +
+             '\$UINT,[ \t]*_CH_CMD\$UINT,[ \t]*' +
+             '2#0000000000000000\$UINT,[ \t]*TO_UDINT\(619352855\),' +
+             '[ \t]*"ClassSvr",[ \t]*\r?$'))
+    if (($generatedServerLines.Count -ne 1) -or
+        ($generatedServerTokens.Count -ne 1) -or
+        ($exactGeneratedServer.Count -ne 1)) {
+        throw "$blocker Store generated ClassSvr tuple drifted."
+    }
+    $generatedClientLines = [regex]::Matches(
+        $storeTableScan,
+        ('(?is)\(\s*::\s*' +
+         '(?:[A-Za-z_][A-Za-z0-9_]*\s*(?:::|\.)\s*)+' +
+         '(?<Name>[A-Za-z_][A-Za-z0-9_]*)\s*\.pCh\s*\)' +
+         '\s*\$UINT\s*,'))
+    $generatedClientTokens = [regex]::Matches(
+        $storeTableScan,
+        '(?is)(?<![A-Za-z0-9_])pCh(?![A-Za-z0-9_])')
+    $exactGeneratedClient = [regex]::Matches(
+        $storeTable,
+        ('(?m)^[ \t]*\(::LMCSetPositionStore\.CheckSum\.pCh\)\$UINT,' +
+         '[ \t]*_CH_CLT_OBJ\$UINT,[ \t]*' +
+         '2#0000000000000010\$UINT,[ \t]*TO_UDINT\(408699862\),' +
+         '[ \t]*"CheckSum",[ \t]*TO_UDINT\(916194998\),' +
+         '[ \t]*"_CheckSum",[ \t]*1\$UINT,[ \t]*0\$UINT,[ \t]*\r?$'))
+    if (($generatedClientLines.Count -ne 1) -or
+        ($generatedClientTokens.Count -ne 1) -or
+        ($exactGeneratedClient.Count -ne 1)) {
+        throw "$blocker Store generated CheckSum class tuple drifted."
+    }
+    $normalizedStoreTable = $storeTable.Replace("`r`n", "`n").Replace(
+        "`r",
+        "`n")
+    $storeTableSha256 = [Security.Cryptography.SHA256]::Create()
+    try {
+        $storeTableHash = ([BitConverter]::ToString(
+                $storeTableSha256.ComputeHash(
+                    [Text.Encoding]::UTF8.GetBytes($normalizedStoreTable)))).
+            Replace('-', '')
+    }
+    finally {
+        $storeTableSha256.Dispose()
+    }
+    if (($normalizedStoreTable.Length -ne 604) -or
+        ($storeTableHash -cne
+            'E87AE02B9C3484745B568869F5AAB169C2ED79C28658F8F66EA17B1277CD53C0')) {
+        throw "$blocker Store generated @CT canonical fingerprint drifted."
+    }
+
+    try {
+        [xml]$commXml = $CommNetworkText
+    }
+    catch {
+        throw "$blocker Comm_Network XML could not be parsed."
+    }
+    try {
+        [xml]$motionXml = $MotionNetworkText
+    }
+    catch {
+        throw "$blocker Motion_Network XML could not be parsed."
+    }
+    try {
+        [xml]$etherCatXml = $EtherCatNetworkText
+    }
+    catch {
+        throw "$blocker EtherCAT_Network XML could not be parsed."
+    }
+
+    $networkInventory = @(
+        [pscustomobject]@{ Name = 'Comm_Network'; Document = $commXml },
+        [pscustomobject]@{ Name = 'Motion_Network'; Document = $motionXml },
+        [pscustomobject]@{ Name = 'EtherCAT_Network'; Document = $etherCatXml }
+    )
+    foreach ($objectContract in @(
+            @{
+                Label = 'Store'
+                Name = 'LMCSetPositionStore1'
+                Class = 'LMCSetPositionStore'
+            },
+            @{
+                Label = 'CheckSum'
+                Name = 'LMCSetPositionCheckSum1'
+                Class = '_CheckSum'
+            })) {
+        $matchingObjects = @()
+        foreach ($networkInventoryEntry in $networkInventory) {
+            $nodes = @(($networkInventoryEntry.Document).SelectNodes(
+                    "/Network/Components/Object[@Name='$($objectContract.Name)' or " +
+                    "@Class='$($objectContract.Class)']"))
+            foreach ($node in $nodes) {
+                $matchingObjects += [pscustomobject]@{
+                    Network = $networkInventoryEntry.Name
+                    Node = $node
+                }
+            }
+        }
+        if (($matchingObjects.Count -ne 1) -or
+            ($matchingObjects[0].Network -cne 'Comm_Network')) {
+            throw (
+                "$blocker cross-network $($objectContract.Label) object closure " +
+                'must be exactly one exact object in Comm_Network only.')
+        }
+    }
+
+    $storeObjects = @($commXml.SelectNodes(
+            "/Network/Components/Object[@Name='LMCSetPositionStore1']"))
+    $checksumObjects = @($commXml.SelectNodes(
+            "/Network/Components/Object[@Name='LMCSetPositionCheckSum1']"))
+    if (($storeObjects.Count -ne 1) -or
+        ($storeObjects[0].GetAttribute('Class') -cne 'LMCSetPositionStore')) {
+        throw "$blocker Comm_Network Store object/class must be exact."
+    }
+    if (($checksumObjects.Count -ne 1) -or
+        ($checksumObjects[0].GetAttribute('Class') -cne '_CheckSum')) {
+        throw "$blocker Comm_Network CheckSum object/class must be exact."
+    }
+    $storeServers = @($storeObjects[0].SelectNodes('./Channels/Server'))
+    $storeClients = @($storeObjects[0].SelectNodes('./Channels/Client'))
+    if (($storeServers.Count -ne 1) -or
+        ($storeServers[0].GetAttribute('Name') -cne 'ClassSvr') -or
+        ($storeClients.Count -ne 1) -or
+        ($storeClients[0].GetAttribute('Name') -cne 'CheckSum') -or
+        (@($storeObjects[0].SelectNodes('./Channels/*')).Count -ne 2)) {
+        throw "$blocker Comm_Network Store channel inventory must be ClassSvr/CheckSum."
+    }
+    $checksumServers = @($checksumObjects[0].SelectNodes('./Channels/Server'))
+    if (($checksumServers.Count -ne 1) -or
+        ($checksumServers[0].GetAttribute('Name') -cne 'ClassSvr') -or
+        (@($checksumObjects[0].SelectNodes('./Channels/*')).Count -ne 1)) {
+        throw "$blocker Comm_Network CheckSum channel inventory must be ClassSvr only."
+    }
+    $controlObjects = @($commXml.SelectNodes(
+            "/Network/Components/Object[" +
+            "@Name='LMCControlCommandService1' and " +
+            "@Class='LMCControlCommandService']"))
+    if ($controlObjects.Count -ne 1) {
+        throw "$blocker Comm_Network Control object/class must be exact."
+    }
+    $controlStoreClients = @($controlObjects[0].SelectNodes(
+            "./Channels/Client[@Name='SetPositionStore']"))
+    $controlStoreNamedChannels = @($controlObjects[0].SelectNodes(
+            "./Channels/*[@Name='SetPositionStore']"))
+    if (($controlStoreClients.Count -ne 1) -or
+        ($controlStoreNamedChannels.Count -ne 1)) {
+        throw "$blocker Comm_Network Control SetPositionStore client must be exact."
+    }
+
+    $controlStoreConnections = @($commXml.SelectNodes(
+            "/Network/Connections/Connection[" +
+            "@Source='LMCControlCommandService1.SetPositionStore' and " +
+            "@Destination='LMCSetPositionStore1.ClassSvr']"))
+    if ($controlStoreConnections.Count -ne 1) {
+        throw "$blocker Comm_Network Control-to-Store connection must be exact."
+    }
+    if (@($commXml.SelectNodes(
+                "/Network/Connections/Connection[" +
+                "@Source='LMCControlCommandService1.SetPositionStore']"
+            )).Count -ne 1) {
+        throw "$blocker Comm_Network Control SetPositionStore source closure must be exact."
+    }
+    if (@($commXml.SelectNodes(
+                "/Network/Connections/Connection[" +
+                "@Destination='LMCSetPositionStore1.ClassSvr']"
+            )).Count -ne 1) {
+        throw "$blocker Comm_Network Store ClassSvr incoming closure must be exact."
+    }
+    $storeChecksumConnections = @($commXml.SelectNodes(
+            "/Network/Connections/Connection[" +
+            "@Source='LMCSetPositionStore1.CheckSum' and " +
+            "@Destination='LMCSetPositionCheckSum1.ClassSvr']"))
+    if ($storeChecksumConnections.Count -ne 1) {
+        throw "$blocker Comm_Network Store-to-CheckSum connection must be exact."
+    }
+    if (@($commXml.SelectNodes(
+                "/Network/Connections/Connection[" +
+                "@Source='LMCSetPositionStore1.CheckSum']"
+            )).Count -ne 1) {
+        throw "$blocker Comm_Network Store CheckSum source closure must be exact."
+    }
+    if (@($commXml.SelectNodes(
+                "/Network/Connections/Connection[" +
+                "@Destination='LMCSetPositionCheckSum1.ClassSvr']"
+            )).Count -ne 1) {
+        throw "$blocker Comm_Network CheckSum ClassSvr incoming closure must be exact."
+    }
+
+    $binaryParts = Get-LasalSetPositionCommBinaryContractParts `
+        -NetworkDatabaseText $NetworkDatabaseText `
+        -Owner $Owner
+    $checksumObjectStart = $binaryParts.ObjectRegion.IndexOf(
+        'LMCSetPositionCheckSum1',
+        [StringComparison]::Ordinal)
+    $storeObjectStart = $binaryParts.ObjectRegion.IndexOf(
+        'LMCSetPositionStore1',
+        [StringComparison]::Ordinal)
+    $storeObjectEnd = $binaryParts.ObjectRegion.IndexOf(
+        'LMCUdpCallbackSender1',
+        $storeObjectStart + 'LMCSetPositionStore1'.Length,
+        [StringComparison]::Ordinal)
+    if (($checksumObjectStart -lt 0) -or
+        ($storeObjectStart -le $checksumObjectStart) -or
+        ($storeObjectEnd -le $storeObjectStart)) {
+        throw "$blocker Networks.lcb Store/CheckSum object records are incomplete."
+    }
+    $checksumObjectRecord = $binaryParts.ObjectRegion.Substring(
+        $checksumObjectStart,
+        $storeObjectStart - $checksumObjectStart)
+    $storeObjectRecord = $binaryParts.ObjectRegion.Substring(
+        $storeObjectStart,
+        $storeObjectEnd - $storeObjectStart)
+    foreach ($binaryObjectContract in @(
+            @{
+                Label = 'CheckSum'
+                Text = $checksumObjectRecord
+                ObjectName = 'LMCSetPositionCheckSum1'
+                Tokens = @('ClassSvr', '_CheckSum')
+            },
+            @{
+                Label = 'Store'
+                Text = $storeObjectRecord
+                ObjectName = 'LMCSetPositionStore1'
+                Tokens = @(
+                    'ClassSvr',
+                    'CheckSum',
+                    'LMCSetPositionStore')
+            })) {
+        if (-not $binaryObjectContract.Text.StartsWith(
+                $binaryObjectContract.ObjectName,
+                [StringComparison]::Ordinal)) {
+            throw (
+                "$blocker Networks.lcb $($binaryObjectContract.Label) " +
+                'object record name prefix drifted.')
+        }
+        foreach ($token in $binaryObjectContract.Tokens) {
+            $tokenCount = [regex]::Matches(
+                $binaryObjectContract.Text,
+                ('(?<![A-Za-z0-9_])' + [regex]::Escape($token) +
+                 '(?![A-Za-z0-9_])')).Count
+            if ($tokenCount -ne 1) {
+                throw (
+                    "$blocker Networks.lcb $($binaryObjectContract.Label) " +
+                    "object token $token count is $tokenCount, expected one.")
+            }
+        }
+    }
+    $controlStoreBinaryPattern = (
+        '(?s)^.{0,16}(?<![A-Za-z0-9_])LMCControlCommandService1' +
+        '(?![A-Za-z0-9_]).*?' +
+        '(?<![A-Za-z0-9_])LMCSetPositionStore1(?![A-Za-z0-9_]).*?' +
+        '(?<![A-Za-z0-9_])SetPositionStore(?![A-Za-z0-9_]).*?' +
+        '(?<![A-Za-z0-9_])ClassSvr(?![A-Za-z0-9_])')
+    if (@($binaryParts.ConnectionRecords | Where-Object {
+                $_.Body -cmatch $controlStoreBinaryPattern
+            }).Count -ne 1) {
+        throw "$blocker Networks.lcb Control-to-Store source tuple must be exact."
+    }
+    $controlStoreSourceRecords = @(
+        $binaryParts.ConnectionRecords | Where-Object {
+            $_.Body -cmatch (
+                '(?s)^.{0,16}(?<![A-Za-z0-9_])' +
+                'LMCControlCommandService1(?![A-Za-z0-9_]).*?' +
+                '(?<![A-Za-z0-9_])SetPositionStore(?![A-Za-z0-9_])')
+        })
+    if ($controlStoreSourceRecords.Count -ne 1) {
+        throw (
+            "$blocker Networks.lcb Control.SetPositionStore source-record " +
+            'closure must be exact.')
+    }
+    $storeSourceRecords = @($binaryParts.ConnectionRecords | Where-Object {
+            $_.Body -cmatch (
+                '(?s)^.{0,16}(?<![A-Za-z0-9_])' +
+                'LMCSetPositionStore1(?![A-Za-z0-9_])')
+        })
+    $storeChecksumBinaryPattern = (
+        '(?s)^.{0,16}(?<![A-Za-z0-9_])LMCSetPositionStore1' +
+        '(?![A-Za-z0-9_]).*?' +
+        '(?<![A-Za-z0-9_])LMCSetPositionCheckSum1(?![A-Za-z0-9_]).*?' +
+        '(?<![A-Za-z0-9_])CheckSum(?![A-Za-z0-9_]).*?' +
+        '(?<![A-Za-z0-9_])ClassSvr(?![A-Za-z0-9_])')
+    if (($storeSourceRecords.Count -ne 1) -or
+        (@($storeSourceRecords | Where-Object {
+                    $_.Body -cmatch $storeChecksumBinaryPattern
+                }).Count -ne 1)) {
+        throw "$blocker Networks.lcb Store-to-CheckSum source tuple must be exact."
+    }
+
+    $null = Get-LasalSetPositionCommGeneratedIndexContract `
+        -CommNetworkTableText $CommNetworkTableText `
+        -Owner $Owner
+}
+
+function Invoke-LasalSetPositionStoreGeneratedWiringVerifierSelfTest {
+    param(
+        [Parameter(Mandatory = $true)][string]$StoreText,
+        [Parameter(Mandatory = $true)][string]$CommNetworkText,
+        [Parameter(Mandatory = $true)][string]$MotionNetworkText,
+        [Parameter(Mandatory = $true)][string]$EtherCatNetworkText,
+        [Parameter(Mandatory = $true)][string]$NetworkDatabaseText,
+        [Parameter(Mandatory = $true)][string]$CommNetworkTableText,
+        [Parameter(Mandatory = $true)][string]$Owner
+    )
+
+    $current = @{
+        StoreText = $StoreText
+        CommNetworkText = $CommNetworkText
+        MotionNetworkText = $MotionNetworkText
+        EtherCatNetworkText = $EtherCatNetworkText
+        NetworkDatabaseText = $NetworkDatabaseText
+        CommNetworkTableText = $CommNetworkTableText
+        Owner = "$Owner current generated wiring"
+    }
+    Assert-LasalSetPositionStoreGeneratedWiringContract @current
+
+    $replaceExactOne = {
+        param(
+            [string]$Text,
+            [string]$Old,
+            [string]$New,
+            [string]$Label
+        )
+        $first = $Text.IndexOf($Old, [StringComparison]::Ordinal)
+        if (($first -lt 0) -or
+            ($Text.IndexOf(
+                    $Old,
+                    $first + $Old.Length,
+                    [StringComparison]::Ordinal) -ge 0)) {
+            throw "$Owner fixture anchor count is not one: $Label"
+        }
+        return $Text.Substring(0, $first) + $New +
+            $Text.Substring($first + $Old.Length)
+    }
+    $replaceRegexExactOne = {
+        param(
+            [string]$Text,
+            [string]$Pattern,
+            [string]$Replacement,
+            [string]$Label
+        )
+        $regex = [regex]::new(
+            $Pattern,
+            [Text.RegularExpressions.RegexOptions]::IgnoreCase -bor
+            [Text.RegularExpressions.RegexOptions]::Singleline -bor
+            [Text.RegularExpressions.RegexOptions]::Multiline)
+        if ($regex.Matches($Text).Count -ne 1) {
+            throw "$Owner fixture regex anchor count is not one: $Label"
+        }
+        return $regex.Replace($Text, $Replacement, 1)
+    }
+
+    $binaryParts = Get-LasalSetPositionCommBinaryContractParts `
+        -NetworkDatabaseText $NetworkDatabaseText `
+        -Owner "$Owner fixture source"
+    $binaryStoreRecord = @($binaryParts.ConnectionRecords | Where-Object {
+            $_.Body -match (
+                '(?s)^.{0,16}(?<![A-Za-z0-9_])' +
+                'LMCSetPositionStore1(?![A-Za-z0-9_])')
+        })
+    if ($binaryStoreRecord.Count -ne 1) {
+        throw "$Owner fixture Store binary source record count is not one."
+    }
+    $binaryStoreRecordDrift = & $replaceExactOne `
+        $binaryStoreRecord[0].Value `
+        'LMCSetPositionCheckSum1' `
+        'LMCSetPositionCheckSumX' `
+        'binary Store destination'
+    $binaryTupleDrift = & $replaceExactOne `
+        $NetworkDatabaseText `
+        $binaryStoreRecord[0].Value `
+        $binaryStoreRecordDrift `
+        'binary Store source record'
+
+    $binaryControlStoreRecord = @(
+        $binaryParts.ConnectionRecords | Where-Object {
+            $_.Body -cmatch (
+                '(?s)^.{0,16}(?<![A-Za-z0-9_])' +
+                'LMCControlCommandService1(?![A-Za-z0-9_]).*?' +
+                '(?<![A-Za-z0-9_])SetPositionStore(?![A-Za-z0-9_])')
+        })
+    if ($binaryControlStoreRecord.Count -ne 1) {
+        throw "$Owner fixture Control binary source record count is not one."
+    }
+    $binaryControlWrongDestinationRecord = & $replaceExactOne `
+        $binaryControlStoreRecord[0].Value `
+        'LMCSetPositionStore1' `
+        'LMCDiagnosticsService1' `
+        'binary Control wrong destination'
+    $binaryControlExtraSourceRecord = & $replaceExactOne `
+        $NetworkDatabaseText `
+        $binaryControlStoreRecord[0].Value `
+        ($binaryControlStoreRecord[0].Value +
+            $binaryControlWrongDestinationRecord) `
+        'binary Control duplicate source record'
+    $binaryControlCaseRecord = & $replaceExactOne `
+        $binaryControlStoreRecord[0].Value `
+        'LMCControlCommandService1' `
+        'lmccontrolcommandservice1' `
+        'binary Control source case'
+    $binaryControlCaseDrift = & $replaceExactOne `
+        $NetworkDatabaseText `
+        $binaryControlStoreRecord[0].Value `
+        $binaryControlCaseRecord `
+        'binary Control source case record'
+
+    try {
+        [xml]$motionDuplicateXml = $MotionNetworkText
+        $motionDuplicateObject = $motionDuplicateXml.CreateElement('Object')
+        $motionDuplicateObject.SetAttribute(
+            'Name',
+            'LMCSetPositionStoreShadow') | Out-Null
+        $motionDuplicateObject.SetAttribute(
+            'Class',
+            'LMCSetPositionStore') | Out-Null
+        $motionDuplicateXml.SelectSingleNode('/Network/Components').AppendChild(
+            $motionDuplicateObject) | Out-Null
+        $motionStoreDuplicateText = $motionDuplicateXml.OuterXml
+    }
+    catch {
+        throw "$Owner could not construct cross-network Store fixture."
+    }
+
+    try {
+        [xml]$commWrongIncomingXml = $CommNetworkText
+        $commWrongIncomingConnection =
+            $commWrongIncomingXml.CreateElement('Connection')
+        $commWrongIncomingConnection.SetAttribute(
+            'Source',
+            'LMCDiagnosticsService1.AxisOwnership') | Out-Null
+        $commWrongIncomingConnection.SetAttribute(
+            'Destination',
+            'LMCSetPositionStore1.ClassSvr') | Out-Null
+        $commWrongIncomingXml.SelectSingleNode(
+            '/Network/Connections').AppendChild(
+                $commWrongIncomingConnection) | Out-Null
+        $commStoreWrongIncomingText = $commWrongIncomingXml.OuterXml
+    }
+    catch {
+        throw "$Owner could not construct Store wrong-incoming fixture."
+    }
+
+    $fixtures = [ordered]@{
+        CheckSumMetadataRequiredFalse = @{
+            Store = & $replaceExactOne $StoreText (
+                '<Client Name="CheckSum" Required="true" Internal="false"/>') (
+                '<Client Name="CheckSum" Required="false" Internal="false"/>') (
+                'CheckSum required metadata')
+            Network = $CommNetworkText
+            Binary = $NetworkDatabaseText
+            Table = $CommNetworkTableText
+            Expected = 'Store channel metadata'
+        }
+        CheckSumPragmaRemoved = @{
+            Store = & $replaceExactOne $StoreText '#pragma usingLtd _CheckSum' '' (
+                'CheckSum pragma')
+            Network = $CommNetworkText
+            Binary = $NetworkDatabaseText
+            Table = $CommNetworkTableText
+            Expected = 'Store preprocessor allowlist'
+        }
+        StoreGeneratedCountDrift = @{
+            Store = & $replaceExactOne $StoreText (
+                '1$UINT, 1$UINT, 0$UINT,') (
+                '1$UINT, 2$UINT, 0$UINT,') (
+                'Store generated channel count')
+            Network = $CommNetworkText
+            Binary = $NetworkDatabaseText
+            Table = $CommNetworkTableText
+            Expected = 'Store generated @CT counts'
+        }
+        StoreGeneratedCheckSumClassTupleDrift = @{
+            Store = & $replaceExactOne $StoreText (
+                '"_CheckSum", 1$UINT, 0$UINT,') (
+                '"_CheckSumDrift", 1$UINT, 0$UINT,') (
+                'Store generated CheckSum class tuple')
+            Network = $CommNetworkText
+            Binary = $NetworkDatabaseText
+            Table = $CommNetworkTableText
+            Expected = 'Store generated CheckSum class tuple'
+        }
+        CommCheckSumObjectClassWrong = @{
+            Store = $StoreText
+            Network = & $replaceRegexExactOne $CommNetworkText (
+                '(<Object\s+Name\s*=\s*"LMCSetPositionCheckSum1".*?' +
+                'Class\s*=\s*)"_CheckSum"') '${1}"_CheckSumDrift"' (
+                'Comm CheckSum object class')
+            Binary = $NetworkDatabaseText
+            Table = $CommNetworkTableText
+            Expected = 'Comm_Network CheckSum object/class'
+        }
+        CommCheckSumConnectionMissing = @{
+            Store = $StoreText
+            Network = & $replaceRegexExactOne $CommNetworkText (
+                '<Connection\s+Source="LMCSetPositionStore1\.CheckSum"\s+' +
+                'Destination="LMCSetPositionCheckSum1\.ClassSvr"[^>]*/>') '' (
+                'Comm Store CheckSum connection')
+            Binary = $NetworkDatabaseText
+            Table = $CommNetworkTableText
+            Expected = 'Comm_Network Store-to-CheckSum connection'
+        }
+        NetworksCheckSumTupleDrift = @{
+            Store = $StoreText
+            Network = $CommNetworkText
+            Binary = $binaryTupleDrift
+            Table = $CommNetworkTableText
+            Expected = 'Networks.lcb Store-to-CheckSum source tuple'
+        }
+        GeneratedControlStoreIndexDrift = @{
+            Store = $StoreText
+            Network = $CommNetworkText
+            Binary = $NetworkDatabaseText
+            Table = & $replaceExactOne $CommNetworkTableText (
+                'TO_UDINT(5), "SetPositionStore", TO_UDINT(7), "ClassSvr",') (
+                'TO_UDINT(5), "SetPositionStore", TO_UDINT(6), "ClassSvr",') (
+                'generated Control Store index')
+            Expected = 'generated indexed Control-to-Store wiring tuple'
+        }
+        GeneratedObjectMapCountDrift = @{
+            Store = $StoreText
+            Network = $CommNetworkText
+            Binary = $NetworkDatabaseText
+            Table = & $replaceRegexExactOne $CommNetworkTableText (
+                '^[ \t]*_NO_ATTR,[ \t]*TO_UDINT\([0-9]+\),[ \t]*' +
+                '"LMCDIAGNOSTICSSERVICE1",[ \t]*\r?\n') '' (
+                'generated object map entry')
+            Expected = 'generated object index map count'
+        }
+        GeneratedConnectionCountDrift = @{
+            Store = $StoreText
+            Network = $CommNetworkText
+            Binary = $NetworkDatabaseText
+            Table = & $replaceRegexExactOne $CommNetworkTableText (
+                '^[ \t]*11\$UDINT,[ \t]*\r?$') '10$UDINT,' (
+                'generated channel connection count')
+            Expected = 'generated internal connection header/count'
+        }
+        StoreServerMetadataRemoved = @{
+            Store = & $replaceRegexExactOne $StoreText (
+                '<Server\s+Name="ClassSvr"[^>]*/>\r?\n') '' (
+                'Store ClassSvr metadata')
+            Network = $CommNetworkText
+            Binary = $NetworkDatabaseText
+            Table = $CommNetworkTableText
+            Expected = 'Store channel metadata'
+        }
+        StoreErrorDirectiveAdded = @{
+            Store = & $replaceExactOne $StoreText (
+                '#pragma usingLtd _CheckSum') (
+                "#pragma usingLtd _CheckSum`r`n#error STORE_WIRING_DISABLED") (
+                'Store error directive')
+            Network = $CommNetworkText
+            Binary = $NetworkDatabaseText
+            Table = $CommNetworkTableText
+            Expected = 'Store unsupported preprocessor line'
+        }
+        StoreServerTypeWrong = @{
+            Store = & $replaceRegexExactOne $StoreText (
+                '(^[ \t]*ClassSvr[ \t]*:[ \t]*)SvrChCmd_DINT' +
+                '([ \t]*;[ \t]*\r?$)') '${1}SvrChCmd_UDINT${2}' (
+                'Store typed server')
+            Network = $CommNetworkText
+            Binary = $NetworkDatabaseText
+            Table = $CommNetworkTableText
+            Expected = 'Store typed server'
+        }
+        CommControlClientRemoved = @{
+            Store = $StoreText
+            Network = & $replaceExactOne $CommNetworkText (
+                '<Client Name="SetPositionStore"/>') '' (
+                'Comm Control SetPositionStore client')
+            Binary = $NetworkDatabaseText
+            Table = $CommNetworkTableText
+            Expected = 'Comm_Network Control SetPositionStore client'
+        }
+        CommStoreWrongIncomingAdded = @{
+            Store = $StoreText
+            Network = $commStoreWrongIncomingText
+            Binary = $NetworkDatabaseText
+            Table = $CommNetworkTableText
+            Expected = 'Comm_Network Store ClassSvr incoming closure'
+        }
+        GeneratedDuplicateWrongControlStoreTuple = @{
+            Store = $StoreText
+            Network = $CommNetworkText
+            Binary = $NetworkDatabaseText
+            Table = & $replaceExactOne $CommNetworkTableText (
+                'TO_UDINT(6), "AxisOwnership", TO_UDINT(5), "ClassSvr",') (
+                'TO_UDINT(5), "SetPositionStore", TO_UDINT(6), "ClassSvr",') (
+                'generated duplicate wrong Control Store tuple')
+            Expected = 'generated Control-to-Store source closure'
+        }
+        CrossNetworkStoreDuplicate = @{
+            Store = $StoreText
+            Network = $CommNetworkText
+            Motion = $motionStoreDuplicateText
+            Binary = $NetworkDatabaseText
+            Table = $CommNetworkTableText
+            Expected = 'cross-network Store object closure'
+        }
+        NetworksExtraWrongControlSource = @{
+            Store = $StoreText
+            Network = $CommNetworkText
+            Binary = $binaryControlExtraSourceRecord
+            Table = $CommNetworkTableText
+            Expected = 'Networks.lcb Control.SetPositionStore source-record closure'
+        }
+        StoreMetadataAttributeOrderExtraServer = @{
+            Store = & $replaceExactOne $StoreText '<Channels>' (
+                "<Channels>`r`n" +
+                "`t`t<Server GUID=`"{00000000-0000-0000-0000-000000000000}`" " +
+                'Name="Shadow"/>') (
+                'Store metadata attribute-order server')
+            Network = $CommNetworkText
+            Binary = $NetworkDatabaseText
+            Table = $CommNetworkTableText
+            Expected = 'Store channel metadata'
+        }
+        StoreTypedNonCommandClientAdded = @{
+            Store = & $replaceRegexExactOne $StoreText (
+                '(^[ \t]*CheckSum[ \t]*:[ \t]*CltChCmd__CheckSum' +
+                '[ \t]*;[ \t]*\r?$)') (
+                '$1' + "`r`n`tShadow : CltCh_DINT;") (
+                'Store non-command typed client')
+            Network = $CommNetworkText
+            Binary = $NetworkDatabaseText
+            Table = $CommNetworkTableText
+            Expected = 'Store typed CheckSum client'
+        }
+        StoreGeneratedForeignServerEntryAdded = @{
+            Store = & $replaceExactOne $StoreText (
+                '(::LMCSetPositionStore.ClassSvr.pMeth)$UINT, ' +
+                '_CH_CMD$UINT, 2#0000000000000000$UINT, ' +
+                'TO_UDINT(619352855), "ClassSvr", ') (
+                '(::LMCSetPositionStore.ClassSvr.pMeth)$UINT, ' +
+                '_CH_CMD$UINT, 2#0000000000000000$UINT, ' +
+                'TO_UDINT(619352855), "ClassSvr", ' + "`r`n" +
+                '(::OtherClass.Shadow.pMeth)$UINT, _CH_CMD$UINT, ' +
+                '2#0000000000000000$UINT, TO_UDINT(1), "Shadow", ') (
+                'Store foreign generated server entry')
+            Network = $CommNetworkText
+            Binary = $NetworkDatabaseText
+            Table = $CommNetworkTableText
+            Expected = 'Store generated ClassSvr tuple'
+        }
+        NetworksControlSourceCaseDrift = @{
+            Store = $StoreText
+            Network = $CommNetworkText
+            Binary = $binaryControlCaseDrift
+            Table = $CommNetworkTableText
+            Expected = 'Networks.lcb Control-to-Store source tuple'
+        }
+        GeneratedUnrelatedObjectIdentityDrift = @{
+            Store = $StoreText
+            Network = $CommNetworkText
+            Binary = $NetworkDatabaseText
+            Table = & $replaceExactOne $CommNetworkTableText (
+                '"LMCDIAGNOSTICSSERVICE1",') (
+                '"LMCDIAGNOSTICSSERVICEX",') (
+                'generated unrelated object identity')
+            Expected = 'generated object index map identity/order'
+        }
+        StoreTypedMultilineClientAdded = @{
+            Store = & $replaceRegexExactOne $StoreText (
+                '(^[ \t]*CheckSum[ \t]*:[ \t]*CltChCmd__CheckSum' +
+                '[ \t]*;[ \t]*\r?$)') (
+                '$1' + "`r`n`tShadow :`r`n`t`tCltCh_DINT;") (
+                'Store multiline typed client')
+            Network = $CommNetworkText
+            Binary = $NetworkDatabaseText
+            Table = $CommNetworkTableText
+            Expected = 'Store typed CheckSum client'
+        }
+        StoreGeneratedMultilineForeignServerAdded = @{
+            Store = & $replaceExactOne $StoreText (
+                '(::LMCSetPositionStore.ClassSvr.pMeth)$UINT, ' +
+                '_CH_CMD$UINT, 2#0000000000000000$UINT, ' +
+                'TO_UDINT(619352855), "ClassSvr", ') (
+                '(::LMCSetPositionStore.ClassSvr.pMeth)$UINT, ' +
+                '_CH_CMD$UINT, 2#0000000000000000$UINT, ' +
+                'TO_UDINT(619352855), "ClassSvr", ' + "`r`n" +
+                '(::OtherClass.Shadow.pMeth)$UINT,' + "`r`n" +
+                '_CH_CMD$UINT, 2#0000000000000000$UINT, ' +
+                'TO_UDINT(1), "Shadow", ') (
+                'Store multiline foreign generated server entry')
+            Network = $CommNetworkText
+            Binary = $NetworkDatabaseText
+            Table = $CommNetworkTableText
+            Expected = 'Store generated ClassSvr tuple'
+        }
+        GeneratedMultilineObjectAdded = @{
+            Store = $StoreText
+            Network = $CommNetworkText
+            Binary = $NetworkDatabaseText
+            Table = & $replaceExactOne $CommNetworkTableText (
+                '//Internal connections') (
+                "_NO_ATTR,`r`nTO_UDINT(1), `"SHADOW`",`r`n`r`n" +
+                '//Internal connections') (
+                'generated multiline object entry')
+            Expected = 'generated object index map count'
+        }
+        GeneratedMultilineDuplicateWrongTuple = @{
+            Store = $StoreText
+            Network = $CommNetworkText
+            Binary = $NetworkDatabaseText
+            Table = & $replaceExactOne $CommNetworkTableText (
+                'TO_UDINT(6), "AxisOwnership", TO_UDINT(5), "ClassSvr",') (
+                "TO_UDINT(5), `"SetPositionStore`",`r`n" +
+                'TO_UDINT(6), "ClassSvr",') (
+                'generated multiline duplicate wrong Control Store tuple')
+            Expected = 'generated Control-to-Store source closure'
+        }
+        StoreGeneratedCommentSeparatedForeignServerAdded = @{
+            Store = & $replaceExactOne $StoreText (
+                '(::LMCSetPositionStore.ClassSvr.pMeth)$UINT, ' +
+                '_CH_CMD$UINT, 2#0000000000000000$UINT, ' +
+                'TO_UDINT(619352855), "ClassSvr", ') (
+                '(::LMCSetPositionStore.ClassSvr.pMeth)$UINT, ' +
+                '_CH_CMD$UINT, 2#0000000000000000$UINT, ' +
+                'TO_UDINT(619352855), "ClassSvr", ' + "`r`n" +
+                '(::OtherClass.Shadow.pMeth (*fixture*) )$UINT, ' +
+                '_CH_CMD$UINT, 2#0000000000000000$UINT, ' +
+                'TO_UDINT(1), "Shadow", ') (
+                'Store comment-separated foreign generated server entry')
+            Network = $CommNetworkText
+            Binary = $NetworkDatabaseText
+            Table = $CommNetworkTableText
+            Expected = 'Store generated ClassSvr tuple'
+        }
+        GeneratedCommentSeparatedObjectAdded = @{
+            Store = $StoreText
+            Network = $CommNetworkText
+            Binary = $NetworkDatabaseText
+            Table = & $replaceExactOne $CommNetworkTableText (
+                '//Internal connections') (
+                '_NO_ATTR, TO_UDINT(*fixture*)(1), "SHADOW",' + "`r`n`r`n" +
+                '//Internal connections') (
+                'generated comment-separated object entry')
+            Expected = 'generated object index map count'
+        }
+        GeneratedCommentSeparatedDuplicateWrongTuple = @{
+            Store = $StoreText
+            Network = $CommNetworkText
+            Binary = $NetworkDatabaseText
+            Table = & $replaceExactOne $CommNetworkTableText (
+                'TO_UDINT(6), "AxisOwnership", TO_UDINT(5), "ClassSvr",') (
+                'TO_UDINT(*fixture*)(5), "SetPositionStore", ' +
+                'TO_UDINT(*fixture*)(6), "ClassSvr",') (
+                'generated comment-separated duplicate wrong Control Store tuple')
+            Expected = 'generated Control-to-Store source closure'
+        }
+        GeneratedGroupedObjectAdded = @{
+            Store = $StoreText
+            Network = $CommNetworkText
+            Binary = $NetworkDatabaseText
+            Table = & $replaceExactOne $CommNetworkTableText (
+                '//Internal connections') (
+                '_NO_ATTR, ((TO_UDINT(1))), "SHADOW",' + "`r`n`r`n" +
+                '//Internal connections') (
+                'generated grouped object entry')
+            Expected = 'generated object index region contains unparsed syntax'
+        }
+        GeneratedGroupedDuplicateWrongTupleAdded = @{
+            Store = $StoreText
+            Network = $CommNetworkText
+            Binary = $NetworkDatabaseText
+            Table = & $replaceExactOne $CommNetworkTableText (
+                'TO_UDINT(6), "AxisOwnership", TO_UDINT(5), "ClassSvr",') (
+                '((TO_UDINT(5))), "SetPositionStore", ' +
+                '((TO_UDINT(6))), "ClassSvr",' + "`r`n" +
+                'TO_UDINT(6), "AxisOwnership", TO_UDINT(5), "ClassSvr",') (
+                'generated grouped duplicate wrong Control Store tuple')
+            Expected = 'generated internal connection region contains unparsed syntax'
+        }
+        StoreQualifiedClientTypeAdded = @{
+            Store = & $replaceRegexExactOne $StoreText (
+                '(^[ \t]*CheckSum[ \t]*:[ \t]*CltChCmd__CheckSum' +
+                '[ \t]*;[ \t]*\r?$)') (
+                '$1' + "`r`n`tShadow : Namespace.CltCh_DINT;") (
+                'Store qualified typed client')
+            Network = $CommNetworkText
+            Binary = $NetworkDatabaseText
+            Table = $CommNetworkTableText
+            Expected = 'Store typed CheckSum client'
+        }
+        StoreGeneratedQualifiedServerEntryAdded = @{
+            Store = & $replaceExactOne $StoreText (
+                '(::LMCSetPositionStore.ClassSvr.pMeth)$UINT, ' +
+                '_CH_CMD$UINT, 2#0000000000000000$UINT, ' +
+                'TO_UDINT(619352855), "ClassSvr", ') (
+                '(::LMCSetPositionStore.ClassSvr.pMeth)$UINT, ' +
+                '_CH_CMD$UINT, 2#0000000000000000$UINT, ' +
+                'TO_UDINT(619352855), "ClassSvr", ' + "`r`n" +
+                '(::Namespace::OtherClass.Shadow.pMeth)$UINT, ' +
+                '_CH_CMD$UINT, 2#0000000000000000$UINT, ' +
+                'TO_UDINT(1), "Shadow", ') (
+                'Store qualified generated server entry')
+            Network = $CommNetworkText
+            Binary = $NetworkDatabaseText
+            Table = $CommNetworkTableText
+            Expected = 'Store generated ClassSvr tuple'
+        }
+        StoreGeneratedQualifiedClientEntryAdded = @{
+            Store = & $replaceExactOne $StoreText (
+                '(::LMCSetPositionStore.CheckSum.pCh)$UINT, ' +
+                '_CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, ' +
+                'TO_UDINT(408699862), "CheckSum", TO_UDINT(916194998), ' +
+                '"_CheckSum", 1$UINT, 0$UINT, ') (
+                '(::LMCSetPositionStore.CheckSum.pCh)$UINT, ' +
+                '_CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, ' +
+                'TO_UDINT(408699862), "CheckSum", TO_UDINT(916194998), ' +
+                '"_CheckSum", 1$UINT, 0$UINT, ' + "`r`n" +
+                '(::Namespace::OtherClass.Shadow.pCh)$UINT, ' +
+                '_CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, ' +
+                'TO_UDINT(1), "Shadow", TO_UDINT(916194998), ' +
+                '"_CheckSum", 1$UINT, 0$UINT, ') (
+                'Store qualified generated client entry')
+            Network = $CommNetworkText
+            Binary = $NetworkDatabaseText
+            Table = $CommNetworkTableText
+            Expected = 'Store generated CheckSum class tuple'
+        }
+        GeneratedInternalLinkRemoved = @{
+            Store = $StoreText
+            Network = $CommNetworkText
+            Binary = $NetworkDatabaseText
+            Table = & $replaceExactOne $CommNetworkTableText (
+                'TO_UDINT(15), "StrSemaName02", TO_UDINT(13),') '' (
+                'generated internal link removal')
+            Expected = 'generated internal link identity/order drifted'
+        }
+        GeneratedScalarInsertedAfterChannel = @{
+            Store = $StoreText
+            Network = $CommNetworkText
+            Binary = $NetworkDatabaseText
+            Table = & $replaceExactOne $CommNetworkTableText (
+                'TO_UDINT(5), "SetPositionStore", TO_UDINT(7), "ClassSvr",') (
+                'TO_UDINT(5), "SetPositionStore", TO_UDINT(7), "ClassSvr",' +
+                "`r`n1`$UDINT,") (
+                'generated scalar after first channel')
+            Expected = 'generated internal connection region contains unparsed syntax'
+        }
+        StoreMetadataWriteProtectedFalse = @{
+            Store = & $replaceExactOne $StoreText (
+                'WriteProtected="true"') 'WriteProtected="false"' (
+                'Store metadata WriteProtected')
+            Network = $CommNetworkText
+            Binary = $NetworkDatabaseText
+            Table = $CommNetworkTableText
+            Expected = 'Store channel metadata'
+        }
+        StoreMetadataServerGuidZero = @{
+            Store = & $replaceExactOne $StoreText (
+                'GUID="{17070400-FCA6-48AE-8F63-516F68E8272D}"') (
+                'GUID="{00000000-0000-0000-0000-000000000000}"') (
+                'Store metadata server GUID')
+            Network = $CommNetworkText
+            Binary = $NetworkDatabaseText
+            Table = $CommNetworkTableText
+            Expected = 'Store channel metadata'
+        }
+        StoreGeneratedForeignBaseclassAdded = @{
+            Store = & $replaceExactOne $StoreText (
+                'TO_UDINT(0), 0, 0$UINT, 0$UINT, //Baseclass') (
+                'TO_UDINT(0), 0, 0$UINT, 0$UINT, //Baseclass' + "`r`n" +
+                'TO_UDINT(1), 0, 0$UINT, 0$UINT, //ForeignBaseclass') (
+                'Store generated foreign baseclass')
+            Network = $CommNetworkText
+            Binary = $NetworkDatabaseText
+            Table = $CommNetworkTableText
+            Expected = 'Store generated @CT canonical fingerprint'
+        }
+        StoreGeneratedScalarTokenAdded = @{
+            Store = & $replaceExactOne $StoreText (
+                'TO_UDINT(0), 0, 0$UINT, 0$UINT, //Baseclass' +
+                "`r`n//Servers:") (
+                'TO_UDINT(0), 0, 0$UINT, 0$UINT, //Baseclass' +
+                "`r`n99`$UINT,`r`n//Servers:") (
+                'Store generated scalar token')
+            Network = $CommNetworkText
+            Binary = $NetworkDatabaseText
+            Table = $CommNetworkTableText
+            Expected = 'Store generated @CT canonical fingerprint'
+        }
+    }
+    foreach ($fixtureDefinition in $fixtures.Values) {
+        if (-not $fixtureDefinition.ContainsKey('Motion')) {
+            $fixtureDefinition['Motion'] = $MotionNetworkText
+        }
+        if (-not $fixtureDefinition.ContainsKey('EtherCat')) {
+            $fixtureDefinition['EtherCat'] = $EtherCatNetworkText
+        }
+    }
+    if (($fixtures.Count -ne 41) -or
+        (@($fixtures.Keys | Select-Object -Unique).Count -ne 41)) {
+        throw "$Owner generated wiring fixture inventory drifted."
+    }
+
+    $rejected = 0
+    foreach ($fixture in $fixtures.GetEnumerator()) {
+        $value = $fixture.Value
+        if (($value.Store -ceq $StoreText) -and
+            ($value.Network -ceq $CommNetworkText) -and
+            ($value.Motion -ceq $MotionNetworkText) -and
+            ($value.EtherCat -ceq $EtherCatNetworkText) -and
+            ($value.Binary -ceq $NetworkDatabaseText) -and
+            ($value.Table -ceq $CommNetworkTableText)) {
+            throw "$Owner generated wiring fixture did not mutate: $($fixture.Key)"
+        }
+        $negativeOwner = "$Owner negative $($fixture.Key)"
+        $didReject = $false
+        try {
+            Assert-LasalSetPositionStoreGeneratedWiringContract `
+                -StoreText $value.Store `
+                -CommNetworkText $value.Network `
+                -MotionNetworkText $value.Motion `
+                -EtherCatNetworkText $value.EtherCat `
+                -NetworkDatabaseText $value.Binary `
+                -CommNetworkTableText $value.Table `
+                -Owner $negativeOwner
+        }
+        catch {
+            if ($_.Exception.Message -notlike "*$($value.Expected)*") {
+                throw (
+                    "$Owner generated wiring fixture $($fixture.Key) failed " +
+                    "for an unexpected reason: $($_.Exception.Message)")
+            }
+            $didReject = $true
+        }
+        if (-not $didReject) {
+            throw "$Owner generated wiring verifier accepted $($fixture.Key)."
+        }
+        $rejected++
+    }
+    return $rejected
 }
 
 function Assert-LasalTerminalWakeBrokerWrapperContract {
@@ -27571,6 +37406,510 @@ function Invoke-LasalAxisZeroHomeRtMailboxVerifierSelfTest {
     return $rejected
 }
 
+function Invoke-LasalAxisSetPositionPreflightRtVerifierSelfTest {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$RepositoryRoot
+    )
+
+    $root = (Resolve-Path -LiteralPath $RepositoryRoot).Path
+    $latchPath = Join-Path $root (
+        'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\' +
+        'LMCEcatInputLatch\LMCEcatInputLatch.st')
+    $controlPath = Join-Path $root (
+        'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\' +
+        'LMCControlCommandService\LMCControlCommandService.st')
+    $storePath = Join-Path $root (
+        'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\' +
+        'LMCSetPositionStore\LMCSetPositionStore.st')
+    $latch = Get-Content -Raw -LiteralPath $latchPath
+    $control = Get-Content -Raw -LiteralPath $controlPath
+    $store = Get-Content -Raw -LiteralPath $storePath
+
+    Assert-LasalAxisSetPositionPreflightRtContract `
+        -InputLatchText $latch `
+        -ControlServiceText $control `
+        -SetPositionStoreText $store `
+        -Owner 'Axis SetPosition RT preflight baseline fixture'
+
+    $negativeFixtures = [ordered]@{}
+    $addFixture = {
+        param(
+            [string]$Name,
+            [ValidateSet('Latch', 'Control', 'Store')]
+            [string]$Target,
+            [string]$Pattern,
+            [string]$Replacement,
+            [switch]$UseFingerprint
+        )
+
+        $source = switch ($Target) {
+            'Latch' { $latch }
+            'Control' { $control }
+            'Store' { $store }
+        }
+        $regex = [regex]::new(
+            $Pattern,
+            [Text.RegularExpressions.RegexOptions]::CultureInvariant)
+        $matches = $regex.Matches($source)
+        if ($matches.Count -ne 1) {
+            throw (
+                "Axis SetPosition RT preflight negative fixture '$Name' " +
+                "target count is $($matches.Count), expected one.")
+        }
+        $mutated = $regex.Replace($source, $Replacement, 1)
+        if ($mutated -ceq $source) {
+            throw (
+                "Axis SetPosition RT preflight negative fixture '$Name' " +
+                'did not mutate its source.')
+        }
+        $negativeFixtures[$Name] = [pscustomobject]@{
+            Latch = if ($Target -ceq 'Latch') { $mutated } else { $latch }
+            Control = if ($Target -ceq 'Control') { $mutated } else { $control }
+            Store = if ($Target -ceq 'Store') { $mutated } else { $store }
+            UseFingerprint = [bool]$UseFingerprint
+        }
+    }
+
+    & $addFixture 'MailboxAbiShrunk' 'Latch' (
+        'AxisSetPositionPreflightMailbox\s*:\s*ARRAY\s*\[0\.\.15\]\s*OF\s*DINT') `
+        'AxisSetPositionPreflightMailbox : ARRAY [0..14] OF DINT'
+    & $addFixture 'ResultAbiShrunk' 'Latch' (
+        'AxisSetPositionPreflightResult\s*:\s*ARRAY\s*\[0\.\.31\]\s*OF\s*DINT') `
+        'AxisSetPositionPreflightResult : ARRAY [0..30] OF DINT'
+    & $addFixture 'RequestSequenceMemberType' 'Latch' (
+        'AxisSetPositionPreflightRequestSequence\s*:\s*UDINT') `
+        'AxisSetPositionPreflightRequestSequence : DINT'
+    & $addFixture 'AppliedSequenceMemberType' 'Latch' (
+        'AxisSetPositionPreflightAppliedSequence\s*:\s*UDINT') `
+        'AxisSetPositionPreflightAppliedSequence : DINT'
+    & $addFixture 'SubmitOperationTokenType' 'Latch' (
+        '(?is)(FUNCTION\s+GLOBAL\s+SubmitAxisSetPositionPreflight.*?' +
+        'OperationToken\s*:)\s*UDINT') '${1} DINT'
+    & $addFixture 'SubmitInputOrder' 'Latch' (
+        '(?is)(FUNCTION\s+GLOBAL\s+SubmitAxisSetPositionPreflight.*?' +
+        'OperationToken\s*:\s*UDINT\s*;)\s*' +
+        '(OwnerGeneration\s*:\s*UDINT\s*;)') '${2}${1}'
+    & $addFixture 'CopyStoreGenerationType' 'Latch' (
+        '(?is)(FUNCTION\s+GLOBAL\s+CopyAxisSetPositionPreflightResult.*?' +
+        'StoreRecordGeneration\s*:)\s*UDINT') '${1} DINT'
+    & $addFixture 'CopyDestSizeType' 'Latch' (
+        '(?is)(FUNCTION\s+GLOBAL\s+CopyAxisSetPositionPreflightResult.*?' +
+        'DestSize\s*:)\s*UDINT') '${1} DINT'
+    & $addFixture 'ProcessMadeGlobal' 'Latch' (
+        'FUNCTION ProcessAxisSetPositionPreflightRt') `
+        'FUNCTION GLOBAL ProcessAxisSetPositionPreflightRt'
+    & $addFixture 'ProcessObservationCycleType' 'Latch' (
+        '(?is)(FUNCTION\s+ProcessAxisSetPositionPreflightRt.*?' +
+        'ObservationCycle\s*:)\s*UDINT') '${1} DINT'
+    & $addFixture 'ReadyStateConstant' 'Latch' (
+        '(?m)^(\s*#define\s+LMC_SET_POSITION_PREFLIGHT_READY\s+)1\s*$') '${1}2'
+    & $addFixture 'CoordinateFailureConstant' 'Latch' (
+        '(?m)^(\s*#define\s+LMC_SET_POSITION_PREFLIGHT_COORDINATE\s+)-9\s*$') '${1}-8'
+    & $addFixture 'ActivationOffEvidenceConstant' 'Latch' (
+        '(?m)^(\s*#define\s+LMC_SET_POSITION_EVIDENCE_ACTIVATION_OFF\s+)' +
+        '0x80000000\s*$') '${1}0x00000000'
+    & $addFixture 'IdentityEvidenceConstant' 'Latch' (
+        '(?m)^(\s*#define\s+LMC_SET_POSITION_EVIDENCE_IDENTITY\s+)' +
+        '0x00000001\s*$') '${1}0x00000002'
+    & $addFixture 'AxisMaskEvidenceConstant' 'Latch' (
+        '(?m)^(\s*#define\s+LMC_SET_POSITION_EVIDENCE_AXIS_MASK\s+)' +
+        '0x00000002\s*$') '${1}0x00000004'
+    & $addFixture 'ClientEvidenceConstant' 'Latch' (
+        '(?m)^(\s*#define\s+LMC_SET_POSITION_EVIDENCE_CLIENT\s+)' +
+        '0x00000004\s*$') '${1}0x00000002'
+    & $addFixture 'StatusErrorEvidenceConstant' 'Latch' (
+        '(?m)^(\s*#define\s+LMC_SET_POSITION_EVIDENCE_STATUS_ERROR\s+)' +
+        '0x00000008\s*$') '${1}0x00000010'
+    & $addFixture 'ParameterEvidenceConstant' 'Latch' (
+        '(?m)^(\s*#define\s+LMC_SET_POSITION_EVIDENCE_PARAMETER\s+)' +
+        '0x00000010\s*$') '${1}0x00000020'
+    & $addFixture 'VelocityEvidenceConstant' 'Latch' (
+        '(?m)^(\s*#define\s+LMC_SET_POSITION_EVIDENCE_VELOCITY\s+)' +
+        '0x00000020\s*$') '${1}0x00000040'
+    & $addFixture 'LimitsEvidenceConstant' 'Latch' (
+        '(?m)^(\s*#define\s+LMC_SET_POSITION_EVIDENCE_LIMITS\s+)' +
+        '0x00000040\s*$') '${1}0x00000080'
+    & $addFixture 'JumpEvidenceConstant' 'Latch' (
+        '(?m)^(\s*#define\s+LMC_SET_POSITION_EVIDENCE_JUMP\s+)' +
+        '0x00000100\s*$') '${1}0x00000200'
+    & $addFixture 'ReadyEvidenceConstant' 'Latch' (
+        '(?m)^(\s*#define\s+LMC_SET_POSITION_EVIDENCE_READY\s+)' +
+        '0x00000200\s*$') '${1}0x00000100'
+    & $addFixture 'RequiredStatusConstant' 'Latch' (
+        '(?m)^(\s*#define\s+LMC_SET_POSITION_REQUIRED_STATUS\s+)' +
+        '0x02000002\s*$') '${1}0x02000000'
+    & $addFixture 'CasEvidenceConstant' 'Latch' (
+        '(?m)^(\s*#define\s+LMC_SET_POSITION_EVIDENCE_CAS\s+)' +
+        '0x00000080\s*$') '${1}0x00000040'
+    & $addFixture 'ForbiddenStatusConstant' 'Latch' (
+        '(?m)^(\s*#define\s+LMC_SET_POSITION_FORBIDDEN_STATUS\s+)' +
+        '0x1D2E0E01\s*$') '${1}0x1D2E0E00'
+    & $addFixture 'SubmitAxisFourMask' 'Latch' (
+        '(?is)(FUNCTION\s+GLOBAL\s+' +
+        'LMCEcatInputLatch::SubmitAxisSetPositionPreflight.*?' +
+        '4\s*:\s*expectedAxisMaskValue\s*:=\s*)0x00000008') '${1}0x00000010'
+    & $addFixture 'SubmitRejectsZeroMaxJump' 'Latch' (
+        '(?is)(FUNCTION\s+GLOBAL\s+' +
+        'LMCEcatInputLatch::SubmitAxisSetPositionPreflight.*?' +
+        '\(RequestSequence\s*=\s*0\)\s*\|\s*)' +
+        '(\(expectedAxisMaskValue\s*=\s*0\))') '${1}(MaxJump = 0) | ${2}'
+    & $addFixture 'SubmitBusyAccepted' 'Latch' (
+        '(?is)(FUNCTION\s+GLOBAL\s+' +
+        'LMCEcatInputLatch::SubmitAxisSetPositionPreflight.*?' +
+        'else\s*Result\s*:=\s*)LMC_SET_POSITION_PREFLIGHT_BUSY') '${1}1'
+    & $addFixture 'PendingCallerSequenceConflated' 'Latch' (
+        '(?is)(FUNCTION\s+GLOBAL\s+' +
+        'LMCEcatInputLatch::SubmitAxisSetPositionPreflight.*?' +
+        'if\s+requestSequenceBefore\s*<>\s*appliedSequenceBefore.*?' +
+        'AxisSetPositionPreflightMailbox\[4\]\$UDINT\s*=\s*)' +
+        'RequestSequence') '${1}requestSequenceBefore'
+    & $addFixture 'InternalSequenceIncrement' 'Latch' (
+        '(?is)(FUNCTION\s+GLOBAL\s+' +
+        'LMCEcatInputLatch::SubmitAxisSetPositionPreflight.*?' +
+        'nextRequestSequence\s*:=\s*requestSequenceBefore\s*\+)\s*1') '${1} 2'
+    & $addFixture 'InternalSequenceZeroSkip' 'Latch' (
+        '(?is)(FUNCTION\s+GLOBAL\s+' +
+        'LMCEcatInputLatch::SubmitAxisSetPositionPreflight.*?' +
+        'if\s+nextRequestSequence\s*=\s*0\s+then\s*' +
+        'nextRequestSequence\s*:=\s*)1') '${1}2'
+    & $addFixture 'SubmitPrePublishFenceBypassed' 'Latch' (
+        '(?is)(FUNCTION\s+GLOBAL\s+' +
+        'LMCEcatInputLatch::SubmitAxisSetPositionPreflight.*?' +
+        'if\s*\(requestSequenceAfter\s*)<>(\s*requestSequenceBefore\))') '${1}=${2}'
+    & $addFixture 'SubmitInitialMailboxBound' 'Latch' (
+        '(?is)(FUNCTION\s+GLOBAL\s+' +
+        'LMCEcatInputLatch::SubmitAxisSetPositionPreflight.*?' +
+        'for\s+initialIndex\s*:=\s*0\s+to\s*)15') '${1}14'
+    & $addFixture 'SubmitInitialMailboxIndexPinned' 'Latch' (
+        '(?is)(FUNCTION\s+GLOBAL\s+' +
+        'LMCEcatInputLatch::SubmitAxisSetPositionPreflight.*?' +
+        'if\s+AxisSetPositionPreflightMailbox\[)initialIndex(\]\s*<>\s*0)') '${1}0${2}'
+    & $addFixture 'SubmitInitialResultBound' 'Latch' (
+        '(?is)(FUNCTION\s+GLOBAL\s+' +
+        'LMCEcatInputLatch::SubmitAxisSetPositionPreflight.*?' +
+        'for\s+initialIndex\s*:=\s*0\s+to\s*15.*?' +
+        'for\s+initialIndex\s*:=\s*0\s+to\s*)31') '${1}30'
+    & $addFixture 'MailboxTokenSource' 'Latch' (
+        '(?m)^(\s*AxisSetPositionPreflightMailbox\[0\]\$UDINT\s*:=\s*)' +
+        'OperationToken\s*;\s*$') '${1}OwnerGeneration;'
+    & $addFixture 'MailboxCallerSequenceSource' 'Latch' (
+        '(?m)^(\s*AxisSetPositionPreflightMailbox\[4\]\$UDINT\s*:=\s*)' +
+        'RequestSequence\s*;\s*$') '${1}nextRequestSequence;'
+    & $addFixture 'MailboxEchoSource' 'Latch' (
+        '(?m)^(\s*AxisSetPositionPreflightMailbox\[10\]\$UDINT\s*:=\s*)' +
+        'nextRequestSequence\s*;\s*$') '${1}RequestSequence;'
+    & $addFixture 'MailboxClaimEnabled' 'Latch' (
+        '(?m)^(\s*AxisSetPositionPreflightMailbox\[11\]\s*:=\s*)0\s*;\s*$') '${1}1;'
+    & $addFixture 'MailboxReservedEnabled' 'Latch' (
+        '(?m)^(\s*AxisSetPositionPreflightMailbox\[15\]\s*:=\s*)0\s*;\s*$') '${1}1;'
+    & $addFixture 'RequestPublishTarget' 'Latch' (
+        '(?is)(FUNCTION\s+GLOBAL\s+' +
+        'LMCEcatInputLatch::SubmitAxisSetPositionPreflight.*?' +
+        'sigclib_atomic_setU32\s*\(\s*pValue\s*:=\s*#)' +
+        'AxisSetPositionPreflightRequestSequence(?=\s*,\s*' +
+        'value\s*:=\s*nextRequestSequence)') '${1}AxisSetPositionPreflightAppliedSequence'
+    & $addFixture 'PostPublishMailboxMutation' 'Latch' (
+        '(?is)(FUNCTION\s+GLOBAL\s+' +
+        'LMCEcatInputLatch::SubmitAxisSetPositionPreflight.*?' +
+        'pValue\s*:=\s*#AxisSetPositionPreflightRequestSequence\s*,\s*' +
+        'value\s*:=\s*nextRequestSequence\s*\)\s*;)') (
+            '${1}' + [Environment]::NewLine +
+            "`tAxisSetPositionPreflightMailbox[15] := 0;")
+    & $addFixture 'SnapshotEchoSlot' 'Latch' (
+        '(?m)^(\s*mailboxSequenceEcho\s*:=\s*' +
+        'AxisSetPositionPreflightMailbox\[)10(\]\$UDINT\s*;\s*)$') '${1}9${2}'
+    & $addFixture 'SnapshotClaimType' 'Latch' (
+        '(?is)(FUNCTION\s+' +
+        'LMCEcatInputLatch::ProcessAxisSetPositionPreflightRt.*?' +
+        'dispatchClaim\s*:)\s*DINT') '${1} UDINT'
+    & $addFixture 'SnapshotFenceTarget' 'Latch' (
+        '(?is)(FUNCTION\s+' +
+        'LMCEcatInputLatch::ProcessAxisSetPositionPreflightRt.*?' +
+        'requestSequenceAfterSnapshot\s*:=\s*sigclib_atomic_getU32\s*\(\s*' +
+        'pValue\s*:=\s*#)AxisSetPositionPreflightRequestSequence') (
+            '${1}AxisSetPositionPreflightAppliedSequence')
+    & $addFixture 'SnapshotFenceBypassed' 'Latch' (
+        '(?is)(FUNCTION\s+' +
+        'LMCEcatInputLatch::ProcessAxisSetPositionPreflightRt.*?' +
+        'if\s+)requestSequenceAfterSnapshot\s*<>\s*requestSequence(\s+then)') '${1}FALSE${2}'
+    & $addFixture 'CallerIdentityConflated' 'Latch' (
+        '(?is)(FUNCTION\s+' +
+        'LMCEcatInputLatch::ProcessAxisSetPositionPreflightRt.*?' +
+        '\(callerRequestSequence\s*)<>(\s*0\))') '${1}=${2}'
+    & $addFixture 'MailboxEchoConflated' 'Latch' (
+        '(?is)(FUNCTION\s+' +
+        'LMCEcatInputLatch::ProcessAxisSetPositionPreflightRt.*?' +
+        '\(mailboxSequenceEcho\s*=\s*)requestSequence') '${1}callerRequestSequence'
+    & $addFixture 'MailboxRejectsZeroMaxJump' 'Latch' (
+        '(?is)(FUNCTION\s+' +
+        'LMCEcatInputLatch::ProcessAxisSetPositionPreflightRt.*?' +
+        '\(derivedAxisMask\s*<>\s*0\)\s*&\s*)' +
+        '(\(expectedAxisMask\s*=\s*derivedAxisMask\))') (
+            '${1}(maxJump <> 0) &' + [Environment]::NewLine + "`t`t" + '${2}')
+    & $addFixture 'ProcessInitialResultBound' 'Latch' (
+        '(?is)(FUNCTION\s+' +
+        'LMCEcatInputLatch::ProcessAxisSetPositionPreflightRt.*?' +
+        'for\s+initialResultIndex\s*:=\s*0\s+to\s*)31') '${1}30'
+    & $addFixture 'ProcessInitialResultIndexPinned' 'Latch' (
+        '(?is)(FUNCTION\s+' +
+        'LMCEcatInputLatch::ProcessAxisSetPositionPreflightRt.*?' +
+        'if\s+AxisSetPositionPreflightResult\[)initialResultIndex' +
+        '(\]\s*<>\s*0)') '${1}0${2}'
+    & $addFixture 'ProcessAxisFourMask' 'Latch' (
+        '(?is)(FUNCTION\s+' +
+        'LMCEcatInputLatch::ProcessAxisSetPositionPreflightRt.*?' +
+        '4\s*:\s*derivedAxisMask\s*:=\s*)0x00000008') '${1}0x00000010'
+    & $addFixture 'AxisOneClientSource' 'Latch' (
+        '(?is)(FUNCTION\s+' +
+        'LMCEcatInputLatch::ProcessAxisSetPositionPreflightRt.*?' +
+        'axisConnected\s*:=\s*IsClientConnected\s*\(\s*#)LMCAxis1') '${1}LMCAxis2'
+    & $addFixture 'AxisTwoStatusSource' 'Latch' (
+        '(?is)(FUNCTION\s+' +
+        'LMCEcatInputLatch::ProcessAxisSetPositionPreflightRt.*?' +
+        'axisStatus\s*:=\s*)LMCAxis2(\.ReadAxisStatus)') '${1}LMCAxis1${2}'
+    & $addFixture 'AxisThreeActualPositionMode' 'Latch' (
+        '(?is)(FUNCTION\s+' +
+        'LMCEcatInputLatch::ProcessAxisSetPositionPreflightRt.*?' +
+        'LMCAxis3\.ReadPosition\s*\(\s*Mode\s*:=\s*)' +
+        'LMCAXIS_ACTPOS_APPUNIT') '${1}LMCAXIS_SETPOS_APPUNIT'
+    & $addFixture 'AxisFourJerkVelocityMode' 'Latch' (
+        '(?is)(FUNCTION\s+' +
+        'LMCEcatInputLatch::ProcessAxisSetPositionPreflightRt.*?' +
+        'LMCAxis4\.ReadVelocity\s*\(\s*Mode\s*:=\s*)' +
+        'LMCAXIS_SETVEL_APPUNIT_SEC_JERK') '${1}LMCAXIS_SETVEL_APPUNIT_SEC'
+    & $addFixture 'MoveTypeInvalidFallsThrough' 'Latch' (
+        '(?is)(FUNCTION\s+' +
+        'LMCEcatInputLatch::ProcessAxisSetPositionPreflightRt.*?' +
+        'elsif\s*\(moveType\s*=\s*0\)\s*\|\s*' +
+        '\(moveType\s*=\s*1\)\s+then.*?' +
+        'setVelocityCaptured\s*:=\s*TRUE\s*;)(\s*end_if\s*;)') (
+            '${1}' + [Environment]::NewLine + "`t`t`t`t`telse" +
+            [Environment]::NewLine +
+            "`t`t`t`t`t`tsetVelocity := LMCAxis1.ReadVelocity(" +
+            'Mode:=LMCAXIS_SETVEL_APPUNIT_SEC);' +
+            [Environment]::NewLine + '${2}')
+    & $addFixture 'SimulateGateInverted' 'Latch' (
+        '(?is)(FUNCTION\s+' +
+        'LMCEcatInputLatch::ProcessAxisSetPositionPreflightRt.*?' +
+        '\(simulateMode\s*)<>(\s*0\))') '${1}=${2}'
+    & $addFixture 'MaxJumpZeroGateInverted' 'Latch' (
+        '(?is)(FUNCTION\s+' +
+        'LMCEcatInputLatch::ProcessAxisSetPositionPreflightRt.*?' +
+        '\(maxJump\s*)=(\s*0\))') '${1}<>${2}'
+    & $addFixture 'StatusGateRelaxed' 'Latch' (
+        '(?is)(FUNCTION\s+' +
+        'LMCEcatInputLatch::ProcessAxisSetPositionPreflightRt.*?' +
+        '\(\(axisStatusValue\s+and\s+LMC_SET_POSITION_REQUIRED_STATUS\)\s*)' +
+        '<>(\s*LMC_SET_POSITION_REQUIRED_STATUS\))') '${1}=${2}'
+    & $addFixture 'AxisErrorGateInverted' 'Latch' (
+        '(?is)(FUNCTION\s+' +
+        'LMCEcatInputLatch::ProcessAxisSetPositionPreflightRt.*?' +
+        '\(axisErrorValue\s*)<>(\s*0\))') '${1}=${2}'
+    & $addFixture 'VelocityGateDropsSet' 'Latch' (
+        '(?is)(FUNCTION\s+' +
+        'LMCEcatInputLatch::ProcessAxisSetPositionPreflightRt.*?' +
+        '\(actualVelocity\s*<>\s*0\)\s*\|\s*\(setVelocity\s*<>\s*0\))') (
+            '${1}(actualVelocity <> 0)')
+    & $addFixture 'LimitOrderGateRelaxed' 'Latch' (
+        '(?is)(FUNCTION\s+' +
+        'LMCEcatInputLatch::ProcessAxisSetPositionPreflightRt.*?' +
+        '\(softwareLimitMin\s*)>=(\s*softwareLimitMax\))') '${1}=${2}'
+    & $addFixture 'CasGateInverted' 'Latch' (
+        '(?is)(FUNCTION\s+' +
+        'LMCEcatInputLatch::ProcessAxisSetPositionPreflightRt.*?' +
+        'if\s+actualPosition\s*)<>(\s*expectedActualPosition\s+then)') '${1}=${2}'
+    & $addFixture 'JumpGateInclusive' 'Latch' (
+        '(?is)(FUNCTION\s+' +
+        'LMCEcatInputLatch::ProcessAxisSetPositionPreflightRt.*?' +
+        'if\s+positionJump\s*)>(\s*maxJump\s+then)') '${1}>=${2}'
+    & $addFixture 'ReadyStateMapping' 'Latch' (
+        '(?is)(FUNCTION\s+' +
+        'LMCEcatInputLatch::ProcessAxisSetPositionPreflightRt.*?' +
+        'resultState\s*:=\s*)LMC_SET_POSITION_PREFLIGHT_READY') (
+            '${1}LMC_SET_POSITION_PREFLIGHT_REJECTED')
+    & $addFixture 'CorruptDetailMapping' 'Latch' (
+        '(?is)(FUNCTION\s+' +
+        'LMCEcatInputLatch::ProcessAxisSetPositionPreflightRt.*?' +
+        'resultState\s*:=\s*LMC_SET_POSITION_PREFLIGHT_CORRUPT\s*;\s*' +
+        'failure\s*:=\s*LMC_SET_POSITION_PREFLIGHT_BAD_DATA\s*;\s*' +
+        'detail\s*:=\s*)0') '${1}10'
+    & $addFixture 'ReadyFailureMapping' 'Latch' (
+        '(?is)(FUNCTION\s+' +
+        'LMCEcatInputLatch::ProcessAxisSetPositionPreflightRt.*?' +
+        'resultState\s*:=\s*LMC_SET_POSITION_PREFLIGHT_READY\s*;\s*' +
+        'failure\s*:=\s*)0') '${1}LMC_SET_POSITION_PREFLIGHT_INVALID'
+    & $addFixture 'ReadyDetailMapping' 'Latch' (
+        '(?is)(FUNCTION\s+' +
+        'LMCEcatInputLatch::ProcessAxisSetPositionPreflightRt.*?' +
+        'resultState\s*:=\s*LMC_SET_POSITION_PREFLIGHT_READY\s*;.*?' +
+        'detail\s*:=\s*)0') '${1}10'
+    & $addFixture 'ClientEvidenceMapping' 'Latch' (
+        '(?is)(FUNCTION\s+' +
+        'LMCEcatInputLatch::ProcessAxisSetPositionPreflightRt.*?' +
+        'evidence\s*:=\s*evidence\s+or\s*)' +
+        'LMC_SET_POSITION_EVIDENCE_CLIENT') '${1}LMC_SET_POSITION_EVIDENCE_AXIS_MASK'
+    & $addFixture 'VelocityEvidenceUnconditional' 'Latch' (
+        '(?is)(FUNCTION\s+' +
+        'LMCEcatInputLatch::ProcessAxisSetPositionPreflightRt.*?' +
+        'if\s+)setVelocityCaptured(\s+then\s*' +
+        'evidence\s*:=\s*evidence\s+or\s*' +
+        'LMC_SET_POSITION_EVIDENCE_VELOCITY)') '${1}TRUE${2}'
+    & $addFixture 'CaptureEvidenceOrder' 'Latch' (
+        '(?is)(FUNCTION\s+' +
+        'LMCEcatInputLatch::ProcessAxisSetPositionPreflightRt.*?' +
+        'LMC_SET_POSITION_EVIDENCE_CLIENT\s*;\s*' +
+        'evidence\s*:=\s*evidence\s+or\s*)' +
+        'LMC_SET_POSITION_EVIDENCE_STATUS_ERROR') (
+            '${1}LMC_SET_POSITION_EVIDENCE_PARAMETER')
+    & $addFixture 'ReadyEvidenceMapping' 'Latch' (
+        '(?is)(FUNCTION\s+' +
+        'LMCEcatInputLatch::ProcessAxisSetPositionPreflightRt.*?' +
+        'LMC_SET_POSITION_EVIDENCE_JUMP\s*;\s*' +
+        'evidence\s*:=\s*evidence\s+or\s*)' +
+        'LMC_SET_POSITION_EVIDENCE_READY') '${1}LMC_SET_POSITION_EVIDENCE_JUMP'
+    & $addFixture 'DisconnectedJumpGateBypassed' 'Latch' (
+        '(?is)(FUNCTION\s+' +
+        'LMCEcatInputLatch::ProcessAxisSetPositionPreflightRt.*?' +
+        'if\s+)axisConnected(\s+then\s*' +
+        'targetOrder\s*:=\s*targetPosition\$UDINT)') '${1}TRUE${2}'
+    & $addFixture 'ResultSequenceMapping' 'Latch' (
+        '(?m)^(\s*AxisSetPositionPreflightResult\[10\]\$UDINT\s*:=\s*)' +
+        'requestSequence\s*;\s*$') '${1}ObservationCycle;'
+    & $addFixture 'ResultClaimEnabled' 'Latch' (
+        '(?m)^(\s*AxisSetPositionPreflightResult\[29\]\s*:=\s*)0\s*;\s*$') '${1}1;'
+    & $addFixture 'ResultNativeCountEnabled' 'Latch' (
+        '(?m)^(\s*AxisSetPositionPreflightResult\[30\]\s*:=\s*)0\s*;\s*$') '${1}1;'
+    & $addFixture 'ResultNativeStateEnabled' 'Latch' (
+        '(?m)^(\s*AxisSetPositionPreflightResult\[31\]\s*:=\s*)0\s*;\s*$') '${1}1;'
+    & $addFixture 'AppliedPublishTarget' 'Latch' (
+        '(?is)(FUNCTION\s+' +
+        'LMCEcatInputLatch::ProcessAxisSetPositionPreflightRt.*?' +
+        'AxisSetPositionPreflightResult\[31\]\s*:=\s*0\s*;\s*' +
+        'sigclib_atomic_setU32\s*\(\s*pValue\s*:=\s*#)' +
+        'AxisSetPositionPreflightAppliedSequence') (
+            '${1}AxisSetPositionPreflightRequestSequence')
+    & $addFixture 'EarlyAppliedPublication' 'Latch' (
+        '(?is)(FUNCTION\s+' +
+        'LMCEcatInputLatch::ProcessAxisSetPositionPreflightRt.*?' +
+        'mailboxValid\s*:=.*?reserved15\s*=\s*0\)\s*;)') (
+            '${1}' + [Environment]::NewLine +
+            "`tsigclib_atomic_setU32(" + [Environment]::NewLine +
+            "`t`tpValue:=#AxisSetPositionPreflightAppliedSequence," +
+            [Environment]::NewLine + "`t`tvalue:=requestSequence);")
+    & $addFixture 'PostAppliedResultMutation' 'Latch' (
+        '(?is)(FUNCTION\s+' +
+        'LMCEcatInputLatch::ProcessAxisSetPositionPreflightRt.*?' +
+        'AxisSetPositionPreflightResult\[31\]\s*:=\s*0\s*;\s*' +
+        'sigclib_atomic_setU32\s*\(\s*pValue\s*:=\s*' +
+        '#AxisSetPositionPreflightAppliedSequence\s*,\s*' +
+        'value\s*:=\s*requestSequence\s*\)\s*;)') (
+            '${1}' + [Environment]::NewLine +
+            "`tAxisSetPositionPreflightResult[31] := 0;")
+    & $addFixture 'CopyCapacityNarrowed' 'Latch' (
+        '(?is)(FUNCTION\s+GLOBAL\s+' +
+        'LMCEcatInputLatch::CopyAxisSetPositionPreflightResult.*?' +
+        'DestSize\s*)<>(\s*128)') '${1}<${2}'
+    & $addFixture 'CopyRetryNarrowed' 'Latch' (
+        '(?is)(FUNCTION\s+GLOBAL\s+' +
+        'LMCEcatInputLatch::CopyAxisSetPositionPreflightResult.*?' +
+        'while\s+retryCount\s*<\s*)3') '${1}2'
+    & $addFixture 'CopySizeNarrowed' 'Latch' (
+        '(?is)(FUNCTION\s+GLOBAL\s+' +
+        'LMCEcatInputLatch::CopyAxisSetPositionPreflightResult.*?' +
+        '_memcpy\s*\(.*?cntr\s*:=\s*)128') '${1}124'
+    & $addFixture 'CopyNativeStateAccepted' 'Latch' (
+        '(?is)(FUNCTION\s+GLOBAL\s+' +
+        'LMCEcatInputLatch::CopyAxisSetPositionPreflightResult.*?' +
+        'AxisSetPositionPreflightResult\[31\]\s*<>)\s*0') '${1} 1'
+    & $addFixture 'StoreActivationEnabled' 'Control' (
+        '(?m)^(\s*#define\s+LMC_ADMIN_SET_POSITION_STORE_CONFIGURED\s+)' +
+        'FALSE\s*$') '${1}TRUE'
+    & $addFixture 'OrdinaryOwnershipEnabled' 'Control' (
+        '(?m)^(\s*#define\s+LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED\s+)' +
+        'FALSE\s*$') '${1}TRUE'
+    & $addFixture 'AxisOneMaxJumpEnabled' 'Control' (
+        '(?m)^(\s*#define\s+LMC_ADMIN_SET_POSITION_MAX_JUMP_AXIS1\s+)0\s*$') '${1}1'
+    & $addFixture 'CapabilityAdvertised' 'Control' (
+        '(\(pResponseFrame\s*\+\s*24\)\^\$UDINT\s*:=\s*)' +
+        '0x00000017') '${1}0x000000BF'
+    & $addFixture 'ControlRuntimeWiringAdded' 'Control' (
+        '(?m)^(\s*#define\s+LMC_ADMIN_SET_POSITION_STORE_CONFIGURED\s+FALSE\s*)$') (
+            '${1}' + [Environment]::NewLine +
+            '#define AxisSetPositionPreflightWiring 0')
+    & $addFixture 'StoreRuntimeWiringAdded' 'Store' (
+        '(?m)^(\s*#define\s+USER_CNT_LMCSetPositionStore\s+0\s*)$') (
+            '${1}' + [Environment]::NewLine +
+            '#define SubmitAxisSetPositionPreflightWiring 0')
+    & $addFixture 'NativeCallAdded' 'Latch' (
+        '(?is)(FUNCTION\s+' +
+        'LMCEcatInputLatch::ProcessAxisSetPositionPreflightRt.*?' +
+        'positionJump\s*:\s*UDINT\s*;\s*END_VAR)') (
+            '${1}' + [Environment]::NewLine +
+            "`tLMCAxis1.SetPosition(Mode:=0, Position:=0);")
+    & $addFixture 'RtWorkCallArgument' 'Latch' (
+        '(ProcessAxisSetPositionPreflightRt\s*\(\s*' +
+        'ObservationCycle\s*:=\s*)cycleCounter') '${1}0'
+    & $addFixture 'RtWorkGrowth' 'Latch' (
+        '(?is)(FUNCTION\s+VIRTUAL\s+GLOBAL\s+' +
+        'LMCEcatInputLatch::RtWork.*?' +
+        'ProcessAxisSetPositionPreflightRt\s*\(\s*' +
+        'ObservationCycle\s*:=\s*cycleCounter\s*\)\s*;)') (
+            '${1}' + [Environment]::NewLine +
+            "`tpreflightVerifierPadding := preflightVerifierPadding;")
+    & $addFixture 'ExecutableFingerprint' 'Latch' (
+        '(?is)(FUNCTION\s+GLOBAL\s+' +
+        'LMCEcatInputLatch::SubmitAxisSetPositionPreflight.*?' +
+        'Result\s*:=\s*1\s*;)(\s*END_FUNCTION)') (
+            '${1}' + [Environment]::NewLine +
+            "`tpreviousCoherent := previousCoherent;" + '${2}') -UseFingerprint
+
+    $rejected = 0
+    foreach ($fixtureName in $negativeFixtures.Keys) {
+        $fixture = $negativeFixtures[$fixtureName]
+        $negativeRejected = $false
+        try {
+            Assert-LasalAxisSetPositionPreflightRtContract `
+                -InputLatchText $fixture.Latch `
+                -ControlServiceText $fixture.Control `
+                -SetPositionStoreText $fixture.Store `
+                -Owner (
+                    "Axis SetPosition RT preflight negative fixture '$fixtureName'") `
+                -SkipExactBodyFingerprint:(-not $fixture.UseFingerprint)
+        }
+        catch {
+            $negativeRejected = $true
+        }
+        if (-not $negativeRejected) {
+            throw (
+                'Axis SetPosition RT preflight verifier accepted negative ' +
+                "fixture '$fixtureName'.")
+        }
+        $rejected++
+    }
+    if ($rejected -ne 95 -or $negativeFixtures.Count -ne 95) {
+        throw (
+            "Axis SetPosition RT preflight verifier rejected $rejected/" +
+            "$($negativeFixtures.Count) fixtures; expected 95/95.")
+    }
+
+    $positiveCommentFixture = ([regex]::new(
+        '(?is)(FUNCTION\s+GLOBAL\s+' +
+        'LMCEcatInputLatch::SubmitAxisSetPositionPreflight.*?' +
+        'Result\s*:=\s*LMC_SET_POSITION_PREFLIGHT_INVALID\s*;)')).
+        Replace(
+            $latch,
+            '${1} // verifier comment-only fixture',
+            1)
+    Assert-LasalAxisSetPositionPreflightRtContract `
+        -InputLatchText $positiveCommentFixture `
+        -ControlServiceText $control `
+        -SetPositionStoreText $store `
+        -Owner 'Axis SetPosition RT preflight positive comment fixture'
+
+    return $rejected
+}
+
 function Assert-LMCDiagnosticsHomeMaintenanceIdeContract {
     param(
         [string]$DiagnosticsText,
@@ -28413,6 +38752,135 @@ function Assert-ConfiguredEtherCATTopologyNegativeFixture {
     }
 }
 
+if ($SetPositionAdminStoreWiringVerifierSelfTestOnly) {
+    $setPositionAdminStoreRoot =
+        (Resolve-Path -LiteralPath $RepositoryRoot).Path
+    $setPositionAdminStoreControlPath = Join-Path $setPositionAdminStoreRoot (
+        'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\' +
+        'LMCControlCommandService\LMCControlCommandService.st')
+    $setPositionAdminStoreTcpPath = Join-Path $setPositionAdminStoreRoot (
+        'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\' +
+        'TCPMotionInterface\TCPMotionInterface.st')
+    $setPositionAdminStoreControl =
+        Get-Content -Raw -LiteralPath $setPositionAdminStoreControlPath
+    $setPositionAdminStoreTcp =
+        Get-Content -Raw -LiteralPath $setPositionAdminStoreTcpPath
+    $setPositionAdminStoreNegativeFixtureCount =
+        Invoke-LasalSetPositionAdminStoreWiringVerifierSelfTest `
+            -ControlServiceText $setPositionAdminStoreControl `
+            -TcpText $setPositionAdminStoreTcp `
+            -Owner 'Dormant SetPosition Admin Store wiring'
+    Write-Host (
+        'PASS LASAL.SetPositionAdminStoreWiringVerifier.SelfTest (' +
+        "$setPositionAdminStoreNegativeFixtureCount/" +
+        "$setPositionAdminStoreNegativeFixtureCount negative fixtures rejected; " +
+        '15/15 pure coordinate edge fixtures passed; current ' +
+        '0x7D12/0x7D14/0x7D1A dormant Store wiring accepted)')
+    return
+}
+
+if ($SetPositionStoreReadOnlyScanVerifierSelfTestOnly) {
+    $setPositionStoreScanRoot =
+        (Resolve-Path -LiteralPath $RepositoryRoot).Path
+    $setPositionStoreScanPath = Join-Path $setPositionStoreScanRoot (
+        'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\' +
+        'LMCSetPositionStore\LMCSetPositionStore.st')
+    $setPositionStoreScanGlobalPath = Join-Path $setPositionStoreScanRoot (
+        'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\' +
+        'LMCSetPositionStore\global_LMCSetPositionStore.st')
+    $setPositionStoreScanControlPath = Join-Path $setPositionStoreScanRoot (
+        'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\' +
+        'LMCControlCommandService\LMCControlCommandService.st')
+    $setPositionStoreScanNetworkPath = Join-Path $setPositionStoreScanRoot (
+        'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Network\Comm_Network\' +
+        'Comm_Network.lcn')
+    $setPositionStoreScanMotionNetworkPath = Join-Path `
+        $setPositionStoreScanRoot (
+            'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Network\Motion_Network\' +
+            'Motion_Network.lcn')
+    $setPositionStoreScanEtherCatNetworkPath = Join-Path `
+        $setPositionStoreScanRoot (
+            'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Network\EtherCAT_Network\' +
+            'EtherCAT_Network.lcn')
+    $setPositionStoreScanNetworkDatabasePath = Join-Path `
+        $setPositionStoreScanRoot (
+            'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Network\Networks.lcb')
+    $setPositionStoreScanNetworkTablePath = Join-Path `
+        $setPositionStoreScanRoot (
+            'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Network\Comm_Network\' +
+            'ONE_Comm_Network_Table.st')
+    $setPositionStoreScanText =
+        Get-Content -Raw -LiteralPath $setPositionStoreScanPath
+    $setPositionStoreScanGlobalText =
+        Get-Content -Raw -LiteralPath $setPositionStoreScanGlobalPath
+    $setPositionStoreScanControlText =
+        Get-Content -Raw -LiteralPath $setPositionStoreScanControlPath
+    $setPositionStoreScanNetworkText =
+        Get-Content -Raw -LiteralPath $setPositionStoreScanNetworkPath
+    $setPositionStoreScanMotionNetworkText =
+        Get-Content -Raw -LiteralPath $setPositionStoreScanMotionNetworkPath
+    $setPositionStoreScanEtherCatNetworkText =
+        Get-Content -Raw -LiteralPath $setPositionStoreScanEtherCatNetworkPath
+    $setPositionStoreScanNetworkDatabaseText = [Text.Encoding]::ASCII.GetString(
+        [IO.File]::ReadAllBytes($setPositionStoreScanNetworkDatabasePath))
+    $setPositionStoreScanNetworkTableText =
+        Get-Content -Raw -LiteralPath $setPositionStoreScanNetworkTablePath
+    $setPositionStoreScanParameters = @{
+        StoreText = $setPositionStoreScanText
+        GlobalText = $setPositionStoreScanGlobalText
+        ControlServiceText = $setPositionStoreScanControlText
+        Owner = 'SetPosition Store Begin/Commit/Read/Retire/Select/private CommitRecord'
+    }
+    $setPositionStoreScanNegativeFixtureCount =
+        Invoke-LasalSetPositionStoreReadOnlyScanVerifierSelfTest `
+            @setPositionStoreScanParameters
+    $setPositionStoreGeneratedWiringNegativeFixtureCount =
+        Invoke-LasalSetPositionStoreGeneratedWiringVerifierSelfTest `
+             -StoreText $setPositionStoreScanText `
+             -CommNetworkText $setPositionStoreScanNetworkText `
+             -MotionNetworkText $setPositionStoreScanMotionNetworkText `
+             -EtherCatNetworkText $setPositionStoreScanEtherCatNetworkText `
+             -NetworkDatabaseText $setPositionStoreScanNetworkDatabaseText `
+            -CommNetworkTableText $setPositionStoreScanNetworkTableText `
+            -Owner 'SetPosition Store generated CheckSum wiring'
+    Write-Host (
+        'PASS LASAL.SetPositionStoreReadOnlyScanVerifier.SelfTest (' +
+        "$setPositionStoreScanNegativeFixtureCount/" +
+        "$setPositionStoreScanNegativeFixtureCount negative fixtures rejected; " +
+        "$setPositionStoreGeneratedWiringNegativeFixtureCount/" +
+        "$setPositionStoreGeneratedWiringNegativeFixtureCount generated wiring " +
+        'fixtures rejected; current Begin/Commit/Read/Retire plus read-only ' +
+        'Scan/Select/private CommitRecord and exact Store/CheckSum generated ' +
+        'wiring accepted)')
+    return
+}
+
+if ($SetPositionCloseWithoutResponseVerifierSelfTestOnly) {
+    $setPositionCloseRoot =
+        (Resolve-Path -LiteralPath $RepositoryRoot).Path
+    $setPositionCloseControlPath = Join-Path $setPositionCloseRoot (
+        'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\' +
+        'LMCControlCommandService\LMCControlCommandService.st')
+    $setPositionCloseTcpPath = Join-Path $setPositionCloseRoot (
+        'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\' +
+        'TCPMotionInterface\TCPMotionInterface.st')
+    $setPositionCloseControl =
+        Get-Content -Raw -LiteralPath $setPositionCloseControlPath
+    $setPositionCloseTcp =
+        Get-Content -Raw -LiteralPath $setPositionCloseTcpPath
+    $setPositionCloseNegativeFixtureCount =
+        Invoke-LasalSetPositionCloseWithoutResponseVerifierSelfTest `
+            -ControlServiceText $setPositionCloseControl `
+            -TcpText $setPositionCloseTcp `
+            -Owner 'Dormant SetPosition close-without-response'
+    Write-Host (
+        'PASS LASAL.SetPositionCloseWithoutResponseVerifier.SelfTest (' +
+        "$setPositionCloseNegativeFixtureCount/" +
+        "$setPositionCloseNegativeFixtureCount negative fixtures rejected; " +
+        'current dormant producer/consumer accepted)')
+    return
+}
+
 if ($AxisOwnershipRollbackVerifierSelfTestOnly) {
     $rollbackRoot = (Resolve-Path -LiteralPath $RepositoryRoot).Path
     $rollbackControlPath = Join-Path $rollbackRoot (
@@ -28645,6 +39113,18 @@ if ($AxisZeroHomeRtMailboxVerifierSelfTestOnly) {
     return
 }
 
+if ($AxisSetPositionPreflightRtVerifierSelfTestOnly) {
+    $axisSetPositionPreflightRtNegativeFixtureCount =
+        Invoke-LasalAxisSetPositionPreflightRtVerifierSelfTest `
+            -RepositoryRoot $RepositoryRoot
+    Write-Host (
+        'PASS LASAL.AxisSetPositionPreflightRtVerifier.SelfTest (' +
+        "$axisSetPositionPreflightRtNegativeFixtureCount/" +
+        "$axisSetPositionPreflightRtNegativeFixtureCount negative fixtures " +
+        'rejected; current source and comment-only fixture accepted)')
+    return
+}
+
 $axisZeroHomeIdeAbiNegativeFixtureCount =
     Invoke-LasalAxisZeroHomeIdeAbiVerifierSelfTest
 if ($AxisZeroHomeIdeAbiVerifierSelfTestOnly) {
@@ -28789,6 +39269,8 @@ $diagnosticsServicePath = Join-Path $root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Cl
 $recorderStorePath = Join-Path $root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCRecorderStore\LMCRecorderStore.st'
 $sdoExecutorPath = Join-Path $root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCSdoExecutor\LMCSdoExecutor.st'
 $controlCommandServicePath = Join-Path $root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCControlCommandService\LMCControlCommandService.st'
+$setPositionStorePath = Join-Path $root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCSetPositionStore\LMCSetPositionStore.st'
+$setPositionStoreGlobalPath = Join-Path $root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCSetPositionStore\global_LMCSetPositionStore.st'
 $projectPath = Join-Path $root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Elmo_EtherCAT_Test_4Axis.lcp'
 
 $st = Get-Content -Raw -LiteralPath $stPath
@@ -28894,7 +39376,15 @@ $diagnosticsService = $diagnosticsServiceRaw.
 $recorderStore = Get-Content -Raw -LiteralPath $recorderStorePath
 $sdoExecutor = Get-Content -Raw -LiteralPath $sdoExecutorPath
 $controlCommandService = Get-Content -Raw -LiteralPath $controlCommandServicePath
+$setPositionStore = Get-Content -Raw -LiteralPath $setPositionStorePath
+$setPositionStoreGlobal = Get-Content -Raw -LiteralPath $setPositionStoreGlobalPath
 $project = Get-Content -Raw -LiteralPath $projectPath
+
+Assert-LasalAxisSetPositionPreflightRtContract `
+    -InputLatchText $diagnosticsLatch `
+    -ControlServiceText $controlCommandService `
+    -SetPositionStoreText $setPositionStore `
+    -Owner 'Current LASAL source'
 
 $customMethodSizeBudgetPath = Join-Path $PSScriptRoot (
     'Verify-LasalCustomMethodSizeBudget.ps1')
@@ -29240,11 +39730,13 @@ Assert-Match $controlServiceClassBlock '(?m)^\s*LMCRobot\s*:\s*CltChCmd__LMCRobo
 Assert-Match $controlServiceMetadataBlock '<Client\s+Name="LMCRobot"\s+Required="true"\s+Internal="false"\s*/>' 'LMCControlCommandService.LMCRobot must be generated as a required external client.'
 Assert-Match $controlServiceClassBlock '(?m)^\s*InputLatch\s*:\s*CltChCmd_LMCEcatInputLatch\s*;\s*$' 'LMCControlCommandService.InputLatch must be an LMCEcatInputLatch object command client.'
 Assert-Match $controlServiceMetadataBlock '<Client\s+Name="InputLatch"\s+Required="true"\s+Internal="false"\s*/>' 'LMCControlCommandService.InputLatch must be generated as a required external client.'
+Assert-Match $controlServiceClassBlock '(?m)^\s*SetPositionStore\s*:\s*CltChCmd_LMCSetPositionStore\s*;\s*$' 'LMCControlCommandService.SetPositionStore must be an LMCSetPositionStore object command client.'
+Assert-Match $controlServiceMetadataBlock '<Client\s+Name="SetPositionStore"\s+Required="true"\s+Internal="false"\s*/>' 'LMCControlCommandService.SetPositionStore must be generated as a required external client.'
 $controlServiceMetadataClients = [regex]::Matches(
     $controlServiceMetadataBlock,
     '<Client\s+Name="[^"]+"[^>]*/>')
-if ($controlServiceMetadataClients.Count -ne 11) {
-    throw "LMCControlCommandService metadata client count is $($controlServiceMetadataClients.Count), expected eleven."
+if ($controlServiceMetadataClients.Count -ne 12) {
+    throw "LMCControlCommandService metadata client count is $($controlServiceMetadataClients.Count), expected twelve."
 }
 
 $controlServiceTableBlock = [regex]::Match(
@@ -29256,9 +39748,9 @@ if ([string]::IsNullOrWhiteSpace($controlServiceTableBlock)) {
 $expectedControlServiceServerCount = if ($axisRebaseDeclarationPresent) { 2 } else { 1 }
 Assert-Match $controlServiceTableBlock (
     '(?m)^\s*' + $expectedControlServiceServerCount +
-    '\$UINT,\s*11\$UINT,\s*0\$UINT,\s*$') (
+    '\$UINT,\s*12\$UINT,\s*0\$UINT,\s*$') (
     'LMCControlCommandService generated server/client/data counts are not ' +
-    "exactly $expectedControlServiceServerCount/11/0.")
+    "exactly $expectedControlServiceServerCount/12/0.")
 
 $controlServiceServerEntries = [regex]::Matches(
     $controlServiceTableBlock,
@@ -29288,8 +39780,8 @@ elseif ($controlServiceTableBlock -match
 $controlServiceClientLines = [regex]::Matches(
     $controlServiceTableBlock,
     '(?m)^\s*\(::LMCControlCommandService\.(?<Name>[A-Za-z_][A-Za-z0-9_]*)\.pCh\)\$UINT.*$')
-if ($controlServiceClientLines.Count -ne 11) {
-    throw "LMCControlCommandService generated client entry count is $($controlServiceClientLines.Count), expected eleven."
+if ($controlServiceClientLines.Count -ne 12) {
+    throw "LMCControlCommandService generated client entry count is $($controlServiceClientLines.Count), expected twelve."
 }
 foreach ($clientLine in $controlServiceClientLines) {
     if ($clientLine.Value -notmatch
@@ -29313,18 +39805,21 @@ foreach ($axisNumber in 1..9) {
 }
 Assert-Match $controlServiceTableBlock '(?m)^\s*\(::LMCControlCommandService\.LMCRobot\.pCh\)\$UINT,\s*_CH_CLT_OBJ\$UINT,\s*2#0000000000000010\$UINT,.*"LMCRobot".*"_LMCRobotBase"' 'LMCControlCommandService.LMCRobot required object-client metadata is missing.'
 Assert-Match $controlServiceTableBlock '(?m)^\s*\(::LMCControlCommandService\.InputLatch\.pCh\)\$UINT,\s*_CH_CLT_OBJ\$UINT,\s*2#0000000000000010\$UINT,.*"InputLatch".*"LMCEcatInputLatch"' 'LMCControlCommandService.InputLatch required object-client metadata is missing.'
+Assert-Match $controlServiceTableBlock '(?m)^\s*\(::LMCControlCommandService\.SetPositionStore\.pCh\)\$UINT,\s*_CH_CLT_OBJ\$UINT,\s*2#0000000000000010\$UINT,.*"SetPositionStore".*"LMCSetPositionStore"' 'LMCControlCommandService.SetPositionStore required object-client metadata is missing.'
 
 $controlServicePragmas = [regex]::Matches(
     $controlCommandService,
     '(?m)^\s*#pragma usingLtd\s+(?<Class>[A-Za-z_][A-Za-z0-9_]*)\s*$')
-if ($controlServicePragmas.Count -ne 3 -or
+if ($controlServicePragmas.Count -ne 4 -or
     @($controlServicePragmas | Where-Object {
             $_.Groups['Class'].Value -eq '_LMCAxis' }).Count -ne 1 -or
     @($controlServicePragmas | Where-Object {
             $_.Groups['Class'].Value -eq '_LMCRobotBase' }).Count -ne 1 -or
     @($controlServicePragmas | Where-Object {
-            $_.Groups['Class'].Value -eq 'LMCEcatInputLatch' }).Count -ne 1) {
-    throw 'LMCControlCommandService must have exactly the _LMCAxis, _LMCRobotBase, and LMCEcatInputLatch limited-using pragmas.'
+            $_.Groups['Class'].Value -eq 'LMCEcatInputLatch' }).Count -ne 1 -or
+    @($controlServicePragmas | Where-Object {
+            $_.Groups['Class'].Value -eq 'LMCSetPositionStore' }).Count -ne 1) {
+    throw 'LMCControlCommandService must have exactly the _LMCAxis, _LMCRobotBase, LMCEcatInputLatch, and LMCSetPositionStore limited-using pragmas.'
 }
 if ($controlCommandService -match '(?:#pragma usingLtd\s+_StdLib|\b_StdLib\b)') {
     throw 'LMCControlCommandService must not depend on an _StdLib client.'
@@ -29498,7 +39993,9 @@ $controlServicePrivateMethods = @(
     'HandleAxisCommands',
     'HandleGroupCommands',
     'MoveLinearAbsEx',
-    'GroupReadStatus')
+    'GroupReadStatus',
+    'HandleAdminSetPosition',
+    'DispatchRequestCommand')
 foreach ($methodName in $controlServicePrivateMethods[0..4]) {
     Assert-ExactLasalFunctionAbi `
         -ClassBlock $controlServiceClassBlock `
@@ -29507,6 +40004,26 @@ foreach ($methodName in $controlServicePrivateMethods[0..4]) {
         -Inputs $controlServiceRequestInputs `
         -Outputs $controlServiceResponseOutput
 }
+
+$controlServiceSetPositionInputs = @(
+    @{ Name = 'Reference'; Type = 'UINT' },
+    @{ Name = 'pRequestFrame'; Type = '^USINT' },
+    @{ Name = 'RequestFrameSize'; Type = 'UDINT' },
+    @{ Name = 'pResponseFrame'; Type = '^USINT' },
+    @{ Name = 'ResponseCapacity'; Type = 'UDINT' })
+Assert-ExactLasalFunctionAbi `
+    -ClassBlock $controlServiceClassBlock `
+    -FunctionName 'HandleAdminSetPosition' `
+    -IsGlobal $false `
+    -Inputs $controlServiceSetPositionInputs `
+    -Outputs $controlServiceResponseOutput
+
+Assert-ExactLasalFunctionAbi `
+    -ClassBlock $controlServiceClassBlock `
+    -FunctionName 'DispatchRequestCommand' `
+    -IsGlobal $false `
+    -Inputs $controlServiceRequestInputs `
+    -Outputs $controlServiceResponseOutput
 
 $moveLinearAbsExInputs = @(
     @{ Name = 'Reference'; Type = 'UINT' },
@@ -29839,7 +40356,9 @@ if ($rollbackPreemptMetadataSha256 -cne
 }
 foreach ($generatedMemberName in @(
         'HandleRequest',
+        'DispatchRequestCommand',
         'HandleAdminCommands',
+        'HandleAdminSetPosition',
         'HandleRegistryCommands',
         'HandleAxisCommands',
         'HandleGroupCommands',
@@ -29948,15 +40467,14 @@ $controlServiceHandleRequestBlock = [regex]::Match(
 if ([string]::IsNullOrWhiteSpace($controlServiceHandleRequestBlock)) {
     throw 'LMCControlCommandService.HandleRequest implementation was not found.'
 }
-$controlServiceDispatchMatch = [regex]::Match(
-    $controlServiceHandleRequestBlock,
-    ('(?is)if\s+ownershipInvokeHandler\s+then\s*' +
-     '.*?(?<Body>case\s+CommandId\s+of.*?end_case\s*;)\s*end_if\s*;'))
-$controlServiceDispatchBlock = if ($controlServiceDispatchMatch.Success) {
-    $controlServiceDispatchMatch.Groups['Body'].Value
-}
-else {
-    $controlServiceHandleRequestBlock
+$controlServiceDispatchBlock = [regex]::Match(
+    $controlCommandService,
+    ('(?is)FUNCTION\s+' +
+     'LMCControlCommandService::DispatchRequestCommand\b.*?END_FUNCTION')).Value
+if ([string]::IsNullOrWhiteSpace($controlServiceDispatchBlock)) {
+    throw (
+        'LMCControlCommandService.DispatchRequestCommand implementation ' +
+        'was not found.')
 }
 $controlServicePrivateBlocks = [ordered]@{}
 foreach ($methodName in $controlServicePrivateMethods) {
@@ -29977,13 +40495,38 @@ foreach ($methodName in $controlServicePrivateMethods) {
         $controlServicePrivateBlocks[$methodName]
 }
 foreach ($methodEntry in $controlServiceMethodBlocks.GetEnumerator()) {
-    $normalizedMethodBlock = $methodEntry.Value -replace "`r`n", "`n"
-    $methodByteCount = [Text.Encoding]::UTF8.GetByteCount(
-        $normalizedMethodBlock)
-    if ($methodByteCount -gt 32768) {
+    $rawMethodBlock = $methodEntry.Value
+    $rawMethodByteCount = [Text.Encoding]::UTF8.GetByteCount($rawMethodBlock)
+    $lfMethodBlock = $rawMethodBlock.Replace("`r`n", "`n").Replace(
+        "`r", "`n")
+    $lfMethodByteCount = [Text.Encoding]::UTF8.GetByteCount($lfMethodBlock)
+    $crlfMethodByteCount = [Text.Encoding]::UTF8.GetByteCount(
+        $lfMethodBlock.Replace("`n", "`r`n"))
+    if ($rawMethodByteCount -ge 32768 -or
+        $lfMethodByteCount -ge 32768 -or
+        $crlfMethodByteCount -ge 32768) {
         throw ("LMCControlCommandService.$($methodEntry.Key) is " +
-            "$methodByteCount bytes, expected at most 32768.")
+            "raw=$rawMethodByteCount, LF=$lfMethodByteCount, " +
+            "CRLF=$crlfMethodByteCount UTF-8 bytes; all must remain under 32768.")
     }
+}
+Assert-Match $controlServiceHandleRequestBlock (
+    '(?s)if\s+ownershipInvokeHandler\s+then\s*' +
+    'ResponseSize\s*:=\s*DispatchRequestCommand\s*\(\s*' +
+    'CommandId:=CommandId\s*,\s*Reference:=Reference\s*,\s*' +
+    'pRequestFrame:=pRequestFrame\s*,\s*' +
+    'RequestFrameSize:=RequestFrameSize\s*,\s*' +
+    'pResponseFrame:=pResponseFrame\s*,\s*' +
+    'ResponseCapacity:=ResponseCapacity\s*\)\s*;\s*end_if\s*;') (
+    'LMCControlCommandService.HandleRequest guarded dispatcher ABI drifted.')
+if ([regex]::Matches(
+        $controlServiceHandleRequestBlock,
+        ('(?i)(?<![A-Za-z0-9_.])(?:HandleRegistryCommands|' +
+         'HandleAxisCommands|HandleGroupCommands|HandleAdminCommands|' +
+         'HandleAdminSetPosition)\s*\(')).Count -ne 0) {
+    throw (
+        'LMCControlCommandService.HandleRequest retains a command case or ' +
+        'direct leaf-handler call after dispatcher extraction.')
 }
 
 $phase3GroupCommandIds = @(
@@ -30000,7 +40543,9 @@ $phase3GroupCommandIds = @(
     '20E7')
 $phase3AdminCommandIds = @('7D20', '7D22')
 $phase4GeneralAdminCommandIds = @(
-    '7D00', '7D10', '7D12', '7D13', '7D18', '7D19')
+    '7D00', '7D10', '7D14', '7D1A',
+    '7D13', '7D18', '7D19')
+$setPositionAdminCommandIds = @('7D12')
 $phase4RegistryCommandIds = @('103C', '1042', '202B')
 $phase4AxisCommandIds = @(
     '2023',
@@ -30014,6 +40559,7 @@ $phase4AxisCommandIds = @(
 $allAdminCommandIds = @(
     $phase4GeneralAdminCommandIds + $phase3AdminCommandIds)
 $allControlCommandIds = @(
+    $setPositionAdminCommandIds +
     $allAdminCommandIds +
     $phase4RegistryCommandIds +
     $phase4AxisCommandIds +
@@ -30190,29 +40736,29 @@ switch ($ControlServiceCheckpoint) {
             -Owner 'LMCControlCommandService.HandleAdminCommands' `
             -ExpectedCommandIds $phase3AdminCommandIds
         Assert-ExactLasalCommandRouteIds `
-            -RouterBlock $controlServiceHandleRequestBlock `
-            -Owner 'LMCControlCommandService.HandleRequest group ownership' `
+            -RouterBlock $controlServiceDispatchBlock `
+            -Owner 'LMCControlCommandService.DispatchRequestCommand group ownership' `
             -CallPattern 'ResponseSize\s*:=\s*HandleGroupCommands\s*\(' `
             -ExpectedCommandIds $phase3GroupCommandIds
         Assert-ExactLasalCommandRouteIds `
-            -RouterBlock $controlServiceHandleRequestBlock `
-            -Owner 'LMCControlCommandService.HandleRequest Admin ownership' `
+            -RouterBlock $controlServiceDispatchBlock `
+            -Owner 'LMCControlCommandService.DispatchRequestCommand Admin ownership' `
             -CallPattern 'ResponseSize\s*:=\s*HandleAdminCommands\s*\(' `
             -ExpectedCommandIds $phase3AdminCommandIds
         foreach ($handlerName in @(
                 'HandleGroupCommands',
                 'HandleAdminCommands')) {
             $handlerCallCount = [regex]::Matches(
-                $controlServiceHandleRequestBlock,
+                $controlServiceDispatchBlock,
                 ('(?<![A-Za-z0-9_.])' +
                  [regex]::Escape($handlerName) + '\s*\(')).Count
             if ($handlerCallCount -ne 1) {
                 throw (
                     "$ControlServiceCheckpoint LMCControlCommandService." +
-                    "HandleRequest $handlerName call count is " +
+                    "DispatchRequestCommand $handlerName call count is " +
                     "$handlerCallCount, expected one.")
             }
-            Assert-Match $controlServiceHandleRequestBlock (
+            Assert-Match $controlServiceDispatchBlock (
                 '(?s)ResponseSize\s*:=\s*' +
                 [regex]::Escape($handlerName) + '\(\s*' +
                 'CommandId:=CommandId\s*,\s*' +
@@ -30221,28 +40767,28 @@ switch ($ControlServiceCheckpoint) {
                 'RequestFrameSize:=RequestFrameSize\s*,\s*' +
                 'pResponseFrame:=pResponseFrame\s*,\s*' +
                 'ResponseCapacity:=ResponseCapacity\s*\)') (
-                "$ControlServiceCheckpoint HandleRequest does not pass the " +
+                "$ControlServiceCheckpoint DispatchRequestCommand does not pass the " +
                 "complete zero-copy ABI to $handlerName.")
         }
         foreach ($handlerName in @(
                 'HandleRegistryCommands',
                 'HandleAxisCommands')) {
-            if ($controlServiceHandleRequestBlock -match (
+            if ($controlServiceDispatchBlock -match (
                     '(?<![A-Za-z0-9_.])' +
                     [regex]::Escape($handlerName) + '\s*\(')) {
                 throw (
                     "$ControlServiceCheckpoint LMCControlCommandService." +
-                    "HandleRequest already routes to $handlerName.")
+                    "DispatchRequestCommand already routes to $handlerName.")
             }
         }
-        Assert-Match $controlServiceHandleRequestBlock (
+        Assert-Match $controlServiceDispatchBlock (
             '(?s)ResponseSize\s*:=\s*-1\s*;.*?' +
             'if\s+\(pRequestFrame\s*=\s*NIL\)\s*\|\s*' +
             '\(pResponseFrame\s*=\s*NIL\)\s*\|\s*' +
             '\(RequestFrameSize\s*<\s*8\)\s+then\s*RETURN;\s*end_if;.*?' +
             'case\s+CommandId\s+of.*?' +
             'else\s+ResponseSize\s*:=\s*-1\s*;\s*end_case') (
-            'Phase3GroupRouted HandleRequest unsupported-command fail-closed path is missing.')
+            'Phase3GroupRouted DispatchRequestCommand unsupported-command fail-closed path is missing.')
     }
 
     { $_ -in @(
@@ -30286,9 +40832,9 @@ switch ($ControlServiceCheckpoint) {
                 @{ Handler = 'HandleAxisCommands'; Ids = $phase4AxisCommandIds },
                 @{ Handler = 'HandleGroupCommands'; Ids = $phase3GroupCommandIds })) {
             Assert-ExactLasalCommandRouteIds `
-                -RouterBlock $controlServiceHandleRequestBlock `
+                -RouterBlock $controlServiceDispatchBlock `
                 -Owner (
-                    'LMCControlCommandService.HandleRequest ' +
+                    'LMCControlCommandService.DispatchRequestCommand ' +
                     $routeContract.Handler + ' ownership') `
                 -CallPattern (
                     'ResponseSize\s*:=\s*' +
@@ -30296,16 +40842,16 @@ switch ($ControlServiceCheckpoint) {
                 -ExpectedCommandIds $routeContract.Ids
 
             $handlerCallCount = [regex]::Matches(
-                $controlServiceHandleRequestBlock,
+                $controlServiceDispatchBlock,
                 ('(?<![A-Za-z0-9_.])' +
                  [regex]::Escape($routeContract.Handler) + '\s*\(')).Count
             if ($handlerCallCount -ne 1) {
                 throw (
                     "$ControlServiceCheckpoint LMCControlCommandService." +
-                    "HandleRequest $($routeContract.Handler) call count is " +
+                    "DispatchRequestCommand $($routeContract.Handler) call count is " +
                     "$handlerCallCount, expected one.")
             }
-            Assert-Match $controlServiceHandleRequestBlock (
+            Assert-Match $controlServiceDispatchBlock (
                 '(?s)ResponseSize\s*:=\s*' +
                 [regex]::Escape($routeContract.Handler) + '\(\s*' +
                 'CommandId:=CommandId\s*,\s*' +
@@ -30314,17 +40860,43 @@ switch ($ControlServiceCheckpoint) {
                 'RequestFrameSize:=RequestFrameSize\s*,\s*' +
                 'pResponseFrame:=pResponseFrame\s*,\s*' +
                 'ResponseCapacity:=ResponseCapacity\s*\)') (
-                "$ControlServiceCheckpoint HandleRequest does not pass the " +
+                "$ControlServiceCheckpoint DispatchRequestCommand does not pass the " +
                 "complete zero-copy ABI to $($routeContract.Handler).")
         }
-        Assert-Match $controlServiceHandleRequestBlock (
+        Assert-ExactLasalCommandRouteIds `
+            -RouterBlock $controlServiceDispatchBlock `
+            -Owner (
+                'LMCControlCommandService.DispatchRequestCommand ' +
+                'HandleAdminSetPosition ownership') `
+            -CallPattern (
+                'ResponseSize\s*:=\s*HandleAdminSetPosition\s*\(') `
+            -ExpectedCommandIds $setPositionAdminCommandIds
+        $setPositionHandlerCallCount = [regex]::Matches(
+            $controlServiceDispatchBlock,
+            '(?<![A-Za-z0-9_.])HandleAdminSetPosition\s*\(').Count
+        if ($setPositionHandlerCallCount -ne 1) {
+            throw (
+                "$ControlServiceCheckpoint LMCControlCommandService." +
+                'DispatchRequestCommand HandleAdminSetPosition call count is ' +
+                "$setPositionHandlerCallCount, expected one.")
+        }
+        Assert-Match $controlServiceDispatchBlock (
+            '(?s)ResponseSize\s*:=\s*HandleAdminSetPosition\s*\(\s*' +
+            'Reference:=Reference\s*,\s*' +
+            'pRequestFrame:=pRequestFrame\s*,\s*' +
+            'RequestFrameSize:=RequestFrameSize\s*,\s*' +
+            'pResponseFrame:=pResponseFrame\s*,\s*' +
+            'ResponseCapacity:=ResponseCapacity\s*\)') (
+            "$ControlServiceCheckpoint DispatchRequestCommand does not pass the " +
+            'complete zero-copy ABI to HandleAdminSetPosition.')
+        Assert-Match $controlServiceDispatchBlock (
             '(?s)ResponseSize\s*:=\s*-1\s*;.*?' +
             'if\s+\(pRequestFrame\s*=\s*NIL\)\s*\|\s*' +
             '\(pResponseFrame\s*=\s*NIL\)\s*\|\s*' +
             '\(RequestFrameSize\s*<\s*8\)\s+then\s*RETURN;\s*end_if;.*?' +
             'case\s+CommandId\s+of.*?' +
             'else\s+ResponseSize\s*:=\s*-1\s*;\s*end_case') (
-            "$ControlServiceCheckpoint HandleRequest unsupported-command fail-closed path is missing.")
+            "$ControlServiceCheckpoint DispatchRequestCommand unsupported-command fail-closed path is missing.")
     }
 }
 
@@ -30805,10 +41377,10 @@ else {
                     '(?s)^.{0,16}(?<![A-Za-z0-9_])' +
                     'LMCControlCommandService1(?![A-Za-z0-9_])')
             })
-        if ($serviceSourceConnectionRecords.Count -ne 11) {
+        if ($serviceSourceConnectionRecords.Count -ne 12) {
             throw (
                 'Phase5TransportClean Networks.lcb LMCControlCommandService1 ' +
-                "source tuple count is $($serviceSourceConnectionRecords.Count), expected eleven.")
+                "source tuple count is $($serviceSourceConnectionRecords.Count), expected twelve.")
         }
         foreach ($axisNumber in 1..9) {
             $serviceTuplePattern = (
@@ -30852,6 +41424,20 @@ else {
             throw (
                 'Phase5TransportClean Networks.lcb missing or duplicate ' +
                 'LMCControlCommandService1.InputLatch tuple.')
+        }
+        $serviceSetPositionStoreTuplePattern = (
+            '(?s)(?<![A-Za-z0-9_])LMCControlCommandService1' +
+            '(?![A-Za-z0-9_]).*?' +
+            '(?<![A-Za-z0-9_])LMCSetPositionStore1(?![A-Za-z0-9_]).*?' +
+            '(?<![A-Za-z0-9_])SetPositionStore(?![A-Za-z0-9_]).*?' +
+            '(?<![A-Za-z0-9_])ClassSvr(?![A-Za-z0-9_])')
+        if (@($serviceSourceConnectionRecords | Where-Object {
+                    $_.Groups['Body'].Value -match
+                        $serviceSetPositionStoreTuplePattern
+                }).Count -ne 1) {
+            throw (
+                'Phase5TransportClean Networks.lcb missing or duplicate ' +
+                'LMCControlCommandService1.SetPositionStore tuple.')
         }
         $diagnosticsOwnershipTuplePattern = (
             '(?s)(?<![A-Za-z0-9_])LMCDiagnosticsService1' +
@@ -30942,6 +41528,10 @@ if (-not $SourceOnly) {
         Source = 'LMCControlCommandService1.InputLatch'
         Destination = 'LMCEcatInputLatch1.ClassSvr'
     }
+    $expectedControlServiceConnections += @{
+        Source = 'LMCControlCommandService1.SetPositionStore'
+        Destination = 'LMCSetPositionStore1.ClassSvr'
+    }
     foreach ($expectedConnection in $expectedControlServiceConnections) {
         $source = $expectedConnection.Source
         $destination = $expectedConnection.Destination
@@ -30957,9 +41547,9 @@ if (-not $SourceOnly) {
         $commNetworkXml.SelectNodes(
             "/Network/Connections/Connection[starts-with(@Source," +
             "'LMCControlCommandService1.') ]"))
-    if ($controlServiceOutgoingConnections.Count -ne 11) {
+    if ($controlServiceOutgoingConnections.Count -ne 12) {
         throw ("LMCControlCommandService1 outgoing connection count is " +
-            "$($controlServiceOutgoingConnections.Count), expected exactly eleven.")
+            "$($controlServiceOutgoingConnections.Count), expected exactly twelve.")
     }
     $controlServiceServerConnections = @(
         $commNetworkXml.SelectNodes(
@@ -30975,6 +41565,7 @@ if (-not $SourceOnly) {
     Assert-Match $commNetworkTable '(?m)^\s*TO_UDINT\(\d+\),\s*"ControlCommands",\s*TO_UDINT\(\d+\),\s*"ClassSvr",\s*$' 'Comm_Network generated table is stale: ControlCommands internal connection is missing.'
     Assert-Match $commNetworkTable '(?m)^\s*TO_UDINT\(\d+\),\s*"AxisOwnership",\s*TO_UDINT\(\d+\),\s*"ClassSvr",\s*$' 'Comm_Network generated table is stale: AxisOwnership internal connection is missing.'
     Assert-Match $commNetworkTable '(?m)^\s*TO_UDINT\(\d+\),\s*"InputLatch",\s*C_DIR,\s*TO_UDINT\(\d+\),\s*"LMCEcatInputLatch1",\s*"ClassSvr",\s*$' 'Comm_Network generated table is stale: control-service InputLatch external connection is missing.'
+    Assert-Match $commNetworkTable '(?m)^\s*TO_UDINT\(\d+\),\s*"SetPositionStore",\s*TO_UDINT\(\d+\),\s*"ClassSvr",\s*$' 'Comm_Network generated table is stale: control-service SetPositionStore internal connection is missing.'
     $expectedGeneratedMotionConnectionCount = if ($transportClean) { 1 } else { 2 }
     foreach ($axisNumber in 1..9) {
         $generatedAxisConnectionPattern = (
@@ -31731,6 +42322,16 @@ Assert-TopologyIoTopLevelRouteSet `
     -FunctionBlock $topologyIoOctalLiteralRouteFixture `
     -Owner 'Topology/I/O octal literal route canonical fixture' `
     -ExpectedCommandIds @('7E11', '7E12', '7E13')
+$topologyIoQualifiedCallRouteFixture =
+    $topologyIoStaticRouteFixture.Replace(
+        'Diagnostics.HandleRequest();',
+        ('qualifiedResult := ' +
+         '_TCPIPServerInterface::SetSocketParameter();' + "`n" +
+         '    Diagnostics.HandleRequest();'))
+Assert-TopologyIoTopLevelRouteSet `
+    -FunctionBlock $topologyIoQualifiedCallRouteFixture `
+    -Owner 'Topology/I/O qualified static-call route canonical fixture' `
+    -ExpectedCommandIds @('7E11', '7E12')
 $topologyIoInlineNestedCaseFixture = @'
 FUNCTION TCPMotionInterface::MsgPaser
 case CommandID of
@@ -32058,7 +42659,7 @@ if ($controlServiceGroupRouted) {
 }
 else {
     Assert-Match $msgParserBlock '(?s)0x20D2,\s*0x2047,\s*0x2048,\s*0x2049,\s*0x204A,\s*0x204B,\s*0x2085,\s*0x20A4,\s*0x2045,\s*0x2051,\s*0x20E7:\s*HandleGroupCommands\(\);' 'MsgPaser group-family aggregate route is missing or reordered.'
-    Assert-Match $msgParserBlock '(?s)0x7D00,\s*0x7D10,\s*0x7D12,\s*0x7D13,\s*0x7D18,\s*0x7D19,\s*0x7D20,\s*0x7D22:\s*HandleAdminCommands\(\);' 'MsgPaser admin-family aggregate route is missing or reordered.'
+    Assert-Match $msgParserBlock '(?s)0x7D00,\s*0x7D10,\s*0x7D12,\s*0x7D14,\s*0x7D1A,\s*0x7D13,\s*0x7D18,\s*0x7D19,\s*0x7D20,\s*0x7D22:\s*HandleAdminCommands\(\);' 'MsgPaser admin-family aggregate route is missing or reordered.'
     Assert-ExactLasalCommandCaseIds `
         -FunctionBlock $groupHandlerBlock `
         -Owner 'TCPMotionInterface.HandleGroupCommands' `
@@ -32067,8 +42668,8 @@ else {
         -FunctionBlock $adminHandlerBlock `
         -Owner 'TCPMotionInterface.HandleAdminCommands' `
         -ExpectedCommandIds @(
-            '7D00', '7D10', '7D12', '7D13', '7D18', '7D19',
-            '7D20', '7D22')
+            '7D00', '7D10', '7D12', '7D14', '7D1A',
+            '7D13', '7D18', '7D19', '7D20', '7D22')
 }
 foreach ($handlerName in $localHandlerExpectedCallCounts.Keys) {
     $handlerCallCount = [regex]::Matches(
@@ -32088,6 +42689,8 @@ if ($transportClean) {
         -Owner 'Phase5TransportClean TCPMotionInterface.MsgPaser local scratch' `
         -ExpectedValues @(
             'controlResponseSize',
+            'setPositionCloseSocket',
+            'callbackDisarmResult',
             'diagnosticsResponseSize',
              'controlAdmissionResult',
              'controlIdentityIndex',
@@ -33960,7 +44563,11 @@ else {
             'AxisZeroHomeRequestSequence',
             'AxisZeroHomeAppliedSequence',
             'AxisZeroHomeCancelSequence',
-            'AxisZeroHomeResult') `
+            'AxisZeroHomeResult',
+            'AxisSetPositionPreflightRequestSequence',
+            'AxisSetPositionPreflightAppliedSequence',
+            'AxisSetPositionPreflightMailbox',
+            'AxisSetPositionPreflightResult') `
         -Owner 'LMCEcatInputLatch class implementation'
     $latchClientAddressCounts = [ordered]@{
         'EcatMaster' = 2
@@ -33968,14 +44575,18 @@ else {
         'Drive2' = 4
         'Drive3' = 4
         'Drive4' = 4
-        'LMCAxis1' = 4
-        'LMCAxis2' = 4
-        'LMCAxis3' = 4
-        'LMCAxis4' = 4
+        'LMCAxis1' = 5
+        'LMCAxis2' = 5
+        'LMCAxis3' = 5
+        'LMCAxis4' = 5
         'RecorderStore' = 1
         'Coupler' = 1
         'InputSlot' = 1
         'OutputSlot' = 1
+        'AxisSetPositionPreflightRequestSequence' = 8
+        'AxisSetPositionPreflightAppliedSequence' = 6
+        'AxisSetPositionPreflightMailbox' = 0
+        'AxisSetPositionPreflightResult' = 2
     }
     foreach ($latchClientAddressName in $latchClientAddressCounts.Keys) {
         $actualAddressCount = [regex]::Matches(
@@ -41281,6 +51892,8 @@ if ($ControlServiceCheckpoint -ne 'Phase2Skeleton') {
         $controlServicePrivateBlocks['HandleGroupCommands']
     $serviceAdminHandlerBlock =
         $controlServicePrivateBlocks['HandleAdminCommands']
+    $serviceAdminSetPositionHandlerBlock =
+        $controlServicePrivateBlocks['HandleAdminSetPosition']
     $serviceZeroHomeHandlerBlock =
         $controlServicePrivateBlocks['HandleAxisZeroHomeCommands']
     $serviceMoveLinearBlock =
@@ -41324,9 +51937,8 @@ if ($ControlServiceCheckpoint -ne 'Phase2Skeleton') {
     $serviceAdminGroupParametersCaseBlock = [regex]::Match(
         $serviceAdminHandlerBlock,
         '(?s)0x7D20:.*?0x7D22:').Value
-    $serviceAdminSetPositionCaseBlock = [regex]::Match(
-        $serviceAdminHandlerBlock,
-        '(?s)0x7D12:.*?(?=0x7D13,\s*0x7D18,\s*0x7D19:)').Value
+    $serviceAdminSetPositionCaseBlock =
+        $serviceAdminSetPositionHandlerBlock
     $serviceAdminStartReferenceCaseBlock = [regex]::Match(
         $serviceZeroHomeHandlerBlock,
         '(?s)0x7D13:.*?0x7D18:').Value
@@ -42137,11 +52749,15 @@ if ($controlServiceAllControlRouted) {
         $controlServicePrivateBlocks['HandleAxisCommands']
     $serviceAdminHandlerBlock =
         $controlServicePrivateBlocks['HandleAdminCommands']
+    $serviceAdminSetPositionHandlerBlock =
+        $controlServicePrivateBlocks['HandleAdminSetPosition']
 
     foreach ($pointerHandler in @(
             @{ Name = 'Registry'; Block = $serviceRegistryHandlerBlock },
             @{ Name = 'Axis'; Block = $serviceAxisHandlerBlock },
-            @{ Name = 'Admin'; Block = $serviceAdminHandlerBlock })) {
+            @{ Name = 'Admin'; Block = $serviceAdminHandlerBlock },
+            @{ Name = 'Admin SetPosition';
+                Block = $serviceAdminSetPositionHandlerBlock })) {
         Assert-Match $pointerHandler.Block (
             '(?s)ResponseSize\s*:=\s*-1\s*;.*?' +
             'if\s+\(pRequestFrame\s*=\s*NIL\)\s*\|\s*' +
@@ -42360,7 +52976,7 @@ if ($controlServiceAllControlRouted) {
         '(?s)0x7D00:.*?0x7D10:').Value
     $serviceAdminAxisParameterCaseBlock = [regex]::Match(
         $serviceAdminHandlerBlock,
-        '(?s)0x7D10:.*?0x7D12:').Value
+        '(?s)0x7D10:.*?(?=0x7D14,\s*0x7D1A:)').Value
     if ([string]::IsNullOrWhiteSpace($serviceAdminCapabilitiesCaseBlock) -or
         [string]::IsNullOrWhiteSpace($serviceAdminAxisParameterCaseBlock)) {
         throw 'Service Admin 0x7D00/0x7D10 cases were not found.'
@@ -42466,10 +53082,32 @@ if (-not $script:WrapperUdpCallbackCandidateExpected) {
         -Owner 'TCPMotionInterface callback endpoint ownership'
 }
 
-Assert-LasalAdminSetAxisPositionContract `
+Assert-LasalSetPositionStoreReadOnlyScanContract `
+    -StoreText $setPositionStore `
+    -GlobalText $setPositionStoreGlobal `
+    -ControlServiceText $controlCommandService `
+    -Owner 'SetPosition Store Begin/Commit/Read/Retire/Select/private CommitRecord'
+
+Assert-LasalSetPositionStoreGeneratedWiringContract `
+    -StoreText $setPositionStore `
+    -CommNetworkText $commNetwork `
+    -MotionNetworkText $motionNetwork `
+    -EtherCatNetworkText $etherCatNetwork `
+    -NetworkDatabaseText $networkDbText `
+    -CommNetworkTableText $takeoverCommNetworkTable `
+    -Owner 'SetPosition Store generated CheckSum wiring'
+
+$setPositionAdminStoreWiringNegativeFixtureCount =
+    Invoke-LasalSetPositionAdminStoreWiringVerifierSelfTest `
     -ControlServiceText $controlCommandService `
     -TcpText $st `
-    -Owner 'Dormant Admin SetAxisPosition'
+    -Owner 'Dormant SetPosition Admin Store wiring'
+
+$setPositionCloseWithoutResponseNegativeFixtureCount =
+    Invoke-LasalSetPositionCloseWithoutResponseVerifierSelfTest `
+        -ControlServiceText $controlCommandService `
+        -TcpText $st `
+        -Owner 'Dormant SetPosition close-without-response'
 
 Assert-LasalAdminLmcHomeContract `
     -ControlServiceText $controlCommandService `
@@ -43639,10 +54277,9 @@ if ($tcpRpcLifecycleNegativeFixtureCount -ne 7) {
 
 $setPositionFixtureBlock = [regex]::Match(
     $controlCommandService,
-    ('(?ims)^[ \t]*0x7D12[ \t]*:[ \t]*\r?$' +
-     '.*?' +
-     '(?=^[ \t]*0x7D13[ \t]*,[ \t]*0x7D18[ \t]*,[ \t]*' +
-     '0x7D19[ \t]*:[ \t]*\r?$)')).Value
+    ('(?ims)^[ \t]*FUNCTION[ \t]+' +
+     'LMCControlCommandService::HandleAdminSetPosition[ \t]*\r?$' +
+     '.*?^[ \t]*END_FUNCTION[ \t]*\r?$')).Value
 $setPositionCapabilityFixtureBlock = [regex]::Match(
     $controlCommandService,
     ('(?ims)^[ \t]*0x7D00[ \t]*:[ \t]*\r?$' +
@@ -43885,25 +54522,83 @@ $setPositionNegativeFixtures['DomainStatusSuccess'] = @{
     Service = $controlCommandService.Replace(
         $setPositionFixtureBlock,
         $setPositionFixtureBlock.Replace(
-            '(pResponseFrame + 12)^$UINT := 1',
-            '(pResponseFrame + 12)^$UINT := 0'))
+            'adminSetPositionCommandStatus;',
+            '0;'))
     Tcp = $st
 }
 $setPositionNegativeFixtures['ServiceRouteRemoved'] = @{
     Service = ([regex]::new(
-        '(?s)0x7D00,\s*0x7D10,\s*0x7D12,\s*0x7D13,\s*0x7D18,\s*0x7D19,\s*0x7D20,\s*0x7D22:')).Replace(
+        '(?im)^(?<Indent>[ \t]*)0x7D12[ \t]*:')).Replace(
             $controlCommandService,
-            '0x7D00, 0x7D10, 0x7D13, 0x7D18, 0x7D19, 0x7D20, 0x7D22:',
+            '${Indent}0x7D11:',
             1)
     Tcp = $st
 }
 $setPositionNegativeFixtures['TcpRouteRemoved'] = @{
     Service = $controlCommandService
     Tcp = ([regex]::new(
-        '(?s)0x7D00,\s*0x7D10,\s*0x7D12,\s*0x7D13,\s*0x7D18,\s*0x7D19,\s*0x7D20,\s*0x7D22:')).Replace(
+        '(?s)0x7D00,\s*0x7D10,\s*0x7D12,\s*0x7D14,\s*0x7D1A,\s*' +
+        '0x7D13,\s*0x7D18,\s*0x7D19,\s*0x7D20,\s*0x7D22:')).Replace(
             $st,
-            '0x7D00, 0x7D10, 0x7D13, 0x7D18, 0x7D19, 0x7D20, 0x7D22:',
+            ('0x7D00, 0x7D10, 0x7D14, 0x7D1A, 0x7D13, ' +
+             '0x7D18, 0x7D19, 0x7D20, 0x7D22:'),
             1)
+}
+$setPositionNegativeFixtures['OwnershipScratchTupleChanged'] = @{
+    Service = $controlCommandService.Replace(
+        $setPositionFixtureBlock,
+        $setPositionFixtureBlock.Replace(
+            '(OwnershipState[16]$UDINT <> 0)',
+            '(OwnershipState[16]$UDINT = 0)'))
+    Tcp = $st
+}
+$setPositionNegativeFixtures['OwnershipReserveIdentitySizeChanged'] = @{
+    Service = $controlCommandService.Replace(
+        $setPositionFixtureBlock,
+        $setPositionFixtureBlock.Replace('IdentitySize:=48', 'IdentitySize:=47'))
+    Tcp = $st
+}
+$setPositionNegativeFixtures['OwnershipConflictLatchChanged'] = @{
+    Service = $controlCommandService.Replace(
+        $setPositionFixtureBlock,
+        $setPositionFixtureBlock.Replace(
+            '(adminOwnerReserveResult <> -2)',
+            '(adminOwnerReserveResult = -2)'))
+    Tcp = $st
+}
+$setPositionNegativeFixtures['OwnershipCoordinateGuardRemoved'] = @{
+    Service = $controlCommandService.Replace(
+        $setPositionFixtureBlock,
+        $setPositionFixtureBlock.Replace(
+            'if adminOwnerAcquired then',
+            'if TRUE then'))
+    Tcp = $st
+}
+$setPositionNegativeFixtures['OwnershipRollbackReasonChanged'] = @{
+    Service = $controlCommandService.Replace(
+        $setPositionFixtureBlock,
+        $setPositionFixtureBlock.Replace('Reason:=0', 'Reason:=1'))
+    Tcp = $st
+}
+$setPositionNegativeFixtures['OwnershipRollbackLatchesRemoved'] = @{
+    Service = $controlCommandService.Replace(
+        $setPositionFixtureBlock,
+        $setPositionFixtureBlock.Replace('OwnershipState[24] := 1;', ''))
+    Tcp = $st
+}
+$setPositionNegativeFixtures['OwnershipReserveOrdinaryExceptionRemoved'] = @{
+    Service = $controlCommandService.Replace(
+        '(CommandId <> 0x7D12)',
+        '(CommandId <> 0x7D11)')
+    Tcp = $st
+}
+$setPositionNegativeFixtures['TcpOrdinaryClassifierAddsSetPosition'] = @{
+    Service = $controlCommandService
+    Tcp = $st.Replace(
+        '// LMC_OWNER_ORDINARY_CLASSIFIER_BEGIN',
+        ('// LMC_OWNER_ORDINARY_CLASSIFIER_BEGIN' +
+         [Environment]::NewLine +
+         'if CommandID = 0x7D12 then controlManaged := TRUE; end_if;'))
 }
 
 $setPositionNegativeFixtureCount = 0
@@ -43934,10 +54629,10 @@ foreach ($negativeFixture in $setPositionNegativeFixtures.GetEnumerator()) {
     }
     $setPositionNegativeFixtureCount++
 }
-if ($setPositionNegativeFixtureCount -ne 31) {
+if ($setPositionNegativeFixtureCount -ne 39) {
     throw (
         'Dormant Admin SetAxisPosition negative fixture count is ' +
-        "$setPositionNegativeFixtureCount, expected 31.")
+        "$setPositionNegativeFixtureCount, expected 39.")
 }
 
 Assert-Match $st 'PendingClosedSessionEpoch\s*:\s*UDINT' 'TCPMotionInterface pending closed-session epoch storage is missing.'
@@ -43947,10 +54642,10 @@ if ($script:WrapperUdpCallbackCandidateExpected) {
         $st,
         ('(?i)callbackDisarmResult\s*:=\s*' +
          'DisarmRpcCallbackEndpoint\s*\(\s*\)\s*;')).Count
-    if ($callbackDisarmCallCount -ne 8) {
+    if ($callbackDisarmCallCount -ne 9) {
         throw (
             'TCPMotionInterface callback disarm call count is ' +
-            "$callbackDisarmCallCount, expected eight Candidate lifecycle paths.")
+            "$callbackDisarmCallCount, expected nine Candidate lifecycle paths.")
     }
 }
 else {
@@ -44158,7 +54853,8 @@ if ($SourceOnly) {
     Write-Host (
         "PASS LASAL.StaticContract.SourceOnly ($ControlServiceCheckpoint; " +
         "TopologyIoCheckpoint=$TopologyIoCheckpoint; " +
-        'common axis ownership, Admin reads, dormant 0x7D12, LMC_Home 0x7D13/18/19, ' +
+        'common axis ownership, Admin reads, dormant 0x7D12, source-active unavailable ' +
+        '0x7D14/1A, LMC_Home 0x7D13/18/19, ' +
         'DS402 method-37 0x7D15/16/17, encoder maintenance 0x7E53/54/55, CyWork queue, ' +
         'control-service checkpoint, diagnostics D1-D5, recorder bank, ' +
         'and session-close wiring' + $binaryMetadataResult + ')')
@@ -44167,7 +54863,8 @@ else {
     Write-Host (
         "PASS LASAL.StaticContract ($ControlServiceCheckpoint; " +
         "TopologyIoCheckpoint=$TopologyIoCheckpoint; " +
-        'common axis ownership, Admin reads, dormant 0x7D12, LMC_Home 0x7D13/18/19, ' +
+        'common axis ownership, Admin reads, dormant 0x7D12, source-active unavailable ' +
+        '0x7D14/1A, LMC_Home 0x7D13/18/19, ' +
         'DS402 method-37 0x7D15/16/17, encoder maintenance 0x7E53/54/55, CyWork queue, ' +
         'control-service checkpoint, diagnostics D1-D5, nine-axis network, ' +
         'recorder wiring, and generated metadata/tables' +
