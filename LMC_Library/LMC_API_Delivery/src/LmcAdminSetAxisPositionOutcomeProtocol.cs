@@ -5,15 +5,22 @@ namespace LasalMotionControlLib
 {
     internal static partial class LMC_AdminFrame
     {
-        internal const int AxisSetPositionOutcomeRequestPayloadLength = 48;
+        internal const int AxisSetPositionOutcomeRequestPayloadLength = 52;
 
         internal static byte[] ReadAxisSetPositionOutcome(
             uint queryRequestId,
+            uint currentDiagnosticsBootId,
             LMCAxisSetPositionRecoveryKey recoveryKey)
         {
             if (recoveryKey == null)
             {
                 throw new ArgumentNullException("recoveryKey");
+            }
+
+            if (currentDiagnosticsBootId == 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "currentDiagnosticsBootId");
             }
 
             ValidateAxisReference(recoveryKey.AxisReference);
@@ -38,30 +45,34 @@ namespace LasalMotionControlLib
             LMC_Frame.WriteUInt32(
                 buffer,
                 payloadOffset + 20,
-                recoveryKey.OriginalRequestId);
+                currentDiagnosticsBootId);
             LMC_Frame.WriteUInt32(
                 buffer,
                 payloadOffset + 24,
-                recoveryKey.ClientIntentId0);
+                recoveryKey.OriginalRequestId);
             LMC_Frame.WriteUInt32(
                 buffer,
                 payloadOffset + 28,
-                recoveryKey.ClientIntentId1);
+                recoveryKey.ClientIntentId0);
             LMC_Frame.WriteUInt32(
                 buffer,
                 payloadOffset + 32,
-                recoveryKey.ClientIntentId2);
+                recoveryKey.ClientIntentId1);
             LMC_Frame.WriteUInt32(
                 buffer,
                 payloadOffset + 36,
+                recoveryKey.ClientIntentId2);
+            LMC_Frame.WriteUInt32(
+                buffer,
+                payloadOffset + 40,
                 recoveryKey.ClientIntentId3);
             LMC_Frame.WriteInt32(
                 buffer,
-                payloadOffset + 40,
+                payloadOffset + 44,
                 recoveryKey.TargetPosition);
             LMC_Frame.WriteInt32(
                 buffer,
-                payloadOffset + 44,
+                payloadOffset + 48,
                 recoveryKey.ExpectedActualPosition);
             return buffer;
         }
@@ -255,22 +266,14 @@ namespace LasalMotionControlLib
                 return errorId == -6 && nativeCommandState != 0;
             }
 
-            var isPreNativeDetail =
-                (detailCode
-                        >= (uint)LMCAdminDetailCode.UnsupportedSchema
-                    && detailCode
-                        <= (uint)LMCAdminDetailCode.InvalidState)
-                || (detailCode
-                        >= (uint)LMCAdminDetailCode.NonZeroVelocity
-                    && detailCode
-                        <= (uint)LMCAdminDetailCode.MapRevisionMismatch)
-                || (detailCode
-                        >= (uint)LMCAdminDetailCode
-                            .SetPositionOutcomeSlotOccupied
-                    && detailCode
-                        <= (uint)LMCAdminDetailCode
-                            .SetPositionOutcomeStorageUnavailable);
-            return isPreNativeDetail
+            // Syntax, identity, and storage failures happen before the durable
+            // Armed commit and therefore cannot exist in a terminal record.
+            var isPostArmedDetail =
+                detailCode >= (uint)LMCAdminDetailCode.InvalidState
+                && detailCode
+                    <= (uint)LMCAdminDetailCode
+                        .CoordinatePreconditionFailed;
+            return isPostArmedDetail
                 && errorId == AdminErrorId
                 && nativeCommandState == 0;
         }

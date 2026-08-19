@@ -679,6 +679,12 @@ namespace LasalMotionControlLib
                                 .DiagnosticsBuildMismatch
                         && detailCode
                             <= (uint)LMCAdminDetailCode.MapRevisionMismatch)
+                    || detailCode
+                        == (uint)LMCAdminDetailCode
+                            .SetPositionOutcomeIndeterminate
+                    || detailCode
+                        == (uint)LMCAdminDetailCode
+                            .SetPositionOutcomeStoreCorrupt
                     || (detailCode
                             >= (uint)LMCAdminDetailCode
                                 .SetPositionOutcomeSlotOccupied
@@ -690,11 +696,15 @@ namespace LasalMotionControlLib
             }
 
             if (allowSetPositionOutcomeFailureDetails
-                && detailCode
-                    >= (uint)LMCAdminDetailCode.DiagnosticsBuildMismatch
-                && detailCode
-                    <= (uint)LMCAdminDetailCode
-                        .SetPositionOutcomeStorageUnavailable)
+                && ((detailCode
+                            >= (uint)LMCAdminDetailCode
+                                .DiagnosticsBuildMismatch
+                        && detailCode
+                            <= (uint)LMCAdminDetailCode
+                                .SetPositionOutcomeKeyMismatch)
+                    || detailCode
+                        == (uint)LMCAdminDetailCode
+                            .SetPositionOutcomeStorageUnavailable))
             {
                 return errorId == AdminErrorId;
             }

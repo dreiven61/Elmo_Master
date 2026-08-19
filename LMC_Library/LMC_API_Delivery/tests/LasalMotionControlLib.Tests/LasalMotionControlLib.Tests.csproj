@@ -125,6 +125,9 @@
     <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\D5SdoWriteSameValueQualificationOrchestrator.cs">
       <Link>D5SdoWriteSameValueQualificationOrchestrator.cs</Link>
     </Compile>
+    <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\RecoveryRecordRetirementLedger.cs">
+      <Link>RecoveryRecordRetirementLedger.cs</Link>
+    </Compile>
     <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\DiagnosticsMutationJournal.cs">
       <Link>DiagnosticsMutationJournal.cs</Link>
     </Compile>
@@ -195,6 +198,7 @@
     <Compile Include="RecorderDoubleRecoveryOrchestratorTests.cs" />
     <Compile Include="RecorderDoubleQualificationJournalBridgeTests.cs" />
     <None Include="Verify-LasalContract.ps1" />
+    <None Include="Verify-LasalSetPositionRetainedStoreReference.ps1" />
     <None Include="Verify-LasalAxisOwnershipActivationGuard.Fixture.ps1" />
   </ItemGroup>
   <ItemGroup>
@@ -206,7 +210,10 @@
   <Target Name="RunPcTests" DependsOnTargets="Build">
     <Exec Command="&quot;$(TargetPath)&quot;" />
   </Target>
-  <Target Name="RunLasalContract">
+  <Target Name="RunLasalSetPositionRetainedStoreReference">
+    <Exec Command="powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;&quot;$(MSBuildProjectDirectory)\Verify-LasalSetPositionRetainedStoreReference.ps1&quot;&quot; -SelfTestOnly" />
+  </Target>
+  <Target Name="RunLasalContract" DependsOnTargets="RunLasalSetPositionRetainedStoreReference">
     <Exec Command="powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;&quot;$(MSBuildProjectDirectory)\Verify-LasalContract.ps1&quot;&quot; -RepositoryRoot &quot;&quot;$(MSBuildProjectDirectory)\..\..\..\..&quot;&quot; -SourceOnly -ControlServiceCheckpoint Phase5TransportClean -TopologyIoCheckpoint &quot;&quot;$(LasalTopologyIoCheckpoint)&quot;&quot; -ExpectedSdoWriteAxis 1" />
   </Target>
   <Target Name="RunLasalNetworkContract">

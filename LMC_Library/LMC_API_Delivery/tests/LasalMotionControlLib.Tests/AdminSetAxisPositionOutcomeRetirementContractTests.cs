@@ -12,7 +12,8 @@ namespace LasalMotionControlLib.Tests
         private const uint OriginalRequestId = 0x11223344u;
         private const uint RetireRequestId = 0xA1B2C3D4u;
         private const uint DiagnosticsBuild = 0x55667788u;
-        private const uint DiagnosticsBootId = 0x99AABBCCu;
+        private const uint OriginalDiagnosticsBootId = 0x99AABBCCu;
+        private const uint CurrentDiagnosticsBootId = 0xAABBCCDDu;
         private const uint MapRevision = 0xDDEEFF00u;
         private const uint Intent0 = 0x01234567u;
         private const uint Intent1 = 0x89ABCDEFu;
@@ -40,8 +41,8 @@ namespace LasalMotionControlLib.Tests
                 "Rpc.Admin.SetPositionOutcomeRetirement.CapabilityOffZeroWire",
                 CapabilityOffIsZeroWire);
             tests.Add(
-                "Rpc.Admin.SetPositionOutcomeRetirement.IdentityAndGenerationZeroWire",
-                IdentityAndGenerationAreZeroWire);
+                "Rpc.Admin.SetPositionOutcomeRetirement.BuildMapAndGenerationZeroWire",
+                BuildMapAndGenerationAreZeroWire);
             tests.Add(
                 "Rpc.Admin.SetPositionOutcomeRetirement.StaleObservationsZeroWire",
                 StaleObservationsAreZeroWire);
@@ -112,32 +113,58 @@ namespace LasalMotionControlLib.Tests
         {
             AssertEx.SequenceEqual(
                 TestFrame.Hex(
-                    "1A 7D 00 00 34 00 02 00 "
+                    "1A 7D 00 00 38 00 02 00 "
                     + "01 00 00 00 D4 C3 B2 A1 "
                     + "88 77 66 55 CC BB AA 99 "
-                    + "00 FF EE DD 44 33 22 11 "
-                    + "67 45 23 01 EF CD AB 89 "
-                    + "40 30 20 10 80 70 60 50 "
-                    + "C7 CF FF FF 85 1A 00 00 "
-                    + "D4 C3 B2 A1"),
+                    + "00 FF EE DD DD CC BB AA "
+                    + "44 33 22 11 67 45 23 01 "
+                    + "EF CD AB 89 40 30 20 10 "
+                    + "80 70 60 50 C7 CF FF FF "
+                    + "85 1A 00 00 D4 C3 B2 A1"),
                 LMC_AdminFrame.RetireAxisSetPositionOutcome(
                     RetireRequestId,
+                    CurrentDiagnosticsBootId,
                     RecoveryKey(),
+                    RecordGeneration));
+            AssertEx.SequenceEqual(
+                TestFrame.Hex(
+                    "1A 7D 00 00 38 00 02 00 "
+                    + "01 00 00 00 D4 C3 B2 A1 "
+                    + "88 77 66 55 DD CC BB AA "
+                    + "00 FF EE DD DD CC BB AA "
+                    + "44 33 22 11 67 45 23 01 "
+                    + "EF CD AB 89 40 30 20 10 "
+                    + "80 70 60 50 C7 CF FF FF "
+                    + "85 1A 00 00 D4 C3 B2 A1"),
+                LMC_AdminFrame.RetireAxisSetPositionOutcome(
+                    RetireRequestId,
+                    CurrentDiagnosticsBootId,
+                    RecoveryKey(
+                        diagnosticsBootId: CurrentDiagnosticsBootId),
                     RecordGeneration));
 
             AssertEx.Throws<ArgumentOutOfRangeException>(
                 () => LMC_AdminFrame.RetireAxisSetPositionOutcome(
                     0,
+                    CurrentDiagnosticsBootId,
                     RecoveryKey(),
                     RecordGeneration));
             AssertEx.Throws<ArgumentOutOfRangeException>(
                 () => LMC_AdminFrame.RetireAxisSetPositionOutcome(
                     RetireRequestId,
+                    CurrentDiagnosticsBootId,
                     RecoveryKey(),
                     0));
+            AssertEx.Throws<ArgumentOutOfRangeException>(
+                () => LMC_AdminFrame.RetireAxisSetPositionOutcome(
+                    RetireRequestId,
+                    0,
+                    RecoveryKey(),
+                    RecordGeneration));
             AssertEx.Throws<ArgumentNullException>(
                 () => LMC_AdminFrame.RetireAxisSetPositionOutcome(
                     RetireRequestId,
+                    CurrentDiagnosticsBootId,
                     null,
                     RecordGeneration));
         }
@@ -198,6 +225,42 @@ namespace LasalMotionControlLib.Tests
                 LMCAdminDetailCode.CoordinatePreconditionFailed,
                 rejectedResult.OriginalDetailCode);
             AssertEx.Equal(RecordGeneration, rejectedResult.RecordGeneration);
+
+            var impossibleDetails = new[]
+            {
+                LMCAdminDetailCode.UnsupportedSchema,
+                LMCAdminDetailCode.UnsupportedFlags,
+                LMCAdminDetailCode.InvalidRequestId,
+                LMCAdminDetailCode.InvalidReference,
+                LMCAdminDetailCode.InvalidPayloadLength,
+                LMCAdminDetailCode.UnsupportedParameter,
+                LMCAdminDetailCode.MissingClient,
+                LMCAdminDetailCode.InvalidSelection,
+                LMCAdminDetailCode.InvalidMotionParameters,
+                LMCAdminDetailCode.DiagnosticsBuildMismatch,
+                LMCAdminDetailCode.BootIdMismatch,
+                LMCAdminDetailCode.MapRevisionMismatch,
+                LMCAdminDetailCode.SetPositionOutcomeSlotOccupied,
+                LMCAdminDetailCode.SetPositionOutcomeStorageUnavailable
+            };
+            for (var index = 0; index < impossibleDetails.Length; index++)
+            {
+                var requestId = checked((uint)(40 + index));
+                AssertRetirementMalformed(
+                    TerminalPayload(
+                        requestId,
+                        key,
+                        LMCAxisSetPositionOutcomeRecordState.Rejected,
+                        0,
+                        1,
+                        -31000,
+                        impossibleDetails[index],
+                        0,
+                        RecordGeneration),
+                    requestId,
+                    key,
+                    RecordGeneration);
+            }
 
             AssertRetirementMalformed(
                 TerminalPayload(
@@ -275,7 +338,6 @@ namespace LasalMotionControlLib.Tests
                 LMCAdminDetailCode.SetPositionOutcomeIndeterminate,
                 LMCAdminDetailCode.SetPositionOutcomeStoreCorrupt,
                 LMCAdminDetailCode.SetPositionOutcomeKeyMismatch,
-                LMCAdminDetailCode.SetPositionOutcomeSlotOccupied,
                 LMCAdminDetailCode.SetPositionOutcomeStorageUnavailable
             };
 
@@ -300,6 +362,14 @@ namespace LasalMotionControlLib.Tests
                 AssertEx.Equal(requestId, exception.RetireRequestId);
                 AssertEx.Contains("remains unresolved", exception.Message);
             }
+
+            AssertRetirementMalformed(
+                FailurePayload(
+                    29,
+                    LMCAdminDetailCode.SetPositionOutcomeSlotOccupied),
+                29,
+                key,
+                RecordGeneration);
 
             AssertRetirementMalformed(
                 FailurePayload(
@@ -354,12 +424,15 @@ namespace LasalMotionControlLib.Tests
             }
         }
 
-        private static void IdentityAndGenerationAreZeroWire()
+        private static void BuildMapAndGenerationAreZeroWire()
         {
             var currentKey = RecoveryKey(axisReference: 1);
-            var mismatchedKey = RecoveryKey(
+            var buildMismatch = RecoveryKey(
                 axisReference: 1,
-                diagnosticsBootId: DiagnosticsBootId + 1);
+                diagnosticsBuild: DiagnosticsBuild + 1);
+            var mapMismatch = RecoveryKey(
+                axisReference: 1,
+                mapRevision: MapRevision + 1);
             using (var server = new FakeRpcServer(
                 InitStep(),
                 CallbackStep(),
@@ -377,7 +450,13 @@ namespace LasalMotionControlLib.Tests
 
                 AssertEx.Throws<InvalidOperationException>(
                     () => axis.RetireSetPositionOutcome(
-                        mismatchedKey,
+                        buildMismatch,
+                        RecordGeneration,
+                        admin,
+                        diagnostics));
+                AssertEx.Throws<InvalidOperationException>(
+                    () => axis.RetireSetPositionOutcome(
+                        mapMismatch,
                         RecordGeneration,
                         admin,
                         diagnostics));
@@ -757,7 +836,8 @@ namespace LasalMotionControlLib.Tests
 
         private static FakeRpcStep RetirementStep(
             uint retireRequestId,
-            LMCAxisSetPositionRecoveryKey key)
+            LMCAxisSetPositionRecoveryKey key,
+            uint currentDiagnosticsBootId = CurrentDiagnosticsBootId)
         {
             var step = new FakeRpcStep(
                 0x7D1A,
@@ -777,7 +857,8 @@ namespace LasalMotionControlLib.Tests
                 request,
                 retireRequestId,
                 key,
-                RecordGeneration);
+                RecordGeneration,
+                currentDiagnosticsBootId);
             return step;
         }
 
@@ -785,12 +866,13 @@ namespace LasalMotionControlLib.Tests
             byte[] request,
             uint retireRequestId,
             LMCAxisSetPositionRecoveryKey key,
-            uint recordGeneration)
+            uint recordGeneration,
+            uint currentDiagnosticsBootId = CurrentDiagnosticsBootId)
         {
             AssertEx.Equal(
                 (ushort)0x7D1A,
                 TestFrame.ReadUInt16(request, 0));
-            AssertEx.Equal((ushort)52, TestFrame.ReadUInt16(request, 4));
+            AssertEx.Equal((ushort)56, TestFrame.ReadUInt16(request, 4));
             AssertEx.Equal(
                 key.AxisReference,
                 TestFrame.ReadUInt16(request, 6));
@@ -807,29 +889,32 @@ namespace LasalMotionControlLib.Tests
                 key.MapRevision,
                 TestFrame.ReadUInt32(request, 24));
             AssertEx.Equal(
-                key.OriginalRequestId,
+                currentDiagnosticsBootId,
                 TestFrame.ReadUInt32(request, 28));
             AssertEx.Equal(
-                key.ClientIntentId0,
+                key.OriginalRequestId,
                 TestFrame.ReadUInt32(request, 32));
             AssertEx.Equal(
-                key.ClientIntentId1,
+                key.ClientIntentId0,
                 TestFrame.ReadUInt32(request, 36));
             AssertEx.Equal(
-                key.ClientIntentId2,
+                key.ClientIntentId1,
                 TestFrame.ReadUInt32(request, 40));
             AssertEx.Equal(
-                key.ClientIntentId3,
+                key.ClientIntentId2,
                 TestFrame.ReadUInt32(request, 44));
             AssertEx.Equal(
-                key.TargetPosition,
-                TestFrame.ReadInt32(request, 48));
+                key.ClientIntentId3,
+                TestFrame.ReadUInt32(request, 48));
             AssertEx.Equal(
-                key.ExpectedActualPosition,
+                key.TargetPosition,
                 TestFrame.ReadInt32(request, 52));
             AssertEx.Equal(
+                key.ExpectedActualPosition,
+                TestFrame.ReadInt32(request, 56));
+            AssertEx.Equal(
                 recordGeneration,
-                TestFrame.ReadUInt32(request, 56));
+                TestFrame.ReadUInt32(request, 60));
         }
 
         private static void AssertExactRetirementRequests(
@@ -945,7 +1030,7 @@ namespace LasalMotionControlLib.Tests
         private static LMCAxisSetPositionRecoveryKey RecoveryKey(
             ushort axisReference = 2,
             uint diagnosticsBuild = DiagnosticsBuild,
-            uint diagnosticsBootId = DiagnosticsBootId,
+            uint diagnosticsBootId = OriginalDiagnosticsBootId,
             uint mapRevision = MapRevision)
         {
             return new LMCAxisSetPositionRecoveryKey(
@@ -1078,7 +1163,10 @@ namespace LasalMotionControlLib.Tests
             TestFrame.WriteUInt16(payload, 44, 1320);
             TestFrame.WriteUInt16(payload, 46, 2040);
             TestFrame.WriteUInt16(payload, 48, 1280);
-            TestFrame.WriteUInt32(payload, 64, DiagnosticsBootId);
+            TestFrame.WriteUInt32(
+                payload,
+                64,
+                CurrentDiagnosticsBootId);
             var parsed = LMC_DiagnosticsParser.ParseCapabilities(
                 TestFrame.Response(0, payload),
                 requestId,

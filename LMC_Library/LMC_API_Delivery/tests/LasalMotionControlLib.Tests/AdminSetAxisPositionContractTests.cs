@@ -36,6 +36,9 @@ namespace LasalMotionControlLib.Tests
                 "Response.Admin.SetAxisPosition.SafetyFailuresPreserved",
                 SafetyFailuresPreserved);
             tests.Add(
+                "Response.Admin.SetAxisPosition.StoreAdmissionFailuresStrict",
+                StoreAdmissionFailuresStrict);
+            tests.Add(
                 "Response.Admin.SetAxisPosition.CapabilityBitStrict",
                 CapabilityBitStrict);
             tests.Add(
@@ -316,6 +319,42 @@ namespace LasalMotionControlLib.Tests
             AssertEx.False(nativeParsed.Response.IsSuccess);
             AssertEx.Equal((short)-6, nativeParsed.Response.ErrorId);
             AssertEx.Equal(0x00000008u, nativeParsed.NativeCommandState);
+        }
+
+        private static void StoreAdmissionFailuresStrict()
+        {
+            foreach (var detail in new[]
+            {
+                LMCAdminDetailCode.SetPositionOutcomeIndeterminate,
+                LMCAdminDetailCode.SetPositionOutcomeStoreCorrupt
+            })
+            {
+                var parsed = LMC_AdminParser.ParseSetAxisPosition(
+                    TestFrame.Response(
+                        0,
+                        SetPositionFailurePayload(
+                            GoldenRequestId,
+                            detail)),
+                    GoldenRequestId,
+                    TargetPosition);
+                AssertEx.False(parsed.Response.IsSuccess);
+                AssertEx.Equal(detail, parsed.Response.DetailCode);
+                AssertEx.Equal((short)-31000, parsed.Response.ErrorId);
+                AssertEx.Equal(0, parsed.AppliedPosition);
+                AssertEx.Equal(0u, parsed.NativeCommandState);
+            }
+
+            foreach (var queryOnlyDetail in new[]
+            {
+                LMCAdminDetailCode.SetPositionOutcomeNotFound,
+                LMCAdminDetailCode.SetPositionOutcomeKeyMismatch
+            })
+            {
+                AssertMalformed(
+                    SetPositionFailurePayload(
+                        GoldenRequestId,
+                        queryOnlyDetail));
+            }
         }
 
         private static void CapabilityBitStrict()

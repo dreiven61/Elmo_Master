@@ -12,7 +12,9 @@ namespace LasalMotionControlLib.Tests
         private const uint OriginalRequestId = 0x11223344u;
         private const uint QueryRequestId = 0xA1B2C3D4u;
         private const uint DiagnosticsBuild = 0x55667788u;
-        private const uint DiagnosticsBootId = 0x99AABBCCu;
+        private const uint OriginalDiagnosticsBootId = 0x99AABBCCu;
+        private const uint CurrentDiagnosticsBootId = 0xAABBCCDDu;
+        private const uint ReconnectedDiagnosticsBootId = 0xAABBCCDEu;
         private const uint MapRevision = 0xDDEEFF00u;
         private const uint Intent0 = 0x01234567u;
         private const uint Intent1 = 0x89ABCDEFu;
@@ -53,29 +55,56 @@ namespace LasalMotionControlLib.Tests
             tests.Add(
                 "Rpc.Admin.ReadAxisSetPositionOutcome.MalformedFaultsAsyncSession",
                 MalformedFaultsAsyncSession);
+            tests.Add(
+                "Rpc.Admin.ReadAxisSetPositionOutcome.ResponseLossReconnectExactRequery",
+                ResponseLossReconnectExactRequery);
         }
 
         private static void RequestGoldenBytes()
         {
             AssertEx.SequenceEqual(
                 TestFrame.Hex(
-                    "14 7D 00 00 30 00 02 00 "
+                    "14 7D 00 00 34 00 02 00 "
                     + "01 00 00 00 D4 C3 B2 A1 "
                     + "88 77 66 55 CC BB AA 99 "
-                    + "00 FF EE DD 44 33 22 11 "
-                    + "67 45 23 01 EF CD AB 89 "
-                    + "40 30 20 10 80 70 60 50 "
-                    + "C7 CF FF FF 85 1A 00 00"),
+                    + "00 FF EE DD DD CC BB AA "
+                    + "44 33 22 11 67 45 23 01 "
+                    + "EF CD AB 89 40 30 20 10 "
+                    + "80 70 60 50 C7 CF FF FF "
+                    + "85 1A 00 00"),
                 LMC_AdminFrame.ReadAxisSetPositionOutcome(
                     QueryRequestId,
+                    CurrentDiagnosticsBootId,
+                    RecoveryKey()));
+            AssertEx.SequenceEqual(
+                TestFrame.Hex(
+                    "14 7D 00 00 34 00 02 00 "
+                    + "01 00 00 00 D4 C3 B2 A1 "
+                    + "88 77 66 55 DD CC BB AA "
+                    + "00 FF EE DD DD CC BB AA "
+                    + "44 33 22 11 67 45 23 01 "
+                    + "EF CD AB 89 40 30 20 10 "
+                    + "80 70 60 50 C7 CF FF FF "
+                    + "85 1A 00 00"),
+                LMC_AdminFrame.ReadAxisSetPositionOutcome(
+                    QueryRequestId,
+                    CurrentDiagnosticsBootId,
+                    RecoveryKey(
+                        diagnosticsBootId: CurrentDiagnosticsBootId)));
+            AssertEx.Throws<ArgumentOutOfRangeException>(
+                () => LMC_AdminFrame.ReadAxisSetPositionOutcome(
+                    0,
+                    CurrentDiagnosticsBootId,
                     RecoveryKey()));
             AssertEx.Throws<ArgumentOutOfRangeException>(
                 () => LMC_AdminFrame.ReadAxisSetPositionOutcome(
+                    QueryRequestId,
                     0,
                     RecoveryKey()));
             AssertEx.Throws<ArgumentNullException>(
                 () => LMC_AdminFrame.ReadAxisSetPositionOutcome(
                     QueryRequestId,
+                    CurrentDiagnosticsBootId,
                     null));
         }
 
@@ -152,6 +181,37 @@ namespace LasalMotionControlLib.Tests
                 LMCAdminDetailCode.CoordinatePreconditionFailed,
                 (LMCAdminDetailCode)rejected.OriginalDetailCode);
 
+            foreach (var postArmedDetail in new[]
+            {
+                LMCAdminDetailCode.InvalidState,
+                LMCAdminDetailCode.NonZeroVelocity,
+                LMCAdminDetailCode.ActiveAxisError,
+                LMCAdminDetailCode.InvalidSetPositionSafetyConfiguration,
+                LMCAdminDetailCode.CoordinatePreconditionFailed
+            })
+            {
+                var postArmedRejected =
+                    LMC_AdminParser.ParseAxisSetPositionOutcome(
+                        TestFrame.Response(
+                            0,
+                            TerminalPayload(
+                                QueryRequestId,
+                                key,
+                                LMCAxisSetPositionOutcomeRecordState.Rejected,
+                                0,
+                                1,
+                                -31000,
+                                postArmedDetail,
+                                0,
+                                8)),
+                        QueryRequestId,
+                        key);
+                AssertEx.Equal(
+                    postArmedDetail,
+                    (LMCAdminDetailCode)
+                        postArmedRejected.OriginalDetailCode);
+            }
+
             var nativeRejected = LMC_AdminParser.ParseAxisSetPositionOutcome(
                 TestFrame.Response(
                     0,
@@ -168,6 +228,38 @@ namespace LasalMotionControlLib.Tests
                 QueryRequestId,
                 key);
             AssertEx.Equal(0xA5000008u, nativeRejected.NativeCommandState);
+
+            foreach (var impossibleDetail in new[]
+            {
+                LMCAdminDetailCode.UnsupportedSchema,
+                LMCAdminDetailCode.UnsupportedFlags,
+                LMCAdminDetailCode.InvalidRequestId,
+                LMCAdminDetailCode.InvalidReference,
+                LMCAdminDetailCode.InvalidPayloadLength,
+                LMCAdminDetailCode.UnsupportedParameter,
+                LMCAdminDetailCode.MissingClient,
+                LMCAdminDetailCode.InvalidSelection,
+                LMCAdminDetailCode.InvalidMotionParameters,
+                LMCAdminDetailCode.DiagnosticsBuildMismatch,
+                LMCAdminDetailCode.BootIdMismatch,
+                LMCAdminDetailCode.MapRevisionMismatch,
+                LMCAdminDetailCode.SetPositionOutcomeSlotOccupied,
+                LMCAdminDetailCode.SetPositionOutcomeStorageUnavailable
+            })
+            {
+                AssertMalformed(
+                    TerminalPayload(
+                        QueryRequestId,
+                        key,
+                        LMCAxisSetPositionOutcomeRecordState.Rejected,
+                        0,
+                        1,
+                        -31000,
+                        impossibleDetail,
+                        0,
+                        10),
+                    key);
+            }
 
             var echoMismatch = TerminalPayload(
                 QueryRequestId,
@@ -246,6 +338,17 @@ namespace LasalMotionControlLib.Tests
             AssertEx.Equal(key, exception.RecoveryKey);
             AssertEx.Equal(QueryRequestId, exception.QueryRequestId);
             AssertEx.Contains("remains unresolved", exception.Message);
+
+            AssertEx.Throws<InvalidDataException>(
+                () => LMC_AdminParser.ParseAxisSetPositionOutcome(
+                    TestFrame.Response(
+                        0,
+                        QueryFailurePayload(
+                            QueryRequestId,
+                            LMCAdminDetailCode
+                                .SetPositionOutcomeSlotOccupied)),
+                    QueryRequestId,
+                    key));
 
             var extendedFailure = QueryFailurePayload(
                 QueryRequestId,
@@ -360,7 +463,7 @@ namespace LasalMotionControlLib.Tests
         private static void PreWireGuards()
         {
             CapabilityOffIsZeroWire();
-            IdentityMismatchIsZeroWire();
+            BuildOrMapMismatchIsZeroWire();
             StaleAdminObservationIsZeroWire();
             StaleDiagnosticsObservationIsZeroWire();
         }
@@ -393,11 +496,14 @@ namespace LasalMotionControlLib.Tests
             }
         }
 
-        private static void IdentityMismatchIsZeroWire()
+        private static void BuildOrMapMismatchIsZeroWire()
         {
-            var key = RecoveryKey(
+            var buildMismatch = RecoveryKey(
                 axisReference: 1,
-                diagnosticsBootId: DiagnosticsBootId + 1);
+                diagnosticsBuild: DiagnosticsBuild + 1);
+            var mapMismatch = RecoveryKey(
+                axisReference: 1,
+                mapRevision: MapRevision + 1);
             using (var server = new FakeRpcServer(
                 InitStep(),
                 CallbackStep(),
@@ -416,7 +522,12 @@ namespace LasalMotionControlLib.Tests
                     CurrentDiagnosticsCapabilities(connection);
                 AssertEx.Throws<InvalidOperationException>(
                     () => axis.ReadSetPositionOutcome(
-                        key,
+                        buildMismatch,
+                        adminCapabilities,
+                        diagnosticCapabilities));
+                AssertEx.Throws<InvalidOperationException>(
+                    () => axis.ReadSetPositionOutcome(
+                        mapMismatch,
                         adminCapabilities,
                         diagnosticCapabilities));
                 connection.CloseConnection();
@@ -442,8 +553,12 @@ namespace LasalMotionControlLib.Tests
                 Connect(connection, server.Port);
                 var axis = new LMCSingleAxis(connection, "_LMCAxis1");
                 var adminCapabilities = connection.Admin.GetCapabilities();
-                var stale = CurrentDiagnosticsCapabilities(connection);
-                CurrentDiagnosticsCapabilities(connection);
+                var stale = CurrentDiagnosticsCapabilities(
+                    connection,
+                    CurrentDiagnosticsBootId);
+                CurrentDiagnosticsCapabilities(
+                    connection,
+                    ReconnectedDiagnosticsBootId);
                 AssertEx.Throws<InvalidOperationException>(
                     () => axis.ReadSetPositionOutcome(
                         key,
@@ -618,6 +733,87 @@ namespace LasalMotionControlLib.Tests
             }
         }
 
+        private static void ResponseLossReconnectExactRequery()
+        {
+            var key = RecoveryKey(axisReference: 1);
+            var lostResponse = new FakeRpcStep(0x7D14, new byte[0])
+            {
+                CloseClientBeforeResponseAndContinue = true,
+                InspectRequest = request => AssertQueryRequest(
+                    request,
+                    2,
+                    key,
+                    CurrentDiagnosticsBootId)
+            };
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                AxisLookupStep(1),
+                AxisInfoStep(1),
+                AdminCapabilitiesStep(
+                    1,
+                    LMCAdminFeature.AxisSetPositionOutcomeRead),
+                lostResponse,
+                InitStep(),
+                CallbackStep(),
+                AxisLookupStep(1),
+                AxisInfoStep(1),
+                AdminCapabilitiesStep(
+                    3,
+                    LMCAdminFeature.AxisSetPositionOutcomeRead),
+                OutcomeStep(
+                    4,
+                    key,
+                    LMCAxisSetPositionOutcomeRecordState.Succeeded,
+                    key.TargetPosition,
+                    LMCAdminDetailCode.None,
+                    ReconnectedDiagnosticsBootId),
+                CloseStep()))
+            using (var connection = new LMCConnection())
+            {
+                Connect(connection, server.Port);
+                var firstAxis = new LMCSingleAxis(
+                    connection,
+                    "_LMCAxis1");
+                var firstAdmin = connection.Admin.GetCapabilities();
+                var firstDiagnostics = CurrentDiagnosticsCapabilities(
+                    connection,
+                    CurrentDiagnosticsBootId);
+
+                AssertEx.Throws<IOException>(
+                    () => firstAxis.ReadSetPositionOutcome(
+                        key,
+                        firstAdmin,
+                        firstDiagnostics));
+                AssertEx.Equal(
+                    LMCConnectionState.Faulted,
+                    connection.State);
+
+                Connect(connection, server.Port);
+                var retryAxis = new LMCSingleAxis(
+                    connection,
+                    "_LMCAxis1");
+                var retryAdmin = connection.Admin.GetCapabilities();
+                var retryDiagnostics = CurrentDiagnosticsCapabilities(
+                    connection,
+                    ReconnectedDiagnosticsBootId);
+                var result = retryAxis.ReadSetPositionOutcome(
+                    key,
+                    retryAdmin,
+                    retryDiagnostics);
+                AssertEx.True(result.OriginalCommandSucceeded);
+                AssertEx.Equal(4u, result.QueryRequestId);
+                AssertEx.Equal(key, result.RecoveryKey);
+
+                connection.CloseConnection();
+                server.Verify();
+                AssertEx.Equal(2, server.AcceptedClientCount);
+                AssertEx.Equal(2, CountCommand(server, 0x7D14));
+                AssertEx.Equal(0, CountCommand(server, 0x7D12));
+                AssertEx.Equal(0, CountCommand(server, 0x7D1A));
+            }
+        }
+
         private static void AssertMalformed(
             byte[] payload,
             LMCAxisSetPositionRecoveryKey key)
@@ -632,7 +828,7 @@ namespace LasalMotionControlLib.Tests
         private static LMCAxisSetPositionRecoveryKey RecoveryKey(
             ushort axisReference = 2,
             uint diagnosticsBuild = DiagnosticsBuild,
-            uint diagnosticsBootId = DiagnosticsBootId,
+            uint diagnosticsBootId = OriginalDiagnosticsBootId,
             uint mapRevision = MapRevision)
         {
             return new LMCAxisSetPositionRecoveryKey(
@@ -742,9 +938,10 @@ namespace LasalMotionControlLib.Tests
             LMCAxisSetPositionRecoveryKey key,
             LMCAxisSetPositionOutcomeRecordState state,
             int appliedPosition,
-            LMCAdminDetailCode detail = LMCAdminDetailCode.None)
+            LMCAdminDetailCode detail = LMCAdminDetailCode.None,
+            uint currentDiagnosticsBootId = CurrentDiagnosticsBootId)
         {
-            return new FakeRpcStep(
+            var step = new FakeRpcStep(
                 0x7D14,
                 TestFrame.Response(
                     0,
@@ -764,10 +961,69 @@ namespace LasalMotionControlLib.Tests
                         detail,
                         0,
                         1)));
+            step.InspectRequest = request => AssertQueryRequest(
+                request,
+                queryRequestId,
+                key,
+                currentDiagnosticsBootId);
+            return step;
+        }
+
+        private static void AssertQueryRequest(
+            byte[] request,
+            uint queryRequestId,
+            LMCAxisSetPositionRecoveryKey key,
+            uint currentDiagnosticsBootId)
+        {
+            AssertEx.Equal(
+                (ushort)0x7D14,
+                TestFrame.ReadUInt16(request, 0));
+            AssertEx.Equal((ushort)52, TestFrame.ReadUInt16(request, 4));
+            AssertEx.Equal(
+                key.AxisReference,
+                TestFrame.ReadUInt16(request, 6));
+            AssertEx.Equal(
+                queryRequestId,
+                TestFrame.ReadUInt32(request, 12));
+            AssertEx.Equal(
+                key.DiagnosticsBuild,
+                TestFrame.ReadUInt32(request, 16));
+            AssertEx.Equal(
+                key.DiagnosticsBootId,
+                TestFrame.ReadUInt32(request, 20));
+            AssertEx.Equal(
+                key.MapRevision,
+                TestFrame.ReadUInt32(request, 24));
+            AssertEx.Equal(
+                currentDiagnosticsBootId,
+                TestFrame.ReadUInt32(request, 28));
+            AssertEx.Equal(
+                key.OriginalRequestId,
+                TestFrame.ReadUInt32(request, 32));
+            AssertEx.Equal(
+                key.ClientIntentId0,
+                TestFrame.ReadUInt32(request, 36));
+            AssertEx.Equal(
+                key.ClientIntentId1,
+                TestFrame.ReadUInt32(request, 40));
+            AssertEx.Equal(
+                key.ClientIntentId2,
+                TestFrame.ReadUInt32(request, 44));
+            AssertEx.Equal(
+                key.ClientIntentId3,
+                TestFrame.ReadUInt32(request, 48));
+            AssertEx.Equal(
+                key.TargetPosition,
+                TestFrame.ReadInt32(request, 52));
+            AssertEx.Equal(
+                key.ExpectedActualPosition,
+                TestFrame.ReadInt32(request, 56));
         }
 
         private static LMCDiagnosticCapabilities
-            CurrentDiagnosticsCapabilities(LMCConnection connection)
+            CurrentDiagnosticsCapabilities(
+                LMCConnection connection,
+                uint diagnosticsBootId = CurrentDiagnosticsBootId)
         {
             const uint requestId = 0x0A0B0C0Du;
             var payload = new byte[68];
@@ -779,7 +1035,7 @@ namespace LasalMotionControlLib.Tests
             TestFrame.WriteUInt16(payload, 44, 1320);
             TestFrame.WriteUInt16(payload, 46, 2040);
             TestFrame.WriteUInt16(payload, 48, 1280);
-            TestFrame.WriteUInt32(payload, 64, DiagnosticsBootId);
+            TestFrame.WriteUInt32(payload, 64, diagnosticsBootId);
             var parsed = LMC_DiagnosticsParser.ParseCapabilities(
                 TestFrame.Response(0, payload),
                 requestId,

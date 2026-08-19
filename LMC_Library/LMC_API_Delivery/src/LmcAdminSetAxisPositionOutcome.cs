@@ -25,6 +25,7 @@ namespace LasalMotionControlLib
             var raw = connection.Exchange(
                 LMC_AdminFrame.ReadAxisSetPositionOutcome(
                     queryRequestId,
+                    verifiedDiagnosticCapabilities.DiagnosticsBootId,
                     recoveryKey),
                 sessionGeneration);
             var parsed = ParseAxisSetPositionOutcomeAndFaultMalformedSession(
@@ -57,6 +58,7 @@ namespace LasalMotionControlLib
             var raw = await connection.ExchangeAsync(
                 LMC_AdminFrame.ReadAxisSetPositionOutcome(
                     queryRequestId,
+                    verifiedDiagnosticCapabilities.DiagnosticsBootId,
                     recoveryKey),
                 sessionGeneration,
                 cancellationToken).ConfigureAwait(false);
@@ -132,15 +134,14 @@ namespace LasalMotionControlLib
 
             if (recoveryKey.SchemaVersion != ProtocolSchemaVersion
                 || recoveryKey.AxisReference != axis.AxisReference
+                || recoveryKey.DiagnosticsBootId == 0
                 || recoveryKey.DiagnosticsBuild
                     != verifiedDiagnosticCapabilities.DiagnosticsBuild
-                || recoveryKey.DiagnosticsBootId
-                    != verifiedDiagnosticCapabilities.DiagnosticsBootId
                 || recoveryKey.MapRevision
                     != verifiedDiagnosticCapabilities.MapRevision)
             {
                 throw new InvalidOperationException(
-                    "The SetAxisPosition recovery key does not match the current axis and fresh diagnostics identity.");
+                    "The SetAxisPosition recovery key does not match the current axis, build, and map revision.");
             }
 
             connection.EnsureSessionGeneration(expectedSessionGeneration);

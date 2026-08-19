@@ -28,6 +28,7 @@ namespace LasalMotionControlLib
             var raw = connection.Exchange(
                 LMC_AdminFrame.RetireAxisSetPositionOutcome(
                     retireRequestId,
+                    verifiedDiagnosticCapabilities.DiagnosticsBootId,
                     recoveryKey,
                     recordGeneration),
                 sessionGeneration);
@@ -82,6 +83,7 @@ namespace LasalMotionControlLib
             var raw = await connection.ExchangeAsync(
                 LMC_AdminFrame.RetireAxisSetPositionOutcome(
                     retireRequestId,
+                    verifiedDiagnosticCapabilities.DiagnosticsBootId,
                     recoveryKey,
                     recordGeneration),
                 sessionGeneration,

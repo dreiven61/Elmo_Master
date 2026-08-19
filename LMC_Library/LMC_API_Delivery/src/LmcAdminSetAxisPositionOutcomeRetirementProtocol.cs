@@ -5,10 +5,11 @@ namespace LasalMotionControlLib
     internal static partial class LMC_AdminFrame
     {
         internal const int AxisSetPositionOutcomeRetirementRequestPayloadLength =
-            52;
+            56;
 
         internal static byte[] RetireAxisSetPositionOutcome(
             uint retireRequestId,
+            uint currentDiagnosticsBootId,
             LMCAxisSetPositionRecoveryKey recoveryKey,
             uint recordGeneration)
         {
@@ -22,6 +23,12 @@ namespace LasalMotionControlLib
                 throw new ArgumentOutOfRangeException(
                     "recordGeneration",
                     "RecordGeneration must be nonzero.");
+            }
+
+            if (currentDiagnosticsBootId == 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "currentDiagnosticsBootId");
             }
 
             ValidateAxisReference(recoveryKey.AxisReference);
@@ -46,34 +53,38 @@ namespace LasalMotionControlLib
             LMC_Frame.WriteUInt32(
                 buffer,
                 payloadOffset + 20,
-                recoveryKey.OriginalRequestId);
+                currentDiagnosticsBootId);
             LMC_Frame.WriteUInt32(
                 buffer,
                 payloadOffset + 24,
-                recoveryKey.ClientIntentId0);
+                recoveryKey.OriginalRequestId);
             LMC_Frame.WriteUInt32(
                 buffer,
                 payloadOffset + 28,
-                recoveryKey.ClientIntentId1);
+                recoveryKey.ClientIntentId0);
             LMC_Frame.WriteUInt32(
                 buffer,
                 payloadOffset + 32,
-                recoveryKey.ClientIntentId2);
+                recoveryKey.ClientIntentId1);
             LMC_Frame.WriteUInt32(
                 buffer,
                 payloadOffset + 36,
+                recoveryKey.ClientIntentId2);
+            LMC_Frame.WriteUInt32(
+                buffer,
+                payloadOffset + 40,
                 recoveryKey.ClientIntentId3);
             LMC_Frame.WriteInt32(
                 buffer,
-                payloadOffset + 40,
+                payloadOffset + 44,
                 recoveryKey.TargetPosition);
             LMC_Frame.WriteInt32(
                 buffer,
-                payloadOffset + 44,
+                payloadOffset + 48,
                 recoveryKey.ExpectedActualPosition);
             LMC_Frame.WriteUInt32(
                 buffer,
-                payloadOffset + 48,
+                payloadOffset + 52,
                 recordGeneration);
             return buffer;
         }
@@ -119,7 +130,10 @@ namespace LasalMotionControlLib
                         < LMCAdminDetailCode.DiagnosticsBuildMismatch
                     || response.DetailCode
                         > LMCAdminDetailCode
-                            .SetPositionOutcomeStorageUnavailable)
+                            .SetPositionOutcomeStorageUnavailable
+                    || response.DetailCode
+                        == LMCAdminDetailCode
+                            .SetPositionOutcomeSlotOccupied)
                 {
                     throw new System.IO.InvalidDataException(
                         "RetireAxisSetPositionOutcome returned an operation-inapplicable detail code.");
