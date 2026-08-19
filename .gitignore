@@ -12,6 +12,8 @@
 *.log
 **/__pycache__/
 *.py[cod]
+/.codex_tmp/
+/outputs/**/_work/
 
 # Generated document staging output
 /output/doc/
