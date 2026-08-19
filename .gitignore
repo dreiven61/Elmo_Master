@@ -30,6 +30,15 @@
 *.etl
 *.xlsx
 
+# Local LASAL UI smoke captures and superseded snapshot scratch
+/test/Reports_Lasal/C78_20260806_ds402_receipt_split/*.png
+/test/Reports_Lasal/C78_20260806_ds402_receipt_split/pre_ide_*.st
+/test/Reports_Lasal/C78_20260806_ds402_receipt_split/post_ide_*.st
+/test/Reports_Lasal/C78_20260810_udp_callback_gate_d/Verify-LasalGateDMethodSmokeEvidence.ps1
+/test/Reports_Lasal/C78_20260810_udp_callback_gate_d/method_smoke_baseline.json
+/test/Reports_Lasal/C78_20260810_udp_callback_gate_d/method_smoke_prebaseline_extension.raw.txt
+/test/Reports_Lasal/C78_20260810_udp_callback_gate_d/verification_summary.md
+
 # Large reference bundles and downloaded vendor packages
 MMCLibDotNET Libs V3.0.0.7/
 MMCLibDotNET Test App_V3.0.0.7/
@@ -99,6 +108,18 @@ _tmp_*
 
 # Preserved source for the committed docs/history/260721 split set.
 /docs/history/Elmo_Master_history_260721.md
+
+# Local raw history exports. The repository keeps reviewed dated summaries.
+/docs/history/Elmo_Master_history_260803_1.md
+/docs/history/Elmo_Master_history_260807.md
+/docs/history/Elmo_Master_history_260810.md
+/docs/history/Elmo_Master_history_260813_1.md
+/docs/history/Elmo_Master_history_260813_2.md
+/docs/history/Elmo_Master_history_260813_3.md
+/docs/history/260810/*
+!/docs/history/260810/99_analysis_summary.md
+/docs/history/260813/*
+!/docs/history/260813/99_analysis_summary.md
 
 # Office lock/temp files
 ~$*.xlsx
