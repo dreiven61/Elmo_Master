@@ -12,16 +12,21 @@
 - 개발용 WPF 예제: `../LasalApiWpfTestApp`
 - 정식 배포 폴더: `../LMC_API_Distribution`
 - LASAL 어댑터: `../../Lasal_PRG/Elmo_EtherCAT_Test_4Axis`
-- PC 자동 테스트: current SDK Debug/Release direct 각 1133/1133 PASS
-- 개발 WPF: Debug/Release Rebuild PASS, full smoke 각 339/339 PASS, supplied actual
-  example EXE relaunch gate 각 1/1 PASS
+- PC 자동 테스트: historical SDK Debug/Release direct 각 1133/1133 PASS
+- 개발 WPF: historical full smoke `339/339`과 actual example EXE relaunch gate 각 `1/1` PASS;
+  current V2는 Release full smoke `347/347`, isolated Debug build와 `Wpf.CallbackV2.*`
+  `17/17` PASS. Actual-EXE V2 및 PLC same-window reconnect는 미실행
 - LASAL 정적 계약: historical `GateDVisualLayout` checkpoint와 pre-approval STOP evidence를
   보존한다. Current `d4204b4` clean detached tracked `24402BFA...` tuple은 PS5.1/PS7 verifier
   self-test 각 `296/296`과 SourceOnly를 PASS하고 `ProductionApproved=true`,
-  `NeedsRebaseline=false`다. Main working tree 사용자 `13EA5823...`는 exact sanctioned identity
+  `NeedsRebaseline=false`다. Main working tree 사용자 `D4C1FF46...`는 exact sanctioned identity
   drift로 계속 reject되며 post-approval full/network static target은 실행하지 않았다
 - LASAL IDE: historical Rebuild/Link와 implementation smoke 증거는 보존한다. Exact tracked
   Gate D static 승인은 LASAL IDE build, PLC Download/runtime 또는 main dirty artifact 승인이 아니다
+- reconnect PLC image: predecessor `d4204b4`/`e3c9365` checkpoint 당시에는 뒤이은
+  `bbe8a8d`/current reconnect image 전달이 없었다. 이후 2026-08-12 15:58에 current reconnect
+  source와 일치하는 image를 LASAL build/download했지만, 같은 창 Close -> Connect live PASS는
+  아직 확인되지 않았다
 - 기존 motion/group PLC E2E/Wireshark 재캡처: 대표 subset은 과거 PASS, 전체 25-command matrix 미완료
 - diagnostics source: D1~D3, D4 single-bank Ring/Trigger, D5 general-inline SDO Read와
   Axis 1 exact `0x2F00:24 Int32/4` SDO Write 활성(`CapabilityBits=0x0000633F`, MaxSDO=4).
@@ -172,9 +177,9 @@ release-input documentation baseline으로 기록했다. Commit `d4204b4`는 모
 `TerminalWakeBrokerCandidate`만 PC/static `ProductionApproved=true`, `NeedsRebaseline=false`로
 승인했다. PS5.1/PS7 self-test는 각각 `296/296`, clean detached SourceOnly는 두 host에서
 PASS했다. Main working tree 사용자 `Classes.lcb` SHA-256
-`13EA5823DF0887D6042408E2A884E9F8DF50304443227353B9BDCA9AD2ECBFD9`는 계속 reject된다.
+`D4C1FF4650499777A17854DA638269543938532520F0C5D178D61FF13BAA0C36`는 계속 reject된다.
 
-Commit `5d5aebe`는 이 Gate D 경계를 반영한 current canonical manual을 게시했다. Markdown은
+Commit `5d5aebe`는 이 Gate D 경계를 반영한 당시 canonical manual을 게시했다. Markdown은
 `94,108` bytes / SHA-256
 `D7DE1AF51A548AA7361614167D546A7057C8D03260CE92CFA9335964A611C022`, DOCX는 `92,229`
 bytes / SHA-256 `57D17650D1F24E9350830E784EFE94E00CB1A89CB126CD9A05865580A9708B46`, PDF는
@@ -182,10 +187,21 @@ bytes / SHA-256 `57D17650D1F24E9350830E784EFE94E00CB1A89CB126CD9A05865580A9708B4
 `83A57CC4B15D4E0BA4E0D9A54FD044C82A131168D16B36F2694F76AF098232E0`이다. `bcc6a9c`의
 이전 size/hash와 검토 결과는 initial promotion historical evidence로 보존한다.
 
+2026-08-12 reconnect V2 manual 갱신 뒤 current tracked pair는 Markdown `96,004` bytes /
+SHA-256 `9A5FE9D42F08EF2E4B3507EAEFF8956013F819B3A7F2FB00E334C356CAC3179E`, DOCX
+`95,511` bytes / `1BD54016B6E121CABF152164499E3DD943249C48A7ED6D8FE66271969C8A04B3`, PDF
+`1,022,442` bytes / `50DDE24F8B45341500D1DCF6A647BD818D6B805D9CC0F81737664F33A5550A44`다.
+PS5.1/PS7 SemanticPolicy self-test는 actual canonical pair smoke와 scoped negative를 포함해 각각
+`70/70`, policy check `18`을 PASS했다. Actual extracted DOCX/PDF reconnect policy `3/3`, A4 `43`쪽, heading `66`, table `109`,
+Office 2010~Microsoft 365 OpenXML error `0`, all-font embedding과 전 페이지 visual defect `0`을
+확인했다. 이는 release-input 문서 증거이며 PLC reconnect runtime PASS가 아니다.
+
 Exact tracked Gate D static 승인 뒤 full/network static target과 clean full Distribution,
 current generated schema 3 candidate, full-build actual EXE gate, manifest와 publish는 실행하거나
-생성하지 않았다. LASAL IDE, PLC, Download/runtime도 실행하지 않았다. Production NO-GO는
-그대로이며 clean full Distribution에서 fresh candidate의 WPF source set부터 다시 검증해야 한다.
+생성하지 않았다. `d4204b4`/`5d5aebe` checkpoint 당시 LASAL IDE, PLC, Download/runtime도
+실행하지 않았다. 이후 15:58 current reconnect image build/download는 별도 범위로 완료됐지만
+같은 창 live PASS는 없으며, Production NO-GO와 clean full Distribution에서 fresh candidate의
+WPF source set부터 다시 검증하는 조건은 그대로다.
 
 ## 내부 문서
 
@@ -249,12 +265,14 @@ validated tooling digest를 반환한 뒤에만 시작한다.
     `Scripts`/`site-packages`, `pycparser`, unrelated package는 제외하며 ownerless 경계를
     fail-closed한다.
 12. `d4204b4`는 exact clean tracked `24402BFA...` Gate D physical snapshot ratchet을 승인했다.
-    Main working tree 사용자 `13EA5823...`는 계속 reject되며 post-approval full/network static은
+    Main working tree 사용자 `D4C1FF46...`는 계속 reject되며 post-approval full/network static은
     실행하지 않았다.
-13. `5d5aebe`는 Gate D 경계를 반영한 current canonical manual을 게시했다. 이후에도 clean full
+13. `5d5aebe`는 Gate D 경계를 반영한 당시 canonical manual을 게시했다. 이후에도 clean full
     Distribution을 실행하지 않아 current generated schema 3 candidate manifest, full-build actual
     EXE gate와 publish는 생성하지 않았다. Canonical source snapshot의
     `CANDIDATE_WPF_SOURCE_SET` STOP은 fresh candidate가 아니다.
+14. 2026-08-12 reconnect V2 policy와 current source 경계를 Markdown/DOCX/PDF에 반영하고
+    canonical pair를 재검증했다. Same-window PLC reconnect는 여전히 미검증이다.
 
 개발 중 dirty-tree fail-path를 확인할 때만 `-AllowDirty`와 명시적인 빈 sibling path를 쓴다.
 정식 candidate는 clean tree에서 다음처럼 생성한다.
@@ -274,8 +292,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
 Current Markdown에서 편집용 DOCX를 생성하고, Microsoft Word에서 목차와 페이지 번호를
 갱신해 저장한 **같은 DOCX**에서 PDF를 export했다. Initial 검토 완료 pair는 `bcc6a9c`에서
 tracked canonical release input으로 승격했고 `5d5aebe`가 Gate D 경계를 반영한 current pair를
-게시했다. 아래 생성 명령은 초안 재생성용이며 release build가 canonical 문서를 자동 생성하거나
-덮어쓰지 않는다.
+게시했다. Current pair는 reconnect V2 경계를 추가 반영했다. 아래 생성 명령은 초안 재생성용이며
+release build가 canonical 문서를 자동 생성하거나 덮어쓰지 않는다.
 
 ```powershell
 python LMC_Library\LMC_API\Generate-ApiUserManualDocx.py `
@@ -286,20 +304,22 @@ python LMC_Library\LMC_API\Generate-ApiUserManualDocx.py `
 Current canonical 경로와 exact bytes는 다음과 같다.
 
 - `LMC_Library/LMC_API_Distribution/03_API_User_Manual/LASAL_Motion_Control_API_User_Manual_KO.docx`:
-  `92,229` bytes, SHA-256
-  `57D17650D1F24E9350830E784EFE94E00CB1A89CB126CD9A05865580A9708B46`
+  `95,511` bytes, SHA-256
+  `1BD54016B6E121CABF152164499E3DD943249C48A7ED6D8FE66271969C8A04B3`
 - `LMC_Library/LMC_API_Distribution/03_API_User_Manual/LASAL_Motion_Control_API_User_Manual_KO.pdf`:
-  `1,003,309` bytes, SHA-256
-  `83A57CC4B15D4E0BA4E0D9A54FD044C82A131168D16B36F2694F76AF098232E0`
+  `1,022,442` bytes, SHA-256
+  `50DDE24F8B45341500D1DCF6A647BD818D6B805D9CC0F81737664F33A5550A44`
 
 `bcc6a9c` initial pair의 Word/OpenXML validation error `0`, A4 PDF `43`쪽, DOCX heading
 `66`/table `109`, all-font embedding과 전 페이지 visual defect `0`은 historical 검토 결과다.
-위 current exact bytes는 `5d5aebe`가 게시한 tracked artifacts다.
+Current V2 pair도 A4 `43`쪽, DOCX heading `66`/table `109`, Office 2010~Microsoft 365
+OpenXML error `0`, all-font embedding, 전 페이지 visual defect `0`과 extracted-text policy
+`3/3`을 통과했다. 양 host SemanticPolicy self-test는 actual pair smoke를 포함해 `70/70`이다.
 
 Initial pair는 `Test-LmcDistributionManualReleasePolicy -DocxText -PdfText` exact `3/3`을
 통과했고 clean detached `bcc6a9c`에서 default resolver canonical 선택/worktree clean/manual
-policy `3/3`을 확인했다. Current `5d5aebe` pair도 canonical 경로에 있으므로 clean candidate는
-manual override 없이 이 tracked input을 resolve해야 한다.
+policy `3/3`을 확인했다. Current V2 pair도 canonical 경로에 있으므로 clean candidate는 manual
+override 없이 이 tracked input을 resolve해야 한다.
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass `

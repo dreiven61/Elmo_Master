@@ -62,25 +62,34 @@ ErrorId, nonzero reserved, malformed response는 재시도하지 않는다. 따�
 connection을 정리한다. 이 동작은 PLC의 지속적인 callback disarm result `-8`/`-9`를
 수정하는 것이 아니다.
 
-Policy commit `14ccf58`의 WPF policy는 초기 및 동일 프로세스 내 후속 Connect가 만든 candidate
-모두에 `RPC_INIT_FRESH_TCP_ONCE_V1`을 적용한다. 첫 `LMCConnection`에서 두 canonical
-`-1` ACK가 모두 돌아와 `Outcome=Failed`, `AttemptCount=2`,
-`CanonicalRetryUsed=true`이고 RPC/callback registration이 시작되지 않은 exact 경우에만
-그 candidate를 retire/`Dispose`한다. 고정 100 ms를 기다린 뒤 새
-`LMCConnection`/TCP를 정확히 한 번 연다. 두 번째 TCP도 실패하면 terminal failure이며
-세 번째 TCP는 없다. `ErrorId=0`, 다른 ErrorId, malformed/transport/cancellation 실패,
-callback-stage 실패에는 이 WPF outer retry를 적용하지 않는다. 따라서 사용자 Connect 한
-번의 상한은 TCP 2개, `0x8080` 4회이고 `0x405C`는 session init이 성공한 TCP에서만 나간다.
-정상 registration ACK까지 받아야 Connect가 성공하며 `0x405C` 실패는 terminal이고 outer
-retry가 없다.
+Current WPF source는 `RPC_INIT_FRESH_TCP_ONCE_V2`를 적용한다. Fresh TCP budget은 첫
+candidate에만 있고 다음 두 원인 중 하나만 허용한다. (A) exact canonical `-1` ACK 두 개로
+`Outcome=Failed`, `AttemptCount=2`, `CanonicalRetryUsed=true`가 된 persistent
+same-socket init failure는 100 ms 뒤 fresh candidate 하나를 연다. (B) 실제 `0x8080`
+request가 시작되어 `AttemptCount=1`이지만 response가 하나도 없고 exception이
+직접 `EndOfStreamException`, `SocketException`, `TimeoutException` 중 하나이거나
+`IOException`의 `InnerException` chain에 그중 하나가 포함된 pre-response transport failure는
+1000 ms 뒤 fresh candidate 하나를 연다.
+두 번째 candidate의 실패는 항상 terminal이고 세 번째 TCP는 없다.
+
+TCP connect-before-init(`AttemptCount=0`), cancellation, `ObjectDisposedException`,
+`InvalidDataException`(허용형 `InnerException`이 있어도 포함), malformed
+response, valid non-`-1` response, response를 받은 뒤의 failure, `0x405C` callback stage
+failure에는 fresh-TCP retry가 없다. 한 UI Connect의 상한은 TCP 2개, `0x8080` 4회이며
+`0x405C`는 session init이 성공한 TCP에서만 나간다. 정상 registration ACK까지 받아야
+Connect가 성공한다. Evidence는 `CandidateOrdinal`, `FreshSessionRetryReason`,
+`FreshSessionRetryDelayMs`, `FreshSessionRetryFromCandidate`,
+`FreshSessionRetryNextCandidate`, `FreshSessionFirstFailure`를 남긴다. Historical
+`14ccf58` V1의 persistent-`-1` 범위와 당시 test count는 과거 checkpoint로 보존한다.
 
 PLC source의 일반 `0x8080`/`0x405D` mismatch는 계속 fail-closed다. Internal
 owner-loss retirement는 accepted owner transition 또는 definitive current-socket
 disconnect에서 ordinary helper 결과가 정확히 `-8`일 때만 `(0,0,0)` sender sentinel을
 사용하고, sender 결과 `0/1` 뒤 ordinary helper를 다시 호출한다. `-9`, different-IP 또는
 unknown candidate, failed takeover와 late retiring-old disconnect에서는 retirement를
-실행하지 않는다. 이 source 변경은 아직 LASAL IDE build, PLC download 또는 PLC runtime
-재접속으로 검증하지 않았다.
+실행하지 않는다. 2026-08-12 15:58에 이 reconnect source와 일치하는 PLC image의 LASAL
+build와 download는 완료됐다. 그러나 같은 WPF 창의 Close -> Connect live reconnect PASS는
+아직 확인되지 않았고, build/download만으로 PLC runtime branch 실행을 증명하지 않는다.
 
 GUI는 connection cleanup 뒤에도 RPC init 시도 횟수, canonical retry 사용 여부와 마지막
 ACK를 Active/Retired evidence로 보존한다. `af4ab63`부터 입력 tuple은
@@ -91,11 +100,11 @@ version-2 등록에서는 BootId,
 SessionEpoch, cookie, listener generation, expected source와 event mask를 표시하고, PC
 receiver의 accepted/rejected/duplicate/out-of-order 누계와 마지막 decision/protocol error를
 표시한다. `af4ab63`의 SDK `1117/1117`, WPF `335/335`는 historical snapshot이다.
-Current executable-gate commit `cbf2548`은 `14ccf58` policy를 유지한다. SDK
+Historical executable-gate checkpoint `cbf2548`은 `14ccf58` V1 policy를 사용했다. SDK
 Debug/Release direct runner 각각 `1133/1133`, WPF
 Debug/Release Rebuild PASS, full smoke `339/339`, reconnect targeted `6/6`을 PASS했다.
 독립 callback/reconnect review도 `9/9`, P0/P1 없음이다. startup identity는
-`ReconnectPolicy=RPC_INIT_FRESH_TCP_ONCE_V1`, `SdkPath`, `SdkBuildUtc`를 함께 기록하며
+`ReconnectPolicy=RPC_INIT_FRESH_TCP_ONCE_V2`, `SdkPath`, `SdkBuildUtc`를 함께 기록하며
 topology marker는 계속 `CREVIS_TOPOLOGY_AXIS1_UI24_SDO_WRITE_LIVE_AXIS_QUAL_V5`다.
 
 별도 actual-EXE relaunch gate는 Debug/Release에서 각각 `1/1` PASS했다. Runner가 실제
@@ -124,15 +133,22 @@ postcondition을 만들지 못하면 종료를 취소한다. 명시적 Close 버
 재bind, 새 `LMCConnection`/TCP session과 두 번째 `0x8080 -> 0x405C`를 검사한다. 이들은
 loopback fake-RPC/UDP와 PC port lifetime 회귀이며 PLC disarm/retirement나 실제 사용자
 PLC reconnect 증거가 아니다. 기존 `339/339` historical count에 소급 포함시키지 않는다.
+Historical V2 checkpoint는 Release build/full smoke `347/347`, isolated Debug build와
+`Wpf.CallbackV2.*` `17/17`을 PASS했다. 2026-08-18 diagnostics mutation recovery 반영 후
+ current Debug/Release Rebuild는 경고 0/오류 0, full smoke는 각각 `354/354`, Debug/Release
+ `Wpf.RecoveryRetirement`는 각각 `20/20` PASS했다. 이 수치는 PC fake-RPC 회귀 증거이며 실제 Servo On을
+증명하지 않는다.
 
-위 결과는 PC측 loopback fake-server 증거다. 100 ms는 고정 PC backoff이지 PLC slot/FSM readiness
-시간의 증명이 아니다. wire의 canonical `-1`은 내부 disarm `-8`/`-9`뿐 아니라 다른
+위 결과는 PC측 loopback fake-server 증거다. V1의 100 ms와 V2 pre-response transport
+경로의 1000 ms는 bounded PC backoff이지 PLC slot/FSM readiness 시간의 증명이 아니다.
+wire의 canonical `-1`은 내부 disarm `-8`/`-9`뿐 아니라 다른
 lifecycle/ownership rejection일 수도 있다. Historical `14ccf58` restart smoke는 같은 test
 process의 새 `MainWindow`만 사용했다. `cbf2548` gate는 실제 EXE 종료/재실행과 default named
 mutex 재획득까지 추가로 증명하지만 PLC cleanup/disarm/readiness, 100 ms runtime 적정성,
 MotionLib/축 상태 전이는 증명하지 않는다. PC local cleanup은 PLC disarm 성공을 뜻하지
 않으며 internal PLC owner-loss retirement 실행을 증명하지 않는다. 사용자 PLC에서 X
-종료 후 같은 예제 EXE를 다시 실행해 Connect하는 실기 재시험은 아직 남아 있다.
+종료 후 같은 예제 EXE를 다시 실행해 Connect하는 실기 재시험과 같은 창 Close -> Connect
+live 재시험은 아직 남아 있다. V2 fake-RPC 회귀는 이 PLC runtime 증거를 대체하지 않는다.
 
 배포 verifier compatibility commit `ad4af91`은 WPF/SDK/wire를 바꾸지 않는다. Targeted
 PS5/PS7 Publish+Reserve는 PASS했고, 수정 뒤 PS5.1 Release `RunLasalContract`와
@@ -246,7 +262,7 @@ MSBuild.exe .\LasalApiWpfTestApp.SmokeTests\LasalApiWpfTestApp.SmokeTests.csproj
 
 2026-08-10 `f337fec`/`ad7c8b1` Release 스냅샷은 smoke `334/334` PASS였다.
 2026-08-11 `af4ab63` historical VS2019 MSBuild Release rebuild는 경고 0, 오류 0이고
-smoke는 `335/335` PASS였다. Current `cbf2548`은 Debug/Release Rebuild PASS, 기존 full
+smoke는 `335/335` PASS였다. Historical `cbf2548`은 Debug/Release Rebuild PASS, 기존 full
 smoke `339/339`와 reconnect targeted `6/6`을 그대로 PASS했고, 별도 actual-EXE relaunch
 gate도 Debug/Release 각각 `1/1` PASS했다.
 Connect 뒤 bit 14만 광고된 7-node
@@ -1125,16 +1141,19 @@ Axis1 source gate와 fresh LASAL IDE Rebuild/Link는 반영됐지만 PLC downloa
     status-only recovery를 먼저 완료하고, 다른 endpoint record는 `KEEP OTHER ENDPOINT`로
     보존한다. journal/ledger fault 또는 실행 중 operation이 있으면 아무 record도
     폐기하지 않는다.
-    기존 다섯 record는 BootId/MapRevision을 비교하고, nonzero `DiagnosticsBuild`를 저장하는 Group
+    기존 endpoint-bound record는 BootId/MapRevision을 비교하고, nonzero `DiagnosticsBuild`를 저장하는 Group
     Reset record는 Build/BootId/MapRevision을 모두 비교하므로 Build-only mismatch도 retire할 수
     있다. Group Reset record가 있을 때는 confirmation 전후 current Build도 nonzero/exact여야 한다.
     승인된 stale record는 원 journal 전체 바이트와 SHA-256, 운영자/현재 PLC identity를 먼저
     `%LOCALAPPDATA%\Elmo\LasalMotionControlApiExample\RecoveryRecordRetirementLedger\v1`에
-    immutable entry로 저장한다. format 2 entry는 source/current DiagnosticsBuild를 보존하고 기존
-    format 1 entry도 읽는다. temp flush 뒤 Windows write-through rename과 최종 byte/hash 검증을
+    immutable entry로 저장한다. current format 3 entry는 source/current DiagnosticsBuild와 endpoint
+    evidence 종류를 보존하고 기존 format 1/2 entry도 읽는다. temp flush 뒤 Windows write-through rename과 최종 byte/hash 검증을
     통과한 record만 원 journal의 full-byte CAS로 `Resolved` 처리한다. 이전 명령의 결과는 계속
     `UNKNOWN`이며 이 절차는 Motion, Power, SDO, Write, replay 또는 cleanup을 보내지 않는다.
-    Diagnostics mutation journal과 Recorder double journal은 이 절차의 폐기 대상이 아니다.
+    endpoint를 저장하지 않은 legacy diagnostics v2 중 typed SDO `OutcomeUnverified`만 예외적으로
+    identity-mismatch quarantine의 current endpoint에 운영자가 분류할 수 있다. 이 분류는 원 journal
+    바이트를 바꾸지 않고 ledger에 별도 `OperatorClassifiedLegacyEndpoint` 증거로 먼저 commit된다.
+    metadata 없는 SDO, Digital Output과 다른 diagnostics state는 이 절차의 폐기 대상이 아니다.
     성공하면 quarantine connection을 닫고 앱을 종료하며 같은 process의 reconnect를 금지한다.
     새 앱에서 reconnect해야 Motion/Power admission을 다시 평가할 수 있다. Axis 1 SDO Write
     source/PC gate와 변경 LASAL 프로젝트의 Rebuild/Link·exact-method
@@ -1196,10 +1215,12 @@ Axis1 source gate와 fresh LASAL IDE Rebuild/Link는 반영됐지만 PLC downloa
 이 탭은 Phase 1의 신규 읽기 API를 실물 PLC에서 확인하기 위한 화면이다. motion이나
 write command는 없다. `0x7D12 SetAxisPosition`은 SDK contract와 fail-closed PLC parser만
 있고 capability bit 3이 OFF이므로 화면에 노출하지 않는다. SetPosition은 diagnostics
-identity와 128-bit intent를 기록하는 독립 durable journal
+identity와 128-bit intent를 기록하는 독립 durable journal v2
 core, SDK `0x7D14` exact read-only query와 `0x7D1A` nonzero-generation terminal
 retirement 계약까지 추가했다. bit 5는 query-only이고 bit 7은 retirement 전용이다.
-current PLC의 bit 5/7, retained store/query/retirement route와 MainWindow
+journal은 기존 format 1/새 format 2를 모두 읽되 새 기록은 format 2로 쓰고, terminal query
+proof 영속화 후 exact retirement 성공만 Resolved를 허용한다. evidence-free `Resolve`는 없다.
+current PLC의 bit 5/7, retained store/tombstone success path와 MainWindow
 dispatch/interlock 연결은 없다.
 이들을 unified ownership과 같은 slice에서 연결한 뒤에만 활성화를 검토한다. SetPosition의
 authoritative max-jump, 공통 task/core/priority 및 PLC proof가 먼저다. LMC Home과 DS402

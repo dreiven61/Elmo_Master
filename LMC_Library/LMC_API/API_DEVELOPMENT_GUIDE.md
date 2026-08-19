@@ -3,7 +3,8 @@
 - 문서 버전: `2.9`
 - 작성 기준: `2026-08-12` / active dependency closure `3c63dea`, initial canonical manual
   promotion `bcc6a9c`, preview README policy `f304e8b`, release-input documentation
-  `978597b`, exact tracked Gate D approval `d4204b4`, current canonical manual `5d5aebe`
+  `978597b`, exact tracked Gate D approval `d4204b4`, 당시 canonical manual `5d5aebe`,
+  current reconnect V2 release input
 - 적용 API: `LasalMotionControlLib 0.9.1-preview`
 - motion baseline branch/commit: `main` / `f9bc88a7f78dab5214186689198414fa9a203a32`
 - diagnostics/admin/release/reconnect 기준: 2026-08-12 current source
@@ -39,7 +40,9 @@ transport와 command를 공유한다는 사실은 설명하지 않는다.
 > E2E는 여전히 `0/25`이며 diagnostics D1~D4도 미실시다.
 > D4 Double, PI Write와 extended SDO result는 capability-off다. SDO Write는 Axis 1의 exact
 > `0x2F00:24 Int32/4` target만 source-active이고 Axis 2..4와 비승인 target은 fail-closed다.
-> current PLC download와 live Motion/Power/SDO Write 증거는 아직 없다.
+> Current reconnect source와 일치하는 PLC image의 LASAL build/download는 2026-08-12
+> 15:58에 완료했다. 같은 창 Close -> Connect live PASS와 live Motion/Power/SDO Write
+> 증거는 아직 없다. Image transfer는 runtime proof가 아니다.
 > EtherCAT topology read-owner는 464-byte coherent snapshot과 `0x7E13/0x7E22` route/handler까지
 > source/static/IDE build가 완료됐지만 capability bits 15~17은 OFF다. `0x7E23`은 없으며
 > current PLC raw read, disconnect/recovery와 physical DI correlation은 아직 검증하지 않았다.
@@ -58,11 +61,13 @@ transport와 command를 공유한다는 사실은 설명하지 않는다.
 > `TerminalWakeBrokerCandidate`만 PC/static `ProductionApproved=true`,
 > `NeedsRebaseline=false`로 승인했다. PS5.1/PS7 verifier self-test는 각각 `296/296`, clean
 > detached tracked tuple의 SourceOnly는 두 host에서 PASS했다. Main working tree의 사용자
-> `Classes.lcb` SHA-256 `13EA5823DF0887D6042408E2A884E9F8DF50304443227353B9BDCA9AD2ECBFD9`는
-> sanctioned identity drift로 계속 reject된다. `5d5aebe`는 이 경계를 반영한 current canonical
-> manual을 게시했다. Gate D 승인 뒤 full/network static target과 clean full Distribution,
-> current schema 3 candidate, full-build actual EXE gate, manifest, publish 및 LASAL
-> IDE/PLC/Download/runtime은 실행하지 않았다. Production NO-GO는 유지된다.
+> `Classes.lcb` SHA-256 `D4C1FF4650499777A17854DA638269543938532520F0C5D178D61FF13BAA0C36`는
+> sanctioned identity drift로 계속 reject된다. `5d5aebe`는 이 경계를 반영한 당시 canonical
+> manual을 게시했다. Current canonical은 아래 reconnect V2 tuple이다. `d4204b4` 승인
+> checkpoint 당시 full/network static target과 clean full Distribution, current schema 3
+> candidate, full-build actual EXE gate, manifest, publish 및 LASAL IDE/PLC/Download/runtime은
+> 실행하지 않았다. 이후 current reconnect source와 일치하는 PLC image는 2026-08-12
+> 15:58에 build/download했지만 같은 창 runtime은 검증되지 않았다. Production NO-GO는 유지된다.
 > 아래 설명에서 `구현됨`은 current source에 경로가 존재한다는 뜻이며 실기 완료를 뜻하지 않는다.
 
 ## 1. 먼저 바로잡아야 할 핵심 오해
@@ -277,10 +282,15 @@ sequenceDiagram
 
 일반적이거나 무제한인 자동 retry/reconnect는 없다. SDK가 자동으로 수행하는 예외는
 명시적 version 2의 exact canonical `-1` session-init failure를 같은 TCP socket에서
-20 ms 뒤 한 번 재시도하는 것뿐이며, SDK 자체는 새 TCP를 만들지 않는다. 개발 WPF만 초기
-또는 동일 프로세스 내 후속 Connect의 첫 candidate에서 두 exact `-1`과 RPC/callback
-미시작 증거가 모두 맞을 때 100 ms 뒤 fresh TCP를 정확히 한 번 더 연다. 그 밖의
-`Faulted` 상태에서는 애플리케이션이 명시적으로 새 연결을 시작해야 한다.
+20 ms 뒤 한 번 재시도하는 것뿐이며, SDK 자체는 새 TCP를 만들지 않는다. 개발 WPF의
+`RPC_INIT_FRESH_TCP_ONCE_V2`는 첫 candidate에서만 (A) exact persistent `-1`,
+`AttemptCount=2`, `CanonicalRetryUsed=true`면 100 ms 뒤, 또는 (B) 실제 `0x8080`
+request가 시작된 `AttemptCount=1`, no-response, direct `EndOfStreamException`/
+`SocketException`/`TimeoutException`, 또는 그중 하나를 `InnerException` chain에 가진
+`IOException`이면 1000 ms 뒤 fresh TCP를 정확히 한 번 연다. 두 번째 candidate는 terminal이다. Connect-before-init
+`AttemptCount=0`, cancellation, `ObjectDisposedException`, `InvalidDataException`(허용형
+`InnerException`이 있어도 포함), malformed/valid non-`-1`
+response, response 이후와 callback-stage failure는 retry하지 않는다.
 
 ### 5.3 Axis/Group handle과 generation
 
@@ -672,14 +682,13 @@ Group/Axis handle 생성
 
 SDK의 exact canonical v2 init failure만 같은 TCP socket에서 20 ms 뒤 `0x8080`을 한 번
 재시도한다. `LastRpcSessionInitializationEvidence`는 outcome, attempt count, canonical retry,
-첫/마지막 ACK를 cleanup 뒤에도 보존한다. WPF policy `14ccf58`은 초기 또는 동일 프로세스
-내 후속 Connect의 첫 candidate가 두 exact `-1` ACK로 `Outcome=Failed`, `AttemptCount=2`,
-`CanonicalRetryUsed=true`이고 RPC/callback 미시작일 때만 100 ms 뒤 fresh
-`LMCConnection`/TCP 하나를 연다. 두 번째 candidate 실패,
-`ErrorId=0`, 다른 ErrorId, malformed/transport/cancellation/callback-stage failure에는 outer
-retry가 없다. 한 UI Connect의 최대치는 TCP 2개/`0x8080` 4회이고 `0x405C`는 init 성공
-뒤에만 전송된다. 정상 registration response까지 성공해야 Connect가 완료되며 `0x405C`
-실패는 terminal이고 WPF outer retry 대상이 아니다.
+첫/마지막 ACK를 cleanup 뒤에도 보존한다. WPF V2 outer policy의 원인 A/B와 no-retry
+경계는 5.2와 동일하다. Candidate 2는 terminal이고 한 UI Connect의 최대치는 TCP 2개/
+`0x8080` 4회다. `0x405C`는 init 성공 뒤에만 전송되며 그 failure는 terminal이다.
+Evidence에는 `CandidateOrdinal`, `FreshSessionRetryReason`, `FreshSessionRetryDelayMs`,
+`FreshSessionRetryFromCandidate`, `FreshSessionRetryNextCandidate`,
+`FreshSessionFirstFailure`를 보존한다. Historical `14ccf58` V1은 persistent-`-1`만
+허용했던 checkpoint다.
 
 ### 12.2 Single Axis
 
@@ -1013,10 +1022,10 @@ WPF 내부 replacement와 창 X는 공용 cleanup에서 최대 두 번 `Dispose`
 disconnected postcondition을 요구한다. 이전 `RpcCloseResponse`/`LastCloseException`은
 진단용으로 남는다. X는 postcondition 미완료 시 취소되고 strict Close 버튼은 cleanup 뒤
 close 오류를 다시 throw한다. startup identity는
-`ReconnectPolicy=RPC_INIT_FRESH_TCP_ONCE_V1`, `SdkPath`, `SdkBuildUtc`를 기록하고 topology
+`ReconnectPolicy=RPC_INIT_FRESH_TCP_ONCE_V2`, `SdkPath`, `SdkBuildUtc`를 기록하고 topology
 marker V5를 유지한다.
 
-Current `cbf2548`의 별도 actual-EXE relaunch gate는 Debug/Release 각각 `1/1` PASS했다.
+Historical `cbf2548`의 별도 actual-EXE relaunch gate는 Debug/Release 각각 `1/1` PASS했다.
 Parent runner가 실제 EXE PID/HWND에 외부 `WM_SYSCOMMAND/SC_CLOSE`를 보내 owner의 X
 close를 실행하고, `0x405D` exact `-1` 뒤 bounded cleanup/process exit를 확인한다. live
 owner 중 contender는 default mutex에서 exit `2`/TCP `0`이고, owner exit 뒤 같은 exact
@@ -1025,10 +1034,12 @@ EXE successor가 mutex를 재획득한다. Successor의 첫 TCP candidate는 `0x
 전체 session/request는 `3/28 (13,2,13)`이다. malformed probe는 exit `64`, owned temp
 write `0`, TCP `0`이다. EXE/SDK DLL/optional config identity는 시험 전후 동일하다.
 
-100 ms PC backoff와 loopback immediate reaccept는 PLC readiness/cleanup proof가 아니다.
+100/1000 ms PC backoff와 loopback immediate reaccept는 PLC readiness/cleanup proof가 아니다.
 wire `-1`의 내부 원인은 disarm `-8`/`-9` 또는 다른 lifecycle/ownership rejection일 수
 있고 PC cleanup은 PLC disarm 성공이 아니다. 실제 MotionLib/축 상태와 사용자 PLC에서 X
-종료 후 동일 EXE 재접속은 아직 검증하지 않았다. private state를 force-clear하지 않는다.
+종료 후 동일 EXE 재접속과 같은 창 Close -> Connect live reconnect는 아직 검증하지 않았다.
+15:58 image build/download와 V2 fake-RPC test는 이 runtime proof를 대체하지 않는다. private
+state를 force-clear하지 않는다.
 
 `ConnectionStateChanged` handler도 library thread에서 직접 실행되며 UI marshal을 하지 않는다.
 handler 예외는 connection 동작에 전파되지 않도록 무시된다.
@@ -1062,11 +1073,11 @@ E-stop/drive safety chain이 반드시 필요하다.
 
 | 항목 | 상태 |
 |---|---|
-| PC request/parser/fake-RPC/diagnostics/admin 합계 | current `cbf2548` Debug/Release direct 각 1133/1133 PASS; 2026-07-31 baseline 1042/1042 |
-| 개발 WPF | current `cbf2548` Debug/Release Rebuild PASS; 기존 full smoke 339/339, reconnect targeted 6/6, 별도 actual-EXE relaunch Debug/Release 각 1/1 PASS; 2026-07-31 baseline 297/297 |
-| LASAL SourceOnly static contract | historical `GateDVisualLayout` checkpoint PASS. Current `d4204b4` clean detached tracked `24402BFA...` tuple은 PS5.1/PS7 self-test 각 `296/296`과 SourceOnly를 PASS하고 `ProductionApproved=true`, `NeedsRebaseline=false`다. Main working tree 사용자 `13EA5823...`는 exact sanctioned identity drift로 계속 reject된다. |
+| PC request/parser/fake-RPC/diagnostics/admin 합계 | historical `cbf2548` Debug/Release direct 각 1133/1133 PASS; reconnect V2 tranche에서 SDK source는 변경하지 않았으며 direct total은 재실행하지 않음; 2026-07-31 baseline 1042/1042 |
+| 개발 WPF | historical `cbf2548` full smoke 339/339, reconnect 6/6, actual-EXE 각 1/1 PASS. Current V2는 Release build/full smoke `347/347`, isolated Debug build, `Wpf.CallbackV2.*` `17/17` PASS; 2026-07-31 baseline 297/297 |
+| LASAL SourceOnly static contract | historical `GateDVisualLayout` checkpoint PASS. Current `d4204b4` clean detached tracked `24402BFA...` tuple은 PS5.1/PS7 self-test 각 `296/296`과 SourceOnly를 PASS하고 `ProductionApproved=true`, `NeedsRebaseline=false`다. Main working tree 사용자 `D4C1FF46...`는 exact sanctioned identity drift로 계속 reject된다. |
 | LASAL full static contract | historical checkpoint에서 `IntegratedReadOwnerDormant`, `ExpectedSdoWriteAxis=1` PASS 및 generated metadata/topology/same-peer 구조 동기화 확인. `ad4af91` STOP은 pre-approval historical evidence이며 `d4204b4` 승인 뒤 full/network static target은 다시 실행하지 않았다. |
-| LASAL IDE rebuild/link | current Axis 1 gate-on source `0 errors / 20 warnings`, Linker Done; PLC download는 미실시 |
+| LASAL IDE rebuild/link | current reconnect source image는 2026-08-12 15:58 build/download 완료; same-window live reconnect와 Axis 1 runtime은 미확인 |
 | implementation smoke | `LMCEcatInputLatch`, `LMCDiagnosticsService`, `TCPMotionInterface` direct implementation open 성공; current PID 신규 `CInvalidArgException` 0건 |
 | LASAL diagnostics command contract | capability-advertised active 24 + dormant read-owner `0x7E13/0x7E22` 2 / handled 32; reserved D5 2와 dormant D4 4 포함 |
 | 전체 성공 응답 capable PLC active path | 53개: 기존 motion/group 25 + diagnostics 24 + admin 4 |
@@ -1321,9 +1332,9 @@ candidate gate, manifest 또는 publish PASS로 기록하지 않는다.
   `24402BFA76F1989319381388D4354E1528052078BA08504CC5C967A6DE1AA861` exact tuple만
   `ProductionApproved=true`, `NeedsRebaseline=false`다. PS5.1/PS7 self-test는 각각
   `296/296`, clean detached SourceOnly는 두 host에서 PASS했다. Main working tree 사용자
-  `13EA5823DF0887D6042408E2A884E9F8DF50304443227353B9BDCA9AD2ECBFD9`는 계속 reject된다.
+  `D4C1FF4650499777A17854DA638269543938532520F0C5D178D61FF13BAA0C36`는 계속 reject된다.
   이 승인은 `6E115876...`, `99014DD9...`, future hash 또는 PLC/runtime을 승인하지 않는다.
-- `5d5aebe`는 Gate D 경계를 반영한 current canonical manual을 게시했다. Markdown은 `94,108`
+- `5d5aebe`는 Gate D 경계를 반영한 당시 canonical manual을 게시했다. Markdown은 `94,108`
   bytes /
   `D7DE1AF51A548AA7361614167D546A7057C8D03260CE92CFA9335964A611C022`, DOCX는 `92,229`
   bytes /
@@ -1331,13 +1342,22 @@ candidate gate, manifest 또는 publish PASS로 기록하지 않는다.
   `1,003,309` bytes /
   `83A57CC4B15D4E0BA4E0D9A54FD044C82A131168D16B36F2694F76AF098232E0`이다. `bcc6a9c`의
   이전 size/hash와 검토 결과는 initial promotion historical evidence로 보존한다.
+- Current reconnect V2 manual은 Markdown `96,004` bytes /
+  `9A5FE9D42F08EF2E4B3507EAEFF8956013F819B3A7F2FB00E334C356CAC3179E`, DOCX `95,511`
+  bytes / `1BD54016B6E121CABF152164499E3DD943249C48A7ED6D8FE66271969C8A04B3`, PDF
+  `1,022,442` bytes / `50DDE24F8B45341500D1DCF6A647BD818D6B805D9CC0F81737664F33A5550A44`다.
+  PS5.1/PS7 SemanticPolicy self-test는 actual canonical pair smoke를 포함해 각각 `70/70`,
+  policy check `18`을 PASS했다. Actual DOCX/PDF policy `3/3`, A4 `43`쪽, heading `66`, table `109`, Office 2010~Microsoft 365
+  OpenXML error `0`, all-font embedding과 전 페이지 visual defect `0`을 확인했다.
 
 Canonical source snapshot direct semantic run은 manual/README policy를 지난 뒤
 `CANDIDATE_WPF_SOURCE_SET`에서 멈췄다. 이는 freshly assembled staged candidate가 아니므로 full
 Distribution이나 current candidate PASS가 아니다. Exact tracked Gate D static approval 뒤
 full/network static target과 clean full Distribution, current generated schema 3 candidate,
-full-build actual EXE gate, manifest와 publish는 실행하거나 생성하지 않았다. LASAL IDE, PLC,
-Download/runtime도 실행하지 않았고 production NO-GO는 그대로다.
+full-build actual EXE gate, manifest와 publish는 실행하거나 생성하지 않았다. 이 `d4204b4`
+checkpoint 당시 LASAL IDE/PLC/Download/runtime도 실행하지 않았다. 이후 current reconnect
+source와 일치하는 PLC image는 2026-08-12 15:58에 build/download했지만 same-window runtime은
+검증하지 않았고 production NO-GO는 그대로다.
 
 단위 회귀는 다음처럼 실행한다.
 

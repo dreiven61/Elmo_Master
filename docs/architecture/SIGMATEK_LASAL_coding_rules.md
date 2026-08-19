@@ -62,6 +62,10 @@
   `1`로 축약되는 것이 확인됐다. `LMCDiagnosticsService`의 capability overlay,
   verification flag 누적 및 retired tombstone처럼 bit를 보존해야 하는 식에는
   `value OR mask`만 사용한다.
+- `IsClientConnected(...)`는 연결 상태를 정수 `0/1`로 반환한다. 이 결과에
+  bitwise `NOT`을 적용하면 `0`과 `1`이 모두 nonzero가 되어 조건식이 항상 참이
+  될 수 있다. 연결 해제 검사는 `IsClientConnected(#Client) = 0`, 연결 검사는
+  `IsClientConnected(#Client) <> 0`처럼 명시적으로 비교한다.
 - postfix `$DINT`/`$UDINT`는 숫자 변환이 아니라 해당 주소를 지정 폭으로
   재해석하는 memory overlay다. `UINT`/`INT` 값을 32비트 숫자로 확대할 때는
   `TO_DINT(...)`/`TO_UDINT(...)`를 사용한다. wire byte buffer를 읽고 쓰는

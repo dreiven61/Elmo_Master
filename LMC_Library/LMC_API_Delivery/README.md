@@ -92,13 +92,16 @@ EtherCAT Health/Catalog/PI Read, Bulk Snapshot, Recorder v1, D4 single-bank
   기존 source-active command다.
 - LASAL admin dormant/fail-closed command family:
   - `0x7D12 SetAxisPosition`: capability bit 3 OFF, valid request도
-    `InvalidState/detail 10`, native `_LMCAxis.SetPosition` 호출 0회
+    `SetPositionOutcomeStorageUnavailable/detail 24`, native
+    `_LMCAxis.SetPosition` 호출 0회
   - `0x7D15/0x7D16/0x7D17` DS402 Home: method 37 non-moving source가 있으나
     `LMC_DIAG_DS402_HOME_ENABLED=FALSE`, Admin capability bit 6 OFF
-- SDK-only Admin SetPosition recovery contract: 2개
+- Admin SetPosition recovery contract: 2개
   - `0x7D14 ReadAxisSetPositionOutcome`: read-only exact terminal query
   - `0x7D1A RetireAxisSetPositionOutcome`: nonzero-generation exact retirement CAS
-  - capability bit 5/7과 PLC retained store/query/retirement route는 없음
+  - PLC source는 두 route와 exact parser를 포함하지만 `SET SRAMRETAIN`/1344-byte
+    Intent + terminal/tombstone A/B/C retained store가 없어 valid exact request도
+    detail 24를 반환한다. capability bit 5/7은 OFF다.
 - 2026-07-31 command-count checkpoint는 active 53, dispatcher/wire 63, C# ID 65,
   요구사항 `D+E=40/65`, partial 포함 `52/65`였다. 이 역사적 집계는 이후 추가된
   `0x7D15..0x7D19`와 `0x7E53..0x7E55`를 포함하지 않으므로 current command count로
@@ -122,8 +125,9 @@ EtherCAT Health/Catalog/PI Read, Bulk Snapshot, Recorder v1, D4 single-bank
   `0x20A0`, `0x20A2`, `0x204A`, `0x204B`, `0x2047`, `0x2048`, `0x2045`, `0x2049`,
   `0x2085`, `0x20A4`, `0x2051`, `0x20E7`)
 - 기존 캡처 기반 23-command 공개 범위의 deterministic unsupported: 0개
-- C# 자동 테스트 runner 2026-08-12 current Debug/Release 검증: 각각 1151/1151 PASS.
-  `0x7D1A` SetPosition terminal retirement의 exact key/generation CAS, lost-response retry,
+- C# 자동 테스트 runner 2026-08-18 current Debug/Release 검증: 각각 1152/1152 PASS.
+  `0x7D14/0x7D1A` SetPosition cross-boot original/current BootId 분리, terminal retirement의
+  exact key/generation CAS, lost-response retry,
   strict detail allowlist와 session-fault 회귀를 포함한다. fake-RPC request/session
   atomic append와 stable snapshot 회귀, Axis/Group sync/async typed lookup의
   exact 6-byte/nonzero descriptor, structured failure와 raw 방어 복사 회귀에 더해 topology/I/O read-only raw qualifier의
@@ -138,7 +142,7 @@ EtherCAT Health/Catalog/PI Read, Bulk Snapshot, Recorder v1, D4 single-bank
   `NotAttempted`와 Axis Power On total-deadline/read-only result, Axis Stop Begin/Resume 및
   process-local mutation 귀속 전용 32개, Axis Reset accepted-once Begin/Resume·mutation 귀속 전용
   33개, Axis PowerOff accepted-once/mutation 귀속 전용 35개, Admin SetPosition exact
-  28/36-byte wire, CAS, one-shot/capability/session/fail-closed/strict-ErrorId/native-reject/publication-race/uncertain 회귀 18개, Admin
+  56-byte request frame/36-byte response frame, CAS, one-shot/capability/session/fail-closed/strict-ErrorId/native-reject/publication-race/uncertain 회귀 18개, Admin
   `GroupMoveLinearRelative`·D5 `SubmitSdo`/`CancelOperation` 지연 ACK의
   `ResultDiscarded` 회귀, RPC lifecycle deterministic race 회귀 19개, Group Power On/Off
   accepted-once Begin/Resume·typed pending/interference·publication 회귀 35개와 Group Enable total-deadline,
@@ -182,7 +186,7 @@ EtherCAT Health/Catalog/PI Read, Bulk Snapshot, Recorder v1, D4 single-bank
   `LMCDiagnosticsService`의 `0x7E13/0x7E22` handler를 external source implementation으로 완성했다.
   default checkpoint는 read-owner 구현과 bit 15~17 OFF, `0x7E23` 부재를 함께 검증한다.
 - 개발 WPF example의 `af4ab63` Release rebuild/actual-control `335/335`는 historical
-  snapshot이다. Current executable-gate commit `cbf2548`은 `14ccf58` reconnect policy를
+  snapshot이다. Historical executable-gate checkpoint `cbf2548`은 `14ccf58` V1 reconnect policy를
   유지하며 Debug/Release Rebuild PASS, 기존 full smoke `339/339`, reconnect targeted
   `6/6`을 PASS했고 별도 actual-EXE relaunch gate도 Debug/Release 각각 `1/1` PASS했다.
   독립 callback/reconnect review는 `9/9`, P0/P1 없음이다. Admin capability/axis/group와
@@ -558,12 +562,15 @@ authoritative duplicate-suppression key가 아니다.
 Detail 11 `NativeCommandRejected`는 common `INT16 ErrorId=-6`만 허용하고 payload `P+24`의
 full `_LMCAXIS_CMDERROR` `UINT32` bitfield를 typed exception에 보존한다. positive/other
 ErrorId 또는 applied/native 불변식 위반은 malformed response이므로 outcome은 uncertain이고
-그 exact session을 fault시킨다. current LASAL은 valid raw request도 `InvalidState/detail 10`으로
-반환하며 native SetPosition을 호출하지 않는다. SDK의 `0x7D14`는 journal에서 복원한 exact
-key로 terminal outcome만 반복 조회하는 read-only API이고 SetPosition을 replay하지 않는다.
-SDK의 `0x7D1A`는 그 exact key와 nonzero generation을 사용하며, paired PLC가 동일 terminal
-snapshot tombstone을 보존하는 CAS retirement 계약이다. current PLC에는 two-bank retained
-store, `0x7D14/0x7D1A` route와 tombstone이 없으므로 bit 5/7도 OFF다. 독립 durable journal
+그 exact session을 fault시킨다. current LASAL은 valid raw request도
+`SetPositionOutcomeStorageUnavailable/detail 24`로 반환하며 native SetPosition을 호출하지
+않는다. SDK의 `0x7D14`는 journal에서 복원한 original BootId exact key와 fresh current
+BootId를 분리해 terminal outcome만 반복 조회하는 read-only API이고 SetPosition을 replay하지
+않는다. SDK의 `0x7D1A`는 그 exact key와 nonzero generation을 사용하며, paired PLC가 동일
+terminal snapshot tombstone을 보존하는 CAS retirement 계약이다. current PLC에는 intent slot과
+two-bank retained outcome store/tombstone이 없고 `0x7D14/0x7D1A`는 exact parser route까지만
+있으므로 bit 5/7도
+OFF다. 독립 durable journal
 core를 MainWindow에 arm하지 않으며, store/query/retirement,
 journal/no-auto-replay와 unified axis/group mutation ownership을 같은 slice에서 연결하고
 motion RT/task-core priority, application-approved `SetPositionMaxJump>0`, `IsReferenced` 정책과
@@ -833,8 +840,8 @@ request를 failure context로 보존하고, `CancelOperation`은 실행됐을 �
   accepted Resume 실패의 cleanup은 exact pending continuation만 재사용하며 새 `0x2085`를 자동
   전송하지 않는다. fake-RPC는 외부 Power Off 선점에서 Stop 1회/Power Off 1회/status 4회, accepted
   status failure 뒤 cleanup에서 Stop 1회/status 4회를 확인했다. 이는 PLC packet 또는 정지 성능
-  proof가 아니다. 2026-08-12 current SDK Debug/Release direct runner는 callback-v2와
-  SetPosition retirement 회귀를 포함해 각각 1151/1151 PASS했고,
+  proof가 아니다. 2026-08-18 current SDK Debug/Release direct runner는 callback-v2와
+  SetPosition cross-boot query/retirement 회귀를 포함해 각각 1152/1152 PASS했고,
   이 값을 PLC runtime proof로 확대하지 않는다.
 
 public `GroupEnableAndWaitForLockedStandbyAsync`는 동일 connection session과 group
@@ -958,24 +965,31 @@ axis RT thread와 같은 core 배치, PLC jitter를 확인하기 전까지 produ
   second failure는 `Faulted` cleanup, 다른 ErrorId/nonzero reserved/malformed response와
   legacy mode는 zero-retry다. `af4ab63`의 non-canonical `ErrorId=0` zero-retry/manual
   reconnect는 historical regression이다.
-- WPF policy commit `14ccf58`은 초기 또는 동일 프로세스 내 후속 Connect의 첫 candidate가 두
-  exact canonical `-1` ACK 뒤 `Outcome=Failed`, `AttemptCount=2`,
-  `CanonicalRetryUsed=true`이고 RPC/callback 미시작일 때만 failed candidate를
-  retire/`Dispose`한다. 100 ms 뒤 하나의 새 `LMCConnection`/TCP를 열고, 두 번째
-  candidate도 실패하면 terminal로 끝낸다. `ErrorId=0`, 다른 ErrorId,
-  malformed/transport/cancellation 또는 callback-stage failure는 WPF outer retry가 없다.
+- Current WPF `RPC_INIT_FRESH_TCP_ONCE_V2`는 첫 candidate에만 fresh-TCP budget을 준다.
+  (A) 두 exact canonical `-1` ACK 뒤 `AttemptCount=2`, `CanonicalRetryUsed=true`인
+  persistent same-socket failure는 100 ms 뒤, (B) 실제 `0x8080` request가 시작된
+  `AttemptCount=1`, response 없음과 직접 발생한 `EndOfStreamException`/`SocketException`/
+  `TimeoutException` 중 하나 또는 `InnerException` chain에 그중 하나가 포함된 `IOException`인
+  pre-response transport failure는 1000 ms 뒤
+  새 `LMCConnection`/TCP 하나를 연다. 두 번째 candidate의 failure는 항상 terminal이다.
+  Connect-before-init(`AttemptCount=0`), cancellation, `ObjectDisposedException`,
+  `InvalidDataException`(허용형 `InnerException`이 있어도 포함), malformed
+  response, valid non-`-1` response, response 이후와 callback-stage failure는 retry하지 않는다.
   한 UI operation의 상한은 TCP 2개/`0x8080` 4회이며 `0x405C`는 init 성공 뒤에만 나간다.
-  정상 registration ACK까지 받아야 Connect가 성공하며 `0x405C` 실패는 terminal이고 outer
-  retry가 없다.
+  Historical `14ccf58` V1 수치는 과거 checkpoint이며 V2 final count로 소급하지 않는다.
+  Current V2는 Release build/full smoke `347/347`, isolated Debug build와
+  `Wpf.CallbackV2.*` `17/17`을 PASS했다. 이는 PC fake-RPC 증거다.
 - 내부 replacement와 창 X는 공용 bounded cleanup에서 최대 두 번 `Dispose`하고 complete
   local disconnected postcondition을 요구한다. 이전 `RpcCloseResponse`와
   `LastCloseException`은 보존한다. X는 cleanup 미완료 시 취소되며 strict Close 버튼은 local
   cleanup 뒤 close 오류를 다시 throw한다.
-- startup은 `ReconnectPolicy=RPC_INIT_FRESH_TCP_ONCE_V1`, `SdkPath`, `SdkBuildUtc`와 기존
-  topology marker V5를 기록한다. 고정 100 ms는 PLC readiness/timing proof가 아니고 wire
-  canonical `-1`은 disarm `-8`/`-9` 또는 다른 lifecycle/ownership rejection일 수 있다.
-  PC cleanup은 PLC disarm 성공을 뜻하지 않으며 private PLC state를 force-clear하지 않는다.
-- Current `cbf2548` actual-EXE gate는 actual PID/HWND에 외부
+- startup은 `ReconnectPolicy=RPC_INIT_FRESH_TCP_ONCE_V2`, `SdkPath`, `SdkBuildUtc`와 기존
+  topology marker V5를 기록한다. RPC-init evidence에는 `CandidateOrdinal`, retry
+  `Reason`/`Delay`/`From`/`Next`, `FreshSessionFirstFailure`가 포함된다. 100/1000 ms는 PLC
+  readiness/timing proof가 아니고 wire canonical `-1`은 disarm `-8`/`-9` 또는 다른
+  lifecycle/ownership rejection일 수 있다. PC cleanup은 PLC disarm 성공을 뜻하지 않으며
+  private PLC state를 force-clear하지 않는다.
+- Historical `cbf2548` actual-EXE gate는 actual PID/HWND에 외부
   `WM_SYSCOMMAND/SC_CLOSE`를 보내 첫 프로세스의 X close와 `0x405D` exact `-1` 뒤
   bounded process exit를 확인한다. 같은 EXE successor는 default named mutex를 재획득하고,
   첫 TCP session에서 `0x8080` exact `-1` 두 번과 `0x405C/0x405D` 0회를 확인한 뒤 fresh
@@ -984,6 +998,10 @@ axis RT thread와 같은 core 배치, PLC jitter를 확인하기 전까지 produ
   EXE/SDK DLL/optional config path/length/SHA-256도 시험 전후 동일해야 한다. 이 gate는 PC
   loopback process/mutex/wire 증거이고 PLC cleanup/disarm/readiness 또는 실제 사용자 PLC
   재접속 증거가 아니다.
+- 2026-08-12 15:58에는 current reconnect source와 일치하는 PLC image의 LASAL build와
+  download를 완료했다. 이는 image 전달 증거일 뿐이다. 같은 WPF 창에서 Close 후 Connect가
+  성공하는 live reconnect PASS는 아직 확인되지 않았으며 V2 fake-RPC test가 이를 대체하지
+  않는다.
 - WPF RPC-init evidence는 입력 tuple을 `RequestedCallback`, 실제 UDP endpoint를
   `BoundCallback`으로 구분한다. init 실패 전 bind가 없으면 `not-bound`를 기록한다.
 - `LMCCallbackEventArgs`는 legacy raw provenance를 제공한다.
@@ -1113,7 +1131,7 @@ Home/encoder-maintenance 계약 포함), `RunLasalContract`(tracked LASAL
 source static checks), `RunTests`(두 검증과 개발 WPF test app build) target으로
 분리돼 있다. 개발 WPF의 실제 컨트롤/fake RPC 회귀는 별도
 `LasalApiWpfTestApp.SmokeTests.csproj /t:RunWpfSmokeTests` target이다. `af4ab63`
-Release `335/335`는 historical snapshot이고 current `cbf2548`은 VS2019 MSBuild
+Release `335/335`는 historical snapshot이고 historical `cbf2548`은 VS2019 MSBuild
 Debug/Release Rebuild PASS, 기존 full smoke `339/339`, reconnect targeted `6/6` PASS다.
 독립 callback/reconnect `9/9` review에서 P0/P1은 없었다. 별도
 `RunWpfExecutableRelaunchTest`는 Debug/Release 각각 `1/1` PASS했고 actual EXE의 X

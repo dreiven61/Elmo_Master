@@ -5,7 +5,7 @@
 - 상태: 2026-07-31 비canonical `2.0-candidate` finalize는 historical PASS. Current는
   `3c63dea` 13-role closure, `bcc6a9c` canonical `2.3-candidate` release input,
   `f304e8b` preview README policy, `978597b` release-input docs, `d4204b4` exact tracked
-  Gate D static approval, `5d5aebe` current canonical manual까지 완료했지만 post-approval full
+  Gate D static approval, `5d5aebe` 당시 canonical manual까지 완료했지만 post-approval full
   Distribution은 실행하지 않음
 - production 판정: **NO-GO**
 
@@ -180,10 +180,10 @@ source/generated/network/layout exact 검사를 모두 통과한 clean tracked `
 `TerminalWakeBrokerCandidate`만 PC/static `ProductionApproved=true`,
 `NeedsRebaseline=false`로 승인했다. PS5.1/PS7 verifier self-test는 각각 `296/296`, clean detached
 tracked tuple의 SourceOnly는 두 host에서 PASS했다. Main working tree 사용자 `Classes.lcb`
-SHA-256 `13EA5823DF0887D6042408E2A884E9F8DF50304443227353B9BDCA9AD2ECBFD9`는 exact
+SHA-256 `D4C1FF4650499777A17854DA638269543938532520F0C5D178D61FF13BAA0C36`는 exact
 sanctioned identity drift로 계속 reject된다. Post-approval full/network static target은 실행하지 않았다.
 
-Commit `5d5aebe`는 이 Gate D 경계를 반영한 current canonical manual을 게시했다.
+Commit `5d5aebe`는 이 Gate D 경계를 반영한 당시 canonical manual을 게시했다.
 
 | artifact | size | SHA-256 |
 |---|---:|---|
@@ -194,7 +194,20 @@ Commit `5d5aebe`는 이 Gate D 경계를 반영한 current canonical manual을 �
 `bcc6a9c`의 이전 size/hash와 validation/visual/manual-policy 결과는 initial promotion historical
 evidence로 보존한다. Exact tracked Gate D static 승인 뒤 clean full Distribution, current
 generated schema 3 candidate, full-build actual EXE gate, manifest와 publish는 실행하거나 생성하지
-않았다. LASAL IDE, PLC, Download/runtime도 실행하지 않았고 production NO-GO는 그대로다.
+않았다. `d4204b4`/`5d5aebe` checkpoint 당시 LASAL IDE, PLC, Download/runtime도 실행하지
+않았다. 이후 15:58 current reconnect image build/download는 별도 범위로 완료됐지만 같은 창
+live PASS는 없고 production NO-GO는 그대로다.
+
+Current reconnect V2 release-input tuple은 다음과 같다.
+
+| artifact | size | SHA-256 |
+|---|---:|---|
+| Markdown | `96,004` | `9A5FE9D42F08EF2E4B3507EAEFF8956013F819B3A7F2FB00E334C356CAC3179E` |
+| DOCX | `95,511` | `1BD54016B6E121CABF152164499E3DD943249C48A7ED6D8FE66271969C8A04B3` |
+| PDF | `1,022,442` | `50DDE24F8B45341500D1DCF6A647BD818D6B805D9CC0F81737664F33A5550A44` |
+
+Actual pair policy `3/3`, A4 `43`쪽, OpenXML error `0`, all-font embedding과 전 페이지 visual
+defect `0`을 확인했다. 이 결과는 PLC reconnect runtime proof가 아니다.
 
 ## 2. 기존 결함
 
@@ -404,7 +417,7 @@ prepared metadata와 promotion 전 live 재검증으로 보강했다.
 ## 9. 남은 작업
 
 1. 대규모 working tree를 목적별로 commit하고 clean checkout에서 같은 gate를 재현한다.
-2. `d4204b4` exact tracked Gate D 승인과 `5d5aebe` current canonical pair를 포함한 clean source
+2. `d4204b4` exact tracked Gate D 승인과 current reconnect V2 canonical pair를 포함한 clean source
    baseline에서 candidate와 schema 3 manifest를 처음 생성하고 독립 검토한다.
 3. binary-reference 예제 실행과 excluded-file/package hash를 별도 reviewer가 재확인한다.
 4. 별도 승인 후에만 candidate를 정식 Distribution/배포 대상으로 승격한다.
@@ -424,9 +437,11 @@ re-resolution을 구현하고 PS5.1/PS7 exact `14/14`를 PASS했다. 따라서 a
 candidate로 검사한 결과이며 fresh staged candidate/full Distribution 증거가 아니다.
 
 Historical full Distribution은 당시 승인되지 않은 Gate D에서 STOP했다. `d4204b4`가 exact
-tracked `24402BFA...` static snapshot을 승인하고 `5d5aebe`가 current canonical manual을 게시했지만
+tracked `24402BFA...` static snapshot을 승인하고 `5d5aebe`가 당시 canonical manual을 게시했지만
 그 뒤 full/network static target과 clean full Distribution은 실행하지 않았다. 따라서 full-build
 actual EXE gate, schema 3 manifest와 candidate publish도 생성하지 않았다. Clean full
 Distribution에서 freshly staged WPF source set을 포함한 전체 gate를 실행하고 그때 생성된 schema 3
 manifest/candidate를 독립 검토한다. LASAL IDE, PLC, Download/runtime은 이 PC/tooling·문서 입력
-작업에서 실행하지 않았다.
+작업 범위에서 실행하지 않았다. 이 historical release-input checkpoint 뒤 별도 reconnect 작업으로
+2026-08-12 15:58 `bbe8a8d`/current reconnect source와 일치하는 PLC image를 LASAL
+build/download했지만, 같은 창 Close -> Connect live PASS는 아직 확인되지 않았다.

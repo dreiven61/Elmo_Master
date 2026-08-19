@@ -1,5 +1,5 @@
 LMC DINT packet map
-Status 2026-08-12: delivery C# and the tracked canonical TCPMotionInterface have
+Status 2026-08-18: delivery C# and the tracked canonical TCPMotionInterface have
 request/public/handler paths for all 23 captured commands plus two project-local
 motion extensions, 0x204A and 0x204B. LASAL-local Admin v1 also defines
 0x7D22 GroupMoveLinearRelative. The 0x7D12 SetAxisPosition wire remains dormant.
@@ -8,9 +8,31 @@ The project-specific Home name is LMC_Home. Its dedicated durable triad is
 RetireLmcHomeOutcome. 0x7D13 is a 56-byte current-position-zero request. It
 contains no direction, search velocity, backoff, travel, Home-switch or
 limit-switch field and must not call MoveReference.
-The C# contract also reserves read-only 0x7D14 ReadAxisSetPositionOutcome and
-0x7D1A RetireAxisSetPositionOutcome; the current PLC has no retained store or
-route and does not advertise feature bit 5 or bit 7.
+The C# contract and tracked PLC source route and exact-parse read-only 0x7D14
+ReadAxisSetPositionOutcome and 0x7D1A RetireAxisSetPositionOutcome. As of
+2026-08-18, the tracked project has an IDE-created 1344-byte VAR_GLOBAL RETAIN
+ledger with one Intent plus terminal/tombstone A/B/C per axis. The Store
+Begin/Commit/Read/Retire/Scan/Select/CommitRecord source implementation and the
+Control wiring for 0x7D12/0x7D14/0x7D1A are complete. This is dormant source,
+not runtime activation: LMC_ADMIN_SET_POSITION_STORE_CONFIGURED is FALSE, the
+advertised mask is 0x00000017 with bits 3/5/7 clear, and the new Admin
+SetPosition Control/Store path has no native _LMCAxis.SetPosition call. Valid exact requests therefore return the
+16-byte common failure payload with detail 24 StorageUnavailable and perform no
+retained or native mutation. The actual PLC Autoexec.lsl and total SET
+SRAMRETAIN allocation have not been confirmed.
+The clean C78 reopen/rebuild compiled Control and Store, reached Linker Done
+with 0 errors and 78 warnings, and added no CInvalidArgException. SDK Debug and
+isolated Release each passed 1153/1153; focused service, close-fence and store
+verifiers passed 44/44, 38/38 and 292/292. The SetPosition verifier integration
+now pins exactly four usingLtd pragmas, 12 generated clients, and the exact
+Store/CheckSum/network contracts. The Store read-only verifier passes 292/292
+and the dedicated generated-wiring verifier passes 41/41. Full SourceOnly now
+reaches the UDP callback Gate D and fails closed because LASAL regeneration after
+adding LMCSetPositionStore intentionally renumbered protected/vendor Classes.lcb
+records and changed the ConfigObjects/network snapshot. This is registry
+renumbering, not source corruption, but it requires a separate evidence-backed
+full Gate D/candidate rebaseline. No full SourceOnly PASS, PLC download, runtime,
+or hardware E2E proof exists for this SetPosition ledger.
 The 0x7D15 StartAxisDs402Home, read-only 0x7D16
 ReadAxisDs402HomeOutcome, and idempotent 0x7D17
 RetireAxisDs402HomeOutcome contract accepts only DS402 method 37, Home offset 0,
@@ -169,7 +191,10 @@ For detail 1..10, 12..15, and 16..24 ErrorId is -31000. Detail 11 preserves a po
 LASAL GroupProfile error in ErrorId or uses adapter fallback -6; interpret positive
 values only in the GroupProfile domain. SetAxisPosition requires ErrorId=-6 for
 detail 11 and preserves the full native command-state bitfield in its
-command-specific response extension. LMC_Home start admits only command-specific
+command-specific response extension. SetAxisPosition start admits retained-domain
+details 20 (exact Armed), 21 (corrupt store), 23 (different active intent), and
+24 (storage unavailable). It does not admit detail 19 (query not found) or 22
+(query/retirement exact-key mismatch) as a start response. LMC_Home start admits only command-specific
 details 10, 13, 15, 16, 17, 18, 40, 41, and 42 in addition to the common
 envelope details. Detail 11 is not valid for LMC_Home start: execution failures
 are published in its retained outcome instead of claiming a native rejection in
@@ -245,29 +270,48 @@ NativeCommandRejected requires ErrorId=-6, AppliedPosition=0 and nonzero
 NativeCommandState; the SDK preserves that full bitfield in its typed rejection
 context. A positive/other ErrorId or any other contradictory
 correlated response is malformed/outcome-uncertain and faults the exact session.
-The tracked PLC source writes FeatureBits 0x00000017, so bit 3 is not advertised.
-The current 0x7D12 handler is intentionally fail-closed and calls no native
-SetPosition method.
-Activation requires an IDE-created two-bank retained outcome store, read-only
-0x7D14 exact query, separate terminal-retirement CAS, a separate
-application-approved SetPositionMaxJump, verified same-core/equal-or-lower-priority
-task placement, runtime state/ownership guards, IDE build/download, and PLC/pcap
-proof. LMCAXIS_PAR_RD_SWLIMWINDOW is the software end-position standstill tolerance
-and must not be reused as the jump cap.
+The tracked PLC source writes FeatureBits 0x00000017, so bits 3, 5 and 7 are not
+advertised. The implemented Control/Store path remains intentionally dormant
+because LMC_ADMIN_SET_POSITION_STORE_CONFIGURED is FALSE. A valid exact request
+returns detail 24 StorageUnavailable before Store access, performs no retained
+mutation, and calls no native SetPosition method.
+The service and TCP transport reserve the internal non-wire sentinel -12 for a
+future post-Armed terminal-store commit/readback uncertainty. This includes
+pre-native rejection paths with NativeCount=0 and post-native paths with
+NativeCount=1; no response may be sent until a terminal record is durable. The
+current service has one source producer in the terminal commit/readback failure
+branch, but the FALSE store macro makes it runtime-unreachable and the Admin
+SetPosition Control/Store path still has no native SetPosition call. If activated later, the TCP consumer is limited to
+0x7D12, writes no response, records the first pending closed-session epoch,
+disarms the callback endpoint, rolls the session epoch, blocks ingress, clears
+RPC state, closes the active request socket, and returns without SendData.
+Runtime activation still requires proof of the actual target Autoexec.lsl and
+the total SET SRAMRETAIN allocation, an application-approved
+SetPositionMaxJump, verified same-core/equal-or-lower-priority task placement,
+runtime state/ownership guards, a reviewed native boundary, an activation build
+and download, and PLC/pcap proof. The completed 1344-byte Store source and dormant
+Control wiring do not satisfy those gates. LMCAXIS_PAR_RD_SWLIMWINDOW is the
+software end-position standstill tolerance and must not be reused as the jump cap.
 
-0x7D14 ReadAxisSetPositionOutcome, request payload 48 bytes,
+0x7D14 ReadAxisSetPositionOutcome, request payload 52 bytes,
 Reference=original physical axis 1..4:
 P8  ExpectedDiagnosticsBuild U32, nonzero
-P12 ExpectedDiagnosticsBootId U32, nonzero
+P12 OriginalDiagnosticsBootId U32, nonzero; retained exact-key identity
 P16 ExpectedMapRevision U32, nonzero
-P20 OriginalRequestId U32
-P24 ClientIntentId0 U32
-P28 ClientIntentId1 U32
-P32 ClientIntentId2 U32
-P36 ClientIntentId3 U32
-P40 TargetPosition DINT
-P44 ExpectedActualPosition DINT
+P20 CurrentDiagnosticsBootId U32, nonzero; fresh current PLC identity
+P24 OriginalRequestId U32
+P28 ClientIntentId0 U32
+P32 ClientIntentId1 U32
+P36 ClientIntentId2 U32
+P40 ClientIntentId3 U32
+P44 TargetPosition DINT
+P48 ExpectedActualPosition DINT
 Common P4 is a new nonzero QueryRequestId. Semantic mode is fixed to 1 for v1.
+The SDK requires ExpectedDiagnosticsBuild and ExpectedMapRevision to match the
+fresh current diagnostics capabilities, but does not require the stored original
+BootId to equal the current BootId. The PLC validates CurrentDiagnosticsBootId
+against its live authoritative BootId before exact-matching the original BootId
+as part of the retained record key. The total request frame is 60 bytes.
 An exact terminal record returns exactly 84 payload bytes:
 P16 RecordState U16, 2 Succeeded / 3 Rejected
 P18 SemanticMode U16 = 1
@@ -285,32 +329,47 @@ P72 OriginalDetailCode U32
 P76 NativeCommandState U32
 P80 RecordGeneration U32, nonzero and no wrap
 Succeeded requires original status/error/detail/native state 0 and
-AppliedPosition=TargetPosition. Rejected requires original status 1 and the same
-pre-native/native-reject value combinations as 0x7D12. NotFound, identity mismatch,
+AppliedPosition=TargetPosition. Rejected requires original status 1 and only
+post-Armed detail 10..15; detail 11 additionally requires ErrorId=-6 and a
+nonzero NativeCommandState, while the other allowed details require ErrorId=-31000
+and NativeCommandState=0. Syntax/request/identity/storage details 1..9, 16..18,
+and 23..24 occur before the durable Armed commit and are malformed if returned in
+a terminal snapshot. NotFound, identity mismatch,
 Armed/Indeterminate, corrupt, or unavailable storage returns only the 16-byte common
 failure and never proves that the mutation was not dispatched. The query is
 read-only and never replays SetPosition.
 Feature bit 5 is AxisSetPositionOutcomeRead. It may be advertised before bit 3,
 and keeps its read-only meaning. Feature bit 7 is
 AxisSetPositionOutcomeRetirement and implies bit 5. Strict clients require bit 3
-AxisSetPosition to imply both bit 5 and bit 7. Details 16..24 require
+AxisSetPosition to imply both bit 5 and bit 7. Details 16..22 and 24 require
 ErrorCatalogVersion 2 in the paired activation. The tracked PLC source writes
-FeatureBits 0x00000017 and ErrorCatalogVersion 5, has no 0x7D14/0x7D1A
-route/store, and does not advertise bit 3, bit 5, or bit 7. These are source
-facts, not proof of the image currently downloaded to a PLC.
+FeatureBits 0x00000017 and ErrorCatalogVersion 5. It routes and exact-parses
+0x7D14/0x7D1A and has the implemented 1344-byte ledger/Store source, but the
+FALSE configuration macro prevents Store access and returns detail 24
+StorageUnavailable for a valid exact request. It does not advertise bit 3,
+bit 5, or bit 7. These are source/build facts, not proof of the image currently
+downloaded to a PLC.
 
-0x7D1A RetireAxisSetPositionOutcome, request payload 52 bytes,
+0x7D1A RetireAxisSetPositionOutcome, request payload 56 bytes,
 Reference=original physical axis 1..4:
-P8..P44 are byte-exact with the 0x7D14 recovery key request above.
-P48 RecordGeneration U32, nonzero.
+P8..P48 are byte-exact with the 0x7D14 recovery key request above.
+P52 RecordGeneration U32, nonzero. The total request frame is 64 bytes.
 Only an exact terminal identity and generation may be retired. Armed or
 Indeterminate records cannot be cleared. Success returns the same exact 84-byte
 terminal snapshot as 0x7D14, with the retire request id in the common envelope.
 The PLC must retain an idempotent tombstone so a lost 0x7D1A response can be
 retried using the same key and generation without repeating SetPosition.
-Failures use the 16-byte common envelope and details 16..24. The current PLC has
-no 0x7D1A route, retained SetPosition store, or bit 7 advertisement, so this SDK
-contract is wire-dormant and cannot clear the WPF recovery journal.
+0x7D1A does not use the 0x7D12-only -12 no-response transport sentinel. If a
+tombstone commit/readback step is uncertain, the serialized store owner rescans
+all four slots: an exact durable tombstone returns success, corrupt state returns
+detail 21, and a preserved original terminal without proved tombstone durability
+returns detail 24. None of these failures resolves the PC journal, and the exact
+retirement request remains safe to retry.
+Failures use the 16-byte common envelope and details 16..22 or 24. The current PLC
+source routes and exact-parses 0x7D1A and implements retained terminal/tombstone
+handling, but the FALSE Store configuration macro keeps that code dormant and
+bit 7 clear. A valid exact request returns detail 24 StorageUnavailable, so this
+SDK contract remains public-API dormant and cannot clear the WPF recovery journal.
 
 0x7D13 StartLmcHome, request payload 56 bytes, Reference=axis 1..4:
 P8  ExpectedDiagnosticsBuild U32, nonzero
@@ -1939,27 +1998,35 @@ Dormant LMCUdpCallbackSender Gate B/C contract:
   actual UDP endpoint or not-bound when initialization failed before bind. The
   immutable v2 statistics event preserves the current-session receiver decision
   and all four counters.
-  Policy commit 14ccf58 WPF applies RPC_INIT_FRESH_TCP_ONCE_V1 only when an initial or
-  in-process Connect candidate has Outcome=Failed, AttemptCount=2,
-  CanonicalRetryUsed=true, both exact -1 ACKs, and no RPC/callback start. It
-  retires/disposes that LMCConnection, waits one fixed PC-side 100 ms, and opens
-  exactly one fresh LMCConnection/TCP. The second candidate failure is terminal.
-  ErrorId=0/other, malformed/transport/cancellation, and callback-stage failures
-  receive no outer retry. One UI Connect is bounded to two TCP sockets and four
-  0x8080 requests; 0x405C is sent only after init success. Connect succeeds only
-  after a successful registration ACK; a 0x405C failure is terminal and receives
-  no outer retry.
-  WPF startup records ReconnectPolicy=RPC_INIT_FRESH_TCP_ONCE_V1, SdkPath, and
+  Current WPF RPC_INIT_FRESH_TCP_ONCE_V2 gives only candidate 1 a fresh-TCP
+  budget. Cause A is two exact canonical -1 ACKs with AttemptCount=2 and
+  CanonicalRetryUsed=true; it waits 100 ms. Cause B requires an actual 0x8080
+  request to have started, AttemptCount=1, no received response, and a
+  pre-response EndOfStreamException, SocketException, TimeoutException, or an
+  IOException whose inner-exception chain contains one of those; it waits 1000 ms. Either
+  cause retires/disposes candidate 1 and opens exactly one fresh
+  LMCConnection/TCP. Candidate 2 is terminal.
+  Connect-before-init AttemptCount=0, cancellation, ObjectDisposedException,
+  InvalidDataException even with an allowlisted inner exception, malformed
+  response, valid non--1 response, failure after a response, and callback-stage
+  failure receive no fresh-TCP retry. One UI Connect is bounded
+  to two TCP sockets and at most four 0x8080 requests; 0x405C is sent only after
+  init success and its failure is terminal. Historical policy commit 14ccf58 is
+  the persistent--1-only V1 checkpoint.
+  WPF startup records ReconnectPolicy=RPC_INIT_FRESH_TCP_ONCE_V2, SdkPath, and
   SdkBuildUtc. The existing topology marker remains
   CREVIS_TOPOLOGY_AXIS1_UI24_SDO_WRITE_LIVE_AXIS_QUAL_V5; V5 is a GUI/test
   identity and does not alter this packet map or EtherCAT topology revision.
+  RPC-init evidence retains CandidateOrdinal, FreshSessionRetryReason,
+  FreshSessionRetryDelayMs, FreshSessionRetryFromCandidate,
+  FreshSessionRetryNextCandidate, and FreshSessionFirstFailure.
   Internal replacement and window X use a shared maximum-two-Dispose local
   cleanup and retain RpcCloseResponse/LastCloseException. X cancels if the full
   disconnected postcondition is incomplete; if close fails, the strict Close
   button rethrows that failure after cleanup.
   The af4ab63 WPF Release 335/335 remains historical and includes persistent
   init-failure cleanup, ErrorId=0 zero-retry/manual fresh-session cleanup, and
-  stale queued-event fencing after UI dispatch. Current cbf2548 WPF
+  stale queued-event fencing after UI dispatch. Historical cbf2548 WPF
   Debug/Release Rebuild passes, full smoke reports 339/339, targeted reconnect 6/6,
   independent callback/reconnect 9/9 with no P0/P1, and the separate actual-EXE
   relaunch gate passes 1/1 in both Debug and Release. The historical fake restart
@@ -1974,10 +2041,17 @@ Dormant LMCUdpCallbackSender Gate B/C contract:
   EXE, SDK DLL, and optional configuration path/length/SHA-256 identities remain
   unchanged before and after. These process/mutex/wire results are PC loopback
   evidence, not PLC cleanup/disarm/readiness, MotionLib/axis state, or the user's
-  live PLC relaunch proof. Fixed 100 ms is not PLC slot/FSM readiness evidence. Wire -1
+  live PLC relaunch proof. The 100 ms and 1000 ms delays are not PLC slot/FSM
+  readiness evidence. Wire -1
   does not distinguish internal disarm -8/-9 from lifecycle/ownership rejection;
   PC local cleanup does not prove PLC disarm success and no private PLC state is
-  force-cleared.
+  force-cleared. The current reconnect PLC image was built and downloaded at
+  15:58 on 2026-08-12, but a same-window Close-then-Connect live reconnect PASS
+  has not been observed. Image transfer and V2 fake-peer tests are not PLC
+  runtime reconnect proof. The 1133/1133, 339/339, 6/6, 9/9 and 1/1 results above
+  remain historical and are not a current V2 final count.
+  Current V2 passes the Release build/full smoke at 347/347, an isolated Debug
+  build, and Wpf.CallbackV2.* at 17/17. These are PC fake-RPC results only.
   The 16 ownership harness regressions remain a separate RETRY_COUNT=0 raw-wire
   policy for GD-N10A/N13/N14 exact 0x8080/version-2 0x405C/authoritative-owner
   0x405D flows. Its live mode has not been executed against the PLC. All of this

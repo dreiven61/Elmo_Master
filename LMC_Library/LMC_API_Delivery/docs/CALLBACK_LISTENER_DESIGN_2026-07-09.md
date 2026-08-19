@@ -184,18 +184,25 @@ After session replacement begins, any initialization failure closes the new
 command socket and callback listener and records `LastInitializationException`.
 
 The SDK's one 20 ms retry is confined to the same `LMCConnection`/TCP socket.
-WPF policy commit `14ccf58` adds one application-level fresh-session retry only
-when an initial or in-process Connect's first candidate reports `Outcome=Failed`,
-`AttemptCount=2`,
-`CanonicalRetryUsed=true`, both ACKs are the exact canonical `-1` envelope, and
-RPC/callback registration never started. It retires/disposes that candidate,
-waits a fixed PC-side 100 ms, and creates exactly one new `LMCConnection` and TCP
-socket. The second candidate failure is terminal. ErrorId 0/other errors,
-malformed/transport/cancellation failures, and callback-stage failures receive no
-outer retry. One WPF Connect is bounded to two TCP sockets and four `0x8080`
-requests; `0x405C` is sent only after successful init. Connect succeeds only
-after a successful registration response; a `0x405C` failure is terminal and
-receives no WPF outer retry.
+Current WPF policy marker `RPC_INIT_FRESH_TCP_ONCE_V2` gives only candidate 1 a
+fresh-TCP budget. Cause A is the persistent exact canonical `-1` case with
+`AttemptCount=2` and `CanonicalRetryUsed=true`; it waits 100 ms. Cause B requires
+an actual `0x8080` request to have started, `AttemptCount=1`, no received response,
+and a pre-response `EndOfStreamException`, `SocketException`, `TimeoutException`,
+or `IOException` whose inner-exception chain contains one of those; it waits 1000 ms. Either
+cause retires/disposes candidate 1 and creates exactly one fresh
+`LMCConnection`/TCP socket.
+
+Candidate 2 is terminal. A TCP connect-before-init failure (`AttemptCount=0`),
+cancellation, `ObjectDisposedException`, `InvalidDataException` even with an
+allowlisted inner exception, malformed response, valid non-`-1` response, any
+failure after a response, and callback-stage failure receive no fresh-TCP retry.
+One WPF Connect is bounded to two TCP sockets and at most four
+`0x8080` requests. `0x405C` is sent only after successful init and its failure is
+terminal. Evidence retains `CandidateOrdinal`, `FreshSessionRetryReason`,
+`FreshSessionRetryDelayMs`, `FreshSessionRetryFromCandidate`,
+`FreshSessionRetryNextCandidate`, and `FreshSessionFirstFailure`. Commit
+`14ccf58` and its persistent-`-1`-only V1 results remain historical.
 
 ### Close
 
@@ -288,20 +295,21 @@ generation, and the same-session `CallbackV2StatisticsChanged` snapshot event;
 `ad7c8b1` fences queued old-session WPF actions. Commit `af4ab63` historically
 proved that a non-canonical short ACK with `ErrorId=0` retries zero times,
 performs full listener/TCP/WPF cleanup, and that the next manual Connect uses a
-fresh socket. Policy commit `14ccf58` adds the exact bounded WPF fresh-session policy
-described above for persistent canonical `-1` only.
+fresh socket. Policy commit `14ccf58` historically added the persistent canonical
+`-1`-only V1 policy. Current source implements the V2 two-cause policy above.
 The WPF displays the requested tuple as `RequestedCallback` and the actual UDP
 endpoint as `BoundCallback`, or `not-bound` when init failed before bind, together
 with the accepted version-2 registration fence and receiver decision counters.
-Current SDK Debug/Release direct suites pass `1133/1133`. The `af4ab63` WPF
-Release `335/335` is historical; current `cbf2548` Debug/Release Rebuild passes,
+Historical SDK Debug/Release direct suites passed `1133/1133`. The `af4ab63` WPF
+Release `335/335` is historical; historical `cbf2548` Debug/Release Rebuild passed,
 the unchanged full smoke passes `339/339`, reconnect targeted tests pass `6/6`, and an independent
-callback/reconnect review passes `9/9` with no P0/P1. Startup records
-`ReconnectPolicy=RPC_INIT_FRESH_TCP_ONCE_V1`, `SdkPath`, and `SdkBuildUtc`; the
-topology marker remains V5. This is bounded PC recovery/observability evidence,
-not a PLC disarm fix or callback runtime proof.
+callback/reconnect review passed `9/9` with no P0/P1. Those counts are not a V2
+final count. Startup now records `ReconnectPolicy=RPC_INIT_FRESH_TCP_ONCE_V2`,
+`SdkPath`, and `SdkBuildUtc`; the topology marker remains V5. V2 fake-peer tests
+are bounded PC recovery/observability evidence, not a PLC disarm fix or callback
+runtime proof.
 
-The fixed 100 ms backoff is not PLC slot/FSM readiness evidence. A canonical
+The 100 ms and 1000 ms backoffs are not PLC slot/FSM readiness evidence. A canonical
 wire `-1` does not distinguish internal disarm `-8`/`-9` from lifecycle or
 ownership rejection. The historical `14ccf58` fake restart uses a new
 `MainWindow` in the same test process and remains a distinct regression.
@@ -319,9 +327,12 @@ with zero owned-temp writes and zero TCP sessions. EXE, SDK DLL, and optional
 configuration path/length/SHA-256 identities are unchanged before and after.
 This proves only the PC process, default-mutex, local-cleanup, and fake-wire
 contract. It does not prove PLC cleanup/disarm/readiness, the adequacy of the
-fixed 100 ms backoff, MotionLib/axis state, or the user's live PLC relaunch case.
+100/1000 ms backoffs, MotionLib/axis state, or the user's live PLC relaunch case.
 Local PC cleanup does not prove PLC disarm success, and no private PLC state is
-force-cleared.
+force-cleared. The current reconnect PLC image was built and downloaded at 15:58
+on 2026-08-12. That proves image transfer only. A same-window Close-then-Connect
+live reconnect PASS has not been observed, so neither the image transfer nor V2
+fake tests are PLC runtime reconnect proof.
 
 The distribution script now runs this gate immediately after copying the
 binary-reference EXE/DLL into candidate `Run` and before manifest creation. It
@@ -1415,9 +1426,12 @@ fail-closed and must not be bypassed.
 
 The predecessor `e3c9365` owner-loss source passed an isolated LASAL incremental
 compile/link, but its generated `Classes.lcb=5337...` was rejected by the
-artifact comparator. Follow-up commit `bbe8a8d` has PS5.1/PS7 static
-self-test `311/311` evidence only; it has no LASAL IDE build, sanctioned artifact, PLC
-download, or PLC runtime reconnect evidence. A generic wire
+artifact comparator. At that historical checkpoint, before the later 15:58 image
+transfer, follow-up commit `bbe8a8d` had PS5.1/PS7 static self-test `311/311`
+evidence only and no LASAL IDE build, sanctioned artifact, PLC download, or PLC
+runtime reconnect evidence. The current reconnect image matching the
+`bbe8a8d`/current source was then built and downloaded at 15:58 on 2026-08-12,
+but same-window Close-then-Connect remains unverified. A generic wire
 `Status=1/ErrorId=-1` still cannot identify internal `-8` versus `-9`.
 
 `0x8080` validates its one-byte initialization shape and socket ownership
@@ -1872,11 +1886,12 @@ retry. The retained initialization evidence and immutable v2 statistics event
 also preserve the exact attempt/ACK/outcome and same-session receiver decision
 after cleanup/UI dispatch. `af4ab63` additionally preserves the requested and
 actual/not-bound callback endpoints and proves zero retry/full cleanup/fresh
-manual socket for a non-canonical `ErrorId=0` short ACK. Current SDK
-Debug/Release direct result is `1133/1133`; current `cbf2548` WPF Debug/Release
-Rebuild passes and full smoke remains `339/339`, with targeted `6/6`, independent
-callback/reconnect `9/9`, and separate actual-EXE relaunch `1/1` per configuration
-evidence.
+manual socket for a non-canonical `ErrorId=0` short ACK. The SDK
+Debug/Release `1133/1133`, `cbf2548` WPF Debug/Release Rebuild, full smoke
+`339/339`, targeted `6/6`, independent callback/reconnect `9/9`, and actual-EXE
+relaunch `1/1` per configuration are historical V1 evidence and are not a current
+V2 final count. Current V2 passes the Release build/full smoke at `347/347`, an
+isolated Debug build, and `Wpf.CallbackV2.*` at `17/17`; these remain PC fake-RPC evidence.
 The D5
 event-to-authoritative-query mapping and opt-in WPF consumer now exist. The Gate
 D source now contains the one-attempt broker

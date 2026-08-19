@@ -438,8 +438,10 @@ durable PC journal은 recovery UX를 제공할 뿐 PLC owner를 대체하지 않
 
 owner conflict는 framing failure가 아니라 correlated command rejection이다.
 
-- Admin Home/SetPosition/Reference start: 기존 `InvalidState`, detail `10`,
-  `ErrorId=-31000`을 사용한다. DS402 Home의 detail `32`는 unretired terminal slot 전용이며
+- Admin Home/Reference start의 owner conflict는 기존 `InvalidState`, detail `10`,
+  `ErrorId=-31000`을 사용한다. SetPosition은 current retained store-unavailable stage에서
+  owner mutation 전에 detail `24`로 닫힌다. store activation 뒤 실제 owner conflict는
+  detail `10`을 사용한다. DS402 Home의 detail `32`는 unretired terminal slot 전용이며
   active owner conflict에 재사용하지 않는다.
 - Diagnostics TW20/TW19: dedicated start의 `ResourceBusy`, detail `9`를 사용한다.
 - ordinary Axis/Group: 기존 4-byte status/error payload 형태를 유지하되 ownership 전용

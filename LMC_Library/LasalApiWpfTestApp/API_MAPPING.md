@@ -17,7 +17,7 @@
 | Stop + stable verification | Begin `0x2022` once, Resume `0x2028` | `BeginStopWaitForStableStandstillAsync`, then `ResumeStopWaitForStableStandstillAsync`; priority send와 preemptible monitor 분리, later same-axis mutation typed interference, no Stop replay |
 | Read Status | `0x2028` | `ReadStatusResultAsync` |
 | Read Position | `0x202E` | `GetActualPositionResultAsync` |
-| Set Axis Position | Start `0x7D12`, outcome `0x7D14`, retire `0x7D1A` | SDK는 diagnostics identity+4 x U32 intent one-shot mutation, restart-safe exact read-only query와 nonzero generation CAS retirement 계약을 제공한다. bit 5는 query-only이고 별도 bit 7이 retirement를 광고한다. WPF에는 독립 durable journal core만 있고 MainWindow와 연결하지 않았다. PLC bit 3/5/7, retained store/query/retirement route는 OFF/미구현이고 native mutation은 0회다. store/query/retirement, journal v2와 unified ownership 동시 연결, task/core/priority, authoritative max-jump 및 PLC proof 전에는 control을 노출하지 않는다. |
+| Set Axis Position | Start `0x7D12`, outcome `0x7D14`, retire `0x7D1A` | SDK는 diagnostics identity+4 x U32 intent one-shot mutation, original BootId retained key와 fresh current BootId를 분리한 restart-safe exact read-only query, nonzero generation CAS retirement 계약을 제공한다. bit 5는 query-only이고 별도 bit 7이 retirement를 광고한다. WPF에는 독립 durable journal core만 있고 MainWindow와 연결하지 않았다. PLC route/exact parser는 source-active지만 retained store/tombstone이 없어 valid query/retirement도 detail 24이고 bit 3/5/7은 OFF, native/store mutation은 0회다. retained store/query/retirement success path, evidence-bound journal과 unified ownership 동시 연결, task/core/priority, authoritative max-jump 및 PLC proof 전에는 control을 노출하지 않는다. |
 | LMC Home - Current Position Zero | Start `0x7D13`, outcome `0x7D18`, retire `0x7D19` | `LMCSingleAxis.PrepareLMC_Home`, `LMC_Home[Async]`, `ReadLMC_HomeOutcome[Async]`, `RetireLMC_HomeOutcome[Async]`. `ExpectedActualPosition`은 stale-read guard이고 target은 0이다. motion enable이나 Home/limit switch 탐색은 없다. Admin bit 4는 current source에서 ON이고 Single Axis WPF control이 있다. Start ACK는 완료가 아니며 terminal query와 exact retirement가 필요하다. WPF는 `LMC Home outcome:`에 record/native/position/evidence/failure/runtime/generation 상세를 기록한다. raw feedback 성공 창은 wrap-safe `-2/-1/0/+1/+2 count`이고 `+/-3`부터 거부한다. Axis2 `+1`과 Axis1 `+2`의 false `-7` 증거를 반영한 수정 뒤 C78 Rebuild/Download와 새 BootId의 한 축 runtime proof가 남아 있다. |
 | DS402 Home method 37 | Start `0x7D15`, outcome `0x7D16`, retire `0x7D17` | `PrepareLMC_HomeDS402`, `LMC_HomeDS402[Async]`, `ReadDs402HomeOutcome[Async]`, `RetireDs402HomeOutcome[Async]`. Method 37, Home offset 0, velocity/acceleration/distance/torque 0의 non-moving current-position-zero source는 구현됐지만 `LMC_DIAG_DS402_HOME_ENABLED=FALSE`, Admin bit 6 OFF라 current runtime에서는 차단된다. |
 | TEST ONLY Encoder Maintenance TW[20]/TW[19] | Start `0x7E53`, outcome `0x7E54`, retire `0x7E55` | TW[20]은 `0x20FC:0x02 <- UInt16 1`, TW[19]는 `0x20FC:0x01 <- UInt16 1`만 허용한다. `PrepareTw20EncoderErrorWarningReset`/`PrepareTw19MultiturnPositionReset`, `StartEncoderMaintenance[Async]`, `ReadEncoderMaintenanceOutcome[Async]`, `RetireEncoderMaintenanceOutcome[Async]`; source capability bit 18/19는 ON이다. terminal RPC 결과와 drive의 정확한 물리 효과는 별도 증거다. |
@@ -80,24 +80,31 @@ commit한다. exact duplicate는 idempotent이고 다른 re-registration은 기�
 `HeaderReserved=0`, payload 4 bytes와 이 exact command error가 모두 맞을 때 20 ms
 cancellation-aware 대기 뒤 같은 TCP socket으로 init을 한 번 더 시도한다. 두 번째도
 실패하면 `Faulted`와 TCP/UDP cleanup으로 끝나며, 다른 ErrorId/nonzero
-reserved/malformed response는 SDK zero-retry다. Policy commit `14ccf58` WPF는 초기 및 동일
-프로세스 내 후속 Connect 모두에서 첫 candidate의 두 exact canonical `-1` 응답이
-`Outcome=Failed`, `AttemptCount=2`, `CanonicalRetryUsed=true`이고 RPC/callback이 아직
-시작되지 않은 경우에만 candidate를 retire/`Dispose`한다. 100 ms 뒤 정확히 하나의 새
-`LMCConnection`/TCP를 열며 두 번째 candidate 실패는 terminal이다. `ErrorId=0`, 다른
-ErrorId, malformed/transport/cancellation 또는 callback-stage 실패는 WPF outer retry
-대상이 아니다. 사용자 Connect 한 번당 최대 TCP 2개/`0x8080` 4회이며 `0x405C`는 init
-성공 뒤에만 전송된다. 정상 registration ACK까지 받아야 Connect가 성공하며 `0x405C`
-실패는 terminal이고 outer retry가 없다. 이는 PLC의 persistent callback disarm `-8`/`-9`
-root fix가 아니다.
+reserved/malformed response는 SDK zero-retry다.
+
+Current WPF marker `RPC_INIT_FRESH_TCP_ONCE_V2`의 fresh-TCP budget은 첫 candidate에만 있다.
+(A) 두 exact canonical `-1`로 `AttemptCount=2`, `CanonicalRetryUsed=true`가 된
+persistent same-socket failure는 100 ms 뒤, (B) 실제 `0x8080` request가 시작된
+`AttemptCount=1`이고 response가 없으며 exception이 직접 `EndOfStreamException`,
+`SocketException`, `TimeoutException` 중 하나이거나 `IOException`의 `InnerException` chain에
+그중 하나가 포함된
+pre-response transport failure는 1000 ms 뒤 fresh candidate 하나를 연다. 두 번째
+candidate의 모든 failure는 terminal이다. TCP connect-before-init(`AttemptCount=0`),
+cancellation, `ObjectDisposedException`, `InvalidDataException`(허용형 `InnerException`이 있어도 포함),
+malformed/valid non-`-1` response, response 이후
+failure와 callback-stage failure는 retry하지 않는다. 사용자 Connect 한 번당 최대 TCP
+2개/`0x8080` 4회이며 `0x405C`는 init 성공 뒤에만 전송된다. 정상 registration ACK까지
+받아야 Connect가 성공한다. 이는 PLC의 persistent callback disarm `-8`/`-9` root fix가
+아니다. Historical `14ccf58` V1은 persistent-`-1`만 허용했던 과거 policy다.
 
 PLC source는 일반 `0x8080`/`0x405D` mismatch를 계속 fail-closed로 보존한다. 별도의
 internal owner-loss retirement는 accepted owner transition 또는
 `CurrentSock=dSock`인 definitive disconnect에서 ordinary helper가 정확히 `-8`을
 반환한 경우만 sender에 `(0,0,0)` sentinel을 전달하고, sender 결과 `0/1` 뒤 같은
 helper로 local tuple clear를 확인한다. `-9`, different-IP/unknown candidate, failed
-takeover와 late retiring-old disconnect는 이 경로를 사용할 수 없다. 이 source 변경은
-아직 LASAL IDE build, PLC download 또는 PLC runtime으로 검증하지 않았다.
+takeover와 late retiring-old disconnect는 이 경로를 사용할 수 없다. 2026-08-12 15:58
+reconnect PLC image의 LASAL build/download는 완료됐다. 같은 창 Close -> Connect live
+PASS는 아직 확인되지 않았으므로 이 사실을 PLC runtime branch proof로 확대하지 않는다.
 
 GUI는 connection cleanup 뒤에도 RPC init 시도 횟수, canonical retry 사용 여부와 마지막
 ACK를 Active/Retired evidence로 보존한다. 입력 tuple은 `RequestedCallback`, 실제 UDP
@@ -113,10 +120,13 @@ counter를 대체하지 않는다. `0x8080` wire response에는 PLC의 `-8`/`-9`
 disconnected postcondition을 요구한다. `RpcCloseResponse`/`LastCloseException`은 이전
 connection에 남는다. X는 postcondition 미완료 시 취소되고, 명시적 Close 버튼은 cleanup
 뒤에도 close 오류를 throw한다. startup은
-`ReconnectPolicy=RPC_INIT_FRESH_TCP_ONCE_V1`, `SdkPath`, `SdkBuildUtc`를 기록하고 기존
-topology marker V5를 유지한다. 100 ms는 PC fixed backoff일 뿐 PLC readiness 증거가
-아니며 PC cleanup 자체는 PLC disarm 성공 또는 internal owner-loss retirement를 뜻하지
-않는다.
+`ReconnectPolicy=RPC_INIT_FRESH_TCP_ONCE_V2`, `SdkPath`, `SdkBuildUtc`를 기록하고 기존
+topology marker V5를 유지한다. Candidate evidence는 `CandidateOrdinal`,
+`FreshSessionRetryReason`, `FreshSessionRetryDelayMs`,
+`FreshSessionRetryFromCandidate`, `FreshSessionRetryNextCandidate`,
+`FreshSessionFirstFailure`를 기록한다. 100/1000 ms는 PC bounded backoff일 뿐 PLC readiness
+증거가 아니며 PC cleanup 자체는 PLC disarm 성공 또는 internal owner-loss retirement를
+뜻하지 않는다.
 
 Typed wake는 listener가 소유한 connection과 positive session generation에 귀속된다. WPF는
 dispatcher queue에서 active connection identity와 `BelongsToCurrentSession(connection)`,
@@ -264,7 +274,7 @@ process restart는 `RecoveryRequired`로 승격한다. exact reconnect와 Load G
 fail-closed하고 Reset을 자동 replay하지 않는다.
 
 `af4ab63` SDK Debug/Release `1117/1117`과 WPF Release `335/335`는 historical
-snapshot이다. Current executable-gate commit `cbf2548`은 SDK Debug/Release direct runner
+snapshot이다. Historical executable-gate checkpoint `cbf2548`은 SDK Debug/Release direct runner
 각각 `1133/1133`, WPF Debug/Release Rebuild PASS, 기존 full smoke `339/339`, reconnect
 targeted `6/6`을 PASS했다. 독립 callback/reconnect review는 `9/9`, P0/P1 없음이다.
 별도 actual-EXE relaunch gate도 Debug/Release 각각 `1/1` PASS했다. 실제 PID/HWND에 외부
@@ -287,6 +297,8 @@ fixed-port 재bind, 새 `LMCConnection`/TCP session과 두 번째 `0x8080 -> 0x4
 이는 loopback fake-RPC/UDP PC 증거이며 PLC의 `-8` retirement, `-9` fail-closed, socket
 takeover 또는 사용자 PLC 재접속 완료를 증명하지 않는다. 기존 `339/339` historical
 count에 소급 포함시키지 않는다.
+Current V2는 Release build/full smoke `347/347`, isolated Debug build와
+`Wpf.CallbackV2.*` `17/17`을 PASS했다. 이는 PC fake-RPC 증거다.
 
 후속 배포 verifier compatibility commit `ad4af91`은 API/wire mapping을 바꾸지 않는다.
 Targeted PS5/PS7 Publish+Reserve는 PASS했고, PS5.1 Release `RunLasalContract`와

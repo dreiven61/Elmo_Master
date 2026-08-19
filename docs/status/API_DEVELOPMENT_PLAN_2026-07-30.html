@@ -297,8 +297,54 @@
       <a href="../history/260803/99_analysis_summary.md">260803 continuation summary 9절</a>을 따릅니다.
     </aside>
     <aside class="alert">
-      <strong>계획 기준:</strong> <code>main@6537bcf</code> + 2026-07-31 current dirty working tree입니다.
-      source가 실시간 변경 중이므로 첫 작업은 기능 추가가 아니라 source freeze와 동일-hash 재검증입니다.
+      <strong>Historical 계획 기준:</strong> <code>main@6537bcf</code> + 2026-07-31 dirty working tree였습니다.
+      아래 2026-08-19 override가 현재 판단을 대체하며, source freeze와 동일-hash 재검증 원칙은 유지합니다.
+    </aside>
+    <aside class="alert">
+      <strong>2026-08-19 SetPosition P0 source/static/C78 override:</strong>
+      IDE-created <code>VAR_GLOBAL RETAIN</code> ledger는 1344 bytes이며 4축 각각에
+      84-byte Intent와 84-byte terminal/tombstone A/B/C를 둡니다.
+      <code>LMCSetPositionStore</code> Begin/terminal Commit/Read/Retire lifecycle과 Control
+      <code>0x7D12/0x7D14/0x7D1A</code> dormant wiring을 구현했습니다. <code>0x7D12</code>는
+      private <code>HandleAdminSetPosition</code>, top-level route는 private
+      <code>DispatchRequestCommand</code>로 분리했고 coordinate max-jump와 new-Armed 전용
+      ownership reserve/rollback source를 추가했습니다.
+      후속 P0는 <code>LMCEcatInputLatch</code>에 frozen 16-DINT mailbox, 32-DINT result와
+      atomic Submit/Copy/RT Process를 구현했습니다. Slot 4 caller identity와 slot 10 internal
+      publication sequence는 별도이고 torn snapshot은 axis read/result publish를 모두 하지
+      않습니다. <code>MaxJump=0</code>은 coherent <code>state=2/failure=-6/detail=14</code>,
+      <code>READY</code>는 snapshot only입니다. Source SHA-256은
+      <code>F7DC9857DB528D73481831D3D1F9DA3A63420DF653A2146C6E30397337855FA1</code>, semantic
+      SHA-256은 <code>A5BDF88EFA2C1942B1CFF7AA7BAF512A2B5ECF3BFE852BFC33F68449258DB508</code>,
+      focused verifier는 <code>95/95</code> PASS입니다. <code>LMCEcatInputLatch</code>는
+      <code>137891</code> bytes/17 methods, current method budget은
+      <code>6/106/103/3</code>(classes/methods/under-limit/debt) PASS입니다.
+      SDK Debug와 isolated Release는 각각 <code>1153/1153</code>, WPF smoke는
+      <code>356/356</code>, retained-store reference는
+      <code>41/41</code> fixtures·<code>1253</code> assertions PASS입니다. Current focused suites는
+      AxisZeroHome <code>34/34</code>, close <code>38/38</code>, AdminStore
+      <code>110/110</code> + edge <code>15/15</code>, StoreScan <code>292/292</code> + generated
+      wiring <code>41/41</code> PASS입니다.
+      C78/ARM Rebuild All은 Linker <code>Done</code>,
+      <code>0 error(s), 79 compiler warning(s)</code>, rebuild 시작 이후 새
+      <code>CInvalidArgException=0</code>으로 PASS했습니다. <code>Class/Classes.lcb</code>는
+      <code>8600084</code> bytes / SHA-256
+      <code>CC5B7FD831616551117DB8260257362069DB51880C53250DBF3CEC35458A48E4</code>입니다.
+      UDP verifier SHA-256
+      <code>FBC6E185C81E744A59D70A0EBDDA8D3BD2E8871F3F9BE6FB354CBD718A785ADA</code>의
+      PowerShell 5.1 parser와 self-test <code>336/336</code>, current
+      <code>TerminalWakeBrokerCandidate</code> VerifyCurrent
+      <code>ProductionApproved=True</code>/<code>NeedsRebaseline=False</code>/<code>IDEClosed=True</code>도
+      PASS했습니다.
+      Main verifier SHA-256
+      <code>878DFB46691271F5ADA982A6585AA6A4FF5065AA357D07CBFA7488F845A688BD</code>의
+      <code>-SourceOnly -ExpectedSdoWriteAxis 1</code> terminal은
+      <code>Phase5TransportClean</code>/<code>IntegratedReadOwnerDormant</code>, exit <code>0</code>입니다.
+      Store/ordinary ownership은 <code>FALSE</code>, 축 1..4 max-jump는 <code>0</code>, Admin
+      <code>FeatureBits=0x17</code>의 bits 3/5/7은 OFF, native SetPosition은 0회입니다. Actual PLC
+      <code>Autoexec.lsl</code>/total <code>SET SRAMRETAIN</code> allocation과 PLC
+      download/runtime/hardware E2E는 미확인입니다. 새 Control async lifecycle,
+      Store-to-mailbox, TCP pending <code>-13</code>, claim/native 또는 capability wiring도 없습니다.
     </aside>
     <aside class="alert">
       <strong>2026-08-12 current release-input/Gate D override:</strong>
@@ -307,17 +353,26 @@
       <code>2.3-candidate</code> DOCX/PDF를 initial tracked canonical release input으로 승격했고,
       clean detached default resolver/worktree clean/manual policy <code>3/3</code>을 확인했습니다.
       <code>f304e8b</code>는 canonical package/example README의 preview/production NO-GO를
-      semantic regression에 고정해 양 host semantic <code>53</code> + check <code>18</code>,
+      semantic regression에 고정해 당시 양 host semantic <code>53</code> + check <code>18</code>,
       pipeline <code>291</code>, provenance <code>84</code>를 PASS했습니다. Canonical source
       snapshot direct semantic은 <code>CANDIDATE_WPF_SOURCE_SET</code>에서 멈췄지만 fresh staged
       candidate가 아닙니다. <code>978597b</code>가 이 baseline을 문서화했고
       <code>d4204b4</code>는 모든 exact 검사를 통과한 clean tracked
       <code>Classes.lcb=24402BFA...</code> tuple만 PC/static 승인했습니다. PS5.1/PS7 self-test
-      <code>296/296</code>과 clean detached SourceOnly는 PASS했고 main working tree
-      <code>13EA5823...</code>는 계속 reject됩니다. <code>5d5aebe</code>는 이 경계를 반영한
-      current canonical manual을 게시했습니다. Post-approval full/network static, clean full
+      <code>296/296</code>과 clean detached SourceOnly는 PASS했고 그 checkpoint의 main working tree
+      <code>D4C1FF46...</code>는 reject됐습니다. <code>5d5aebe</code>는 이 경계를 반영한
+      당시 canonical manual을 게시했습니다. 그 후 reconnect V2 canonical checkpoint는 Markdown
+      <code>96,004</code> bytes / <code>9A5FE9D4...</code>, DOCX <code>95,511</code> bytes /
+      <code>1BD54016...</code>, PDF <code>1,022,442</code> bytes / <code>50DDE24F...</code>이며
+      actual pair policy <code>3/3</code>, 양 host SemanticPolicy <code>70/70</code> + check
+      <code>18</code>, A4 43쪽/OpenXML/font/전 페이지 visual gate를 PASS했습니다. 그 시점 WPF V2는
+      Release <code>347/347</code>, isolated Debug build, targeted <code>17/17</code> PASS지만 같은 창
+      PLC Close→Connect는 아직 미검증입니다. Post-approval full/network static, clean full
       Distribution/current schema 3 candidate/full-build actual EXE gate/manifest/publish와 LASAL
-      IDE/PLC/Download/runtime은 실행하지 않았고 production NO-GO는 유지됩니다.
+      IDE/PLC/Download/runtime은 <code>d4204b4</code>/<code>5d5aebe</code> checkpoint 당시
+      실행하지 않았습니다. 이후 2026-08-12 15:58 <code>bbe8a8d</code>/current reconnect source와
+      일치하는 PLC image의 LASAL build/download는 완료됐지만, 같은 창 runtime은 미검증이고
+      production NO-GO는 유지됩니다.
     </aside>
 
     <div class="goal">
@@ -329,7 +384,7 @@
       <article class="marker">
         <div class="label">CURRENT MARKER</div>
         <div class="value">M0 → M1</div>
-        <small>Reference 포함 current PC/static PASS · callback+0x7D12+0x7D13 fresh IDE/commit/PLC 적용 대기</small>
+        <small>SetPosition P0 preflight build PASS · READY snapshot only · activation/runtime OFF</small>
       </article>
     </div>
 
@@ -337,12 +392,12 @@
       <h2 id="roadmap-title">Milestone 로드맵</h2>
       <p class="lead">각 milestone은 출구 조건을 통과해야 다음 단계의 결과를 완료로 인정합니다.</p>
       <div class="roadmap">
-        <article class="mile current"><div class="num">M0</div><h3>Working-tree baseline</h3><p>source freeze, 동일 hash SDK/WPF 회귀, 수치와 provenance 고정</p><span class="badge b-current">진행 중</span></article>
-        <article class="mile current"><div class="num">M1</div><h3>LASAL current integration</h3><p>IntegratedReadOwnerDormant와 dormant Admin 0x7D12/0x7D13 current static PASS. IDE build/3-class smoke는 callback/0x7D12/0x7D13 전 checkpoint PASS, 세 변경을 포함한 current source fresh rebuild 대기</p><span class="badge b-current">build 대기</span></article>
+        <article class="mile current"><div class="num">M0</div><h3>Working-tree baseline</h3><p>SDK 1153/1153, WPF 356/356, RT preflight 95/95, main SourceOnly exit 0과 current SHA tuple 고정</p><span class="badge b-current">검증 PASS · commit 대기</span></article>
+        <article class="mile current"><div class="num">M1</div><h3>LASAL current integration</h3><p>1344-byte retained ledger/Store/Control dormant slice와 observation-only 16/32 RT preflight 구현. C78 Rebuild All 0 errors·79 compiler warnings, Linker Done PASS. READY는 snapshot only이며 Store/ordinary FALSE, max-jump 0, capability OFF, native 0</p><span class="badge b-current">P0 source/static/build PASS · runtime 대기</span></article>
         <article class="mile partial"><div class="num">M2</div><h3>PLC safety/read-only baseline</h3><p>안전 chain, UNIT/task, capability, topology와 readback 정합</p><span class="badge b-partial">부분</span></article>
         <article class="mile partial"><div class="num">M3</div><h3>Active qualification</h3><p>25-command motion/group와 D1~D5 fault/soak/recovery evidence</p><span class="badge b-partial">부분</span></article>
         <article class="mile queued"><div class="num">M4</div><h3>Optional advanced scope</h3><p>이번 release에서 명시 제외 가능. 승인된 dynamic CREVIS/D4/Write만 M3 뒤 진행</p><span class="badge b-queued">선택/후속</span></article>
-        <article class="mile queued"><div class="num">M5</div><h3>Product release</h3><p>13-role tooling, exact tracked Gate D static approval과 current canonical manual은 준비됐습니다. Clean full Distribution에서 fresh WPF source set, full-build actual EXE gate와 schema 3 candidate를 재검증해야 합니다.</p><span class="badge b-queued">Gate D static PASS · full build 대기</span></article>
+        <article class="mile queued"><div class="num">M5</div><h3>Product release</h3><p>Current working-tree UDP Gate D와 SourceOnly는 PASS했습니다. Clean full Distribution에서 fresh WPF source set, full-build actual EXE gate와 schema 3 candidate를 재검증해야 합니다.</p><span class="badge b-queued">SourceOnly PASS · clean full build 대기</span></article>
       </div>
     </section>
 
@@ -350,7 +405,7 @@
       <h2 id="priority-title">우선순위</h2>
       <div class="priority-grid">
         <article class="priority p0"><h3>P0-A · Baseline / PC gate</h3><p>source freeze 후 SDK Debug/Release와 WPF build/smoke를 동일 hash에서 전량 통과</p></article>
-        <article class="priority p0"><h3>P0-B · LASAL current integration</h3><p>마지막 static PASS 뒤 callback+0x7D12+0x7D13 current source의 fresh IDE build/smoke, PLC download와 provenance</p></article>
+        <article class="priority p0"><h3>P0-B · LASAL current integration</h3><p>Current UDP Gate D, private split method-size와 full SourceOnly PASS를 보존하고 actual PLC SRAM allocation, download와 runtime provenance를 닫는다</p></article>
         <article class="priority p0"><h3>P0-C · Active PLC qualification</h3><p>안전 승인, 25-command, D1~D5 live matrix와 pcap/QTEST/PLC log</p></article>
         <article class="priority p0"><h3>P0-D · Preview release 정리</h3><p>13-role provenance, exact tracked Gate D static approval, current canonical 2.3 manual과 preview README policy PASS. Clean full Distribution/current schema 3 candidate 생성과 독립 검토 대기</p></article>
         <article class="priority p1"><h3>P1 · Dynamic I/O / advanced diagnostics</h3><p>read-only → raw live → physical correlation 순서로 capability 활성</p></article>
@@ -363,20 +418,22 @@
       <p class="lead">현재 blocker를 닫는 직접 실행 순서입니다.</p>
       <div class="runbook">
         <article><h3>Source freeze와 hash 기록</h3><p>API/WPF/LASAL/tests 동시 수정을 멈추고 시작 hash, HEAD, git status를 기록합니다.</p></article>
-        <article><h3>SDK/WPF 회귀 재현 · current 관측 완료</h3><p>SDK Debug/Release 1042/1042, WPF Debug/Release 297/297를 PASS했고 Debug 추가 반복도 같은 count로 PASS했습니다. fake-RPC request/session 기록은 atomic append와 stable snapshot 관측으로 동시 열거 flake를 제거했습니다. SDK에는 dormant Admin SetPosition 18개와 Axis Reference 16개, Single Axis live Power/Move/Stop/PowerOff focused 9/9, 10단계 whole-sequence crash journal/process-restart recovery, English/한국어 UI selector와 identity-pinned SDO pre-wire, proof drift/disconnect 영구 폐기도 포함합니다. commit 후 clean checkout 재현이 남았습니다.</p></article>
+        <article><h3>SDK/WPF 회귀 재현 · current 관측 완료</h3><p>2026-07-31 SDK 1042/1042·WPF 297/297, 2026-08-12 SDK 1133/1133과 WPF 347/347은 historical baseline입니다. Current SDK Debug/isolated Release는 각각 1153/1153, WPF smoke는 356/356 PASS입니다. 이는 PC 증거이며 PLC runtime 증거가 아닙니다.</p></article>
         <article><h3>Group Reset stable member proof · PC 완료</h3><p><code>0x20D2</code> observed snapshot 뒤 <code>0x2049</code> 1회, status-only <code>0x2045</code> + pinned member <code>0x2028</code> all-clear 3회를 구현했습니다. command 전 durable record와 accepted observer를 추가했고, exact endpoint/DiagnosticsBuild/BootId/MapRevision/group/member를 재검증한 reconnect/process-restart는 fresh <code>0x20D2</code>를 1회만 읽어 status-only continuation을 attach하며 <code>0x2049</code>는 0회입니다. process-kill/no-replay, safety accepted/outcome-uncertain supersede와 valid NACK restore는 PC 계약이며 PLC capture는 대기입니다.</p></article>
-        <article><h3>LASAL SourceOnly · exact tracked tuple PASS</h3><p><code>d4204b4</code> clean detached tracked <code>Classes.lcb=24402BFA...</code> tuple은 PS5.1/PS7 verifier self-test 각 <code>296/296</code>과 SourceOnly를 PASS했습니다. Main working tree 사용자 <code>13EA5823...</code>는 exact sanctioned identity drift로 계속 reject되며 post-approval full/network static은 실행하지 않았습니다.</p></article>
-        <article><h3>LASAL fresh Rebuild/Link · current 대기</h3><p>이전 fresh reload의 <code>0 error(s), 20 warning(s)</code>, Linker <code>Done</code>은 callback/<code>0x7D12</code>/<code>0x7D13</code> 편집 전 checkpoint입니다. 세 변경을 포함한 current source를 fresh build/link해야 합니다.</p></article>
-        <article><h3>Implementation smoke와 log · current 대기</h3><p>이전 <code>LMCEcatInputLatch</code>, <code>LMCDiagnosticsService</code>, <code>TCPMotionInterface</code> direct-open과 <code>CInvalidArgException=0</code>은 checkpoint입니다. current <code>TCPMotionInterface</code>/<code>LMCControlCommandService</code>를 다시 확인해야 합니다.</p></article>
-        <article><h3>Current PLC cold download</h3><p>source/network/unit/task, BootId/MapRevision, configured 7-entry topology를 readback합니다.</p></article>
+        <article><h3>LASAL UDP Gate D / main SourceOnly · current PASS</h3><p>UDP <code>FBC6E185...</code> parser, self-test <code>336/336</code>, approved/no-rebaseline/IDE-closed VerifyCurrent와 main verifier <code>878DFB46...</code>의 <code>Phase5TransportClean</code>/<code>IntegratedReadOwnerDormant</code> exit <code>0</code>을 PASS했습니다. Historical pre-split <code>HandleAdminCommands=34437/34437/35442</code> exit <code>1</code>은 보존합니다. 이는 PC/static 증거입니다.</p></article>
+        <article><h3>LASAL RT preflight / Rebuild · current PASS</h3><p>Frozen 16/32 ABI, source <code>F7DC9857...</code>, semantic <code>A5BDF88E...</code>, focused <code>95/95</code>를 고정했습니다. C78/ARM Rebuild All은 Linker <code>Done</code>, <code>0 error(s), 79 compiler warning(s)</code>, 새 <code>CInvalidArgException=0</code>입니다. Classes <code>8600084/CC5B7FD8...</code>이며 PLC runtime 증거는 아닙니다.</p></article>
+        <article><h3>Build log · current PASS</h3><p>Current rebuild 시작 이후 새 <code>CInvalidArgException=0</code>입니다. Historical direct-open smoke와 current build log를 구분합니다.</p></article>
+        <article><h3>Current PLC SRAM/download · 대기</h3><p><code>Autoexec.lsl</code>/total <code>SET SRAMRETAIN</code> allocation, source/network/unit/task, BootId/MapRevision과 retained lifecycle runtime을 확인해야 합니다.</p></article>
         <article><h3>Safety/read-only gate</h3><p>E-stop, limit, UNIT/reference, owner를 승인한 뒤 capability/status/position/drive/topology를 먼저 확인합니다.</p></article>
         <article><h3>Motion과 diagnostics qualification</h3><p>작은 motion부터 25-command, D1/D2 fault·soak, Recorder, D5 recovery 순으로 진행합니다.</p></article>
         <article><h3>Transactional release 경로 · historical + current tooling PASS</h3><p>2026-07-31 canonical 무변경 sibling staging/schema 2 candidate는 historical evidence입니다. <code>39c3e6f</code>가 schema 3 ordinal artifact와 pathless provenance를 구현했고, <code>1b9be6a</code>가 provenance suite를 mandatory gate에 포함했습니다. Current <code>3c63dea</code>는 active Python dependency closure를 pathless 13-role provenance로 확장해 mandatory <code>14/14</code>, files <code>94</code>를 PASS했습니다.</p></article>
         <article><h3>Initial canonical 2.3 manual · historical promotion PASS</h3><p><code>bcc6a9c</code>는 reviewed DOCX <code>91,103</code> bytes / <code>F3DC33521A8DB623641FA07A2C1B161009BCF3F01622DC037442A9726900F8DD</code>와 PDF <code>1,002,300</code> bytes / <code>317A87FC42EF5A845202FFDB384C3AC23247C1B7A73530488C96FF0D805D2880</code>를 initial tracked canonical input으로 승격했습니다. OpenXML error 0, A4 43쪽, heading 66, table 109, all fonts embedded, visual defect 0과 manual policy 3/3은 historical evidence입니다.</p></article>
         <article><h3>Preview README policy · current PASS</h3><p><code>f304e8b</code>는 package/example README의 production NO-GO와 SDO 안전 범위를 고정했습니다. Production template/build logic은 불변입니다. Direct semantic의 <code>CANDIDATE_WPF_SOURCE_SET</code> STOP은 canonical source snapshot 결과이며 fresh candidate/full build PASS가 아닙니다.</p></article>
         <article><h3>Release-input documentation · current PASS</h3><p><code>978597b</code>는 <code>3c63dea</code> active closure, <code>bcc6a9c</code> initial manual과 <code>f304e8b</code> README policy를 current documentation baseline으로 기록했습니다.</p></article>
-        <article><h3>Exact tracked Gate D · PC/static PASS</h3><p><code>d4204b4</code>는 clean tracked <code>24402BFA...</code> tuple만 <code>ProductionApproved=true</code>, <code>NeedsRebaseline=false</code>로 승인했습니다. PS5.1/PS7 self-test 각 <code>296/296</code>과 clean detached SourceOnly는 PASS했고 main working tree <code>13EA5823...</code>는 계속 reject됩니다. Full/network static과 PLC/runtime은 미실행입니다.</p></article>
-        <article><h3>Current canonical 2.3 manual · published</h3><p><code>5d5aebe</code>는 Gate D 경계를 반영한 Markdown <code>94,108</code> bytes / <code>D7DE1AF51A548AA7361614167D546A7057C8D03260CE92CFA9335964A611C022</code>, DOCX <code>92,229</code> bytes / <code>57D17650D1F24E9350830E784EFE94E00CB1A89CB126CD9A05865580A9708B46</code>, PDF <code>1,003,309</code> bytes / <code>83A57CC4B15D4E0BA4E0D9A54FD044C82A131168D16B36F2694F76AF098232E0</code>를 게시했습니다. <code>bcc6a9c</code>의 이전 hash는 historical evidence로 보존합니다.</p></article>
+        <article><h3>Historical exact tracked Gate D · PC/static PASS</h3><p><code>d4204b4</code>는 clean tracked <code>24402BFA...</code> tuple만 <code>ProductionApproved=true</code>, <code>NeedsRebaseline=false</code>로 승인했습니다. PS5.1/PS7 self-test 각 <code>296/296</code>과 clean detached SourceOnly는 PASS했고 당시 main working tree <code>D4C1FF46...</code>는 reject됐습니다. Full/network static과 PLC/runtime은 미실행입니다.</p></article>
+        <article><h3>Current physical tuple UDP Gate D · PC/static PASS</h3><p>2026-08-19 verifier SHA-256 <code>FBC6E185C81E744A59D70A0EBDDA8D3BD2E8871F3F9BE6FB354CBD718A785ADA</code>, PowerShell 5.1 parser, self-test <code>336/336</code>과 current VerifyCurrent <code>ProductionApproved=True</code>/<code>NeedsRebaseline=False</code>/<code>IDEClosed=True</code>를 PASS했습니다. Current Classes pin은 <code>8600084/CC5B7FD8...</code>입니다. 이는 clean release input이나 PLC/runtime 승인을 의미하지 않습니다.</p></article>
+        <article><h3>Historical canonical 2.3 manual · 5d5aebe</h3><p><code>5d5aebe</code>는 Gate D 경계를 반영한 당시 canonical Markdown/DOCX/PDF를 게시했습니다. 이 tuple은 historical evidence로 보존합니다.</p></article>
+        <article><h3>Current reconnect V2 canonical · 검토 PASS</h3><p>Markdown <code>96,004</code> bytes / <code>9A5FE9D4...</code>, DOCX <code>95,511</code> bytes / <code>1BD54016...</code>, PDF <code>1,022,442</code> bytes / <code>50DDE24F...</code>입니다. Actual pair policy 3/3, 양 host SemanticPolicy 70/70 + check 18, A4 43쪽, Office 2010~Microsoft 365 OpenXML error 0, all-font embedding과 전 페이지 visual defect 0을 확인했습니다.</p></article>
       </div>
       <div class="gate-box"><strong>P0 출구:</strong> 동일 hash PC gate + SourceOnly/full + IDE build/smoke + topology-inventory report + same-peer 경계 + current PLC active matrix + 성능 gate가 모두 PASS해야 합니다.</div>
 
@@ -475,7 +532,7 @@ if ($taskBefore -ne $taskAfter) { throw "Working tree changed during qualificati
             <tr><td>Node Health / DI</td><td>PLC 0x7E13/22 read-owner dormant, static/IDE PASS</td><td>raw/physical proof 전 production 제외</td><td>cold download, raw qualifier, disconnect/recovery, 32-pattern DI 뒤 bits 15/16 활성</td></tr>
             <tr><td>Digital Output</td><td>guard UI, PLC route 없음</td><td>P1 read-only 이후</td><td>0x7E23, RT owner/CAS/readback/fault proof</td></tr>
             <tr><td>callback ownership / typed callback</td><td>exact TCP-peer/port ownership과 raw session provenance 구현</td><td>typed callback 제외 유지</td><td>ownership PLC capture; typed는 승인 schema와 PLC event sender</td></tr>
-            <tr><td>SetPosition</td><td>SDK/wire/LASAL dormant fail-closed, bit 3 OFF, native call 0, WPF 미노출</td><td>production 제외 유지</td><td>durable journal, authoritative same-identity uncertain recovery, unified axis/group ownership, task/core priority, approved max jump, IsReferenced 정책과 PLC proof</td></tr>
+            <tr><td>SetPosition</td><td>0x7D12/0x7D14/0x7D1A SDK/wire, 1344-byte retained ledger, Store lifecycle, private dispatch/handler split, coordinate/ownership dormant source와 C78 compile. Store/ordinary FALSE, max-jump 0, FeatureBits 0x17 bits 3/5/7 OFF, native call 0, WPF 미노출</td><td>production 제외 유지</td><td>actual PLC Autoexec.lsl/total SET SRAMRETAIN allocation과 retention E2E, macro/capability 승인, WPF journal과 runtime unified ownership/fault matrix, task/core priority, approved max jump, IsReferenced 정책과 PLC proof</td></tr>
             <tr><td>ReferenceAxis</td><td>0x7D13 SDK/wire/LASAL dormant fail-closed, 56-byte request/32-byte response, bit 4 OFF, native call 0, WPF 미노출. HomeDS402 적응 항목이지만 DS402 homing은 아님</td><td>production 제외 유지</td><td>physical HWMin/HWMax/RefSwitch/ZImpulse/LatchPos 배선, recipe/native mode, unified ownership, mandatory PLC MaxTravel/Timeout watchdog과 축별 bench proof</td></tr>
             <tr><td>상위 실제 미구현</td><td>HomeDS402Ex, SetOpMode 2개</td><td>production 전 항목별 제외 승인</td><td>승인 시 dedicated command DoD</td></tr>
           </tbody>
@@ -505,7 +562,7 @@ if ($taskBefore -ne $taskAfter) { throw "Working tree changed during qualificati
           <p>상위 21개는 active 17, dormant/partial 2(HomeDS402 via LASAL ReferenceAxis, SetPosition), missing 2(HomeDS402Ex, SetOpMode)입니다.</p>
           <ol>
             <li><code>ReferenceAxis</code> / <code>HomeUsingLasalReference</code> — <code>0x7D13</code> 56-byte request/32-byte response dormant 계약까지 구현. bit 4 OFF, native <code>_LMCAxis.MoveReference()</code> 0회, WPF 미노출이며 DS402 homing이 아닙니다. physical <code>HWMin/HWMax/RefSwitch/ZImpulse/LatchPos</code> source가 없고, 활성화에는 PLC-side mandatory <code>MaxTravel</code>/<code>TimeoutMs</code> watchdog이 필요합니다.</li>
-            <li><code>SetPosition</code> — 28-byte request/36-byte response, expected actual-position CAS, prepare-time one-shot와 typed reject/uncertain-session fault까지 구현. Detail 11은 ErrorId=-6과 P+24 full native U32만 허용한다. <code>ActualPosition == Target</code>은 과거 성공 증거가 아니므로 PLC retained outcome 조회 또는 PowerOff+authoritative re-reference 뒤 explicit retirement가 먼저 승인돼야 한다. bit 3 OFF/native call 0/WPF 미노출이며 durable journal, unified ownership, task/core, max-jump와 IsReferenced 정책 및 PLC proof 뒤에만 활성</li>
+            <li><code>SetPosition</code> — triad와 1344-byte ledger/Store lifecycle, private handler/dispatcher, coordinate max-jump와 new-Armed ownership source를 구현했습니다. Store/ordinary FALSE, max-jump 0이므로 current runtime은 detail 24, bits 3/5/7 OFF, native call 0입니다. Actual PLC SRAM allocation/download/retention은 미확인입니다. <code>ActualPosition == Target</code>은 과거 성공 증거가 아니며, target retention E2E, WPF journal, runtime ownership/fault matrix, task/core, approved max-jump와 IsReferenced proof 뒤에만 활성합니다.</li>
             <li>dedicated <code>SetOpMode</code></li>
             <li>semantic Axis/Group parameter write</li>
             <li>Axis Override, 8-byte SDO Read</li>
@@ -540,9 +597,11 @@ if ($taskBefore -ne $taskAfter) { throw "Working tree changed during qualificati
       <p class="lead">모두 체크되기 전에는 <code>0.9.1-preview</code>를 production으로 바꾸지 않습니다.</p>
       <ul class="checklist">
         <li>current source commit/hash와 배포 DLL provenance 기록</li>
-        <li class="done">current SDK Debug/Release 1042/1042, WPF Debug/Release 297/297과 <code>d4204b4</code> clean tracked IntegratedReadOwnerDormant/dormant 0x7D12/0x7D13 SourceOnly PASS</li>
-        <li>post-approval full/network static PASS — historical checkpoint full static PASS는 current 실행 증거가 아님</li>
-        <li>callback+0x7D12+0x7D13 current source LASAL IDE Rebuild/Link와 implementation smoke/log PASS — 세 변경 전 checkpoint warning 20</li>
+        <li class="done">Historical SDK/WPF baseline 보존; current SDK Debug/isolated Release 1153/1153, WPF 356/356, retained reference 41/41·1253 assertions, focused AxisZeroHome 34/34·close 38/38·AdminStore 110/110 + edge 15/15·StoreScan 292/292 + wiring 41/41·RT preflight 95/95 PASS</li>
+        <li class="done">current UDP callback Gate D — verifier <code>FBC6E185...</code>, PowerShell 5.1 parser, self-test <code>336/336</code>, current <code>TerminalWakeBrokerCandidate</code> VerifyCurrent approved/no-rebaseline/IDE-closed PASS</li>
+        <li class="done">historical pre-split <code>34437/34437/35442</code> blocker 보존; current method-size <code>106/103/3</code> PASS</li>
+        <li class="done">2026-08-19 retained ledger/Store/Control + RT preflight C78 Rebuild All: Linker Done, 0 errors·79 compiler warnings, 새 CInvalidArgException 0, Classes 8600084/CC5B7FD8...</li>
+        <li>actual PLC Autoexec.lsl/total SET SRAMRETAIN allocation과 retention/runtime 검증</li>
         <li>PLC source/network/unit/task가 Git snapshot과 일치</li>
         <li>실제 안전 chain, limit, UNIT, reference 승인</li>
         <li>single-axis 1..9와 Cartesian X/Y/Z/U 적용 범위 승인</li>
@@ -555,10 +614,12 @@ if ($taskBefore -ne $taskAfter) { throw "Working tree changed during qualificati
         <li class="done">external manual의 preview/안전/UNIT/polling/Axis1-only SDO Write 계약 갱신·전 페이지 검토</li>
         <li class="done"><code>3c63dea</code> 13-role active Python owner provenance와 promotion drift fence, dual-host mandatory <code>14/14</code> PASS</li>
         <li class="done"><code>bcc6a9c</code> reviewed <code>2.3-candidate</code> DOCX/PDF tracked canonical release input 승격, clean detached resolver/worktree/manual policy 확인</li>
-        <li class="done"><code>f304e8b</code> canonical package/example README preview NO-GO policy와 양 host semantic <code>53</code> + check <code>18</code> PASS</li>
+        <li class="done"><code>f304e8b</code> historical semantic <code>53</code> + check <code>18</code>, current reconnect V2 actual-pair smoke 포함 양 host SemanticPolicy <code>70/70</code> + check <code>18</code> PASS</li>
         <li class="done"><code>978597b</code> current release-input documentation baseline 기록</li>
-        <li class="done"><code>d4204b4</code> exact clean tracked <code>24402BFA...</code> Gate D static 승인, PS5.1/PS7 self-test <code>296/296</code>과 SourceOnly PASS; main working tree <code>13EA5823...</code> reject 유지</li>
-        <li class="done"><code>5d5aebe</code> Gate D 경계를 반영한 current canonical Markdown/DOCX/PDF 게시</li>
+        <li class="done"><code>d4204b4</code> exact clean tracked <code>24402BFA...</code> Gate D static 승인, PS5.1/PS7 self-test <code>296/296</code>과 SourceOnly PASS; 당시 main working tree <code>D4C1FF46...</code> reject</li>
+        <li class="done">2026-08-19 current physical tuple UDP Gate D, main SourceOnly와 IDE/C78 build PASS; PLC SRAM allocation/download/runtime/hardware PASS는 아님</li>
+        <li class="done"><code>5d5aebe</code> Gate D 경계를 반영한 당시 canonical Markdown/DOCX/PDF 게시</li>
+        <li class="done">reconnect V2 current canonical Markdown/DOCX/PDF 생성, actual pair policy 3/3 및 전 페이지 검토 PASS</li>
         <li>Clean full Distribution에서 fresh WPF source set, full-build actual EXE gate와 current schema 3 candidate/manifest 생성·독립 검토</li>
         <li><code>git diff --check</code>와 <code>git diff --cached --check</code> PASS</li>
       </ul>
@@ -574,6 +635,7 @@ if ($taskBefore -ne $taskAfter) { throw "Working tree changed during qualificati
         <li><a href="../../LMC_Library/LMC_API_Delivery/docs/TOPOLOGY_IO_QUALIFICATION_TOOL_2026-07-28.md">Topology qualification tool</a></li>
         <li><a href="../architecture/LMC_API_TRANSACTIONAL_DISTRIBUTION_CANDIDATE_2026-07-31.md">Transactional Distribution candidate 설계</a></li>
         <li><a href="../architecture/AXIS_SET_POSITION_BOUNDED_COORDINATE_CORRECTION_2026-07-31.md">Axis SetPosition bounded coordinate-correction 계약</a></li>
+        <li><a href="../architecture/AXIS_SET_POSITION_ASYNC_RT_EXECUTOR_AND_RECOVERY_DESIGN_2026-08-19.md">Axis SetPosition async RT executor/recovery 설계</a></li>
         <li><a href="../architecture/AXIS_REFERENCE_LASAL_NATIVE_DORMANT_CONTRACT_2026-07-31.md">Axis Reference LASAL-native dormant 계약</a></li>
         <li><a href="../../LMC_Library/LMC_API_Delivery/docs/API_DEVELOPMENT_BACKLOG_2026-07-10.md">API development backlog</a></li>
         <li><a href="../../LMC_Library/LMC_API_Delivery/docs/AUTOMATED_TESTS_2026-07-10.md">Automated tests</a></li>

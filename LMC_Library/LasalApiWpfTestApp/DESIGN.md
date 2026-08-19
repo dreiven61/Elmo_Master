@@ -78,15 +78,22 @@ endpoint tuple을 commit한다. exact duplicate는 멱등 성공하지만 event 
 wire capture는 별도다.
 
 SDK는 canonical v2 `0x8080` short failure만 같은 TCP socket에서 20 ms 뒤 한 번
-재시도한다. WPF policy commit `14ccf58`은 초기 또는 동일 프로세스 내 후속 Connect에서
-그 두 시도가 모두 exact `-1`로 실패하고 `Outcome=Failed`, `AttemptCount=2`,
-`CanonicalRetryUsed=true`, RPC/callback 미시작인
-경우에만 failed candidate를 retire/`Dispose`한다. 100 ms 뒤 새
-`LMCConnection`/TCP를 정확히 한 번 열고 두 번째 candidate 실패를 terminal로 처리한다.
-`ErrorId=0`, 다른 ErrorId, malformed/transport/cancellation/callback-stage 실패는 outer
-retry 대상이 아니다. 한 UI Connect의 최대치는 TCP 2개/`0x8080` 4회이며 `0x405C`는
-init 성공 뒤에만 전송된다. 정상 registration ACK까지 받아야 Connect가 성공하며
-`0x405C` 실패는 terminal이고 outer retry가 없다.
+재시도한다. Current WPF의 `RPC_INIT_FRESH_TCP_ONCE_V2`는 첫 candidate에서만 다음 두
+fresh-TCP 원인을 허용한다. exact persistent `-1`로 `AttemptCount=2`,
+`CanonicalRetryUsed=true`가 되면 100 ms, 또는 실제 `0x8080` request가 시작된
+`AttemptCount=1`에서 response가 없고 direct `EndOfStreamException`/`SocketException`/
+`TimeoutException` 중 하나이거나 `IOException`의 `InnerException` chain에 그중 하나가 포함된
+pre-response transport failure면 1000 ms를 기다린다. 두 경로 모두 failed candidate를 retire/`Dispose`하고 새
+`LMCConnection`/TCP 하나만 연다.
+
+두 번째 candidate는 항상 terminal이다. TCP connect-before-init(`AttemptCount=0`),
+cancellation, `ObjectDisposedException`, `InvalidDataException`(허용형 `InnerException`이 있어도 포함),
+malformed response, valid non-`-1` response,
+response 이후 failure와 callback-stage failure에는 fresh-TCP retry가 없다. 한 UI Connect의
+최대치는 TCP 2개/`0x8080` 4회이며 `0x405C`는 init 성공 뒤에만 전송된다. 정상
+registration ACK까지 받아야 Connect가 성공한다. UI evidence에는 `CandidateOrdinal`,
+retry `Reason`/`Delay`/`From`/`Next`와 `FreshSessionFirstFailure`를 보존한다. Commit
+`14ccf58`의 V1 persistent-`-1` 계약과 검증 수치는 historical checkpoint다.
 
 SDK `LMCCallbackEventArgs`의 raw provenance와
 `LMCCallbackWakeHintEventArgs`/`CallbackWakeHintReceived`의 typed non-authoritative
@@ -100,9 +107,9 @@ candidate `PublishEvent(...)`가 있지만 live 52-byte UDP와 causal TCP captur
 disconnected postcondition을 사용한다. close response/exception은 진단용으로 보존하며 X는
 postcondition 미완료 시 취소되고 strict Close 버튼은 close 실패 시 cleanup 뒤 그 오류를
 다시 throw한다.
-startup identity는 `ReconnectPolicy=RPC_INIT_FRESH_TCP_ONCE_V1`, `SdkPath`,
+startup identity는 `ReconnectPolicy=RPC_INIT_FRESH_TCP_ONCE_V2`, `SdkPath`,
 `SdkBuildUtc`를 기록하고 topology marker V5는 유지한다. Historical same-process
-새-`MainWindow` smoke는 유지한다. Current executable-gate commit `cbf2548`은 별도
+새-`MainWindow` smoke는 유지한다. Historical executable-gate checkpoint `cbf2548`은 별도
 loopback-only probe를 supplied actual example EXE process로 실행한다. Malformed probe는 default
 mutex, journal과 network 전에 exit `64`/temp write `0`/TCP `0`으로 닫고, live owner 중
 동일 EXE contender는 default named mutex에서 exit `2`/TCP `0`으로 닫는다. Runner는 실제
@@ -134,12 +141,18 @@ binary-reference temp candidate(`ProjectReference=0`, config absent)는 actual-E
 `829AC3314E1B5113696DFA06E64418A95C305035335F73DEB4404449CF910F79`, SDK SHA-256은
 `7D179781BCE9EB2FE6DB071C3D45F085A5BC127F9DBD0E15300E38A6181A7ED8`이었다.
 
-Current `cbf2548` 검증은 SDK Debug/Release direct `1133/1133`, WPF Debug/Release
+Historical `cbf2548` 검증은 SDK Debug/Release direct `1133/1133`, WPF Debug/Release
 Rebuild PASS, 기존 full smoke `339/339`, reconnect targeted `6/6` PASS다. 별도 actual-EXE
 relaunch gate도 Debug/Release 각각 `1/1` PASS했고 독립 callback/reconnect review는 `9/9`,
-P0/P1 없음이다. 이 결과는 PC loopback process/mutex/wire 증거다. fixed 100 ms, local
-cleanup과 EXE 재실행은 PLC readiness/cleanup/disarm/runtime, 실제 MotionLib/축 상태 또는
-사용자 PLC 재접속 성공을 증명하지 않는다. private PLC state를 force-clear하지 않는다.
+P0/P1 없음이다. 이 수치를 current V2 final count로 소급하지 않는다. Historical V2 checkpoint는
+Release build/full smoke `347/347`, isolated Debug build와 `Wpf.CallbackV2.*` `17/17`을 PASS했다.
+2026-08-18 diagnostics mutation recovery 반영 후 current Debug/Release Rebuild는 경고 0/오류 0,
+ full smoke는 각각 `354/354`, Debug/Release `Wpf.RecoveryRetirement`는 각각 `20/20` PASS했다. 이 current
+fake-RPC 검증도 PC loopback evidence일 뿐이다. 2026-08-12 15:58 reconnect PLC image build/download는
+완료됐지만 같은 창 Close -> Connect live PASS는 아직 확인되지 않았다. 100/1000 ms PC
+backoff, local cleanup과 EXE 재실행은 PLC readiness/cleanup/disarm/runtime, 실제
+MotionLib/축 상태 또는 사용자 PLC 재접속 성공을 증명하지 않는다. private PLC state를
+force-clear하지 않는다.
 
 `GetSignalCatalog[Async]`가 반환한 immutable Catalog는 diagnostics owner와 connection session
 generation에 bind된다. alias PI Read, Bulk builder 생성/Configure와 PI Write submit은 unbound,
@@ -287,11 +300,14 @@ Drive read는 선택한 physical reference와 현재 loaded axis가 일치하면
 이 탭에는 motion/write control을 추가하지 않는다. `0x7D12 SetAxisPosition`은 SDK
 wire/one-shot 계약과 PLC fail-closed parser만 존재하고 capability bit 3과 native mutation이
 꺼져 있다. SetPosition은 diagnostics identity와
-4 x U32 intent를 보존하는 독립 journal core, SDK `0x7D14` exact read-only query와
+4 x U32 intent를 보존하는 독립 journal v2 core, SDK `0x7D14` exact read-only query와
 `0x7D1A` nonzero-generation terminal retirement 계약까지 구현한다. bit 5는 query-only,
 bit 7은 retirement 전용이다. journal은 wire 전 Arm, 재시작 시 Armed를
-RecoveryRequired로 보수 승격하고 자동 replay하지 않지만, current PLC에는 bit 5/7,
-retained store/query/retirement route가 없다. journal을 MainWindow
+RecoveryRequired로 보수 승격하고 자동 replay하지 않는다. format 1/2를 모두 읽고 새 기록은
+format 2로 쓰며, typed terminal query proof를 먼저 영속화한 뒤 exact key/generation/snapshot의
+성공한 retirement 결과가 있어야만 Resolved로 전이한다. evidence-free `Resolve`는 없다.
+current PLC에는 bit 5/7과 retained store/tombstone success path가 없고 route/parser는 detail 24로
+fail-closed다. journal을 MainWindow
 초기화/dispatch/interlock에 단독 연결하지 않는다. PLC outcome
 store/query/retirement, unified ownership, authoritative max-jump와 task/core/priority,
 PLC proof가 끝나기 전에는 SetPosition 버튼을 추가하지 않는다.
@@ -519,9 +535,10 @@ var raw = checked((int)Math.Round(
   `GroupMoveLinearRelative`와 D5 `SubmitSdo`/`CancelOperation`의 지연
   ACK도 session-bound priority publication을 거쳐 drain 후 `ResultDiscarded`된다. accepted
   Submit은 exact ticket/BootId/MapRevision evidence를 보존하며 Cancel ACK는 stale success로
-  적용하지 않는다. current SDK Debug/Release direct runner는 각각 1133/1133 PASS했고
-  WPF Debug/Release Rebuild도 PASS했다. WPF full smoke는 339/339, 별도 actual-EXE
-  relaunch gate는 Debug/Release 각각 1/1이며 PLC/runtime 안전 증거는 별도다.
+  적용하지 않는다. Historical `cbf2548` SDK Debug/Release direct runner는 각각
+  1133/1133 PASS했고 WPF Debug/Release Rebuild, full smoke 339/339, 별도 actual-EXE
+  Debug/Release 각 1/1도 PASS했다. 이 수치는 V2 final count가 아니며 PLC/runtime 안전
+  증거는 별도다.
 - Relative move도 absolute와 같은 motion-uncertain tracking을 사용한다. valid Admin
   rejection만 local tracking을 해제하고 timeout, malformed response 또는 연결 손실은
   상태가 불확실하므로 Stop/PowerOff recovery 경로를 유지한다.
@@ -905,19 +922,23 @@ application/SDK 계약이다. 실제 PLC scheduler, EtherCAT 반응, 물리 정�
   `KEEP EXACT CURRENT`, 다른 endpoint record는 `KEEP OTHER ENDPOINT`로 남겨 후속
   exact recovery/manual 대상으로 보존한다. journal/ledger fault 또는 occupied operation
   slot은 commit 전에 fail-closed한다.
-- 기존 다섯 journal의 identity/retirement는 BootId/MapRevision 기준을 유지한다. nonzero
+- 기존 endpoint-bound journal의 identity/retirement는 BootId/MapRevision 기준을 유지한다. nonzero
   `DiagnosticsBuild`를 저장하는 Group Reset record는 Build/BootId/MapRevision 세 필드를 모두
   비교하며 Build-only mismatch도 stale retirement 대상이지만 exact current Build는 retire할 수 없다.
 - `RecoveryRecordRetirementLedger`는 각 원 journal 전체 바이트, source SHA-256, 운영자와 current
   PLC identity를 `%LOCALAPPDATA%\Elmo\LasalMotionControlApiExample\RecoveryRecordRetirementLedger\v1`
   아래 immutable entry로 보존한다. entry publish는 flushed temp의 same-directory
-  `MoveFileExW(MOVEFILE_WRITE_THROUGH)` no-replace와 final exact byte/hash 검증을 사용한다. format 2
-  entry는 Build-bearing source/current identity를 보존하고 format 1 entry도 read 호환한다. 모든
+  `MoveFileExW(MOVEFILE_WRITE_THROUGH)` no-replace와 final exact byte/hash 검증을 사용한다. format 3
+  entry는 Build-bearing source/current identity와 endpoint evidence 종류를 보존하고 format 1/2 entry도
+  read 호환한다. 모든
   ledger entry가 commit된 뒤에만 각 journal의 full-byte CAS `Resolved`를 수행하며 crash 뒤에는
   committed exact-source decision만 startup에서 idempotent하게 마무리한다. old command outcome은
   항상 `UNKNOWN`이고 이 경로의 wire는 두 read-only capability query뿐이다. Motion, Power, SDO,
-  Write, replay, cleanup은 보내지 않는다. Diagnostics mutation과 Recorder double record는 폐기하지
-  않는다. 성공 시 connection close, restart-required, app exit 순서로 같은-process 제어 재입장을
+  Write, replay, cleanup은 보내지 않는다. Endpoint-unbound legacy diagnostics v2 record는 typed SDO
+  `OutcomeUnverified`에 한해 identity-mismatch quarantine의 current endpoint로 운영자가 분류할 수
+  있으며, 원 journal exact bytes와 별도의 `OperatorClassifiedLegacyEndpoint` ledger 증거를 commit한
+  뒤 full-byte CAS로 resolve한다. metadata 없는 SDO, Digital Output과 다른 diagnostics state는
+  폐기하지 않는다. 성공 시 connection close, restart-required, app exit 순서로 같은-process 제어 재입장을
   차단한다.
 - quarantine은 known ticket과 submit-outcome unknown evidence를 여러 개 보존할 수 있다.
   모두 같은 slave여야 자동 recovery proof가 가능하다. stable BootId/MapRevision 아래 서로

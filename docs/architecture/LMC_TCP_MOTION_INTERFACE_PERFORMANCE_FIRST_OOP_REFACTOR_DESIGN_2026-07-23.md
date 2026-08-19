@@ -15,6 +15,29 @@
   `CInvalidArgException`은 0건이다. 이 checkpoint는 `0x7E11/12/13/22` route, coherent
   464-byte snapshot과 CREVIS read-owner wiring을 포함하지만 bits 15~17은 OFF다. `0x7E23`
   PLC route도 없고 PLC download/runtime은 아직 검증하지 않았다
+- 2026-08-19 current SetPosition P0 override: active command의 synchronous no-task service
+  구조는 유지한다. 별도로 dormant `0x7D12`의 향후 exactly-once 실행을 위해
+  `LMCEcatInputLatch`에 frozen 16-DINT request/32-DINT result와 atomic RT preflight를
+  구현했지만 Control, Store, TCP와 아직 연결하지 않았다. `READY`는 snapshot only이며
+  native call, terminal commit 또는 response가 아니다. source/semantic SHA-256은
+  `F7DC9857DB528D73481831D3D1F9DA3A63420DF653A2146C6E30397337855FA1` /
+  `A5BDF88EFA2C1942B1CFF7AA7BAF512A2B5ECF3BFE852BFC33F68449258DB508`, focused
+  verifier는 `95/95 PASS`다. `LMCEcatInputLatch`는 `137891` bytes/17 methods이고 current
+  method budget은 `6/106/103/3`(classes/methods/under-limit/debt) PASS다. C78/ARM Rebuild All은 `0 errors / 79 compiler warnings`,
+  `Linker Done`, 새 `CInvalidArgException=0`이고 `Class/Classes.lcb`는 `8,600,084` bytes /
+  `CC5B7FD831616551117DB8260257362069DB51880C53250DBF3CEC35458A48E4`다. SDK
+  Debug/isolated Release `1153/1153`, WPF smoke `356/356`은 PC 증거다. UDP verifier
+  `FBC6E185C81E744A59D70A0EBDDA8D3BD2E8871F3F9BE6FB354CBD718A785ADA`의
+  PowerShell 5.1 parser와 `336/336`, VerifyCurrent approved/no-rebaseline/IDE-closed도
+  PC/static PASS다. Main verifier
+  `878DFB46691271F5ADA982A6585AA6A4FF5065AA357D07CBFA7488F845A688BD`의
+  `-SourceOnly -ExpectedSdoWriteAxis 1` terminal은
+  `Phase5TransportClean`/`IntegratedReadOwnerDormant`, exit `0`이다. Store/ordinary
+  ownership은 FALSE, max-jump 0, capability `0x17`, Admin native call 0이며 PLC
+  download/runtime은 없다. 향후 TCP는 normal response와 `-12` close fence와 별도로
+  non-wire pending `-13`을 소비해야 하며, 상세 순서는
+  [Axis SetPosition async RT executor 및 복구 설계](AXIS_SET_POSITION_ASYNC_RT_EXECUTOR_AND_RECOVERY_DESIGN_2026-08-19.md)를
+  따른다.
 - 우선순위: PLC 주기 성능 > wire 호환성 > 유지보수성 > 구현 편의
 
 ## 1. 목적
@@ -1100,11 +1123,32 @@ LASAL generated declaration, Network와 Section 17의 hidden channel 1개 + priv
 - 두 planned private helper 이름은 current class declaration과 implementation에 `0`건이며
   외부 편집기로 generated declaration을 만들지 않는다.
 
-다음 적용 tranche의 선행조건은 clean tracked source와 reviewed Gate D transition을 먼저
-확보하고 LASAL IDE에서 두 private method declaration을 생성·저장하는 것이다. 그 직후 저장된
-source/generated ABI를 다시 pin하고 current body에서 extraction/call map/reverse-inline proof를
-재계산한다. 현재 dirty `Classes.lcb`와 exit `3` STOP 상태에서는 IDE Save/Rebuild/Download 또는
-implementation-only split을 수행하지 않는다.
+2026-08-19 current SetPosition transition은 private `HandleAdminSetPosition`과
+`DispatchRequestCommand` 구조를 유지한 채 `LMCEcatInputLatch` P0 RT preflight만 추가했다.
+frozen mailbox/result는 16/32 DINT이고 caller identity slot 4와 internal publication
+sequence slot 10을 분리한다. torn snapshot은 axis access와 result publication을 모두 0회로
+유지한다. `MaxJump=0`은 coherent `state=2/failure=-6/detail=14`이며 `READY`는 snapshot
+only다. source SHA-256은
+`F7DC9857DB528D73481831D3D1F9DA3A63420DF653A2146C6E30397337855FA1`, semantic
+SHA-256은 `A5BDF88EFA2C1942B1CFF7AA7BAF512A2B5ECF3BFE852BFC33F68449258DB508`,
+focused verifier는 `95/95 PASS`다. Main verifier
+`878DFB46691271F5ADA982A6585AA6A4FF5065AA357D07CBFA7488F845A688BD`의
+`-SourceOnly -ExpectedSdoWriteAxis 1` terminal은
+`Phase5TransportClean`/`IntegratedReadOwnerDormant`, exit `0`이다.
+
+이번 current tranche는 `ReserveAxisOwnership` 자체를 계획된 두 helper로 분할하지 않았다.
+대신 new-Armed `0x7D12`만 exact 48-byte direct-axis ordinary admission을 요청하고 terminal
+full-proof 뒤 acquired ownership만 rollback하는 dormant boundary를 추가했다. Public reserve는
+`LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED=FALSE`에서 fail-closed하며 current
+`ReserveAxisOwnership`은 `raw/LF/CRLF=77577/77577/79733`의 기존 baseline debt다. Store도
+`FALSE`, 축 1..4 max-jump도 `0`, capability는 `0x17`, native SetPosition call은 0이다.
+따라서 이 절의 planned Reserve helper extraction은 계속 미적용 계획이다. Current Control은
+`638793` bytes / SHA-256
+`C8F0CB9F8F7F8F97A136FD40EFCCF39F1D446A1182201C9FAC365FAC8A16EAD5`, final
+`Classes.lcb`는 `8,600,084` bytes / SHA-256
+`CC5B7FD831616551117DB8260257362069DB51880C53250DBF3CEC35458A48E4`다. C78/ARM Rebuild
+All은 `0 errors / 79 compiler warnings`, Linker Done, 신규 `CInvalidArgException=0`으로 끝났다.
+이는 clean release, actual PLC SRAM allocation, Download/runtime 또는 hardware proof가 아니다.
 
 P0 교정은 function 안에서 선언되지 않은 `preemptRecordBase` 5개 참조를 이미 선언되어 같은 record
 base 의미로 사용되는 `probeRecordBase`로 바꾼 것이다. public/class ABI, local 수, call/write/result 순서는

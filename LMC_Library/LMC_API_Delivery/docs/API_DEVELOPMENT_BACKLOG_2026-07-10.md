@@ -291,15 +291,15 @@ build가 아니다. 먼저 아래 PLC/실기 검증을 끝내야 한다.
 | LASAL diagnostics dormant read-owner | 2개 | `0x7E13/0x7E22` route/handler와 464-byte snapshot 구현; bit 15/16 OFF, PLC live 미검증 |
 | LASAL diagnostics reserved/dormant contract | 6개 | reserved D5 `0x7E21/0x7E51` 2 + dormant D4 `0x7E4A..0x7E4D` 4; capability off |
 | LASAL Admin active extension | 4개 | `0x7D00/0x7D10/0x7D20/0x7D22`; 2026-07-23 happy-path packet PASS |
-| LASAL Admin dormant/SDK-only recovery | dormant parser 2개 + SetPosition SDK recovery 2개 | 이 2026-07-31 표의 PLC parser는 `0x7D12 SetAxisPosition`과 당시 `0x7D13 StartAxisReference`였다. current SetPosition SDK에는 read-only `0x7D14` outcome query와 nonzero-generation `0x7D1A` retirement CAS가 있지만 PLC route/store/tombstone과 bit 3/5/7은 아직 없음 |
+| LASAL Admin dormant/recovery | dormant parser와 SetPosition recovery | 이 표의 2026-07-31 snapshot 뒤 current source에 read-only `0x7D14` outcome query와 nonzero-generation `0x7D1A` retirement CAS route/exact parser를 추가했다. retained store/tombstone은 없고 bit 3/5/7은 OFF이며 valid request도 detail 24다. |
 | 성공 응답 capable PLC active path | 53개 | 기존 motion/group 25 + diagnostics active 24 + Admin 4 |
-| C#/dispatcher/wire handled contract | 63개 | active 53 + dormant read-owner 2 + reserved/dormant 8(진단 6 + Admin SetPosition/Reference 2); C# ID 64개 중 `0x7E23`만 PLC route 없음 |
+| C#/dispatcher/wire handled contract | current 73개 | current C# unique ID 74개 중 `0x7E23`만 PLC route가 없다. `0x7D14/0x7D1A`는 handled parser route지만 store/capability가 없어 success-capable path가 아니다. |
 | 요구사항 active `D+E` | 40/65 (61.5%) | `D16/E24`; PLC live 통과율이 아님 |
 | 요구사항 partial 포함 | 52/65 (80.0%) | `P12` 포함; 전체 분류 `D16/E24/P12/G9/X4` |
 | 상위 21개 요구사항 | active 17 + partial/dormant 2 + missing 2 | partial은 `HomeDS402` 목적의 LASAL-native `ReferenceAxis`와 `SetPosition`; missing은 `HomeDS402Ex`, `SetOpMode` |
 | 캡처 기반 LASAL deterministic unsupported | 0/23 | 기존 group 5개 command source 활성화 |
 | 현재 CyWork legacy control/read/motion 범위 | 18개 | axis 8개와 group 10개; Admin `0x7D22`, diagnostics/lifecycle/metadata 제외 |
-| C# 자동 테스트 | 2026-08-12 Debug/Release 1151/1151 PASS | 기존 회귀에 SetPosition retirement 13개를 더해 exact 60-byte request, 92-byte terminal snapshot, capability bit 7/old catalog dependency, stale/identity/generation zero-wire, sync/async exact retry, domain failure session 유지, malformed failure/generation과 operation-inapplicable detail session fault, response-loss reconnect retry를 고정한다. 이는 PC/fake-RPC 계약이며 PLC runtime 증거와 별도다. |
+| C# 자동 테스트 | 2026-08-18 Debug/Release 1152/1152 PASS | 기존 회귀에 SetPosition cross-boot query/retirement를 더해 original/current BootId 분리, exact 60-byte query와 64-byte retirement request, 92-byte terminal snapshot, capability bit 7/old catalog dependency, stale identity/generation zero-wire, sync/async exact retry, domain failure session 유지, malformed failure/generation과 operation-inapplicable detail session fault, response-loss reconnect 뒤 changed-current-Boot exact requery를 고정한다. 이는 PC/fake-RPC 계약이며 PLC runtime 증거와 별도다. |
 | LASAL SourceOnly static contract | PASS | diagnostics D0~D5와 dormant Admin `0x7D12/0x7D13` source 계약, `LMCDiagnosticsService` constructor의 38-state exact 이름/타입, 37개 scalar/24-entry Bulk array exact 초기화·control-flow 금지·final `C_OK`와 `LMCRecorderStore` constructor의 exact scalar/array/token/two-bank 초기화·publish-last 순서를 포함한다. `0x7D13`은 exact offset/validation/capability-off/native-call-zero를 검사한다. |
 | LASAL full static contract | PASS | current generated metadata, same-peer `TCPIPServer`, diagnostics/recorder/executor 구조, Axis 1 SDO Write activation과 SetPosition/Reference dormant native-call-zero 계약이 일치한다. PLC runtime 증거와 별도다. |
 | 개발 WPF | D5/topology/CREVIS/guarded output UI, D5 abrupt-disconnect application-recovery와 D4 qualification/cleanup/reconnect/config-only manual Configure adapter 포함; current Debug/Release build PASS | actual-control smoke VS2019 MSBuild Debug/Release PASS; Axis Power On durable zero-replay, Stop interference 뒤 explicit Power Off completion, PowerOff transient status-only Resume/monitor 재클릭 zero-wire(Stop은 허용)/confirmed-interference replacement을 포함한다. Group Reset은 prepared/accepted durable journal, exact endpoint/DiagnosticsBuild/BootId/MapRevision/group/member reconnect/process-restart attach, fresh `0x20D2` 1회, `0x2049` 0회, status-only member proof/safety reconciliation과 stale identity retirement을 포함한다. SDO proof identity drift/disconnect 영구 폐기도 포함한다. accepted replacement는 원 pending을 대체하고 flag를 지우며 rejected replacement는 원 pending/flag/label과 Load Axis·이름 편집 차단을 보존한다. cleanup은 pending/flag를 지운다. Axis Reset accepted-once recovery도 포함한다. 네 D4 proof/route gate는 모두 `false`이고 D5 PLC orphan lifecycle witness 및 실제 PLC/live/pcap 승인은 별도다. |
@@ -316,11 +316,13 @@ prepare-time RequestId와 one-shot 실행을 고정한다. RequestId는 `LMCAdmi
 `_LMCAXIS_CMDERROR` 전체 `UINT32` bitfield를 payload `P+24`에 보존한다. Detail 11에서
 positive/other ErrorId 또는 모순된 applied/native 값은 malformed response로 처리해 outcome을
 uncertain으로 남기고 exact session을 fault시킨다. capability bit 3은 계속 OFF이고 LASAL은
-valid raw `0x7D12`도 `InvalidState/detail 10`으로 결정적으로 거부하며 native SetPosition을
+valid raw `0x7D12`도 `SetPositionOutcomeStorageUnavailable/detail 24`로 결정적으로 거부하며 native SetPosition을
 호출하지 않는다. SDK에는 `0x7D14 ReadAxisSetPositionOutcome` exact-key read-only query,
-`0x7D1A RetireAxisSetPositionOutcome` nonzero-generation CAS와 독립 durable journal core를
-추가했지만, current PLC에는 two-bank retained store/query/retirement route가 없고 bit 3/5/7도
-OFF다. bit 5는 query-only, bit 7은 retirement이며 `bit 7 => bit 5`,
+`0x7D1A RetireAxisSetPositionOutcome` nonzero-generation CAS와 format 1/2 호환,
+terminal-query-proof -> exact-retirement-only Resolve를 강제하는 독립 durable journal v2 core를
+추가했고 current PLC source에는 query/retirement route와 exact parser도 있다. 다만 two-bank
+retained store/tombstone은 없고 valid request는 detail 24이며 bit 3/5/7도 OFF다.
+bit 5는 query-only, bit 7은 retirement이며 `bit 7 => bit 5`,
 `bit 3 => bit 5 + bit 7`이다. journal을 MainWindow에 연결하거나 WPF mutation을
 노출하지 않는다. store/query/retirement, journal/no-auto-replay와 unified axis/group mutation
 ownership의 동시 연결, task/core priority, application-approved `SetPositionMaxJump>0`,
