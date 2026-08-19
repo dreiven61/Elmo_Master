@@ -68,6 +68,32 @@ function ConvertFrom-LmcDistributionBase64 {
         [System.Convert]::FromBase64String($Text))
 }
 
+function Get-LmcDistributionFileSha256 {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$LiteralPath
+    )
+
+    $fullPath = [System.IO.Path]::GetFullPath($LiteralPath)
+    if (-not (Test-Path -LiteralPath $fullPath -PathType Leaf)) {
+        throw "Distribution tooling hash input was not found: $fullPath"
+    }
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $stream = [System.IO.File]::OpenRead($fullPath)
+        try {
+            return ([System.BitConverter]::ToString(
+                $sha.ComputeHash($stream))).Replace('-', '')
+        }
+        finally {
+            $stream.Dispose()
+        }
+    }
+    finally {
+        $sha.Dispose()
+    }
+}
+
 function Get-LmcDistributionOrdinalSortedUniqueStrings {
     param(
         [Parameter(Mandatory = $true)]
@@ -548,9 +574,8 @@ function Resolve-LmcDistributionPowerShellHost {
                 Version = $identity.Version
                 PowerShellHome = $identity.PowerShellHome
                 ModulePath = $identity.ModulePath
-                ExecutableSha256 = (Get-FileHash `
-                    -LiteralPath $path `
-                    -Algorithm SHA256).Hash.ToUpperInvariant()
+                ExecutableSha256 = Get-LmcDistributionFileSha256 `
+                    -LiteralPath $path
             }
         }
         catch {
@@ -582,9 +607,8 @@ function Assert-LmcDistributionPowerShellHostExecutableCurrent {
     if (-not (Test-Path -LiteralPath $HostIdentity.Path -PathType Leaf)) {
         throw "Distribution PowerShell host executable disappeared: $($HostIdentity.Label)"
     }
-    $currentSha256 = (Get-FileHash `
-        -LiteralPath $HostIdentity.Path `
-        -Algorithm SHA256).Hash.ToUpperInvariant()
+    $currentSha256 = Get-LmcDistributionFileSha256 `
+        -LiteralPath $HostIdentity.Path
     if (-not $currentSha256.Equals(
             $HostIdentity.ExecutableSha256,
             [System.StringComparison]::Ordinal)) {
@@ -613,8 +637,8 @@ function Get-LmcDistributionToolingSuiteSpecifications {
             Id = 'SemanticPolicy'
             RelativePath = 'LMC_Library/LMC_API/Test-LmcDistributionSemanticPolicy.ps1'
             TimeoutSeconds = 120
-            EvidencePattern = '^PASS LMC\.DistributionSemanticPolicy\.Tests 53 AE26EF45A5A7D7C4A0D6C3C04DE3D3C4C7A6EB27BF5303142064BBE75D388769 18$'
-            EvidenceLine = 'PASS LMC.DistributionSemanticPolicy.Tests 53 AE26EF45A5A7D7C4A0D6C3C04DE3D3C4C7A6EB27BF5303142064BBE75D388769 18'
+            EvidencePattern = '^PASS LMC\.DistributionSemanticPolicy\.Tests 70 7B9CDFA6E3C14ED2AA0BA7DA23D87CC15C0A75AE2602BADB733C77F639222DE4 18$'
+            EvidenceLine = 'PASS LMC.DistributionSemanticPolicy.Tests 70 7B9CDFA6E3C14ED2AA0BA7DA23D87CC15C0A75AE2602BADB733C77F639222DE4 18'
             WorkerTerminates = $false
         },
         [pscustomobject]@{
@@ -645,16 +669,16 @@ function Get-LmcDistributionToolingSuiteSpecifications {
             Id = 'UdpCallback'
             RelativePath = "$testRoot/Verify-LasalUdpCallbackContract.ps1"
             TimeoutSeconds = 900
-            EvidencePattern = '^PASS LASAL\.UdpCallbackContract\.SelfTest \(305/305 negative fixtures rejected; Absent explicit, VendorImported, DerivedDeclaration, DerivedWired, corrected DerivedCandidate, and TerminalWakeBrokerCandidate positives accepted\)$'
-            EvidenceLine = 'PASS LASAL.UdpCallbackContract.SelfTest (305/305 negative fixtures rejected; Absent explicit, VendorImported, DerivedDeclaration, DerivedWired, corrected DerivedCandidate, and TerminalWakeBrokerCandidate positives accepted)'
+            EvidencePattern = '^PASS LASAL\.UdpCallbackContract\.SelfTest \(336/336 negative fixtures rejected; Absent explicit, VendorImported, DerivedDeclaration, DerivedWired, corrected DerivedCandidate, and TerminalWakeBrokerCandidate positives accepted\)$'
+            EvidenceLine = 'PASS LASAL.UdpCallbackContract.SelfTest (336/336 negative fixtures rejected; Absent explicit, VendorImported, DerivedDeclaration, DerivedWired, corrected DerivedCandidate, and TerminalWakeBrokerCandidate positives accepted)'
             WorkerTerminates = $false
         },
         [pscustomobject]@{
             Id = 'ControlHandleRequest'
             RelativePath = "$testRoot/Verify-LasalContract.ps1"
             TimeoutSeconds = 180
-            EvidencePattern = '^PASS LASAL\.ControlHandleRequestVerifier\.SelfTest \(13/13 negative fixtures rejected; comment-only fixture accepted\)$'
-            EvidenceLine = 'PASS LASAL.ControlHandleRequestVerifier.SelfTest (13/13 negative fixtures rejected; comment-only fixture accepted)'
+            EvidencePattern = '^PASS LASAL\.ControlHandleRequestVerifier\.SelfTest \(20/20 negative fixtures rejected; comment-only fixture accepted\)$'
+            EvidenceLine = 'PASS LASAL.ControlHandleRequestVerifier.SelfTest (20/20 negative fixtures rejected; comment-only fixture accepted)'
             WorkerTerminates = $false
         }
     )
@@ -687,8 +711,8 @@ function Assert-LmcDistributionToolingSuiteSpecifications {
         SemanticPolicy = @{
             RelativePath = 'LMC_Library/LMC_API/Test-LmcDistributionSemanticPolicy.ps1'
             TimeoutSeconds = 120
-            EvidencePattern = '^PASS LMC\.DistributionSemanticPolicy\.Tests 53 AE26EF45A5A7D7C4A0D6C3C04DE3D3C4C7A6EB27BF5303142064BBE75D388769 18$'
-            EvidenceLine = 'PASS LMC.DistributionSemanticPolicy.Tests 53 AE26EF45A5A7D7C4A0D6C3C04DE3D3C4C7A6EB27BF5303142064BBE75D388769 18'
+            EvidencePattern = '^PASS LMC\.DistributionSemanticPolicy\.Tests 70 7B9CDFA6E3C14ED2AA0BA7DA23D87CC15C0A75AE2602BADB733C77F639222DE4 18$'
+            EvidenceLine = 'PASS LMC.DistributionSemanticPolicy.Tests 70 7B9CDFA6E3C14ED2AA0BA7DA23D87CC15C0A75AE2602BADB733C77F639222DE4 18'
             WorkerTerminates = $false
         }
         ReleaseManifest = @{
@@ -715,15 +739,15 @@ function Assert-LmcDistributionToolingSuiteSpecifications {
         UdpCallback = @{
             RelativePath = "$testRoot/Verify-LasalUdpCallbackContract.ps1"
             TimeoutSeconds = 900
-            EvidencePattern = '^PASS LASAL\.UdpCallbackContract\.SelfTest \(305/305 negative fixtures rejected; Absent explicit, VendorImported, DerivedDeclaration, DerivedWired, corrected DerivedCandidate, and TerminalWakeBrokerCandidate positives accepted\)$'
-            EvidenceLine = 'PASS LASAL.UdpCallbackContract.SelfTest (305/305 negative fixtures rejected; Absent explicit, VendorImported, DerivedDeclaration, DerivedWired, corrected DerivedCandidate, and TerminalWakeBrokerCandidate positives accepted)'
+            EvidencePattern = '^PASS LASAL\.UdpCallbackContract\.SelfTest \(336/336 negative fixtures rejected; Absent explicit, VendorImported, DerivedDeclaration, DerivedWired, corrected DerivedCandidate, and TerminalWakeBrokerCandidate positives accepted\)$'
+            EvidenceLine = 'PASS LASAL.UdpCallbackContract.SelfTest (336/336 negative fixtures rejected; Absent explicit, VendorImported, DerivedDeclaration, DerivedWired, corrected DerivedCandidate, and TerminalWakeBrokerCandidate positives accepted)'
             WorkerTerminates = $false
         }
         ControlHandleRequest = @{
             RelativePath = "$testRoot/Verify-LasalContract.ps1"
             TimeoutSeconds = 180
-            EvidencePattern = '^PASS LASAL\.ControlHandleRequestVerifier\.SelfTest \(13/13 negative fixtures rejected; comment-only fixture accepted\)$'
-            EvidenceLine = 'PASS LASAL.ControlHandleRequestVerifier.SelfTest (13/13 negative fixtures rejected; comment-only fixture accepted)'
+            EvidencePattern = '^PASS LASAL\.ControlHandleRequestVerifier\.SelfTest \(20/20 negative fixtures rejected; comment-only fixture accepted\)$'
+            EvidenceLine = 'PASS LASAL.ControlHandleRequestVerifier.SelfTest (20/20 negative fixtures rejected; comment-only fixture accepted)'
             WorkerTerminates = $false
         }
     }
@@ -1058,14 +1082,14 @@ function Invoke-LmcDistributionToolingWorker {
             $semanticResult = @(& $suitePath)
             if ($semanticResult.Count -ne 1 -or
                 $semanticResult[0].Result -cne 'PASS' -or
-                $semanticResult[0].TestCount -ne 53 -or
+                $semanticResult[0].TestCount -ne 70 -or
                 $semanticResult[0].PolicyCheckCount -ne 18 -or
                 $semanticResult[0].PolicySha256 -cne
-                    'AE26EF45A5A7D7C4A0D6C3C04DE3D3C4C7A6EB27BF5303142064BBE75D388769') {
+                    '7B9CDFA6E3C14ED2AA0BA7DA23D87CC15C0A75AE2602BADB733C77F639222DE4') {
                 throw 'Distribution semantic-policy suite result drifted.'
             }
             Write-Output (
-                'PASS LMC.DistributionSemanticPolicy.Tests 53 ' +
+                'PASS LMC.DistributionSemanticPolicy.Tests 70 ' +
                 $semanticResult[0].PolicySha256 + ' 18')
         }
         'ReleaseManifest' {

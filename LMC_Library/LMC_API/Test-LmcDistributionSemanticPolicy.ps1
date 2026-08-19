@@ -72,6 +72,56 @@ function Write-DistributionSemanticPolicyFixtureFile {
         $script:DistributionSemanticPolicyUtf8)
 }
 
+function Resolve-DistributionSemanticPolicyTestPythonPath {
+    $candidates = New-Object `
+        'System.Collections.Generic.HashSet[string]' `
+        ([System.StringComparer]::OrdinalIgnoreCase)
+    $orderedCandidates = @()
+    $bundledPython = Join-Path $env:USERPROFILE `
+        '.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe'
+    if ($candidates.Add($bundledPython)) {
+        $orderedCandidates += $bundledPython
+    }
+    foreach ($command in @(Get-Command `
+            -Name 'python' `
+            -CommandType Application `
+            -All `
+            -ErrorAction SilentlyContinue)) {
+        $candidate = [string]$command.Source
+        if ($candidates.Add($candidate)) {
+            $orderedCandidates += $candidate
+        }
+    }
+
+    $rejections = @()
+    foreach ($candidate in $orderedCandidates) {
+        if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) {
+            $rejections += "missing=$candidate"
+            continue
+        }
+        try {
+            $probeOutput = @(& $candidate -B -c 'import docx, pypdf' 2>&1)
+            if ($LASTEXITCODE -ne 0) {
+                $rejections += "exit=$LASTEXITCODE path=$candidate"
+                continue
+            }
+            if (@($probeOutput | Where-Object {
+                        -not [string]::IsNullOrWhiteSpace([string]$_)
+                    }).Count -ne 0) {
+                $rejections += "output path=$candidate"
+                continue
+            }
+            return [System.IO.Path]::GetFullPath($candidate)
+        }
+        catch {
+            $rejections += "error=$($_.Exception.Message) path=$candidate"
+        }
+    }
+
+    throw ('A Python runtime with python-docx and pypdf was not found: {0}' -f
+        ($rejections -join '; '))
+}
+
 function Set-DistributionSemanticPolicyFixtureText {
     param(
         [Parameter(Mandatory = $true)]
@@ -131,8 +181,14 @@ A success ACK is request acceptance, not completion; poll terminal state and sta
 Close, Dispose, and cancellation do not send a PLC motion Stop; use an explicit safe-stop procedure.
 Raw DINT UNIT conversion is performed by caller code.
 Current PLC live SDO Write is not proven and remains unverified.
-RPC_INIT_FRESH_TCP_ONCE_V1 accepts only the exact canonical ErrorId=-1 result for two same-socket attempts, then exactly one fresh TCP connection.
-The second candidate failure is terminal; one UI operation is bounded to TCP 2 and 0x8080 4 requests.
+RPC_INIT_FRESH_TCP_ONCE_V2 gives only candidate 1 a fresh-TCP budget.
+Cause A accepts the exact persistent canonical ErrorId=-1 result with AttemptCount=2 after two same-socket attempts and waits 100 ms.
+Cause B requires an actual 0x8080 request to have started, AttemptCount=1, no received response, and a direct EndOfStreamException, SocketException, TimeoutException, or IOException whose inner exception is one of those; it waits 1000 ms.
+Candidate 2 failure is terminal; one UI operation is bounded to TCP 2 and 0x8080 4 requests.
+Connect-before-init with AttemptCount=0 has no retry. Cancellation and ObjectDisposedException do not retry. InvalidDataException does not retry even when its InnerException is allowlisted. Malformed response, valid non--1 response, failure after a response, and callback-stage failure do not retry.
+Evidence includes CandidateOrdinal, FreshSessionRetryReason, FreshSessionRetryDelayMs, FreshSessionRetryFromCandidate, FreshSessionRetryNextCandidate, and FreshSessionFirstFailure.
+The current reconnect PLC image build and download completed at 15:58 on 2026-08-12, but same-window Close-then-Connect live reconnect is not verified.
+PC fake-RPC and loopback tests are not PLC runtime proof.
 The actual-EXE gate sends external WM_SYSCOMMAND/SC_CLOSE for the window X close, waits for process exit, and requires the successor to reacquire the default named mutex.
 The fake-RPC wire total is 3/28 (13,2,13).
 The actual-EXE gate is PC-loopback-only; PLC cleanup, disarm, and readiness are not proven.
@@ -449,6 +505,54 @@ try {
 
     $actualRepositoryRoot = [System.IO.Path]::GetFullPath(
         (Join-Path $PSScriptRoot '..\..'))
+    $actualPythonPath = Resolve-DistributionSemanticPolicyTestPythonPath
+    $actualCanonicalManualRoot = Join-Path $actualRepositoryRoot `
+        'LMC_Library\LMC_API_Distribution\03_API_User_Manual'
+    $actualCanonicalDocxPath = Join-Path $actualCanonicalManualRoot `
+        'LASAL_Motion_Control_API_User_Manual_KO.docx'
+    $actualCanonicalPdfPath = Join-Path $actualCanonicalManualRoot `
+        'LASAL_Motion_Control_API_User_Manual_KO.pdf'
+    $actualCanonicalDocxText = Get-LmcDistributionPolicyDocumentText `
+        -Path $actualCanonicalDocxPath `
+        -PythonPath $actualPythonPath
+    $actualCanonicalPdfText = Get-LmcDistributionPolicyDocumentText `
+        -Path $actualCanonicalPdfPath `
+        -PythonPath $actualPythonPath
+    $actualCanonicalManualResult = Test-LmcDistributionManualReleasePolicy `
+        -DocxText $actualCanonicalDocxText `
+        -PdfText $actualCanonicalPdfText
+    Assert-DistributionSemanticPolicyTest `
+        -Condition (($actualCanonicalManualResult.Result -ceq 'PASS') -and
+            ($actualCanonicalManualResult.CheckCount -eq 3)) `
+        -Message 'Actual canonical DOCX/PDF bytes did not return exact 3/3 manual policy PASS.'
+
+    $actualDocxMissingTimeout = $actualCanonicalDocxText.Replace(
+        'TimeoutException',
+        'RemovedTransportException')
+    Assert-DistributionSemanticPolicyBlocker `
+        -ExpectedBlocker 'MANUAL_RECONNECT_SCOPE' `
+        -Action {
+            Test-LmcDistributionManualReleasePolicy `
+                -DocxText $actualDocxMissingTimeout `
+                -PdfText $actualCanonicalPdfText
+        }
+    $actualDocxWrongTransportDelay = [regex]::Replace(
+        $actualCanonicalDocxText,
+        '(pre-response\s+transport\s+failure.{0,40})1000\s*ms',
+        '${1}500 ms',
+        [System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor
+            [System.Text.RegularExpressions.RegexOptions]::Singleline)
+    Assert-DistributionSemanticPolicyTest `
+        -Condition ($actualDocxWrongTransportDelay -cne $actualCanonicalDocxText) `
+        -Message 'Actual canonical DOCX transport-delay mutation target was not found.'
+    Assert-DistributionSemanticPolicyBlocker `
+        -ExpectedBlocker 'MANUAL_RECONNECT_SCOPE' `
+        -Action {
+            Test-LmcDistributionManualReleasePolicy `
+                -DocxText $actualDocxWrongTransportDelay `
+                -PdfText $actualCanonicalPdfText
+        }
+
     $actualCurrentWpfRoot = Join-Path $actualRepositoryRoot 'LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp'
     $actualCurrentProject = Join-Path $actualCurrentWpfRoot 'LasalApiWpfTestApp.csproj'
     $actualCandidateRoot = Join-Path $temporaryBase 'actual_current_candidate'
@@ -539,8 +643,183 @@ try {
         -BasePath $temporaryBase `
         -Name 'manual_reconnect_docx'
     $driftText = $fixture.ManualText.Replace(
-        'RPC_INIT_FRESH_TCP_ONCE_V1',
+        'RPC_INIT_FRESH_TCP_ONCE_V2',
         'LEGACY_RECONNECT_POLICY')
+    Assert-DistributionSemanticPolicyBlocker `
+        -ExpectedBlocker 'MANUAL_RECONNECT_SCOPE' `
+        -Action {
+            Invoke-DistributionSemanticPolicyFixture `
+                -Fixture $fixture `
+                -DocxText $driftText
+        }
+
+    $fixture = New-DistributionSemanticPolicyFixture `
+        -BasePath $temporaryBase `
+        -Name 'manual_reconnect_direct_exception_scope_removed'
+    $driftText = $fixture.ManualText.Replace(
+        'a direct EndOfStreamException',
+        'an EndOfStreamException')
+    Assert-DistributionSemanticPolicyBlocker `
+        -ExpectedBlocker 'MANUAL_RECONNECT_SCOPE' `
+        -Action {
+            Invoke-DistributionSemanticPolicyFixture `
+                -Fixture $fixture `
+                -DocxText $driftText
+        }
+
+    $fixture = New-DistributionSemanticPolicyFixture `
+        -BasePath $temporaryBase `
+        -Name 'manual_reconnect_missing_transport_allowlist'
+    $driftText = $fixture.ManualText.Replace(
+        'EndOfStreamException, ',
+        '')
+    Assert-DistributionSemanticPolicyBlocker `
+        -ExpectedBlocker 'MANUAL_RECONNECT_SCOPE' `
+        -Action {
+            Invoke-DistributionSemanticPolicyFixture `
+                -Fixture $fixture `
+                -DocxText $driftText
+        }
+
+    $fixture = New-DistributionSemanticPolicyFixture `
+        -BasePath $temporaryBase `
+        -Name 'manual_reconnect_ioexception_inner_scope_removed'
+    $driftText = $fixture.ManualText.Replace(
+        'IOException whose inner exception is one of those',
+        'IOException')
+    Assert-DistributionSemanticPolicyBlocker `
+        -ExpectedBlocker 'MANUAL_RECONNECT_SCOPE' `
+        -Action {
+            Invoke-DistributionSemanticPolicyFixture `
+                -Fixture $fixture `
+                -PdfText $driftText
+        }
+
+    $fixture = New-DistributionSemanticPolicyFixture `
+        -BasePath $temporaryBase `
+        -Name 'manual_reconnect_response_after_overclaim'
+    $driftText = $fixture.ManualText +
+        "`nFailure after a response may retry by opening a fresh TCP connection."
+    Assert-DistributionSemanticPolicyBlocker `
+        -ExpectedBlocker 'MANUAL_RECONNECT_SCOPE' `
+        -Action {
+            Invoke-DistributionSemanticPolicyFixture `
+                -Fixture $fixture `
+                -DocxText $driftText
+        }
+
+    $fixture = New-DistributionSemanticPolicyFixture `
+        -BasePath $temporaryBase `
+        -Name 'manual_live_sdo_overclaim'
+    $driftText = $fixture.ManualText.Replace(
+        'Current PLC live SDO Write is not proven and remains unverified.',
+        'Current PLC live SDO Write is verified and production-ready.')
+    Assert-DistributionSemanticPolicyBlocker `
+        -ExpectedBlocker 'MANUAL_RECONNECT_SCOPE' `
+        -Action {
+            Invoke-DistributionSemanticPolicyFixture `
+                -Fixture $fixture `
+                -PdfText $driftText
+        }
+
+    $fixture = New-DistributionSemanticPolicyFixture `
+        -BasePath $temporaryBase `
+        -Name 'manual_invalid_data_inner_retry_overclaim'
+    $driftText = $fixture.ManualText +
+        "`nAn InvalidDataException whose InnerException is SocketException may retry by opening a fresh TCP connection."
+    Assert-DistributionSemanticPolicyBlocker `
+        -ExpectedBlocker 'MANUAL_RECONNECT_SCOPE' `
+        -Action {
+            Invoke-DistributionSemanticPolicyFixture `
+                -Fixture $fixture `
+                -DocxText $driftText
+        }
+
+    $fixture = New-DistributionSemanticPolicyFixture `
+        -BasePath $temporaryBase `
+        -Name 'manual_reconnect_missing_candidate_evidence'
+    $driftText = $fixture.ManualText.Replace(
+        'FreshSessionRetryNextCandidate, ',
+        '')
+    Assert-DistributionSemanticPolicyBlocker `
+        -ExpectedBlocker 'MANUAL_RECONNECT_SCOPE' `
+        -Action {
+            Invoke-DistributionSemanticPolicyFixture `
+                -Fixture $fixture `
+                -PdfText $driftText
+        }
+
+    $fixture = New-DistributionSemanticPolicyFixture `
+        -BasePath $temporaryBase `
+        -Name 'manual_reconnect_live_overclaim'
+    $driftText = $fixture.ManualText.Replace(
+        'same-window Close-then-Connect live reconnect is not verified',
+        'same-window Close-then-Connect live reconnect is verified')
+    Assert-DistributionSemanticPolicyBlocker `
+        -ExpectedBlocker 'MANUAL_RECONNECT_SCOPE' `
+        -Action {
+            Invoke-DistributionSemanticPolicyFixture `
+                -Fixture $fixture `
+                -DocxText $driftText
+        }
+
+    $fixture = New-DistributionSemanticPolicyFixture `
+        -BasePath $temporaryBase `
+        -Name 'manual_v2_fake_plc_proof_overclaim'
+    $driftText = $fixture.ManualText +
+        "`nV2 fake-RPC tests prove PLC same-window reconnect runtime readiness."
+    Assert-DistributionSemanticPolicyBlocker `
+        -ExpectedBlocker 'MANUAL_RECONNECT_SCOPE' `
+        -Action {
+            Invoke-DistributionSemanticPolicyFixture `
+                -Fixture $fixture `
+                -PdfText $driftText
+        }
+
+    $fixture = New-DistributionSemanticPolicyFixture `
+        -BasePath $temporaryBase `
+        -Name 'manual_backoff_plc_proof_overclaim'
+    $driftText = $fixture.ManualText +
+        "`nThe 1000 ms backoff proves PLC readiness."
+    Assert-DistributionSemanticPolicyBlocker `
+        -ExpectedBlocker 'MANUAL_RECONNECT_SCOPE' `
+        -Action {
+            Invoke-DistributionSemanticPolicyFixture `
+                -Fixture $fixture `
+                -DocxText $driftText
+        }
+
+    $fixture = New-DistributionSemanticPolicyFixture `
+        -BasePath $temporaryBase `
+        -Name 'manual_image_live_reconnect_proof_overclaim'
+    $driftText = $fixture.ManualText +
+        "`nThe 15:58 image build and download proves same-window live reconnect."
+    Assert-DistributionSemanticPolicyBlocker `
+        -ExpectedBlocker 'MANUAL_RECONNECT_SCOPE' `
+        -Action {
+            Invoke-DistributionSemanticPolicyFixture `
+                -Fixture $fixture `
+                -PdfText $driftText
+        }
+
+    $fixture = New-DistributionSemanticPolicyFixture `
+        -BasePath $temporaryBase `
+        -Name 'manual_reconnect_second_candidate_retry'
+    $driftText = $fixture.ManualText +
+        "`nCandidate 2 may retry by opening another fresh TCP connection."
+    Assert-DistributionSemanticPolicyBlocker `
+        -ExpectedBlocker 'MANUAL_RECONNECT_SCOPE' `
+        -Action {
+            Invoke-DistributionSemanticPolicyFixture `
+                -Fixture $fixture `
+                -PdfText $driftText
+        }
+
+    $fixture = New-DistributionSemanticPolicyFixture `
+        -BasePath $temporaryBase `
+        -Name 'manual_reconnect_plain_ioexception_overclaim'
+    $driftText = $fixture.ManualText +
+        "`nFor Cause B, a plain IOException without an inner exception is eligible for the 1000 ms fresh-TCP retry."
     Assert-DistributionSemanticPolicyBlocker `
         -ExpectedBlocker 'MANUAL_RECONNECT_SCOPE' `
         -Action {
@@ -553,7 +832,7 @@ try {
         -BasePath $temporaryBase `
         -Name 'manual_reconnect_docx_semantic_reversal'
     $driftText = $fixture.ManualText +
-        "`nThe exact canonical ErrorId=-1 is no longer required; two same-socket attempts are not a limit."
+        "`nFor Cause A, the exact canonical ErrorId=-1 is no longer required; two same-socket attempts are not a limit."
     Assert-DistributionSemanticPolicyBlocker `
         -ExpectedBlocker 'MANUAL_RECONNECT_SCOPE' `
         -Action {
@@ -579,7 +858,7 @@ try {
         -BasePath $temporaryBase `
         -Name 'manual_reconnect_docx_minus_one_optional'
     $driftText = $fixture.ManualText +
-        "`nThe exact canonical ErrorId=-1 result is not required."
+        "`nFor Cause A, the exact canonical ErrorId=-1 result is not required."
     Assert-DistributionSemanticPolicyBlocker `
         -ExpectedBlocker 'MANUAL_RECONNECT_SCOPE' `
         -Action {
@@ -845,14 +1124,12 @@ SDO Write gate is OFF and the approved target count is zero.
     }
 
     $fixture = New-DistributionSemanticPolicyFixture -BasePath $temporaryBase -Name 'plc_live'
-    $driftText = $fixture.ManualText.Replace(
-        'Current PLC live SDO Write is not proven and remains unverified.',
-        'Current PLC SDO Write is available.')
-    $driftText = $driftText.Replace(
-        'The actual-EXE gate is PC-loopback-only; PLC cleanup, disarm, and readiness are not proven.',
-        'The actual-EXE gate is PC-loopback-only.')
+    Set-DistributionSemanticPolicyFixtureText `
+        -Path $fixture.DintMapPath `
+        -OldText 'Current PLC live SDO Write is not proven and remains unverified.' `
+        -NewText 'Current PLC SDO Write is available.'
     Assert-DistributionSemanticPolicyBlocker -ExpectedBlocker 'PLC_LIVE_UNVERIFIED' -Action {
-        Invoke-DistributionSemanticPolicyFixture -Fixture $fixture -ManualText $driftText
+        Invoke-DistributionSemanticPolicyFixture -Fixture $fixture
     }
 
     $fixture = New-DistributionSemanticPolicyFixture -BasePath $temporaryBase -Name 'sdk_sdo_scope'

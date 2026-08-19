@@ -50,7 +50,7 @@ function Get-LmcDistributionSemanticPolicyText {
         },
         [pscustomobject]@{
             Name = 'MANUAL_RECONNECT_SCOPE'
-            Statement = 'Both external manuals describe the bounded RPC_INIT_FRESH_TCP_ONCE_V1 same-socket and one-fresh-TCP policy, the actual-EXE X-close/process/mutex/wire gate, its PC-only boundary, and standalone-versus-full-Distribution result.'
+            Statement = 'Both external manuals describe the bounded RPC_INIT_FRESH_TCP_ONCE_V2 two-cause candidate-1 policy, its no-retry exclusions and evidence fields, the actual-EXE X-close/process/mutex/wire gate, the current build/download versus unverified same-window PLC-runtime boundary, and standalone-versus-full-Distribution result.'
         },
         [pscustomobject]@{
             Name = 'MANUAL_RELEASE_WARNING_SCOPE'
@@ -66,7 +66,7 @@ function Get-LmcDistributionSemanticPolicyText {
         },
         [pscustomobject]@{
             Name = 'PLC_LIVE_UNVERIFIED'
-            Statement = 'Current PLC download/runtime/live SDO Write remains unverified and must not be inferred from static or PC tests.'
+            Statement = 'The current reconnect PLC image build/download is recorded, but same-window live reconnect and live SDO Write remain unverified and must not be inferred from image transfer, static checks, or PC fake tests.'
         },
         [pscustomobject]@{
             Name = 'PREVIEW_PRODUCTION_NO_GO'
@@ -321,11 +321,40 @@ function Test-LmcDistributionManualReleasePolicy {
     $checkCount++
 
     $manualReconnectPatterns = @(
-        'RPC_INIT_FRESH_TCP_ONCE_V1',
-        '(accepts\s+only.{0,100}exact\s+canonical.{0,40}(?:ErrorId\s*=?\s*)?-1.{0,120}two\s+same[- ]socket\s+attempts|exact\s+canonical\s+init\s+failure\s*\uB9CC.{0,100}20\s*ms.{0,100}\uAC19\uC740\s+TCP\s+socket\s*\uC5D0\uC11C.{0,100}\uD55C\s+\uBC88\s+\uB354)',
-        '(then\s+exactly\s+one\s+fresh[- ]?TCP|100\s*ms.{0,120}\uC0C8.{0,50}(LMCConnection|TCP).{0,100}\uD558\uB098\uB9CC)',
-        '(second.{0,50}candidate.{0,80}(failure\s+is|fails?\s+and\s+is)\s+terminal|\uB450\s+\uBC88\uC9F8.{0,50}candidate.{0,40}\uC2E4\uD328\uB294\s+terminal)',
+        'RPC_INIT_FRESH_TCP_ONCE_V2',
+        '(exact\s+(persistent\s+)?canonical.{0,80}(?:ErrorId\s*=?\s*)?-1.{0,120}(AttemptCount\s*=?\s*2|two\s+same[- ]socket)|exact\s+canonical.{0,120}AttemptCount\s*=?\s*2)',
+        '(AttemptCount\s*=?\s*2.{0,160}100\s*ms|100\s*ms.{0,160}AttemptCount\s*=?\s*2)',
+        '(actual\s+0x8080\s+request.{0,80}(started|start)|\uC2E4\uC81C\s*`?0x8080`?\s*request.{0,80}\uC2DC\uC791)',
+        'AttemptCount\s*=?\s*1',
+        '(no\s+(received\s+)?response|response.{0,30}(none|\uC5C6)|\uC751\uB2F5.{0,30}\uC5C6)',
+        'EndOfStreamException',
+        'SocketException',
+        'TimeoutException',
+        'IOException',
+        '((direct|the\s+exceptions?\s+themselves|\uC9C1\uC811|\uC790\uCCB4).{0,80}EndOfStreamException.{0,100}SocketException.{0,100}TimeoutException)',
+        '(IOException.{0,120}inner.{0,120}(one\s+of\s+those|EndOfStreamException|SocketException|TimeoutException)|(EndOfStreamException|SocketException|TimeoutException).{0,160}inner.{0,80}IOException)',
+        '(1000\s*ms|1\s*second)',
+        '((Cause\s*B|\(\s*B\s*\)|pre-response\s+transport).{0,500}(actual\s+0x8080\s+request|\uC2E4\uC81C\s*`?0x8080`?\s*request).{0,180}(started|start|\uC2DC\uC791).{0,220}AttemptCount\s*=?\s*1.{0,220}(no\s+(received\s+)?response|response.{0,30}(none|\uC5C6)|\uC751\uB2F5.{0,30}\uC5C6).{0,220}(direct|the\s+exceptions?\s+themselves|\uC9C1\uC811|\uC790\uCCB4).{0,80}EndOfStreamException.{0,160}SocketException.{0,160}TimeoutException.{0,260}(IOException.{0,160}(inner|InnerException)|(inner|InnerException).{0,160}IOException).{0,300}(1000\s*ms|1\s*second))',
+        '(candidate\s*2|second.{0,30}candidate|\uB450\s*\uBC88\uC9F8\s*candidate).{0,100}terminal',
+        '(Connect-before-init|connect.{0,30}before.{0,30}init).{0,80}AttemptCount\s*=?\s*0.{0,80}(no[- ]?retry|does\s+not\s+retry|retry.{0,20}(none|\uC5C6)|\uC7AC\uC2DC\uB3C4.{0,30}\uC54A)',
+        'cancellation.{0,240}(no[- ]?retry|does\s+not\s+retry|do\s+not\s+retry|retry.{0,20}(none|\uC5C6)|\uC7AC\uC2DC\uB3C4.{0,30}\uC54A)',
+        'ObjectDisposedException.{0,240}(no[- ]?retry|does\s+not\s+retry|do\s+not\s+retry|retry.{0,20}(none|\uC5C6)|\uC7AC\uC2DC\uB3C4.{0,30}\uC54A)',
+        'InvalidDataException.{0,200}(inner|InnerException).{0,240}(no[- ]?retry|does\s+not\s+retry|do\s+not\s+retry|retry.{0,20}(none|\uC5C6)|\uC7AC\uC2DC\uB3C4.{0,30}\uC54A)',
+        'malformed.{0,240}(no[- ]?retry|does\s+not\s+retry|do\s+not\s+retry|retry.{0,20}(none|\uC5C6)|\uC7AC\uC2DC\uB3C4.{0,30}\uC54A)',
+        '(valid\s+non-?`?-1`?|non-?`?-1`?\s+response).{0,240}(no[- ]?retry|does\s+not\s+retry|do\s+not\s+retry|retry.{0,20}(none|\uC5C6)|\uC7AC\uC2DC\uB3C4.{0,30}\uC54A)',
+        '(response.{0,40}(after|\uC774\uD6C4)|after.{0,30}response).{0,240}(no[- ]?retry|does\s+not\s+retry|do\s+not\s+retry|retry.{0,20}(none|\uC5C6)|\uC7AC\uC2DC\uB3C4.{0,30}\uC54A)',
+        'callback[- ]stage.{0,240}(no[- ]?retry|does\s+not\s+retry|do\s+not\s+retry|retry.{0,20}(none|\uC5C6)|\uC7AC\uC2DC\uB3C4.{0,30}\uC54A)',
+        'CandidateOrdinal',
+        'FreshSessionRetryReason',
+        'FreshSessionRetryDelayMs',
+        'FreshSessionRetryFromCandidate',
+        'FreshSessionRetryNextCandidate',
+        'FreshSessionFirstFailure',
         '((one\s+UI\s+operation|UI\s+operation\s+one).{0,100}(TCP\s*(2|two)|two\s+TCP).{0,100}0x8080.{0,40}(4|four)|UI\s+operation\s+\uD558\uB098.{0,80}\uC0C1\uD55C\uC740\s+TCP\s*2\s*\uAC1C.{0,80}0x8080\s*4\s*\uD68C)',
+        '(15\s*:\s*58.{0,160}(build|\uBE4C\uB4DC).{0,80}(download|\uB2E4\uC6B4\uB85C\uB4DC)|(build|\uBE4C\uB4DC).{0,80}(download|\uB2E4\uC6B4\uB85C\uB4DC).{0,160}15\s*:\s*58)',
+        '(same[- ]window|\uAC19\uC740\s+\uCC3D).{0,160}(live\s+reconnect|Close.{0,30}Connect).{0,120}(not.{0,30}(observed|verified|proven)|\uD655\uC778\uB418\uC9C0\s+\uC54A|\uBBF8\uD655\uC778)',
+        '(PC.{0,40}(fake|loopback).{0,160}(not.{0,30}(PLC\s+runtime\s+proof|prove\s+PLC)|PLC\s+runtime.{0,30}\uC544\uB2C8)|PLC\s+runtime.{0,120}(not.{0,30}proven|\uC99D\uBA85.{0,20}\uC544\uB2C8))',
+        '((current\s+PLC\s+)?live\s+SDO\s+Write.{0,120}(not.{0,30}(proven|verified)|unverified|remain.{0,30}unverified|\uBBF8\uAC80\uC99D)|SDO\s+Write.{0,50}(live|runtime|\uC2E4\uAE30).{0,100}(proof.{0,30}(not|\uC5C6|\uC544\uC9C1)|\uBBF8\uAC80\uC99D|\uAC80\uC99D.{0,30}(\uC54A|\uC548|\uBABB)))',
         'actual[- ]?EXE',
         'SC_CLOSE',
         'actual[- ]?EXE.{0,120}(\bX\b|window.{0,20}close|\uCC3D.{0,12}X|X.{0,12}(\uC885\uB8CC|\uB2EB\uAE30))',
@@ -349,11 +378,21 @@ function Test-LmcDistributionManualReleasePolicy {
         'actual[- ]?EXE.{0,240}(?<!does not )(?<!do not )(?<!not )(?:prove[sd]?|verif(?:y|ies|ied)|demonstrat(?:e|es|ed)).{0,120}\bPLC\b',
         '\bPLC\b.{0,160}(cleanup|readiness).{0,120}(is|are|was|were).{0,30}(?<!not )(?<!un)(proven|verified).{0,160}actual[- ]?EXE',
         'actual[- ]?EXE.{0,240}\bPLC\b.{0,120}(\uC99D\uBA85\uD55C\uB2E4|\uC785\uC99D\uD55C\uB2E4|\uAC80\uC99D\uD55C\uB2E4)',
-        '(exact\s+canonical.{0,160}(?:ErrorId\s*=?\s*)?-1|(?:ErrorId\s*=?\s*)?-1.{0,160}exact\s+canonical).{0,120}(not.{0,30}required|no\s+longer\s+required|optional|unnecessary|may\s+be\s+ignored|need\s+not|\uD544\uC218.{0,24}(\uC544\uB2C8|\uC544\uB2D8)|\uC120\uD0DD|\uBD88\uD544\uC694)',
+        '((V2.{0,40}(fake|loopback)|(fake|loopback).{0,40}V2).{0,180}(?<!does not )(?<!do not )(?<!not )(?:prove[sd]?|verif(?:y|ies|ied)|demonstrat(?:e|es|ed)).{0,160}\bPLC\b.{0,160}(same[- ]window|runtime|readiness|cleanup|reconnect))',
+        '((1000\s*ms|1\s*second).{0,80}(backoff|delay|wait).{0,120}(?<!does not )(?<!do not )(?<!not )(?:prove[sd]?|verif(?:y|ies|ied)|demonstrat(?:e|es|ed)).{0,120}\bPLC\b.{0,120}(runtime|readiness|cleanup|reconnect))',
+        '(15\s*:\s*58.{0,200}(build|\uBE4C\uB4DC).{0,100}(download|\uB2E4\uC6B4\uB85C\uB4DC).{0,160}(?<!does not )(?<!do not )(?<!not )(?:prove[sd]?|verif(?:y|ies|ied)|demonstrat(?:e|es|ed)).{0,160}(same[- ]window|live\s+reconnect|Close.{0,30}Connect))',
+        '((Cause\s*A|persistent\s+same[- ]socket|AttemptCount\s*=?\s*2).{0,160}(exact\s+canonical.{0,80}(?:ErrorId\s*=?\s*)?-1|(?:ErrorId\s*=?\s*)?-1.{0,80}exact\s+canonical).{0,120}(not.{0,30}required|no\s+longer\s+required|optional|unnecessary|may\s+be\s+ignored|need\s+not)|(exact\s+canonical.{0,80}(?:ErrorId\s*=?\s*)?-1|(?:ErrorId\s*=?\s*)?-1.{0,80}exact\s+canonical).{0,120}(not.{0,30}required|no\s+longer\s+required|optional|unnecessary|may\s+be\s+ignored|need\s+not).{0,160}(Cause\s*A|persistent\s+same[- ]socket|AttemptCount\s*=?\s*2))',
         '(fresh[- ]?TCP.{0,140}(more\s+than\s+one|multiple|unbounded|any\s+number|two\s+or\s+more|2\s+or\s+more|\uBCF5\uC218|\uC5EC\uB7EC|\uB450\s*\uAC1C\s*\uC774\uC0C1|2\uD68C\s*\uC774\uC0C1)|(more\s+than\s+one|multiple|unbounded|any\s+number|two\s+or\s+more|\uBCF5\uC218|\uC5EC\uB7EC).{0,100}fresh[- ]?TCP)',
         '((same[- ]socket|same.{0,24}TCP|\uAC19\uC740.{0,24}(TCP|socket)|\uB3D9\uC77C.{0,24}(TCP|socket)).{0,140}(more\s+than\s+two|three\s+or\s+more|unbounded|any\s+number|\uC138\s*\uBC88\s*\uC774\uC0C1|\uBB34\uC81C\uD55C).{0,80}(attempt|retry|\uC2DC\uB3C4))',
         '(same[- ]socket|same.{0,24}TCP).{0,100}(two|2).{0,60}attempts?.{0,80}(not\s+a\s+limit|no\s+limit)',
         '(SC_CLOSE|process.{0,30}exit|default.{0,40}(named\s+)?mutex.{0,100}reacquir).{0,120}(not.{0,30}required|optional|unnecessary|may\s+be\s+skipped|need\s+not)',
+        '(candidate\s*2|second.{0,30}candidate).{0,100}(\bmay\b|\bcan\b|\bwill\b|is\s+allowed\s+to).{0,40}(retry|open.{0,20}(another|third|fresh))',
+        '(Connect-before-init|AttemptCount\s*=?\s*0).{0,100}(\bmay\b|\bcan\b|\bwill\b|is\s+allowed\s+to).{0,40}(retry|open.{0,20}fresh)',
+        '(malformed|valid\s+non-?`?-1`?|callback[- ]stage|ObjectDisposedException|cancellation).{0,120}(\bmay\b|\bcan\b|\bwill\b|is\s+allowed\s+to).{0,40}(retry|open.{0,20}fresh)',
+        '(failure\s+after\s+(a\s+)?response|after.{0,30}response|response.{0,30}(after|\uC774\uD6C4)).{0,120}(\bmay\b|\bcan\b|\bwill\b|is\s+allowed\s+to).{0,80}(retry|open.{0,20}fresh)',
+        '((plain|generic|unclassified|any|all)\s+IOException|IOException.{0,80}(without|no|does\s+not\s+require).{0,50}inner).{0,160}(eligible|may|can|will|is\s+allowed\s+to).{0,80}(retry|fresh[- ]?TCP)',
+        'InvalidDataException.{0,180}(inner|InnerException).{0,180}(\b(?:eligible|may|can|will)\b|is\s+allowed\s+to).{0,100}(retry|fresh[- ]?TCP)',
+        '((current\s+PLC\s+)?live\s+SDO\s+Write|SDO\s+Write.{0,50}(live|runtime|\uC2E4\uAE30)).{0,100}((is|was|has\s+been)\s+(?!not\b)(?!un)(verified|proven|production[- ]?ready|available|supported)|\uAC80\uC99D\uB410|production[- ]?ready|\uC0AC\uC6A9\s*\uAC00\uB2A5)',
         'full\s+Distribution\s+(is|was|has\s+been|returned)\s+(a\s+)?PASS(?:ED)?\b',
         'full\s+Distribution.{0,240}PASS(\uC774\uB2E4|\uD588\uB2E4|\uC600\uB2E4|\uB85C\s+\uD655\uC778)'
     )
