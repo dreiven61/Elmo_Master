@@ -269,6 +269,53 @@ namespace LasalMotionControlApiExample
             return true;
         }
 
+        private bool
+            TryFinalizeCommittedDiagnosticsMutationRetirementAtStartup()
+        {
+            if (RecoveryRecordRetirementLedgerUnavailable
+                || diagnosticsMutationJournal == null
+                || !HasRetirableLegacyDiagnosticsMutationRecord)
+            {
+                return false;
+            }
+
+            var record = diagnosticsMutationJournal.CurrentRecord;
+            foreach (var decision in recoveryRecordRetirementLedger
+                .CommittedDecisions)
+            {
+                var source = decision.SourceEvidence;
+                if (source.Owner
+                        != RecoveryRecordOwner.DiagnosticsMutation
+                    || source.RecordIdentity != record.Identity
+                    || source.EndpointEvidenceKind
+                        != RecoveryEndpointEvidenceKind
+                            .OperatorClassifiedLegacyEndpoint)
+                {
+                    continue;
+                }
+
+                var evidence = diagnosticsMutationJournal
+                    .CaptureLegacyEndpointBoundRetirementEvidence(
+                        source.EndpointIp,
+                        source.EndpointPort);
+                if (!decision.MatchesSourceEvidence(evidence))
+                {
+                    continue;
+                }
+
+                diagnosticsMutationJournal.ResolveOperatorRetirement(
+                    evidence,
+                    decision,
+                    MonotonicRetirementUtcNow(evidence.UpdatedUtc));
+                LogCommittedRetirementFinalizedAtStartup(
+                    evidence,
+                    decision);
+                return true;
+            }
+
+            return false;
+        }
+
         private void LogCommittedRetirementFinalizedAtStartup(
             RecoveryJournalSourceEvidence evidence,
             RecoveryRecordRetirementDecision decision)
@@ -603,7 +650,7 @@ namespace LasalMotionControlApiExample
                 LMCDiagnosticCapabilities currentCapabilities)
         {
             EnsureRecoveryRetirementInfrastructureAvailable();
-            var evidence = new List<RecoveryJournalSourceEvidence>(7);
+            var evidence = new List<RecoveryJournalSourceEvidence>(8);
             if (axisPowerOnRecoveryJournal.HasActiveRecord)
             {
                 evidence.Add(
@@ -645,6 +692,14 @@ namespace LasalMotionControlApiExample
                 evidence.Add(
                     axisQualificationRecoveryJournal
                         .CaptureActiveRetirementEvidence());
+            }
+            if (HasRetirableLegacyDiagnosticsMutationRecord)
+            {
+                evidence.Add(
+                    diagnosticsMutationJournal
+                        .CaptureLegacyEndpointBoundRetirementEvidence(
+                            currentEndpointIp,
+                            currentEndpointPort));
             }
 
             if (evidence.Count == 0)
@@ -705,11 +760,12 @@ namespace LasalMotionControlApiExample
                 || GroupProfileLockRecoveryJournalUnavailable
                 || GroupPowerRecoveryJournalUnavailable
                 || GroupResetRecoveryJournalUnavailable
-                || AxisQualificationRecoveryJournalUnavailable)
+                || AxisQualificationRecoveryJournalUnavailable
+                || DiagnosticsMutationJournalUnavailable)
             {
                 throw new InvalidOperationException(
                     "Stale recovery retirement is fail-closed because its "
-                    + "ledger or one of the seven durable recovery journals is "
+                    + "ledger or one of the eight durable recovery journals is "
                     + "unavailable. "
                     + GetRecoveryRecordRetirementUnavailableGuidance());
             }
@@ -823,6 +879,14 @@ namespace LasalMotionControlApiExample
                             updatedUtc);
                     break;
 
+                case RecoveryRecordOwner.DiagnosticsMutation:
+                    diagnosticsMutationJournal.ResolveOperatorRetirement(
+                        evidence,
+                        decision,
+                        updatedUtc);
+                    diagnosticsMutationRecoveredAtStartup = false;
+                    break;
+
                 default:
                     throw new ArgumentOutOfRangeException("evidence");
             }
@@ -845,6 +909,19 @@ namespace LasalMotionControlApiExample
                 TranslateUiText(
                     "It does NOT prove whether any old command succeeded or "
                         + "failed. Every listed outcome remains UNKNOWN."));
+            if (staleEvidence.Any(item =>
+                item.EndpointEvidenceKind
+                    == RecoveryEndpointEvidenceKind
+                        .OperatorClassifiedLegacyEndpoint))
+            {
+                text.AppendLine(
+                    TranslateUiText(
+                        "LEGACY DIAGNOSTICS WARNING: the original mutation "
+                            + "journal contains no PLC endpoint. You are "
+                            + "explicitly classifying the current quarantined "
+                            + "endpoint as its target; this classification is "
+                            + "stored separately from the exact original bytes."));
+            }
             text.AppendLine(
                 TranslateUiText(
                     "No Motion, Power, SDO, Write, replay, or cleanup command is "
@@ -986,7 +1063,8 @@ namespace LasalMotionControlApiExample
                 || GroupProfileLockRecoveryJournalUnavailable
                 || GroupPowerRecoveryJournalUnavailable
                 || GroupResetRecoveryJournalUnavailable
-                || AxisQualificationRecoveryJournalUnavailable)
+                || AxisQualificationRecoveryJournalUnavailable
+                || DiagnosticsMutationJournalUnavailable)
             {
                 return false;
             }
@@ -1101,7 +1179,7 @@ namespace LasalMotionControlApiExample
                 text.AppendLine("Current PLC identity: unavailable");
             }
 
-            text.AppendLine("Active durable motion/control recovery records:");
+            text.AppendLine("Active durable recovery records:");
             var records = GetActiveRecoveryRetirementMetadata();
             if (records.Count == 0)
             {
@@ -1152,9 +1230,13 @@ namespace LasalMotionControlApiExample
             }
 
             text.Append("Other blockers not retired here: DiagnosticsMutation=")
-                .Append(HasActiveDiagnosticsMutationJournalRecord
-                    ? "active"
-                    : "none")
+                .Append(!HasActiveDiagnosticsMutationJournalRecord
+                    ? "none"
+                    : !HasRetirableLegacyDiagnosticsMutationRecord
+                        ? "active-nonretirable"
+                        : CanListLegacyDiagnosticsMutationForRetirement()
+                            ? "none"
+                            : "active-endpoint-unbound/reconnect-required")
                 .Append(", RecorderDouble=")
                 .Append(HasActiveRecorderDoubleRecoveryJournalRecord
                     ? "active"
@@ -1182,7 +1264,7 @@ namespace LasalMotionControlApiExample
         private List<RecoveryRetirementMetadata>
             GetActiveRecoveryRetirementMetadata()
         {
-            var values = new List<RecoveryRetirementMetadata>(7);
+            var values = new List<RecoveryRetirementMetadata>(8);
             if (axisPowerOnRecoveryJournal != null)
             {
                 var record = axisPowerOnRecoveryJournal.CurrentRecord;
@@ -1309,11 +1391,40 @@ namespace LasalMotionControlApiExample
                         "SingleAxisQualification/" + record.Stage));
                 }
             }
+            if (CanListLegacyDiagnosticsMutationForRetirement())
+            {
+                var record = diagnosticsMutationJournal.CurrentRecord;
+                values.Add(new RecoveryRetirementMetadata(
+                    RecoveryRecordOwner.DiagnosticsMutation,
+                    record.Identity,
+                    RequiredConnectedRemoteIp(),
+                    RequiredConnectedRemotePort(),
+                    0,
+                    record.DiagnosticsBootId,
+                    record.IdentityRevision,
+                    record.TargetText,
+                    record.SdoWriteMetadata.SlaveReference,
+                    "SdoWrite/OutcomeUnverified/"
+                        + "LEGACY_ENDPOINT_OPERATOR_CLASSIFIED"));
+            }
             return values;
+        }
+
+        private bool CanListLegacyDiagnosticsMutationForRetirement()
+        {
+            var currentConnection = connection;
+            return HasRetirableLegacyDiagnosticsMutationRecord
+                && currentConnection != null
+                && currentConnection.IsConnected
+                && IsRecoveryIdentityReadOnlyConnection(currentConnection);
         }
 
         private string GetRecoveryRecordRetirementUnavailableGuidance()
         {
+            if (DiagnosticsMutationJournalUnavailable)
+            {
+                return GetDiagnosticsMutationJournalUnavailableGuidance();
+            }
             if (!string.IsNullOrEmpty(
                     recoveryRecordRetirementLedgerRuntimeError))
             {

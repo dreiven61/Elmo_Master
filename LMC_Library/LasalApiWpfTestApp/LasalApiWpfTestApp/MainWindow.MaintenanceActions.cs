@@ -83,11 +83,11 @@ namespace LasalMotionControlApiExample
         {
             ComboEncoderMaintenanceKind.ItemsSource = new[]
             {
-                LMCEncoderMaintenanceKind.Tw20ErrorWarningReset,
-                LMCEncoderMaintenanceKind.Tw19MultiturnPositionReset
+                LMCEncoderMaintenanceKind.Tw19MultiturnPositionReset,
+                LMCEncoderMaintenanceKind.Tw20ErrorWarningReset
             };
             ComboEncoderMaintenanceKind.SelectedItem =
-                LMCEncoderMaintenanceKind.Tw20ErrorWarningReset;
+                LMCEncoderMaintenanceKind.Tw19MultiturnPositionReset;
             ComboTestResetAxis.ItemsSource = new ushort[] { 1, 2, 3, 4 };
             ComboTestResetAxis.SelectedItem = (ushort)1;
             ComboTestResetSocket.ItemsSource = new[]
@@ -259,11 +259,17 @@ namespace LasalMotionControlApiExample
                     is LMCEncoderMaintenanceKind
                     ? (LMCEncoderMaintenanceKind)
                         ComboEncoderMaintenanceKind.SelectedItem
-                    : LMCEncoderMaintenanceKind.Tw20ErrorWarningReset;
+                    : LMCEncoderMaintenanceKind
+                        .Tw19MultiturnPositionReset;
             var resetCapability = diagnosticsIdentityReady
                 && diagnosticCapabilities.Supports(
                     RequiredEncoderMaintenanceCapability(
                         selectedEncoderKind));
+            var encoderMaintenanceAdmissionAllowed = liveCommandAllowed
+                && MaintenanceActionRecoveryJournalCanArm
+                && MotionUncertaintyJournalCanArm
+                && !HasUnresolvedGroupProfileLockState()
+                && resetCapability;
             var homeInputEnabled = idle && !activeRecovery;
 
             ButtonRefreshHomeCapabilities.IsEnabled = connected && idle;
@@ -313,15 +319,18 @@ namespace LasalMotionControlApiExample
             ButtonArmTestReset.IsEnabled = connected
                 && idle
                 && !activeRecovery
-                && resetCapability
+                && encoderMaintenanceAdmissionAllowed
+                && armedEncoderMaintenance == null
                 && AreEncoderMaintenanceStepOneChecksConfirmed;
-            CheckTestResetFinalConfirmed.IsEnabled = idle
+            CheckTestResetFinalConfirmed.IsEnabled = connected
+                && idle
+                && encoderMaintenanceAdmissionAllowed
                 && armedEncoderMaintenance != null
                 && !activeRecovery;
             ButtonExecuteTestReset.IsEnabled = connected
                 && idle
+                && encoderMaintenanceAdmissionAllowed
                 && armedEncoderMaintenance != null
-                && MaintenanceActionRecoveryJournalCanArm
                 && CheckTestResetFinalConfirmed.IsChecked == true;
             ButtonReadTestResetStatus.IsEnabled = connected
                 && idle
@@ -329,8 +338,108 @@ namespace LasalMotionControlApiExample
                     || (activeRecoveryRecord != null
                         && IsEncoderMaintenanceAction(
                             activeRecoveryRecord.Action)));
+            TextEncoderMaintenanceArmGateStatus.Text =
+                GetEncoderMaintenanceArmGateStatus(
+                    connected,
+                    idle,
+                    liveCommandAllowed,
+                    activeRecovery,
+                    diagnosticsIdentityReady,
+                    resetCapability);
 
             RefreshMaintenanceActionRecoveryUi();
+        }
+
+        private string GetEncoderMaintenanceArmGateStatus(
+            bool connected,
+            bool idle,
+            bool liveCommandAllowed,
+            bool activeRecovery,
+            bool diagnosticsIdentityReady,
+            bool resetCapability)
+        {
+            if (!connected)
+            {
+                return TranslateUiText(
+                    "BLOCKED: connect to the PLC before arming encoder maintenance. No encoder-maintenance RPC was sent.");
+            }
+
+            if (!idle)
+            {
+                return TranslateUiText(
+                    "BLOCKED: wait for the current operation, safety action, monitor, or qualification to finish before arming encoder maintenance. No encoder-maintenance RPC was sent.");
+            }
+
+            if (IsRecoveryIdentityReadOnlyConnection(connection))
+            {
+                return TranslateUiText(
+                    "BLOCKED: recovery-identity read-only quarantine permits inspection only; encoder maintenance cannot be armed. Open Safety / Recovery Details, independently verify the machine and drive state, then archive and retire the stale record. No encoder-maintenance RPC was sent.");
+            }
+
+            if (MaintenanceActionRecoveryJournalUnavailable)
+            {
+                return TranslateUiText(
+                    "BLOCKED: the durable Home/encoder-maintenance recovery journal is unavailable. Encoder maintenance remains fail-closed; no RPC was sent.");
+            }
+
+            if (activeRecovery)
+            {
+                return TranslateUiText(
+                    "BLOCKED: an unresolved Home/encoder-maintenance recovery record is active. Use its exact outcome/status recovery path; do not replay it. No encoder-maintenance RPC was sent.");
+            }
+
+            if (!liveCommandAllowed
+                || !MotionUncertaintyJournalCanArm
+                || HasUnresolvedGroupProfileLockState())
+            {
+                return TranslateUiText(
+                    "BLOCKED: another unresolved mutation, recovery, unavailable journal, or possible-motion state prevents encoder-maintenance arming. Resolve it first; no encoder-maintenance RPC was sent.");
+            }
+
+            if (!diagnosticsIdentityReady)
+            {
+                return TranslateUiText(
+                    "BLOCKED: refresh current-session Diagnostics capabilities and identity before arming encoder maintenance. No encoder-maintenance RPC was sent.");
+            }
+
+            if (!resetCapability)
+            {
+                return TranslateUiText(
+                    "BLOCKED: the current PLC does not advertise the selected TW[20]/TW[19] encoder-maintenance capability. No encoder-maintenance RPC was sent.");
+            }
+
+            if (armedEncoderMaintenance != null)
+            {
+                return TranslateUiText(
+                    "ARMED: the exact encoder-maintenance request is held in PC memory only. Verify it and select Step 2 to permit one 0x7E53 submission.");
+            }
+
+            if (!AreEncoderMaintenanceStepOneChecksConfirmed)
+            {
+                return TranslateUiText(
+                    "BLOCKED: all Step 1 physical and encoder compatibility checks are required. No encoder-maintenance operation was armed or sent.");
+            }
+
+            return TranslateUiText(
+                "READY: current-session capability, recovery, and all Step 1 gates are open. Arm performs fresh read-only checks and prepares the request in PC memory; it does not send 0x7E53/0x7E54/0x7E55.");
+        }
+
+        private void ButtonOpenEncoderRecoveryDetails_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            ExpanderSafetyAndRecoveryDetails.IsExpanded = true;
+            ExpanderSafetyAndRecoveryDetails.UpdateLayout();
+
+            if (PanelRecoveryIdentityRetirement.Visibility
+                == Visibility.Visible)
+            {
+                PanelRecoveryIdentityRetirement.BringIntoView();
+            }
+            else
+            {
+                ExpanderSafetyAndRecoveryDetails.BringIntoView();
+            }
         }
 
         private async void ButtonRefreshMaintenanceCapabilities_Click(
@@ -1407,6 +1516,14 @@ namespace LasalMotionControlApiExample
             object sender,
             RoutedEventArgs e)
         {
+            if (armedEncoderMaintenance != null)
+            {
+                TextTestResetResult.Text =
+                    TranslateUiText(
+                        "BLOCKED: an exact encoder-maintenance request is already armed in PC memory. Execute or change the input to clear it; no RPC was sent.");
+                return;
+            }
+
             if (!AreEncoderMaintenanceStepOneChecksConfirmed)
             {
                 TextTestResetResult.Text =
@@ -1886,12 +2003,24 @@ namespace LasalMotionControlApiExample
                     + " is blocked by recovery-identity read-only quarantine.");
             }
 
+            var admission = EvaluateDiagnosticsAdmission(
+                DiagnosticsAdmissionOperation.NewLiveOrMutation);
+            if (!admission.IsAllowed)
+            {
+                throw CreateDiagnosticsAdmissionException(
+                    operation,
+                    admission);
+            }
+
             if (!MaintenanceActionRecoveryJournalCanArm)
             {
                 throw new InvalidOperationException(
                     operation
                     + " is blocked because the durable Home/encoder-maintenance recovery journal is unavailable or unresolved.");
             }
+
+            EnsureAxisCommandRecoveryJournalCanArm(operation);
+            EnsureMotionUncertaintyJournalCanArm(operation);
 
             if (HasUnresolvedDiagnosticMutation
                 || HasUnresolvedAxisPowerState()
@@ -1918,6 +2047,8 @@ namespace LasalMotionControlApiExample
             }
 
             if (diagnosticCapabilities == null
+                || diagnosticCapabilities.Response == null
+                || !diagnosticCapabilities.Response.IsSuccess
                 || diagnosticCapabilities.DiagnosticsBuild == 0
                 || diagnosticCapabilities.DiagnosticsBootId == 0
                 || diagnosticCapabilities.MapRevision == 0

@@ -4,6 +4,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
+using LasalMotionControlLib;
 
 namespace LasalMotionControlApiExample
 {
@@ -11,11 +12,108 @@ namespace LasalMotionControlApiExample
     {
         ArmedBeforeDispatch = 1,
         RecoveryRequired = 2,
-        Resolved = 3
+        Resolved = 3,
+        TerminalOutcomeObserved = 4
+    }
+
+    internal sealed class AxisSetPositionTerminalOutcomeProof
+    {
+        internal AxisSetPositionTerminalOutcomeProof(
+            uint queryRequestId,
+            LMCAxisSetPositionOutcomeRecordState recordState,
+            int appliedPosition,
+            ushort originalCommandStatus,
+            short originalErrorId,
+            uint originalDetailCode,
+            uint nativeCommandState,
+            uint recordGeneration)
+        {
+            if (queryRequestId == 0)
+            {
+                throw new ArgumentOutOfRangeException("queryRequestId");
+            }
+            if (recordState
+                    != LMCAxisSetPositionOutcomeRecordState.Succeeded
+                && recordState
+                    != LMCAxisSetPositionOutcomeRecordState.Rejected)
+            {
+                throw new ArgumentOutOfRangeException("recordState");
+            }
+            if (recordGeneration == 0)
+            {
+                throw new ArgumentOutOfRangeException("recordGeneration");
+            }
+
+            QueryRequestId = queryRequestId;
+            RecordState = recordState;
+            AppliedPosition = appliedPosition;
+            OriginalCommandStatus = originalCommandStatus;
+            OriginalErrorId = originalErrorId;
+            OriginalDetailCode = originalDetailCode;
+            NativeCommandState = nativeCommandState;
+            RecordGeneration = recordGeneration;
+        }
+
+        internal uint QueryRequestId { get; private set; }
+        internal LMCAxisSetPositionOutcomeRecordState RecordState
+        {
+            get;
+            private set;
+        }
+        internal int AppliedPosition { get; private set; }
+        internal ushort OriginalCommandStatus { get; private set; }
+        internal short OriginalErrorId { get; private set; }
+        internal uint OriginalDetailCode { get; private set; }
+        internal uint NativeCommandState { get; private set; }
+        internal uint RecordGeneration { get; private set; }
+
+        internal AxisSetPositionTerminalOutcomeProof Copy()
+        {
+            return new AxisSetPositionTerminalOutcomeProof(
+                QueryRequestId,
+                RecordState,
+                AppliedPosition,
+                OriginalCommandStatus,
+                OriginalErrorId,
+                OriginalDetailCode,
+                NativeCommandState,
+                RecordGeneration);
+        }
+
+        internal bool Matches(
+            LMCAxisSetPositionOutcomeRetirementResult retirementResult)
+        {
+            return retirementResult != null
+                && retirementResult.RecordState == RecordState
+                && retirementResult.AppliedPosition == AppliedPosition
+                && retirementResult.OriginalCommandStatus
+                    == OriginalCommandStatus
+                && retirementResult.OriginalErrorId == OriginalErrorId
+                && retirementResult.OriginalDetailCodeValue
+                    == OriginalDetailCode
+                && retirementResult.NativeCommandState == NativeCommandState
+                && retirementResult.RecordGeneration == RecordGeneration;
+        }
+
+        internal bool EqualsExact(
+            AxisSetPositionTerminalOutcomeProof other)
+        {
+            return other != null
+                && QueryRequestId == other.QueryRequestId
+                && RecordState == other.RecordState
+                && AppliedPosition == other.AppliedPosition
+                && OriginalCommandStatus == other.OriginalCommandStatus
+                && OriginalErrorId == other.OriginalErrorId
+                && OriginalDetailCode == other.OriginalDetailCode
+                && NativeCommandState == other.NativeCommandState
+                && RecordGeneration == other.RecordGeneration;
+        }
     }
 
     internal sealed class AxisSetPositionRecoveryRecord
     {
+        internal const int LegacyStorageFormatVersion = 1;
+        internal const int CurrentStorageFormatVersion = 2;
         internal const ushort SupportedSchemaVersion = 1;
         internal const ushort SupportedSemanticMode = 1;
 
@@ -40,6 +138,57 @@ namespace LasalMotionControlApiExample
             AxisSetPositionRecoveryState state,
             DateTime createdUtc,
             DateTime updatedUtc)
+            : this(
+                identity,
+                endpointIp,
+                endpointPort,
+                diagnosticsBuild,
+                diagnosticsBootId,
+                mapRevision,
+                axisName,
+                axisReference,
+                clientIntentId0,
+                clientIntentId1,
+                clientIntentId2,
+                clientIntentId3,
+                requestId,
+                targetPosition,
+                expectedActualPosition,
+                semanticMode,
+                schemaVersion,
+                state,
+                createdUtc,
+                updatedUtc,
+                CurrentStorageFormatVersion,
+                null,
+                0)
+        {
+        }
+
+        internal AxisSetPositionRecoveryRecord(
+            Guid identity,
+            string endpointIp,
+            int endpointPort,
+            uint diagnosticsBuild,
+            uint diagnosticsBootId,
+            uint mapRevision,
+            string axisName,
+            ushort axisReference,
+            uint clientIntentId0,
+            uint clientIntentId1,
+            uint clientIntentId2,
+            uint clientIntentId3,
+            uint requestId,
+            int targetPosition,
+            int expectedActualPosition,
+            ushort semanticMode,
+            ushort schemaVersion,
+            AxisSetPositionRecoveryState state,
+            DateTime createdUtc,
+            DateTime updatedUtc,
+            int storageFormatVersion,
+            AxisSetPositionTerminalOutcomeProof terminalOutcomeProof,
+            uint retirementRequestId)
         {
             if (identity == Guid.Empty)
             {
@@ -92,6 +241,12 @@ namespace LasalMotionControlApiExample
             }
 
             ValidateState(state);
+            ValidateLifecycleEvidence(
+                storageFormatVersion,
+                state,
+                targetPosition,
+                terminalOutcomeProof,
+                retirementRequestId);
             if (createdUtc.Kind != DateTimeKind.Utc
                 || updatedUtc.Kind != DateTimeKind.Utc
                 || updatedUtc < createdUtc)
@@ -120,6 +275,11 @@ namespace LasalMotionControlApiExample
             State = state;
             CreatedUtc = createdUtc;
             UpdatedUtc = updatedUtc;
+            StorageFormatVersion = storageFormatVersion;
+            TerminalOutcomeProof = terminalOutcomeProof == null
+                ? null
+                : terminalOutcomeProof.Copy();
+            RetirementRequestId = retirementRequestId;
         }
 
         internal Guid Identity { get; private set; }
@@ -142,6 +302,18 @@ namespace LasalMotionControlApiExample
         internal AxisSetPositionRecoveryState State { get; private set; }
         internal DateTime CreatedUtc { get; private set; }
         internal DateTime UpdatedUtc { get; private set; }
+        internal int StorageFormatVersion { get; private set; }
+        internal AxisSetPositionTerminalOutcomeProof TerminalOutcomeProof
+        {
+            get;
+            private set;
+        }
+        internal uint RetirementRequestId { get; private set; }
+
+        internal bool HasTerminalOutcomeProof
+        {
+            get { return TerminalOutcomeProof != null; }
+        }
 
         internal bool IsActive
         {
@@ -215,29 +387,97 @@ namespace LasalMotionControlApiExample
                 SchemaVersion,
                 State,
                 CreatedUtc,
-                UpdatedUtc);
+                UpdatedUtc,
+                StorageFormatVersion,
+                TerminalOutcomeProof,
+                RetirementRequestId);
         }
 
-        internal AxisSetPositionRecoveryRecord TransitionTo(
-            AxisSetPositionRecoveryState nextState,
+        internal AxisSetPositionRecoveryRecord TransitionToRecoveryRequired(
             DateTime updatedUtc)
         {
-            if (!CanTransition(State, nextState))
+            if (State != AxisSetPositionRecoveryState.ArmedBeforeDispatch)
             {
                 throw new InvalidOperationException(
-                    "Axis SetPosition recovery state cannot transition from "
-                    + State
-                    + " to "
-                    + nextState
-                    + ".");
+                    "Only an armed Axis SetPosition recovery record may transition to RecoveryRequired.");
             }
-            if (updatedUtc.Kind != DateTimeKind.Utc
-                || updatedUtc < UpdatedUtc)
+            ValidateTransitionTime(updatedUtc);
+            return CreateTransition(
+                AxisSetPositionRecoveryState.RecoveryRequired,
+                updatedUtc,
+                null,
+                0);
+        }
+
+        internal AxisSetPositionRecoveryRecord ObserveTerminalOutcome(
+            LMCAxisSetPositionOutcomeResult outcome,
+            DateTime updatedUtc)
+        {
+            if (State != AxisSetPositionRecoveryState.ArmedBeforeDispatch
+                && State != AxisSetPositionRecoveryState.RecoveryRequired)
             {
-                throw new ArgumentOutOfRangeException(
-                    "updatedUtc",
-                    "Recovery transition time must be UTC and cannot move backwards.");
+                throw new InvalidOperationException(
+                    "Only an unresolved Axis SetPosition recovery record without terminal proof may observe an outcome.");
             }
+            ValidateSuccessfulOutcome(outcome);
+            ValidateTransitionTime(updatedUtc);
+
+            var proof = new AxisSetPositionTerminalOutcomeProof(
+                outcome.QueryRequestId,
+                outcome.RecordState,
+                outcome.AppliedPosition,
+                outcome.OriginalCommandStatus,
+                outcome.OriginalErrorId,
+                outcome.OriginalDetailCodeValue,
+                outcome.NativeCommandState,
+                outcome.RecordGeneration);
+            ValidateTerminalCombination(TargetPosition, proof);
+            return CreateTransition(
+                AxisSetPositionRecoveryState.TerminalOutcomeObserved,
+                updatedUtc,
+                proof,
+                0);
+        }
+
+        internal AxisSetPositionRecoveryRecord ResolveAfterRetirement(
+            LMCAxisSetPositionOutcomeRetirementResult retirementResult,
+            DateTime updatedUtc)
+        {
+            if (State
+                    != AxisSetPositionRecoveryState.TerminalOutcomeObserved
+                || TerminalOutcomeProof == null)
+            {
+                throw new InvalidOperationException(
+                    "Axis SetPosition recovery cannot resolve before a terminal outcome is durably observed.");
+            }
+            if (retirementResult == null)
+            {
+                throw new ArgumentNullException("retirementResult");
+            }
+            if (retirementResult.Response == null
+                || !retirementResult.Response.IsSuccess
+                || !retirementResult.RetirementConfirmed
+                || retirementResult.RetireRequestId == 0
+                || !MatchesRecoveryKey(retirementResult.RecoveryKey)
+                || !TerminalOutcomeProof.Matches(retirementResult))
+            {
+                throw new InvalidOperationException(
+                    "Axis SetPosition retirement result does not exactly match the durable recovery key, generation, and terminal snapshot.");
+            }
+            ValidateTransitionTime(updatedUtc);
+            return CreateTransition(
+                AxisSetPositionRecoveryState.Resolved,
+                updatedUtc,
+                TerminalOutcomeProof,
+                retirementResult.RetireRequestId);
+        }
+
+        private AxisSetPositionRecoveryRecord CreateTransition(
+            AxisSetPositionRecoveryState nextState,
+            DateTime updatedUtc,
+            AxisSetPositionTerminalOutcomeProof terminalOutcomeProof,
+            uint retirementRequestId)
+        {
 
             return new AxisSetPositionRecoveryRecord(
                 Identity,
@@ -259,34 +499,181 @@ namespace LasalMotionControlApiExample
                 SchemaVersion,
                 nextState,
                 CreatedUtc,
-                updatedUtc);
+                updatedUtc,
+                CurrentStorageFormatVersion,
+                terminalOutcomeProof,
+                retirementRequestId);
         }
 
-        private static bool CanTransition(
-            AxisSetPositionRecoveryState current,
-            AxisSetPositionRecoveryState next)
+        private void ValidateSuccessfulOutcome(
+            LMCAxisSetPositionOutcomeResult outcome)
         {
-            if (current == next
-                || current == AxisSetPositionRecoveryState.Resolved)
+            if (outcome == null)
             {
-                return false;
+                throw new ArgumentNullException("outcome");
             }
-            if (next == AxisSetPositionRecoveryState.Resolved)
+            if (outcome.Response == null
+                || !outcome.Response.IsSuccess
+                || outcome.QueryRequestId == 0
+                || outcome.RecordGeneration == 0
+                || !MatchesRecoveryKey(outcome.RecoveryKey))
             {
-                return true;
+                throw new InvalidOperationException(
+                    "Only a successful exact Axis SetPosition terminal query may be persisted.");
             }
-            return current == AxisSetPositionRecoveryState.ArmedBeforeDispatch
-                && next == AxisSetPositionRecoveryState.RecoveryRequired;
+        }
+
+        private bool MatchesRecoveryKey(
+            LMCAxisSetPositionRecoveryKey recoveryKey)
+        {
+            return recoveryKey != null
+                && recoveryKey.SchemaVersion == SchemaVersion
+                && recoveryKey.OriginalRequestId == RequestId
+                && recoveryKey.DiagnosticsBuild == DiagnosticsBuild
+                && recoveryKey.DiagnosticsBootId == DiagnosticsBootId
+                && recoveryKey.MapRevision == MapRevision
+                && recoveryKey.ClientIntentId0 == ClientIntentId0
+                && recoveryKey.ClientIntentId1 == ClientIntentId1
+                && recoveryKey.ClientIntentId2 == ClientIntentId2
+                && recoveryKey.ClientIntentId3 == ClientIntentId3
+                && recoveryKey.AxisReference == AxisReference
+                && recoveryKey.TargetPosition == TargetPosition
+                && recoveryKey.ExpectedActualPosition
+                    == ExpectedActualPosition
+                && (ushort)recoveryKey.SemanticMode == SemanticMode;
+        }
+
+        private void ValidateTransitionTime(DateTime updatedUtc)
+        {
+            if (updatedUtc.Kind != DateTimeKind.Utc
+                || updatedUtc < UpdatedUtc)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "updatedUtc",
+                    "Recovery transition time must be UTC and cannot move backwards.");
+            }
         }
 
         private static void ValidateState(AxisSetPositionRecoveryState state)
         {
             if (state != AxisSetPositionRecoveryState.ArmedBeforeDispatch
                 && state != AxisSetPositionRecoveryState.RecoveryRequired
-                && state != AxisSetPositionRecoveryState.Resolved)
+                && state != AxisSetPositionRecoveryState.Resolved
+                && state
+                    != AxisSetPositionRecoveryState.TerminalOutcomeObserved)
             {
                 throw new ArgumentOutOfRangeException("state");
             }
+        }
+
+        private static void ValidateLifecycleEvidence(
+            int storageFormatVersion,
+            AxisSetPositionRecoveryState state,
+            int targetPosition,
+            AxisSetPositionTerminalOutcomeProof terminalOutcomeProof,
+            uint retirementRequestId)
+        {
+            if (storageFormatVersion == LegacyStorageFormatVersion)
+            {
+                if (state
+                        == AxisSetPositionRecoveryState
+                            .TerminalOutcomeObserved
+                    || terminalOutcomeProof != null
+                    || retirementRequestId != 0)
+                {
+                    throw new ArgumentException(
+                        "Legacy Axis SetPosition recovery records cannot contain v2 lifecycle evidence.",
+                        "terminalOutcomeProof");
+                }
+                return;
+            }
+            if (storageFormatVersion != CurrentStorageFormatVersion)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "storageFormatVersion");
+            }
+
+            if (state == AxisSetPositionRecoveryState.ArmedBeforeDispatch
+                || state == AxisSetPositionRecoveryState.RecoveryRequired)
+            {
+                if (terminalOutcomeProof != null || retirementRequestId != 0)
+                {
+                    throw new ArgumentException(
+                        "Pre-terminal Axis SetPosition recovery state cannot contain terminal or retirement evidence.",
+                        "terminalOutcomeProof");
+                }
+                return;
+            }
+
+            if (terminalOutcomeProof == null)
+            {
+                throw new ArgumentException(
+                    "Terminal Axis SetPosition recovery state requires durable terminal query proof.",
+                    "terminalOutcomeProof");
+            }
+            ValidateTerminalCombination(targetPosition, terminalOutcomeProof);
+            if (state
+                    == AxisSetPositionRecoveryState.TerminalOutcomeObserved
+                && retirementRequestId != 0)
+            {
+                throw new ArgumentException(
+                    "TerminalOutcomeObserved cannot contain retirement proof.",
+                    "retirementRequestId");
+            }
+            if (state == AxisSetPositionRecoveryState.Resolved
+                && retirementRequestId == 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "retirementRequestId",
+                    "Resolved v2 records require a successful retirement request identity.");
+            }
+        }
+
+        private static void ValidateTerminalCombination(
+            int targetPosition,
+            AxisSetPositionTerminalOutcomeProof proof)
+        {
+            var valid = proof.RecordState
+                    == LMCAxisSetPositionOutcomeRecordState.Succeeded
+                ? proof.OriginalCommandStatus == 0
+                    && proof.OriginalErrorId == 0
+                    && proof.OriginalDetailCode == 0
+                    && proof.AppliedPosition == targetPosition
+                    && proof.NativeCommandState == 0
+                : proof.RecordState
+                        == LMCAxisSetPositionOutcomeRecordState.Rejected
+                    && proof.OriginalCommandStatus == 1
+                    && proof.AppliedPosition == 0
+                    && IsValidTerminalRejection(proof);
+            if (!valid)
+            {
+                throw new ArgumentException(
+                    "Axis SetPosition terminal proof contains an invalid result combination.",
+                    "proof");
+            }
+        }
+
+        private static bool IsValidTerminalRejection(
+            AxisSetPositionTerminalOutcomeProof proof)
+        {
+            if (proof.OriginalDetailCode
+                    == (uint)LMCAdminDetailCode.NativeCommandRejected)
+            {
+                return proof.OriginalErrorId == -6
+                    && proof.NativeCommandState != 0;
+            }
+
+            // Syntax, identity, and storage failures happen before the durable
+            // Armed commit and therefore cannot exist in a terminal record.
+            var detail = proof.OriginalDetailCode;
+            var isPostArmedDetail =
+                detail >= (uint)LMCAdminDetailCode.InvalidState
+                && detail
+                    <= (uint)LMCAdminDetailCode
+                        .CoordinatePreconditionFailed;
+            return isPostArmedDetail
+                && proof.OriginalErrorId == -31000
+                && proof.NativeCommandState == 0;
         }
 
         private static void ValidateAxisName(string axisName)
@@ -340,7 +727,10 @@ namespace LasalMotionControlApiExample
 
     internal sealed class AxisSetPositionRecoveryJournal : IDisposable
     {
-        private const int FormatVersion = 1;
+        private const int LegacyFormatVersion =
+            AxisSetPositionRecoveryRecord.LegacyStorageFormatVersion;
+        private const int CurrentFormatVersion =
+            AxisSetPositionRecoveryRecord.CurrentStorageFormatVersion;
         private const int ChecksumLength = 32;
         private const int MaximumFileLength = 8192;
         private const int MaximumTextLength = 1024;
@@ -556,20 +946,42 @@ namespace LasalMotionControlApiExample
             AxisSetPositionRecoveryRecord expectedRecord,
             DateTime updatedUtc)
         {
-            return TransitionExpected(
-                expectedRecord,
-                AxisSetPositionRecoveryState.RecoveryRequired,
-                updatedUtc);
+            lock (sync)
+            {
+                EnsureExpectedRecord(expectedRecord);
+                return PersistTransition(
+                    currentRecord.TransitionToRecoveryRequired(updatedUtc));
+            }
         }
 
-        internal AxisSetPositionRecoveryRecord Resolve(
+        internal AxisSetPositionRecoveryRecord RecordTerminalOutcome(
             AxisSetPositionRecoveryRecord expectedRecord,
+            LMCAxisSetPositionOutcomeResult outcome,
             DateTime updatedUtc)
         {
-            return TransitionExpected(
-                expectedRecord,
-                AxisSetPositionRecoveryState.Resolved,
-                updatedUtc);
+            lock (sync)
+            {
+                EnsureExpectedRecord(expectedRecord);
+                return PersistTransition(
+                    currentRecord.ObserveTerminalOutcome(
+                        outcome,
+                        updatedUtc));
+            }
+        }
+
+        internal AxisSetPositionRecoveryRecord ResolveAfterRetirement(
+            AxisSetPositionRecoveryRecord expectedRecord,
+            LMCAxisSetPositionOutcomeRetirementResult retirementResult,
+            DateTime updatedUtc)
+        {
+            lock (sync)
+            {
+                EnsureExpectedRecord(expectedRecord);
+                return PersistTransition(
+                    currentRecord.ResolveAfterRetirement(
+                        retirementResult,
+                        updatedUtc));
+            }
         }
 
         public void Dispose()
@@ -589,30 +1001,27 @@ namespace LasalMotionControlApiExample
             }
         }
 
-        private AxisSetPositionRecoveryRecord TransitionExpected(
-            AxisSetPositionRecoveryRecord expectedRecord,
-            AxisSetPositionRecoveryState nextState,
-            DateTime updatedUtc)
+        private void EnsureExpectedRecord(
+            AxisSetPositionRecoveryRecord expectedRecord)
         {
             if (expectedRecord == null)
             {
                 throw new ArgumentNullException("expectedRecord");
             }
-            lock (sync)
+            ThrowIfDisposed();
+            if (!RecordsEqual(currentRecord, expectedRecord))
             {
-                ThrowIfDisposed();
-                if (!RecordsEqual(currentRecord, expectedRecord))
-                {
-                    throw new InvalidOperationException(
-                        "Axis SetPosition recovery record changed after it was captured; the transition was not applied.");
-                }
-                var transitioned = currentRecord.TransitionTo(
-                    nextState,
-                    updatedUtc);
-                PersistRecord(transitioned);
-                currentRecord = transitioned;
-                return transitioned.Copy();
+                throw new InvalidOperationException(
+                    "Axis SetPosition recovery record changed after it was captured; the transition was not applied.");
             }
+        }
+
+        private AxisSetPositionRecoveryRecord PersistTransition(
+            AxisSetPositionRecoveryRecord transitioned)
+        {
+            PersistRecord(transitioned);
+            currentRecord = transitioned;
+            return transitioned.Copy();
         }
 
         private static bool RecordsEqual(
@@ -647,7 +1056,21 @@ namespace LasalMotionControlApiExample
                 && left.SchemaVersion == right.SchemaVersion
                 && left.State == right.State
                 && left.CreatedUtc == right.CreatedUtc
-                && left.UpdatedUtc == right.UpdatedUtc;
+                && left.UpdatedUtc == right.UpdatedUtc
+                && left.StorageFormatVersion == right.StorageFormatVersion
+                && TerminalProofsEqual(
+                    left.TerminalOutcomeProof,
+                    right.TerminalOutcomeProof)
+                && left.RetirementRequestId == right.RetirementRequestId;
+        }
+
+        private static bool TerminalProofsEqual(
+            AxisSetPositionTerminalOutcomeProof left,
+            AxisSetPositionTerminalOutcomeProof right)
+        {
+            return left == null
+                ? right == null
+                : left.EqualsExact(right);
         }
 
         private void PromoteArmedRecordAtOpen()
@@ -664,9 +1087,8 @@ namespace LasalMotionControlApiExample
             {
                 updatedUtc = currentRecord.UpdatedUtc;
             }
-            var recoveryRequired = currentRecord.TransitionTo(
-                AxisSetPositionRecoveryState.RecoveryRequired,
-                updatedUtc);
+            var recoveryRequired = currentRecord
+                .TransitionToRecoveryRequired(updatedUtc);
             PersistRecord(recoveryRequired);
             currentRecord = recoveryRequired;
         }
@@ -757,6 +1179,16 @@ namespace LasalMotionControlApiExample
         private static byte[] SerializeRecord(
             AxisSetPositionRecoveryRecord record)
         {
+            if (record == null)
+            {
+                throw new ArgumentNullException("record");
+            }
+            if (record.StorageFormatVersion != CurrentFormatVersion)
+            {
+                throw new InvalidOperationException(
+                    "Only the current Axis SetPosition recovery journal format may be written.");
+            }
+
             byte[] payload;
             using (var payloadStream = new MemoryStream())
             using (var writer = new BinaryWriter(
@@ -784,6 +1216,20 @@ namespace LasalMotionControlApiExample
                 writer.Write(record.ExpectedActualPosition);
                 WriteText(writer, record.EndpointIp);
                 WriteText(writer, record.AxisName);
+                var proof = record.TerminalOutcomeProof;
+                writer.Write(proof == null ? (byte)0 : (byte)1);
+                if (proof != null)
+                {
+                    writer.Write(proof.QueryRequestId);
+                    writer.Write((ushort)proof.RecordState);
+                    writer.Write(proof.AppliedPosition);
+                    writer.Write(proof.OriginalCommandStatus);
+                    writer.Write(proof.OriginalErrorId);
+                    writer.Write(proof.OriginalDetailCode);
+                    writer.Write(proof.NativeCommandState);
+                    writer.Write(proof.RecordGeneration);
+                }
+                writer.Write(record.RetirementRequestId);
                 writer.Flush();
                 payload = payloadStream.ToArray();
             }
@@ -793,7 +1239,7 @@ namespace LasalMotionControlApiExample
             using (var writer = new BinaryWriter(stream, Encoding.ASCII, true))
             {
                 writer.Write(Magic);
-                writer.Write(FormatVersion);
+                writer.Write(CurrentFormatVersion);
                 writer.Write(payload.Length);
                 writer.Write(payload);
                 writer.Flush();
@@ -858,7 +1304,8 @@ namespace LasalMotionControlApiExample
                             "Axis SetPosition recovery journal header is invalid.");
                     }
                     var formatVersion = reader.ReadInt32();
-                    if (formatVersion != FormatVersion)
+                    if (formatVersion != LegacyFormatVersion
+                        && formatVersion != CurrentFormatVersion)
                     {
                         throw new InvalidDataException(
                             "Axis SetPosition recovery journal version is unsupported.");
@@ -878,7 +1325,7 @@ namespace LasalMotionControlApiExample
                         throw new InvalidDataException(
                             "Axis SetPosition recovery journal payload is incomplete.");
                     }
-                    return DeserializePayload(payload);
+                    return DeserializePayload(payload, formatVersion);
                 }
             }
             catch (InvalidDataException)
@@ -897,7 +1344,8 @@ namespace LasalMotionControlApiExample
         }
 
         private static AxisSetPositionRecoveryRecord DeserializePayload(
-            byte[] payload)
+            byte[] payload,
+            int formatVersion)
         {
             using (var stream = new MemoryStream(payload, false))
             using (var reader = new BinaryReader(stream, Encoding.ASCII, true))
@@ -932,6 +1380,33 @@ namespace LasalMotionControlApiExample
                 var expectedActualPosition = reader.ReadInt32();
                 var endpointIp = ReadText(reader);
                 var axisName = ReadText(reader);
+                AxisSetPositionTerminalOutcomeProof terminalOutcomeProof =
+                    null;
+                var retirementRequestId = 0U;
+                if (formatVersion == CurrentFormatVersion)
+                {
+                    var hasTerminalOutcomeProof = reader.ReadByte();
+                    if (hasTerminalOutcomeProof > 1)
+                    {
+                        throw new InvalidDataException(
+                            "Axis SetPosition recovery terminal proof marker is invalid.");
+                    }
+                    if (hasTerminalOutcomeProof == 1)
+                    {
+                        terminalOutcomeProof =
+                            new AxisSetPositionTerminalOutcomeProof(
+                                reader.ReadUInt32(),
+                                (LMCAxisSetPositionOutcomeRecordState)
+                                    reader.ReadUInt16(),
+                                reader.ReadInt32(),
+                                reader.ReadUInt16(),
+                                reader.ReadInt16(),
+                                reader.ReadUInt32(),
+                                reader.ReadUInt32(),
+                                reader.ReadUInt32());
+                    }
+                    retirementRequestId = reader.ReadUInt32();
+                }
                 if (stream.Position != stream.Length)
                 {
                     throw new InvalidDataException(
@@ -958,7 +1433,10 @@ namespace LasalMotionControlApiExample
                     schemaVersion,
                     state,
                     createdUtc,
-                    updatedUtc);
+                    updatedUtc,
+                    formatVersion,
+                    terminalOutcomeProof,
+                    retirementRequestId);
                 if (!string.Equals(
                     endpointIp,
                     record.EndpointIp,

@@ -434,6 +434,10 @@ namespace LasalMotionControlApiExample
             values["Disconnected"] = "연결 끊김";
             values["Connected"] = "연결됨";
             values["Stopped"] = "중지됨";
+            values["RPC initialization / callback evidence"] =
+                "RPC 초기화 / 콜백 증거";
+            values["Safety / recovery details"] =
+                "안전 / 복구 상세 정보";
             values["RPC initialization evidence"] = "RPC 초기화 증거";
             values["Callback v2 registration"] = "콜백 v2 등록";
             values["PC callback receiver evidence"] = "PC 콜백 수신 증거";
@@ -1532,6 +1536,50 @@ namespace LasalMotionControlApiExample
             values[
                 "No encoder maintenance operation is armed or pending."] =
                 "Arm되거나 대기 중인 encoder 유지보수 작업이 없습니다.";
+            values[
+                "Requires live mutation admission, a current TW[20]/TW[19] capability, an available durable maintenance journal, and all four Step 1 confirmations. Arm prepares the exact request in PC memory only and sends no 0x7E53."] =
+                "Live mutation 승인, 현재 TW[20]/TW[19] capability, 사용 가능한 durable 유지보수 journal 및 1단계의 네 가지 확인이 필요합니다. Arm은 정확한 요청을 PC 메모리에만 준비하며 0x7E53을 전송하지 않습니다.";
+            values[
+                "Requires the unchanged PC-only armed request, live mutation admission, current capability, an available durable maintenance journal, and Step 2 confirmation. Execute sends 0x7E53 once."] =
+                "변경되지 않은 PC 전용 arm 요청, live mutation 승인, 현재 capability, 사용 가능한 durable 유지보수 journal 및 2단계 확인이 필요합니다. Execute는 0x7E53을 한 번 전송합니다.";
+            values[
+                "BLOCKED: connect to the PLC before arming encoder maintenance. No encoder-maintenance RPC was sent."] =
+                "차단: Encoder 유지보수를 arm하기 전에 PLC에 연결하십시오. Encoder 유지보수 RPC를 전송하지 않았습니다.";
+            values[
+                "BLOCKED: wait for the current operation, safety action, monitor, or qualification to finish before arming encoder maintenance. No encoder-maintenance RPC was sent."] =
+                "차단: Encoder 유지보수를 arm하기 전에 현재 작업, 안전 동작, monitor 또는 qualification이 끝날 때까지 기다리십시오. Encoder 유지보수 RPC를 전송하지 않았습니다.";
+            values[
+                "BLOCKED: recovery-identity read-only quarantine permits inspection only; encoder maintenance cannot be armed. Open Safety / Recovery Details, independently verify the machine and drive state, then archive and retire the stale record. No encoder-maintenance RPC was sent."] =
+                "차단: 복구 ID 읽기 전용 격리에서는 확인만 허용되며 Encoder 유지보수를 arm할 수 없습니다. 안전 / 복구 상세 정보를 열고 기계와 drive 상태를 독립 확인한 뒤 오래된 record를 보관 및 폐기하십시오. Encoder 유지보수 RPC를 전송하지 않았습니다.";
+            values["Open Safety / Recovery Details"] =
+                "안전 / 복구 상세 정보 열기";
+            values[
+                "Expands the local safety/recovery panel only. This button sends no PLC command and does not retire any record."] =
+                "로컬 안전/복구 panel만 펼칩니다. 이 버튼은 PLC 명령을 전송하지 않으며 어떤 record도 폐기하지 않습니다.";
+            values[
+                "BLOCKED: the durable Home/encoder-maintenance recovery journal is unavailable. Encoder maintenance remains fail-closed; no RPC was sent."] =
+                "차단: Durable Home/Encoder 유지보수 복구 journal을 사용할 수 없습니다. Encoder 유지보수는 계속 fail-closed이며 RPC를 전송하지 않았습니다.";
+            values[
+                "BLOCKED: an unresolved Home/encoder-maintenance recovery record is active. Use its exact outcome/status recovery path; do not replay it. No encoder-maintenance RPC was sent."] =
+                "차단: 미해결 Home/Encoder 유지보수 복구 record가 활성 상태입니다. 정확한 outcome/status 복구 경로를 사용하고 재전송하지 마십시오. Encoder 유지보수 RPC를 전송하지 않았습니다.";
+            values[
+                "BLOCKED: another unresolved mutation, recovery, unavailable journal, or possible-motion state prevents encoder-maintenance arming. Resolve it first; no encoder-maintenance RPC was sent."] =
+                "차단: 다른 미해결 mutation, recovery, 사용할 수 없는 journal 또는 motion 가능 상태로 인해 Encoder 유지보수를 arm할 수 없습니다. 먼저 해당 상태를 해결하십시오. Encoder 유지보수 RPC를 전송하지 않았습니다.";
+            values[
+                "BLOCKED: refresh current-session Diagnostics capabilities and identity before arming encoder maintenance. No encoder-maintenance RPC was sent."] =
+                "차단: Encoder 유지보수를 arm하기 전에 현재 session의 Diagnostics capability와 identity를 새로고침하십시오. Encoder 유지보수 RPC를 전송하지 않았습니다.";
+            values[
+                "BLOCKED: the current PLC does not advertise the selected TW[20]/TW[19] encoder-maintenance capability. No encoder-maintenance RPC was sent."] =
+                "차단: 현재 PLC가 선택된 TW[20]/TW[19] Encoder 유지보수 capability를 advertise하지 않습니다. Encoder 유지보수 RPC를 전송하지 않았습니다.";
+            values[
+                "ARMED: the exact encoder-maintenance request is held in PC memory only. Verify it and select Step 2 to permit one 0x7E53 submission."] =
+                "ARMED: 정확한 Encoder 유지보수 요청은 PC 메모리에만 보관됩니다. 요청을 확인하고 0x7E53 1회 전송을 허용하려면 2단계를 선택하십시오.";
+            values[
+                "READY: current-session capability, recovery, and all Step 1 gates are open. Arm performs fresh read-only checks and prepares the request in PC memory; it does not send 0x7E53/0x7E54/0x7E55."] =
+                "준비됨: 현재 session의 capability, recovery 및 모든 1단계 gate가 열렸습니다. Arm은 최신 읽기 전용 확인 후 요청을 PC 메모리에 준비하며 0x7E53/0x7E54/0x7E55를 전송하지 않습니다.";
+            values[
+                "BLOCKED: an exact encoder-maintenance request is already armed in PC memory. Execute or change the input to clear it; no RPC was sent."] =
+                "차단: 정확한 Encoder 유지보수 요청이 이미 PC 메모리에 arm되어 있습니다. Execute하거나 입력을 변경해 지우십시오. RPC를 전송하지 않았습니다.";
             values["Capabilities refreshed."] =
                 "Capability를 새로고침했습니다.";
             values[

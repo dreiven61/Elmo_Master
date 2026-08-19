@@ -108,6 +108,8 @@ namespace LasalMotionControlApiExample
             bool operationSlotAvailable,
             bool allowPendingGroupReset)
         {
+            var recoveryIdentityReadOnlyExitPermitted =
+                IsRecoveryIdentityReadOnlyExitPermitted();
             if (!allowPendingGroupReset
                 && HasUnresolvedGroupResetState()
                 && (operation
@@ -117,10 +119,11 @@ namespace LasalMotionControlApiExample
                     || (operation
                             == DiagnosticsAdmissionOperation.ConnectOrReconnect
                         && !GroupResetRecoveryReconnectAvailable)
-                    || operation
-                        == DiagnosticsAdmissionOperation.CloseConnection
-                    || operation
-                        == DiagnosticsAdmissionOperation.CloseWindow))
+                    || ((operation
+                                == DiagnosticsAdmissionOperation.CloseConnection
+                            || operation
+                                == DiagnosticsAdmissionOperation.CloseWindow)
+                        && !recoveryIdentityReadOnlyExitPermitted)))
             {
                 return DiagnosticsAdmissionDecision.Deny(
                     DiagnosticsAdmissionDenialReason.UnresolvedMutation);
@@ -150,7 +153,7 @@ namespace LasalMotionControlApiExample
                         || AxisQualificationRecoveryJournalUnavailable
                         || GroupPowerRecoveryJournalUnavailable
                         || GroupResetRecoveryJournalUnavailable,
-                    IsRecoveryIdentityReadOnlyExitPermitted()));
+                    recoveryIdentityReadOnlyExitPermitted));
         }
 
         private InvalidOperationException CreateDiagnosticsAdmissionException(

@@ -20,7 +20,14 @@ namespace LasalMotionControlApiExample
         GroupProfileLock = 4,
         GroupPower = 5,
         GroupReset = 6,
-        AxisQualification = 7
+        AxisQualification = 7,
+        DiagnosticsMutation = 8
+    }
+
+    internal enum RecoveryEndpointEvidenceKind
+    {
+        RecordedSourceEndpoint = 1,
+        OperatorClassifiedLegacyEndpoint = 2
     }
 
     internal sealed class RecoveryJournalSourceEvidence
@@ -44,9 +51,12 @@ namespace LasalMotionControlApiExample
             ushort targetReference,
             string operation,
             string semanticFingerprint,
-            byte[] originalBytes)
+            byte[] originalBytes,
+            RecoveryEndpointEvidenceKind endpointEvidenceKind =
+                RecoveryEndpointEvidenceKind.RecordedSourceEndpoint)
         {
             ValidateOwner(owner);
+            ValidateEndpointEvidenceKind(owner, endpointEvidenceKind);
             if (recordIdentity == Guid.Empty)
             {
                 throw new ArgumentException(
@@ -126,6 +136,7 @@ namespace LasalMotionControlApiExample
             }
 
             Owner = owner;
+            EndpointEvidenceKind = endpointEvidenceKind;
             RecordIdentity = recordIdentity;
             StateCode = stateCode;
             CreatedUtc = createdUtc;
@@ -180,6 +191,11 @@ namespace LasalMotionControlApiExample
         }
 
         internal RecoveryRecordOwner Owner { get; private set; }
+        internal RecoveryEndpointEvidenceKind EndpointEvidenceKind
+        {
+            get;
+            private set;
+        }
         internal Guid RecordIdentity { get; private set; }
         internal int StateCode { get; private set; }
         internal DateTime CreatedUtc { get; private set; }
@@ -220,7 +236,8 @@ namespace LasalMotionControlApiExample
                 TargetReference,
                 Operation,
                 SemanticFingerprint,
-                originalBytes);
+                originalBytes,
+                EndpointEvidenceKind);
         }
 
         internal bool ExactSourceEquals(
@@ -228,6 +245,7 @@ namespace LasalMotionControlApiExample
         {
             return candidate != null
                 && Owner == candidate.Owner
+                && EndpointEvidenceKind == candidate.EndpointEvidenceKind
                 && RecordIdentity == candidate.RecordIdentity
                 && StateCode == candidate.StateCode
                 && CreatedUtc == candidate.CreatedUtc
@@ -317,9 +335,46 @@ namespace LasalMotionControlApiExample
                 && owner != RecoveryRecordOwner.GroupProfileLock
                 && owner != RecoveryRecordOwner.GroupPower
                 && owner != RecoveryRecordOwner.GroupReset
-                && owner != RecoveryRecordOwner.AxisQualification)
+                && owner != RecoveryRecordOwner.AxisQualification
+                && owner != RecoveryRecordOwner.DiagnosticsMutation)
             {
                 throw new ArgumentOutOfRangeException("owner");
+            }
+        }
+
+        private static void ValidateEndpointEvidenceKind(
+            RecoveryRecordOwner owner,
+            RecoveryEndpointEvidenceKind endpointEvidenceKind)
+        {
+            if (endpointEvidenceKind
+                    != RecoveryEndpointEvidenceKind.RecordedSourceEndpoint
+                && endpointEvidenceKind
+                    != RecoveryEndpointEvidenceKind
+                        .OperatorClassifiedLegacyEndpoint)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "endpointEvidenceKind");
+            }
+
+            if (owner == RecoveryRecordOwner.DiagnosticsMutation)
+            {
+                if (endpointEvidenceKind
+                    != RecoveryEndpointEvidenceKind
+                        .OperatorClassifiedLegacyEndpoint)
+                {
+                    throw new ArgumentException(
+                        "Legacy diagnostics mutation retirement requires an explicit operator-classified endpoint.",
+                        "endpointEvidenceKind");
+                }
+                return;
+            }
+
+            if (endpointEvidenceKind
+                != RecoveryEndpointEvidenceKind.RecordedSourceEndpoint)
+            {
+                throw new ArgumentException(
+                    "This recovery owner requires its recorded source endpoint.",
+                    "endpointEvidenceKind");
             }
         }
 
@@ -340,6 +395,11 @@ namespace LasalMotionControlApiExample
             if (owner == RecoveryRecordOwner.AxisQualification)
             {
                 return stateCode >= 1 && stateCode <= 9;
+            }
+            if (owner == RecoveryRecordOwner.DiagnosticsMutation)
+            {
+                return stateCode
+                    == (int)DiagnosticsMutationState.OutcomeUnverified;
             }
             return stateCode == 1 || stateCode == 2 || stateCode == 3;
         }
@@ -642,7 +702,8 @@ namespace LasalMotionControlApiExample
     internal sealed class RecoveryRecordRetirementLedger : IDisposable
     {
         private const int LegacyFormatVersion = 1;
-        private const int FormatVersion = 2;
+        private const int PreviousFormatVersion = 2;
+        private const int FormatVersion = 3;
         private const int ChecksumLength = 32;
         private const int MaximumEntryLength = 65536;
         private const int MaximumTextByteLength = 8192;
@@ -1053,6 +1114,7 @@ namespace LasalMotionControlApiExample
             {
                 writer.Write(decision.DecisionIdentity.ToByteArray());
                 writer.Write((int)source.Owner);
+                writer.Write((int)source.EndpointEvidenceKind);
                 writer.Write(source.RecordIdentity.ToByteArray());
                 writer.Write(source.StateCode);
                 writer.Write(source.CreatedUtc.Ticks);
@@ -1174,6 +1236,7 @@ namespace LasalMotionControlApiExample
                     }
                     var formatVersion = reader.ReadInt32();
                     if (formatVersion != LegacyFormatVersion
+                        && formatVersion != PreviousFormatVersion
                         && formatVersion != FormatVersion)
                     {
                         throw new InvalidDataException(
@@ -1190,6 +1253,10 @@ namespace LasalMotionControlApiExample
 
                     var decisionIdentity = ReadGuid(reader);
                     var owner = (RecoveryRecordOwner)reader.ReadInt32();
+                    var endpointEvidenceKind = formatVersion >= 3
+                        ? (RecoveryEndpointEvidenceKind)reader.ReadInt32()
+                        : RecoveryEndpointEvidenceKind
+                            .RecordedSourceEndpoint;
                     var recordIdentity = ReadGuid(reader);
                     var stateCode = reader.ReadInt32();
                     var createdUtc = new DateTime(
@@ -1253,7 +1320,8 @@ namespace LasalMotionControlApiExample
                         targetReference,
                         operation,
                         semanticFingerprint,
-                        original);
+                        original,
+                        endpointEvidenceKind);
                     if (!string.Equals(
                         storedSha256,
                         evidence.OriginalSha256,

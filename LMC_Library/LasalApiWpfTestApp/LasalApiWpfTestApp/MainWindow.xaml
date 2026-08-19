@@ -45,9 +45,7 @@
     <Grid Margin="14">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" MinHeight="280" />
+            <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
@@ -78,7 +76,17 @@
             </StackPanel>
         </DockPanel>
 
-        <GroupBox Grid.Row="1" Header="Connection / RPC callback">
+        <Grid
+            x:Name="GridWorkspaceLayout"
+            Grid.Row="1"
+            ClipToBounds="True">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+        <GroupBox Grid.Row="0" Header="Connection / RPC callback">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="1.2*" />
@@ -91,7 +99,6 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
@@ -113,21 +120,20 @@
                     <TextBox x:Name="TextCallbackPort" Width="100" Text="5000" />
                 </StackPanel>
 
-                <StackPanel
+                <Button
+                    x:Name="ButtonConnect"
                     Grid.Row="0"
                     Grid.Column="4"
-                    Grid.ColumnSpan="2"
-                    Orientation="Horizontal"
-                    VerticalAlignment="Bottom">
-                    <Button
-                        x:Name="ButtonConnect"
-                        Click="ButtonConnect_Click"
-                        Content="Connect" />
-                    <Button
-                        x:Name="ButtonCloseConnection"
-                        Click="ButtonCloseConnection_Click"
-                        Content="Close" />
-                </StackPanel>
+                    VerticalAlignment="Bottom"
+                    Click="ButtonConnect_Click"
+                    Content="Connect" />
+                <Button
+                    x:Name="ButtonCloseConnection"
+                    Grid.Row="0"
+                    Grid.Column="5"
+                    VerticalAlignment="Bottom"
+                    Click="ButtonCloseConnection_Click"
+                    Content="Close" />
 
                 <StackPanel Grid.Row="0" Grid.Column="6">
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Connection state" />
@@ -146,123 +152,142 @@
                         TextWrapping="Wrap" />
                 </StackPanel>
 
-                <StackPanel
+                <Expander
+                    x:Name="ExpanderRpcCallbackEvidence"
                     Grid.Row="1"
-                    Grid.Column="0"
-                    Grid.ColumnSpan="4"
-                    Margin="0,8,12,0">
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="RPC initialization evidence" />
-                    <TextBlock
-                        x:Name="TextRpcInitialization"
-                        Style="{StaticResource ValueText}"
-                        Tag="UiLocalization.Preserve"
-                        Text="No RPC initialization attempt"
-                        TextWrapping="Wrap" />
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Callback v2 registration" />
-                    <TextBlock
-                        x:Name="TextCallbackRegistration"
-                        Style="{StaticResource ValueText}"
-                        Tag="UiLocalization.Preserve"
-                        Text="Not registered"
-                        TextWrapping="Wrap" />
-                </StackPanel>
-
-                <StackPanel
-                    Grid.Row="1"
-                    Grid.Column="4"
-                    Grid.ColumnSpan="4"
-                    Margin="0,8,0,0">
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="PC callback receiver evidence" />
-                    <TextBlock
-                        x:Name="TextCallbackCounters"
-                        Style="{StaticResource ValueText}"
-                        Tag="UiLocalization.Preserve"
-                        Text="Accepted=0, Rejected=0, Duplicate=0, OutOfOrder=0"
-                        TextWrapping="Wrap" />
-                    <TextBlock
-                        x:Name="TextCallbackLastDecision"
-                        Foreground="#5F6B7A"
-                        Tag="UiLocalization.Preserve"
-                        Text="Last decision=None"
-                        TextWrapping="Wrap" />
-                </StackPanel>
-
-                <TextBlock
-                    Grid.Row="2"
                     Grid.ColumnSpan="8"
                     Margin="0,8,0,0"
-                    Foreground="#5F6B7A"
-                    Text="Connect performs RPC session initialization and callback registration automatically. UDP wake hints are non-authoritative; operation state changes only after the matching TCP status response." />
+                    Header="RPC initialization / callback evidence"
+                    HorizontalContentAlignment="Stretch"
+                    IsExpanded="False">
+                    <Grid Margin="0,6,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,12,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="RPC initialization evidence" />
+                            <TextBlock
+                                x:Name="TextRpcInitialization"
+                                Style="{StaticResource ValueText}"
+                                Tag="UiLocalization.Preserve"
+                                Text="No RPC initialization attempt"
+                                TextWrapping="Wrap" />
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Callback v2 registration" />
+                            <TextBlock
+                                x:Name="TextCallbackRegistration"
+                                Style="{StaticResource ValueText}"
+                                Tag="UiLocalization.Preserve"
+                                Text="Not registered"
+                                TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="0" Grid.Column="1">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="PC callback receiver evidence" />
+                            <TextBlock
+                                x:Name="TextCallbackCounters"
+                                Style="{StaticResource ValueText}"
+                                Tag="UiLocalization.Preserve"
+                                Text="Accepted=0, Rejected=0, Duplicate=0, OutOfOrder=0"
+                                TextWrapping="Wrap" />
+                            <TextBlock
+                                x:Name="TextCallbackLastDecision"
+                                Foreground="#5F6B7A"
+                                Tag="UiLocalization.Preserve"
+                                Text="Last decision=None"
+                                TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <TextBlock
+                            Grid.Row="1"
+                            Grid.ColumnSpan="2"
+                            Margin="0,8,0,0"
+                            Foreground="#5F6B7A"
+                            Text="Connect performs RPC session initialization and callback registration automatically. UDP wake hints are non-authoritative; operation state changes only after the matching TCP status response."
+                            TextWrapping="Wrap" />
+                    </Grid>
+                </Expander>
             </Grid>
         </GroupBox>
 
         <Border
-            Grid.Row="2"
+            Grid.Row="1"
             Margin="0,0,0,10"
             Padding="12,9"
             Background="#FFF6DF"
             BorderBrush="#E0B34B"
             BorderThickness="1"
             CornerRadius="4">
-            <StackPanel>
-                <TextBlock
-                    x:Name="TextMotionWarning"
-                    VerticalAlignment="Center"
-                    Foreground="#8A4A00"
-                    Text="Power On, Reset, motion, and group preparation commands are sent immediately without a confirmation dialog. Stop and axis Power Off remain available while connected. Closing the connection does not stop motion."
-                    TextWrapping="Wrap" />
-                <Border
-                    x:Name="PanelRecoveryIdentityRetirement"
-                    Margin="0,9,0,0"
-                    Padding="10"
-                    Background="#FFFFFBF0"
-                    BorderBrush="#D59A22"
-                    BorderThickness="1"
-                    CornerRadius="3"
-                    Visibility="Collapsed">
-                    <StackPanel>
-                        <TextBlock
-                            FontWeight="SemiBold"
-                            Text="Archive and retire stale recovery evidence"
-                            TextWrapping="Wrap" />
-                        <TextBox
-                            x:Name="TextRecoveryIdentityRetirementSnapshot"
-                            Height="112"
-                            Margin="0,7,0,6"
-                            FontFamily="Consolas"
-                            HorizontalScrollBarVisibility="Auto"
-                            IsReadOnly="True"
-                            Text="No stale recovery snapshot is available."
-                            TextWrapping="NoWrap"
-                            VerticalScrollBarVisibility="Auto" />
-                        <CheckBox
-                            x:Name="CheckConfirmStaleRecoveryRetirement"
-                            Margin="0,3,0,8"
-                            Checked="RecoveryIdentityRetirementConfirmation_Changed"
-                            HorizontalContentAlignment="Stretch"
-                            IsEnabled="False"
-                            Unchecked="RecoveryIdentityRetirementConfirmation_Changed">
-                            <CheckBox.Content>
-                                <TextBlock
-                                    Text="I independently verified the machine and drive physical state. I accept that every listed old-PLC command outcome remains unknown, and I want to archive and retire only the listed stale recovery records."
-                                    TextWrapping="Wrap" />
-                            </CheckBox.Content>
-                        </CheckBox>
-                        <Button
-                            x:Name="ButtonArchiveAndRetireStaleRecovery"
-                            HorizontalAlignment="Left"
-                            Click="ButtonArchiveAndRetireStaleRecovery_Click"
-                            Content="Archive and Retire Stale Recovery"
-                            IsEnabled="False"
-                            ToolTip="No PLC command is sent. The current RPC connection must close, and a fresh reconnect must validate the current PLC identity before control or write is permitted." />
-                    </StackPanel>
-                </Border>
-            </StackPanel>
+            <Expander
+                x:Name="ExpanderSafetyAndRecoveryDetails"
+                Header="Safety / recovery details"
+                HorizontalContentAlignment="Stretch"
+                IsExpanded="False">
+                <StackPanel Margin="0,7,0,0">
+                    <TextBlock
+                        x:Name="TextMotionWarning"
+                        VerticalAlignment="Center"
+                        Foreground="#8A4A00"
+                        Text="Power On, Reset, motion, and group preparation commands are sent immediately without a confirmation dialog. Stop and axis Power Off remain available while connected. Closing the connection does not stop motion."
+                        TextWrapping="Wrap" />
+                    <Border
+                        x:Name="PanelRecoveryIdentityRetirement"
+                        Margin="0,9,0,0"
+                        Padding="10"
+                        Background="#FFFFFBF0"
+                        BorderBrush="#D59A22"
+                        BorderThickness="1"
+                        CornerRadius="3"
+                        Visibility="Collapsed">
+                        <StackPanel>
+                            <TextBlock
+                                FontWeight="SemiBold"
+                                Text="Archive and retire stale recovery evidence"
+                                TextWrapping="Wrap" />
+                            <TextBox
+                                x:Name="TextRecoveryIdentityRetirementSnapshot"
+                                Height="112"
+                                Margin="0,7,0,6"
+                                FontFamily="Consolas"
+                                HorizontalScrollBarVisibility="Auto"
+                                IsReadOnly="True"
+                                Text="No stale recovery snapshot is available."
+                                TextWrapping="NoWrap"
+                                VerticalScrollBarVisibility="Auto" />
+                            <CheckBox
+                                x:Name="CheckConfirmStaleRecoveryRetirement"
+                                Margin="0,3,0,8"
+                                Checked="RecoveryIdentityRetirementConfirmation_Changed"
+                                HorizontalContentAlignment="Stretch"
+                                IsEnabled="False"
+                                Unchecked="RecoveryIdentityRetirementConfirmation_Changed">
+                                <CheckBox.Content>
+                                    <TextBlock
+                                        Text="I independently verified the machine and drive physical state. I accept that every listed old-PLC command outcome remains unknown, and I want to archive and retire only the listed stale recovery records."
+                                        TextWrapping="Wrap" />
+                                </CheckBox.Content>
+                            </CheckBox>
+                            <Button
+                                x:Name="ButtonArchiveAndRetireStaleRecovery"
+                                HorizontalAlignment="Left"
+                                Click="ButtonArchiveAndRetireStaleRecovery_Click"
+                                Content="Archive and Retire Stale Recovery"
+                                IsEnabled="False"
+                                ToolTip="No PLC command is sent. The current RPC connection must close, and a fresh reconnect must validate the current PLC identity before control or write is permitted." />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Expander>
         </Border>
 
         <TabControl
             x:Name="TabsMotion"
-            Grid.Row="3"
+            Grid.Row="2"
             Margin="0,0,0,5"
             SelectionChanged="MotionTabs_SelectionChanged">
             <TabItem Header="Single Axis">
@@ -1916,11 +1941,26 @@
                                     Checked="TestResetConfirmation_Changed"
                                     Content="Step 1D: I independently verified that the selected drive supports this exact 0x20FC maintenance command."
                                     Unchecked="TestResetConfirmation_Changed" />
+                                <TextBlock
+                                    x:Name="TextEncoderMaintenanceArmGateStatus"
+                                    Margin="0,4,0,0"
+                                    FontWeight="SemiBold"
+                                    Text="BLOCKED: connect to the PLC before arming encoder maintenance. No encoder-maintenance RPC was sent."
+                                    TextWrapping="Wrap" />
+                                <Button
+                                    x:Name="ButtonOpenEncoderRecoveryDetails"
+                                    HorizontalAlignment="Left"
+                                    Margin="0,4,0,0"
+                                    Click="ButtonOpenEncoderRecoveryDetails_Click"
+                                    Content="Open Safety / Recovery Details"
+                                    ToolTip="Expands the local safety/recovery panel only. This button sends no PLC command and does not retire any record." />
                                 <WrapPanel Margin="0,4,0,0">
                                     <Button
                                         x:Name="ButtonArmTestReset"
                                         Click="ButtonArmTestReset_Click"
-                                        Content="Step 1 - Arm Encoder Maintenance" />
+                                        Content="Step 1 - Arm Encoder Maintenance"
+                                        ToolTip="Requires live mutation admission, a current TW[20]/TW[19] capability, an available durable maintenance journal, and all four Step 1 confirmations. Arm prepares the exact request in PC memory only and sends no 0x7E53."
+                                        ToolTipService.ShowOnDisabled="True" />
                                     <CheckBox
                                         x:Name="CheckTestResetFinalConfirmed"
                                         VerticalAlignment="Center"
@@ -1932,7 +1972,9 @@
                                         x:Name="ButtonExecuteTestReset"
                                         Click="ButtonExecuteTestReset_Click"
                                         Content="Step 2 - Execute Encoder Maintenance Once"
-                                        IsEnabled="False" />
+                                        IsEnabled="False"
+                                        ToolTip="Requires the unchanged PC-only armed request, live mutation admission, current capability, an available durable maintenance journal, and Step 2 confirmation. Execute sends 0x7E53 once."
+                                        ToolTipService.ShowOnDisabled="True" />
                                 </WrapPanel>
                                 <TextBlock
                                     x:Name="TextTestResetResult"
@@ -2512,9 +2554,11 @@
                 </ScrollViewer>
             </TabItem>
         </TabControl>
+        </Grid>
 
         <Expander
-            Grid.Row="4"
+            x:Name="ExpanderExecutionLog"
+            Grid.Row="2"
             Margin="0,2,0,4"
             Header="Execution log / callback diagnostics"
             IsExpanded="False">
@@ -2546,7 +2590,10 @@
             </Border>
         </Expander>
 
-        <StatusBar Grid.Row="5" Margin="0,2,0,0">
+        <StatusBar
+            x:Name="StatusOperationBar"
+            Grid.Row="3"
+            Margin="0,2,0,0">
             <StatusBarItem>
                 <TextBlock x:Name="TextOperationState" Text="Ready" />
             </StatusBarItem>

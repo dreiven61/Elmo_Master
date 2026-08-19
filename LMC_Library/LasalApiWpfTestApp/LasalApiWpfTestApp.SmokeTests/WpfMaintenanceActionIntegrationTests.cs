@@ -46,6 +46,9 @@ namespace LasalApiWpfTestApp.SmokeTests
                 "Wpf.MaintenanceUi.EncoderMaintenanceAbsentFromGenericSdoTargets",
                 EncoderMaintenanceIsAbsentFromGenericSdoTargets);
             tests.Add(
+                "Wpf.MaintenanceUi.EncoderPreparedRequestDisablesRearmAndEnablesConfirmedExecuteZeroWire",
+                EncoderPreparedRequestDisablesRearmAndEnablesConfirmedExecuteZeroWire);
+            tests.Add(
                 "Wpf.MaintenanceUi.LmcRecoveryKeyRoundTrip",
                 LmcRecoveryKeyRoundTripsWithCurrentZeroIntent);
             tests.Add(
@@ -95,11 +98,36 @@ namespace LasalApiWpfTestApp.SmokeTests
                     AssertEx.False(window.ButtonArmTestReset.IsEnabled);
                     AssertEx.False(window.ButtonExecuteTestReset.IsEnabled);
                     AssertEx.Equal(
+                        LMCEncoderMaintenanceKind
+                            .Tw19MultiturnPositionReset,
+                        (LMCEncoderMaintenanceKind)window
+                            .ComboEncoderMaintenanceKind.SelectedItem);
+                    var defaultEncoderRequest =
+                        window.ReadEncoderMaintenanceRequest();
+                    AssertEx.True(
+                        defaultEncoderRequest
+                            is LMCTw19MultiturnPositionResetRequest);
+                    AssertEx.Equal(
+                        LMCEncoderMaintenanceKind
+                            .Tw19MultiturnPositionReset,
+                        defaultEncoderRequest.Kind);
+                    AssertEx.Equal(1u, defaultEncoderRequest.CommandValue);
+                    AssertEx.Equal(
+                        "BLOCKED: connect to the PLC before arming encoder maintenance. No encoder-maintenance RPC was sent.",
+                        window.TextEncoderMaintenanceArmGateStatus.Text);
+                    AssertEx.Contains(
+                        "Requires live mutation admission",
+                        (string)window.ButtonArmTestReset.ToolTip);
+                    AssertEx.Equal(
                         "Execute LMC Home Once",
                         (string)window.ButtonLmcHome.Content);
                     AssertEx.Equal(
                         "Step 1 - Arm Encoder Maintenance",
                         (string)window.ButtonArmTestReset.Content);
+                    AssertEx.Equal(
+                        "Open Safety / Recovery Details",
+                        (string)window.ButtonOpenEncoderRecoveryDetails
+                            .Content);
                     AssertEx.Equal(
                         "TEST ONLY - Encoder Maintenance (TW[20] / TW[19])",
                         (string)window.GroupEncoderMaintenance.Header);
@@ -157,6 +185,16 @@ namespace LasalApiWpfTestApp.SmokeTests
                     AssertEx.Equal(
                         "1단계 - Encoder 유지보수 Arm",
                         (string)window.ButtonArmTestReset.Content);
+                    AssertEx.Equal(
+                        "안전 / 복구 상세 정보 열기",
+                        (string)window.ButtonOpenEncoderRecoveryDetails
+                            .Content);
+                    AssertEx.Equal(
+                        "차단: Encoder 유지보수를 arm하기 전에 PLC에 연결하십시오. Encoder 유지보수 RPC를 전송하지 않았습니다.",
+                        window.TextEncoderMaintenanceArmGateStatus.Text);
+                    AssertEx.Contains(
+                        "Live mutation 승인",
+                        (string)window.ButtonArmTestReset.ToolTip);
                     AssertEx.Equal(
                         "테스트 전용 - Encoder 유지보수 (TW[20] / TW[19])",
                         (string)window.GroupEncoderMaintenance.Header);
@@ -249,6 +287,322 @@ namespace LasalApiWpfTestApp.SmokeTests
                         exposed,
                         "A dedicated TW[20]/TW[19] encoder-maintenance target leaked into the generic SDO target dropdown.");
                 });
+        }
+
+        private static void
+            EncoderPreparedRequestDisablesRearmAndEnablesConfirmedExecuteZeroWire()
+        {
+            var capabilities = LMCDiagnosticCapability
+                    .EncoderTw20ErrorWarningReset
+                | LMCDiagnosticCapability
+                    .EncoderTw19MultiturnPositionReset;
+            var steps = new[]
+            {
+                InitStep(),
+                CallbackStep(),
+                DiagnosticsCapabilitiesStep(1, capabilities),
+                CloseStep()
+            };
+
+            using (var server = new FakeRpcServer(steps))
+            {
+                WithTemporaryWindow(
+                    LasalMotionControlApiExample.UiLanguage.English,
+                    null,
+                    window =>
+                    {
+                        window.TextRemoteIp.Text = "127.0.0.1";
+                        window.TextRemotePort.Text = server.Port.ToString();
+                        using (var connection = new LMCConnection())
+                        {
+                            try
+                            {
+                                Connect(connection, server.Port);
+                                var currentCapabilities = connection
+                                    .Diagnostics.GetCapabilities();
+                                SetPrivateField(
+                                    window,
+                                    "connection",
+                                    connection);
+                                SetPrivateField(
+                                    window,
+                                    "diagnosticCapabilities",
+                                    currentCapabilities);
+
+                                window.ComboEncoderMaintenanceKind
+                                    .SelectedItem = LMCEncoderMaintenanceKind
+                                        .Tw20ErrorWarningReset;
+                                window.ComboTestResetAxis.SelectedItem =
+                                    (ushort)1;
+                                window.CheckTestResetPowerOffVerified
+                                    .IsChecked = true;
+                                window.CheckTestResetPhysicalPositionVerified
+                                    .IsChecked = true;
+                                window.CheckTestResetExactTargetVerified
+                                    .IsChecked = true;
+                                window
+                                    .CheckEncoderMaintenanceCompatibilityVerified
+                                    .IsChecked = true;
+                                InvokePrivate(window, "UpdateUiState");
+                                PumpUiOnce();
+
+                                SetPrivateField(
+                                    window,
+                                    "axisCommandRecoveryJournalRuntimeError",
+                                    "TEST unavailable Axis command journal");
+                                InvokePrivate(window, "UpdateUiState");
+                                AssertEx.False(
+                                    window.ButtonArmTestReset.IsEnabled);
+                                AssertEx.Contains(
+                                    "unavailable journal",
+                                    window
+                                        .TextEncoderMaintenanceArmGateStatus
+                                        .Text);
+                                var axisJournalFailure = AssertEx.Throws<
+                                    TargetInvocationException>(
+                                    () => InvokePrivate(
+                                        window,
+                                        "EnsureMaintenanceActionCanStart",
+                                        "TEST Encoder admission",
+                                        LMCAdminFeature.None,
+                                        LMCDiagnosticCapability
+                                            .EncoderTw20ErrorWarningReset));
+                                AssertEx.NotNull(axisJournalFailure.InnerException);
+                                AssertEx.Contains(
+                                    "Axis Stop/Reset journal",
+                                    axisJournalFailure.InnerException.Message);
+                                SetPrivateField(
+                                    window,
+                                    "axisCommandRecoveryJournalRuntimeError",
+                                    null);
+
+                                SetPrivateField(
+                                    window,
+                                    "motionUncertaintyJournalRuntimeError",
+                                    "TEST unavailable motion journal");
+                                InvokePrivate(window, "UpdateUiState");
+                                AssertEx.False(
+                                    window.ButtonArmTestReset.IsEnabled);
+                                AssertEx.Contains(
+                                    "unavailable journal",
+                                    window
+                                        .TextEncoderMaintenanceArmGateStatus
+                                        .Text);
+                                var motionJournalFailure = AssertEx.Throws<
+                                    TargetInvocationException>(
+                                    () => InvokePrivate(
+                                        window,
+                                        "EnsureMaintenanceActionCanStart",
+                                        "TEST Encoder admission",
+                                        LMCAdminFeature.None,
+                                        LMCDiagnosticCapability
+                                            .EncoderTw20ErrorWarningReset));
+                                AssertEx.NotNull(
+                                    motionJournalFailure.InnerException);
+                                AssertEx.Contains(
+                                    "motion journal",
+                                    motionJournalFailure.InnerException.Message);
+                                SetPrivateField(
+                                    window,
+                                    "motionUncertaintyJournalRuntimeError",
+                                    null);
+
+                                SetPrivateField(
+                                    window,
+                                    "groupProfileLockRecoveryRequired",
+                                    true);
+                                InvokePrivate(window, "UpdateUiState");
+                                AssertEx.False(
+                                    window.ButtonArmTestReset.IsEnabled);
+                                AssertEx.Contains(
+                                    "another unresolved mutation, recovery",
+                                    window
+                                        .TextEncoderMaintenanceArmGateStatus
+                                        .Text);
+                                var groupProfileFailure = AssertEx.Throws<
+                                    TargetInvocationException>(
+                                    () => InvokePrivate(
+                                        window,
+                                        "EnsureMaintenanceActionCanStart",
+                                        "TEST Encoder admission",
+                                        LMCAdminFeature.None,
+                                        LMCDiagnosticCapability
+                                            .EncoderTw20ErrorWarningReset));
+                                AssertEx.NotNull(
+                                    groupProfileFailure.InnerException);
+                                AssertEx.Contains(
+                                    "another unresolved mutation",
+                                    groupProfileFailure.InnerException.Message);
+                                SetPrivateField(
+                                    window,
+                                    "groupProfileLockRecoveryRequired",
+                                    false);
+
+                                SetPrivateField(
+                                    window,
+                                    "diagnosticCapabilities",
+                                    null);
+                                InvokePrivate(window, "UpdateUiState");
+                                AssertEx.False(
+                                    window.ButtonArmTestReset.IsEnabled);
+                                AssertEx.Contains(
+                                    "refresh current-session Diagnostics capabilities and identity",
+                                    window
+                                        .TextEncoderMaintenanceArmGateStatus
+                                        .Text);
+                                var capabilityFailure = AssertEx.Throws<
+                                    TargetInvocationException>(
+                                    () => InvokePrivate(
+                                        window,
+                                        "EnsureMaintenanceActionCanStart",
+                                        "TEST Encoder admission",
+                                        LMCAdminFeature.None,
+                                        LMCDiagnosticCapability
+                                            .EncoderTw20ErrorWarningReset));
+                                AssertEx.NotNull(capabilityFailure.InnerException);
+                                AssertEx.Contains(
+                                    "Diagnostics capability/identity",
+                                    capabilityFailure.InnerException.Message);
+                                SetPrivateField(
+                                    window,
+                                    "diagnosticCapabilities",
+                                    currentCapabilities);
+                                InvokePrivate(window, "UpdateUiState");
+                                PumpUiOnce();
+
+                                AssertEx.True(
+                                    window
+                                        .EncoderMaintenanceStepOneConfirmedForTests);
+                                AssertEx.True(
+                                    window.ButtonArmTestReset.IsEnabled);
+                                AssertEx.False(
+                                    window.ButtonExecuteTestReset.IsEnabled);
+                                AssertEx.Contains(
+                                    "READY: current-session capability, recovery, and all Step 1 gates are open",
+                                    window
+                                        .TextEncoderMaintenanceArmGateStatus
+                                        .Text);
+
+                                var prepared = connection.Diagnostics
+                                    .PrepareTw20EncoderErrorWarningReset(
+                                        (LMCTw20EncoderErrorWarningResetRequest)
+                                            window
+                                                .ReadEncoderMaintenanceRequest(),
+                                        currentCapabilities,
+                                        LMCTw20EncoderErrorWarningResetExecuteToken
+                                            .Create());
+                                SetPrivateField(
+                                    window,
+                                    "armedEncoderMaintenance",
+                                    prepared);
+                                SetPrivateField(
+                                    window,
+                                    "armedEncoderMaintenanceFingerprint",
+                                    LasalMotionControlApiExample.MainWindow
+                                        .FormatEncoderMaintenanceIdentity(
+                                            prepared.RecoveryKey));
+                                InvokePrivate(window, "UpdateUiState");
+                                PumpUiOnce();
+
+                                AssertEx.False(
+                                    window.ButtonArmTestReset.IsEnabled);
+                                AssertEx.True(
+                                    window.CheckTestResetFinalConfirmed
+                                        .IsEnabled);
+                                AssertEx.False(
+                                    window.ButtonExecuteTestReset.IsEnabled);
+                                AssertEx.Contains(
+                                    "ARMED: the exact encoder-maintenance request is held in PC memory only",
+                                    window
+                                        .TextEncoderMaintenanceArmGateStatus
+                                        .Text);
+
+                                var requestCountBeforeRearm =
+                                    server.ReceivedRequests.Count;
+                                Click(window.ButtonArmTestReset);
+                                PumpUiOnce();
+                                AssertEx.Equal(
+                                    requestCountBeforeRearm,
+                                    server.ReceivedRequests.Count);
+                                AssertEx.True(
+                                    ReferenceEquals(
+                                        prepared,
+                                        GetPrivateField(
+                                            window,
+                                            "armedEncoderMaintenance")));
+                                AssertEx.Contains(
+                                    "already armed in PC memory",
+                                    window.TextTestResetResult.Text);
+                                AssertEx.Equal(
+                                    0,
+                                    CountCommand(server, 0x7E53));
+
+                                window.CheckTestResetFinalConfirmed.IsChecked =
+                                    true;
+                                PumpUiOnce();
+                                AssertEx.True(
+                                    window.ButtonExecuteTestReset.IsEnabled);
+                                AssertEx.Equal(
+                                    0,
+                                    CountCommand(server, 0x7E53));
+
+                                window.CheckTestResetFinalConfirmed.IsChecked =
+                                    false;
+                                SetPrivateField(
+                                    window,
+                                    "armedEncoderMaintenance",
+                                    null);
+                                SetPrivateField(
+                                    window,
+                                    "armedEncoderMaintenanceFingerprint",
+                                    null);
+                                InvokePrivate(window, "UpdateUiState");
+                                connection.CloseConnection();
+                            }
+                            finally
+                            {
+                                SetPrivateField(
+                                    window,
+                                    "axisCommandRecoveryJournalRuntimeError",
+                                    null);
+                                SetPrivateField(
+                                    window,
+                                    "motionUncertaintyJournalRuntimeError",
+                                    null);
+                                SetPrivateField(
+                                    window,
+                                    "groupProfileLockRecoveryRequired",
+                                    false);
+                                SetPrivateField(
+                                    window,
+                                    "groupProfileLockVerificationPending",
+                                    false);
+                                SetPrivateField(
+                                    window,
+                                    "groupProfileUnlockVerificationPending",
+                                    false);
+                                SetPrivateField(
+                                    window,
+                                    "armedEncoderMaintenance",
+                                    null);
+                                SetPrivateField(
+                                    window,
+                                    "armedEncoderMaintenanceFingerprint",
+                                    null);
+                                SetPrivateField(
+                                    window,
+                                    "connection",
+                                    null);
+                                InvokePrivate(window, "UpdateUiState");
+                            }
+                        }
+                    });
+
+                server.Verify();
+                AssertEx.Equal(1, CountCommand(server, 0x7E00));
+                AssertEx.Equal(0, CountCommand(server, 0x7E53));
+                AssertEx.Equal(1, CountCommand(server, 0x405D));
+            }
         }
 
         private static void
@@ -1643,10 +1997,20 @@ namespace LasalApiWpfTestApp.SmokeTests
         private static FakeRpcStep DiagnosticsCapabilitiesStep(
             uint requestId)
         {
+            return DiagnosticsCapabilitiesStep(
+                requestId,
+                LMCDiagnosticCapability.None);
+        }
+
+        private static FakeRpcStep DiagnosticsCapabilitiesStep(
+            uint requestId,
+            LMCDiagnosticCapability capabilities)
+        {
             var payload = new byte[68];
             TestFrame.WriteUInt16(payload, 0, 1);
             TestFrame.WriteUInt32(payload, 8, requestId);
             TestFrame.WriteUInt32(payload, 16, Ds402DiagnosticsBuild);
+            TestFrame.WriteUInt32(payload, 20, (uint)capabilities);
             TestFrame.WriteUInt32(payload, 24, Ds402MapRevision);
             TestFrame.WriteUInt32(payload, 40, 1000);
             TestFrame.WriteUInt16(payload, 44, 1320);
@@ -1789,6 +2153,17 @@ namespace LasalApiWpfTestApp.SmokeTests
                 BindingFlags.Instance | BindingFlags.NonPublic);
             AssertEx.NotNull(field);
             field.SetValue(target, value);
+        }
+
+        private static object GetPrivateField(
+            object target,
+            string fieldName)
+        {
+            var field = target.GetType().GetField(
+                fieldName,
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            AssertEx.NotNull(field);
+            return field.GetValue(target);
         }
 
         private static void WaitForTask(Task task, string message)

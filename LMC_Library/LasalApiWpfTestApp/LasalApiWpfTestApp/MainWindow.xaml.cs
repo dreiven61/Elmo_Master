@@ -773,6 +773,8 @@ namespace LasalMotionControlApiExample
                             "Reconnect Group Reset recovery identity");
                         await EnsureMaintenanceRecoveryConnectionIdentityAsync(
                             "Reconnect Home/Test recovery identity");
+                        await EnsureDiagnosticsMutationRecoveryConnectionIdentityAsync(
+                            "Reconnect diagnostics mutation recovery identity");
                         ClearRecoveryIdentityReadOnlyQuarantine();
                     }
                     catch (RecoveryConnectionIdentityMismatchException error)

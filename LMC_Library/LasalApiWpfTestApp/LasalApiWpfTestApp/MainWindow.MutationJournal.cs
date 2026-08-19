@@ -54,6 +54,22 @@ namespace LasalMotionControlApiExample
             }
         }
 
+        private bool HasRetirableLegacyDiagnosticsMutationRecord
+        {
+            get
+            {
+                var record = diagnosticsMutationJournal == null
+                    ? null
+                    : diagnosticsMutationJournal.CurrentRecord;
+                return record != null
+                    && record.IsActive
+                    && record.Kind == DiagnosticsMutationKind.SdoWrite
+                    && record.State
+                        == DiagnosticsMutationState.OutcomeUnverified
+                    && record.HasTypedSdoWriteMetadata;
+            }
+        }
+
         private void InitializeDiagnosticsMutationJournal()
         {
             try
@@ -63,6 +79,7 @@ namespace LasalMotionControlApiExample
                         ? DiagnosticsMutationJournal.OpenDefault()
                         : DiagnosticsMutationJournal.Open(
                             diagnosticsMutationJournalDirectoryPath);
+                TryFinalizeCommittedDiagnosticsMutationRetirementAtStartup();
                 diagnosticsMutationRecoveredAtStartup =
                     diagnosticsMutationJournal.HasActiveRecord;
                 diagnosticsMutationJournalOpenError = null;
@@ -70,13 +87,88 @@ namespace LasalMotionControlApiExample
             }
             catch (Exception error)
             {
+                var failedJournal = diagnosticsMutationJournal;
                 diagnosticsMutationJournal = null;
+                var openError = error.GetType().Name + ": " + error.Message;
+                if (failedJournal != null)
+                {
+                    try
+                    {
+                        failedJournal.Dispose();
+                    }
+                    catch (Exception disposeError)
+                    {
+                        openError += "; dispose failed: "
+                            + disposeError.GetType().Name
+                            + ": "
+                            + disposeError.Message;
+                    }
+                }
+
                 diagnosticsMutationRecoveredAtStartup = false;
-                diagnosticsMutationJournalOpenError =
-                    error.GetType().Name + ": " + error.Message;
+                diagnosticsMutationJournalOpenError = openError;
             }
 
             RefreshDiagnosticsMutationJournalUi();
+        }
+
+        private async Task
+            EnsureDiagnosticsMutationRecoveryConnectionIdentityAsync(
+                string operation)
+        {
+            var record = diagnosticsMutationJournal == null
+                ? null
+                : diagnosticsMutationJournal.CurrentRecord;
+            if (record == null
+                || !record.IsActive
+                || record.Kind != DiagnosticsMutationKind.SdoWrite
+                || record.State
+                    != DiagnosticsMutationState.OutcomeUnverified)
+            {
+                return;
+            }
+
+            var currentConnection = RequireConnection();
+            var capabilities = diagnosticCapabilities;
+            if (capabilities == null
+                || capabilities.DiagnosticsBootId == 0
+                || capabilities.MapRevision == 0
+                || !capabilities.IsBoundTo(
+                    currentConnection.Diagnostics,
+                    currentConnection.SessionGeneration))
+            {
+                await RefreshDiagnosticsCapabilitiesAsync(
+                    currentConnection);
+                capabilities = diagnosticCapabilities;
+            }
+
+            if (capabilities == null
+                || capabilities.DiagnosticsBootId == 0
+                || capabilities.MapRevision == 0
+                || !capabilities.IsBoundTo(
+                    currentConnection.Diagnostics,
+                    currentConnection.SessionGeneration))
+            {
+                throw new InvalidOperationException(
+                    operation
+                    + " requires fresh, current-session nonzero "
+                    + "DiagnosticsBootId and MapRevision. No recovery "
+                    + "record was changed.");
+            }
+
+            if (record.DiagnosticsBootId
+                    != capabilities.DiagnosticsBootId
+                || record.IdentityRevision
+                    != capabilities.MapRevision)
+            {
+                throw CreateRecoveryConnectionIdentityMismatch(
+                    operation,
+                    "Diagnostics SDO Write",
+                    record.DiagnosticsBootId,
+                    record.IdentityRevision,
+                    capabilities.DiagnosticsBootId,
+                    capabilities.MapRevision);
+            }
         }
 
         private void DisposeDiagnosticsMutationJournal()

@@ -2,6 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Security.Cryptography;
+using System.Text;
+using LasalMotionControlLib;
 using LasalMotionControlLib.Tests;
 
 namespace LasalMotionControlApiExample
@@ -23,6 +26,9 @@ namespace LasalMotionControlApiExample
             tests.Add(
                 "Wpf.RecoveryRetirementLedger.ExactEvidenceReopenAndSingleWriter",
                 ExactEvidenceSurvivesReopenAndSingleWriterIsEnforced);
+            tests.Add(
+                "Wpf.RecoveryRetirementLedger.LegacyV1V2ReadCompatibility",
+                LegacyV1V2ReadCompatibility);
             tests.Add(
                 "Wpf.RecoveryRetirementLedger.CorruptionAndImmutableContext",
                 CorruptionAndImmutableDecisionContextFailClosed);
@@ -47,6 +53,178 @@ namespace LasalMotionControlApiExample
             tests.Add(
                 "Wpf.RecoveryRetirement.GroupPowerExactCas",
                 GroupPowerExactCasAndStaleEvidence);
+            tests.Add(
+                "Wpf.RecoveryRetirement.DiagnosticsMutationLegacyEndpointBindingExactCas",
+                DiagnosticsMutationLegacyEndpointBindingExactCas);
+        }
+
+        private static void
+            DiagnosticsMutationLegacyEndpointBindingExactCas()
+        {
+            var root = CreateTemporaryDirectory();
+            try
+            {
+                var journalDirectory = Path.Combine(
+                    root,
+                    "diagnostics-mutation");
+                var ledgerDirectory = Path.Combine(root, "ledger");
+                var created = FixedUtc();
+                RecoveryJournalSourceEvidence evidence;
+                RecoveryRecordRetirementDecision decision;
+                Guid identity;
+
+                using (var journal = DiagnosticsMutationJournal.Open(
+                    journalDirectory))
+                {
+                    identity = Guid.NewGuid();
+                    journal.Arm(
+                        DiagnosticsMutationKind.SdoWrite,
+                        identity,
+                        created,
+                        StoredBootId,
+                        StoredMapRevision,
+                        7,
+                        "Slave=1,Object=0x2F00,SubIndex=24,Type=Int32,Length=4",
+                        "WriteData=00-00-00-00",
+                        new DiagnosticsSdoWriteMutationMetadata(
+                            1,
+                            0x2F00,
+                            24,
+                            LMCSignalValueType.Int32,
+                            4,
+                            100,
+                            new byte[] { 0, 0, 0, 0 }));
+                    journal.Transition(
+                        identity,
+                        DiagnosticsMutationState.AcceptedPendingTerminal,
+                        created.AddSeconds(1),
+                        3);
+                    journal.Transition(
+                        identity,
+                        DiagnosticsMutationState.OutcomeUnverified,
+                        created.AddSeconds(2),
+                        3);
+
+                    evidence = journal
+                        .CaptureLegacyEndpointBoundRetirementEvidence(
+                            "127.0.0.1",
+                            4000);
+                    AssertEvidence(
+                        evidence,
+                        RecoveryRecordOwner.DiagnosticsMutation,
+                        journal.JournalFilePath);
+                    AssertEx.Equal(
+                        RecoveryEndpointEvidenceKind
+                            .OperatorClassifiedLegacyEndpoint,
+                        evidence.EndpointEvidenceKind);
+                    AssertEx.Equal((ushort)1, evidence.TargetReference);
+                    AssertEx.True(
+                        evidence.SemanticFingerprint.Contains(
+                            "EndpointBinding=OperatorClassifiedCurrentQuarantineEndpoint"));
+
+                    using (var ledger =
+                        RecoveryRecordRetirementLedger.Open(
+                            ledgerDirectory))
+                    {
+                        decision = Commit(
+                            ledger,
+                            evidence,
+                            created.AddSeconds(3));
+                    }
+
+                    var resolved = journal.ResolveOperatorRetirement(
+                        evidence,
+                        decision,
+                        created.AddSeconds(4));
+                    AssertEx.Equal(
+                        DiagnosticsMutationState.Resolved,
+                        resolved.State);
+                    AssertEx.False(journal.HasActiveRecord);
+                }
+
+                using (var reopenedLedger =
+                    RecoveryRecordRetirementLedger.Open(ledgerDirectory))
+                {
+                    AssertEx.Equal(
+                        1,
+                        reopenedLedger.CommittedDecisions.Count);
+                    var reopened = reopenedLedger.CommittedDecisions[0];
+                    AssertEx.Equal(
+                        RecoveryEndpointEvidenceKind
+                            .OperatorClassifiedLegacyEndpoint,
+                        reopened.SourceEvidence.EndpointEvidenceKind);
+                    AssertEx.SequenceEqual(
+                        evidence.GetOriginalBytes(),
+                        reopened.SourceEvidence.GetOriginalBytes());
+                }
+
+                var staleJournalDirectory = Path.Combine(
+                    root,
+                    "diagnostics-mutation-stale");
+                using (var staleJournal = DiagnosticsMutationJournal.Open(
+                    staleJournalDirectory))
+                {
+                    var staleIdentity = Guid.NewGuid();
+                    staleJournal.Arm(
+                        DiagnosticsMutationKind.SdoWrite,
+                        staleIdentity,
+                        created,
+                        StoredBootId,
+                        StoredMapRevision,
+                        8,
+                        "Slave=1,Object=0x2F00,SubIndex=24,Type=Int32,Length=4",
+                        "WriteData=00-00-00-00",
+                        new DiagnosticsSdoWriteMutationMetadata(
+                            1,
+                            0x2F00,
+                            24,
+                            LMCSignalValueType.Int32,
+                            4,
+                            100,
+                            new byte[] { 0, 0, 0, 0 }));
+                    staleJournal.Transition(
+                        staleIdentity,
+                        DiagnosticsMutationState.AcceptedPendingTerminal,
+                        created.AddSeconds(1),
+                        4);
+                    staleJournal.Transition(
+                        staleIdentity,
+                        DiagnosticsMutationState.OutcomeUnverified,
+                        created.AddSeconds(2),
+                        4);
+                    var staleEvidence = staleJournal
+                        .CaptureLegacyEndpointBoundRetirementEvidence(
+                            "127.0.0.1",
+                            4000);
+                    RecoveryRecordRetirementDecision staleDecision;
+                    using (var ledger =
+                        RecoveryRecordRetirementLedger.Open(
+                            Path.Combine(root, "stale-ledger")))
+                    {
+                        staleDecision = Commit(
+                            ledger,
+                            staleEvidence,
+                            created.AddSeconds(3));
+                    }
+                    staleJournal.Transition(
+                        staleIdentity,
+                        DiagnosticsMutationState.ReadbackMismatch,
+                        created.AddSeconds(4),
+                        4);
+                    AssertEx.Throws<InvalidOperationException>(
+                        () => staleJournal.ResolveOperatorRetirement(
+                            staleEvidence,
+                            staleDecision,
+                            created.AddSeconds(5)));
+                    AssertEx.Equal(
+                        DiagnosticsMutationState.ReadbackMismatch,
+                        staleJournal.CurrentRecord.State);
+                }
+            }
+            finally
+            {
+                DeleteTemporaryDirectory(root);
+            }
         }
 
         private static void DefaultPathIsVersioned()
@@ -63,6 +241,300 @@ namespace LasalMotionControlApiExample
                 RecoveryRecordRetirementLedger
                     .GetDefaultDirectoryPath()
                     .ToUpperInvariant());
+        }
+
+        private static void LegacyV1V2ReadCompatibility()
+        {
+            var root = CreateTemporaryDirectory();
+            try
+            {
+                AssertLegacyLedgerFormatReopens(
+                    Path.Combine(root, "v1"),
+                    1,
+                    0,
+                    0);
+                AssertLegacyLedgerFormatReopens(
+                    Path.Combine(root, "v2"),
+                    2,
+                    0x01020304,
+                    0x05060708);
+
+                var unsupportedDirectory = Path.Combine(
+                    root,
+                    "unsupported");
+                Directory.CreateDirectory(unsupportedDirectory);
+                var unsupportedDecision = CreateLegacyDecision(
+                    2,
+                    0x11121314,
+                    0x15161718);
+                var unsupportedBytes = SerializeLegacyLedgerEntry(
+                    unsupportedDecision,
+                    2);
+                RewriteLedgerFormatVersion(unsupportedBytes, 99);
+                WriteLegacyLedgerEntry(
+                    unsupportedDirectory,
+                    unsupportedDecision.SourceEvidence,
+                    unsupportedBytes);
+
+                AssertEx.Throws<InvalidDataException>(
+                    () => RecoveryRecordRetirementLedger.Open(
+                        unsupportedDirectory));
+            }
+            finally
+            {
+                DeleteTemporaryDirectory(root);
+            }
+        }
+
+        private static void AssertLegacyLedgerFormatReopens(
+            string ledgerDirectory,
+            int formatVersion,
+            uint sourceDiagnosticsBuild,
+            uint currentDiagnosticsBuild)
+        {
+            Directory.CreateDirectory(ledgerDirectory);
+            var expected = CreateLegacyDecision(
+                formatVersion,
+                sourceDiagnosticsBuild,
+                currentDiagnosticsBuild);
+            var entryBytes = SerializeLegacyLedgerEntry(
+                expected,
+                formatVersion);
+            WriteLegacyLedgerEntry(
+                ledgerDirectory,
+                expected.SourceEvidence,
+                entryBytes);
+
+            using (var ledger = RecoveryRecordRetirementLedger.Open(
+                ledgerDirectory))
+            {
+                AssertEx.Equal(1, ledger.CommittedDecisions.Count);
+                var actual = ledger.CommittedDecisions[0];
+                AssertEx.True(actual.IsDurablyCommitted);
+                AssertEx.Equal(
+                    expected.DecisionIdentity,
+                    actual.DecisionIdentity);
+                AssertEx.Equal(
+                    RecoveryEndpointEvidenceKind.RecordedSourceEndpoint,
+                    actual.SourceEvidence.EndpointEvidenceKind);
+                AssertEx.Equal(
+                    sourceDiagnosticsBuild,
+                    actual.SourceEvidence.DiagnosticsBuild);
+                AssertEx.Equal(
+                    currentDiagnosticsBuild,
+                    actual.CurrentDiagnosticsBuild);
+                AssertEx.True(
+                    actual.MatchesSourceEvidence(expected.SourceEvidence));
+                AssertEx.SequenceEqual(
+                    expected.SourceEvidence.GetOriginalBytes(),
+                    actual.SourceEvidence.GetOriginalBytes());
+                AssertEx.Equal(
+                    RecoveryJournalSourceEvidence.ComputeSha256(entryBytes),
+                    actual.DurableEntrySha256);
+            }
+        }
+
+        private static RecoveryRecordRetirementDecision
+            CreateLegacyDecision(
+                int formatVersion,
+                uint sourceDiagnosticsBuild,
+                uint currentDiagnosticsBuild)
+        {
+            var created = FixedUtc();
+            var recordIdentity = formatVersion == 1
+                ? new Guid("11111111-2222-3333-4444-555555555551")
+                : new Guid("11111111-2222-3333-4444-555555555552");
+            var decisionIdentity = formatVersion == 1
+                ? new Guid("AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEE1")
+                : new Guid("AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEE2");
+            var evidence = new RecoveryJournalSourceEvidence(
+                RecoveryRecordOwner.AxisPower,
+                recordIdentity,
+                1,
+                created,
+                created.AddSeconds(1),
+                "127.0.0.1",
+                4000,
+                sourceDiagnosticsBuild,
+                StoredBootId,
+                StoredMapRevision,
+                "Axis",
+                "_LMCAxis1",
+                1,
+                "PowerOn",
+                "PowerOn=true;LegacyFormat="
+                    + formatVersion.ToString(
+                        CultureInfo.InvariantCulture),
+                new byte[]
+                {
+                    0x45,
+                    0x4C,
+                    0x4D,
+                    0x4F,
+                    checked((byte)formatVersion)
+                });
+            return new RecoveryRecordRetirementDecision(
+                decisionIdentity,
+                evidence,
+                evidence.EndpointIp,
+                evidence.EndpointPort,
+                currentDiagnosticsBuild,
+                CurrentBootId,
+                evidence.MapRevision,
+                OperatorIdentity,
+                RetirementReason,
+                created.AddSeconds(2));
+        }
+
+        private static byte[] SerializeLegacyLedgerEntry(
+            RecoveryRecordRetirementDecision decision,
+            int formatVersion)
+        {
+            if (formatVersion != 1 && formatVersion != 2)
+            {
+                throw new ArgumentOutOfRangeException("formatVersion");
+            }
+
+            var source = decision.SourceEvidence;
+            byte[] payload;
+            using (var stream = new MemoryStream())
+            using (var writer = new BinaryWriter(
+                stream,
+                Encoding.UTF8,
+                true))
+            {
+                writer.Write(decision.DecisionIdentity.ToByteArray());
+                writer.Write((int)source.Owner);
+                writer.Write(source.RecordIdentity.ToByteArray());
+                writer.Write(source.StateCode);
+                writer.Write(source.CreatedUtc.Ticks);
+                writer.Write(source.UpdatedUtc.Ticks);
+                if (formatVersion >= 2)
+                {
+                    writer.Write(source.DiagnosticsBuild);
+                }
+                writer.Write(source.DiagnosticsBootId);
+                writer.Write(source.MapRevision);
+                writer.Write(source.EndpointPort);
+                writer.Write(source.TargetReference);
+                writer.Write(decision.DecisionUtc.Ticks);
+                if (formatVersion >= 2)
+                {
+                    writer.Write(decision.CurrentDiagnosticsBuild);
+                }
+                writer.Write(decision.CurrentDiagnosticsBootId);
+                writer.Write(decision.CurrentMapRevision);
+                writer.Write(decision.CurrentEndpointPort);
+                WriteLegacyLedgerText(writer, source.EndpointIp);
+                WriteLegacyLedgerText(writer, source.TargetKind);
+                WriteLegacyLedgerText(writer, source.TargetName);
+                WriteLegacyLedgerText(writer, source.Operation);
+                WriteLegacyLedgerText(
+                    writer,
+                    source.SemanticFingerprint);
+                WriteLegacyLedgerText(writer, source.OriginalSha256);
+                WriteLegacyLedgerText(
+                    writer,
+                    decision.CurrentEndpointIp);
+                WriteLegacyLedgerText(writer, decision.OperatorIdentity);
+                WriteLegacyLedgerText(writer, decision.Reason);
+                var original = source.GetOriginalBytes();
+                writer.Write(original.Length);
+                writer.Write(original);
+                writer.Flush();
+                payload = stream.ToArray();
+            }
+
+            byte[] prefix;
+            using (var stream = new MemoryStream())
+            using (var writer = new BinaryWriter(
+                stream,
+                Encoding.ASCII,
+                true))
+            {
+                writer.Write(Encoding.ASCII.GetBytes("ELMORET1"));
+                writer.Write(formatVersion);
+                writer.Write(payload.Length);
+                writer.Write(payload);
+                writer.Flush();
+                prefix = stream.ToArray();
+            }
+
+            byte[] checksum;
+            using (var algorithm = SHA256.Create())
+            {
+                checksum = algorithm.ComputeHash(prefix);
+            }
+            var result = new byte[prefix.Length + checksum.Length];
+            Buffer.BlockCopy(prefix, 0, result, 0, prefix.Length);
+            Buffer.BlockCopy(
+                checksum,
+                0,
+                result,
+                prefix.Length,
+                checksum.Length);
+            return result;
+        }
+
+        private static void WriteLegacyLedgerText(
+            BinaryWriter writer,
+            string value)
+        {
+            var bytes = Encoding.UTF8.GetBytes(value);
+            writer.Write(bytes.Length);
+            writer.Write(bytes);
+        }
+
+        private static void RewriteLedgerFormatVersion(
+            byte[] entryBytes,
+            int formatVersion)
+        {
+            const int magicLength = 8;
+            const int checksumLength = 32;
+            using (var stream = new MemoryStream(entryBytes, true))
+            using (var writer = new BinaryWriter(
+                stream,
+                Encoding.ASCII,
+                true))
+            {
+                stream.Position = magicLength;
+                writer.Write(formatVersion);
+                writer.Flush();
+            }
+
+            var checksumOffset = entryBytes.Length - checksumLength;
+            byte[] checksum;
+            using (var algorithm = SHA256.Create())
+            {
+                checksum = algorithm.ComputeHash(
+                    entryBytes,
+                    0,
+                    checksumOffset);
+            }
+            Buffer.BlockCopy(
+                checksum,
+                0,
+                entryBytes,
+                checksumOffset,
+                checksum.Length);
+        }
+
+        private static void WriteLegacyLedgerEntry(
+            string ledgerDirectory,
+            RecoveryJournalSourceEvidence evidence,
+            byte[] entryBytes)
+        {
+            var fileName = ((int)evidence.Owner).ToString(
+                    "D2",
+                    CultureInfo.InvariantCulture)
+                + "-"
+                + evidence.RecordIdentity.ToString("N")
+                + "-"
+                + evidence.OriginalSha256
+                + ".retired";
+            File.WriteAllBytes(
+                Path.Combine(ledgerDirectory, fileName),
+                entryBytes);
         }
 
         private static void

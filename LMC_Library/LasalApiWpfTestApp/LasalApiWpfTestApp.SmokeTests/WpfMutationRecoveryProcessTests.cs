@@ -2309,7 +2309,17 @@ namespace LasalApiWpfTestApp.SmokeTests
                         scenario.Revision,
                         SessionGeneration,
                         scenario.Target,
-                        scenario.Expected);
+                        scenario.Expected,
+                        scenario.Kind == DiagnosticsMutationKind.SdoWrite
+                            ? new DiagnosticsSdoWriteMutationMetadata(
+                                2,
+                                0x2F00,
+                                24,
+                                LMCSignalValueType.Int32,
+                                4,
+                                100,
+                                new byte[] { 0x2A, 0, 0, 0 })
+                            : null);
                     journal.Transition(
                         identity,
                         DiagnosticsMutationState.OutcomeUnverified,
@@ -2357,7 +2367,9 @@ namespace LasalApiWpfTestApp.SmokeTests
             bool verifySecondWriter)
         {
             RecoveryChildProcess child = null;
-            using (var server = new RecoveryRpcObserverServer())
+            using (var server = new RecoveryRpcObserverServer(
+                BootId,
+                scenario.Revision))
             {
                 try
                 {
@@ -5645,9 +5657,15 @@ namespace LasalApiWpfTestApp.SmokeTests
             private Exception workerException;
             private volatile bool disposed;
             private volatile bool terminationExpected;
+            private readonly uint diagnosticsBootId;
+            private readonly uint mapRevision;
 
-            internal RecoveryRpcObserverServer()
+            internal RecoveryRpcObserverServer(
+                uint diagnosticsBootId = 0x10203040u,
+                uint mapRevision = 1u)
             {
+                this.diagnosticsBootId = diagnosticsBootId;
+                this.mapRevision = mapRevision;
                 listener = new TcpListener(IPAddress.Loopback, 0);
                 listener.Start();
                 Port = ((IPEndPoint)listener.LocalEndpoint).Port;
@@ -5847,7 +5865,7 @@ namespace LasalApiWpfTestApp.SmokeTests
                 }
             }
 
-            private static byte[] CreateResponse(
+            private byte[] CreateResponse(
                 ushort command,
                 byte[] request)
             {
@@ -5887,7 +5905,7 @@ namespace LasalApiWpfTestApp.SmokeTests
                     TestFrame.Hex("01 00 FF FF"));
             }
 
-            private static byte[] CreateCapabilitiesPayload(uint requestId)
+            private byte[] CreateCapabilitiesPayload(uint requestId)
             {
                 var payload = new byte[68];
                 TestFrame.WriteUInt16(payload, 0, 1);
@@ -5897,7 +5915,7 @@ namespace LasalApiWpfTestApp.SmokeTests
                     payload,
                     20,
                     (uint)LMCDiagnosticCapability.None);
-                TestFrame.WriteUInt32(payload, 24, 1);
+                TestFrame.WriteUInt32(payload, 24, mapRevision);
                 TestFrame.WriteUInt32(payload, 40, 1000);
                 TestFrame.WriteUInt16(payload, 44, 1320);
                 TestFrame.WriteUInt16(payload, 46, 2040);
@@ -5905,7 +5923,7 @@ namespace LasalApiWpfTestApp.SmokeTests
                 TestFrame.WriteUInt16(payload, 50, 80);
                 TestFrame.WriteUInt16(payload, 52, 16);
                 TestFrame.WriteUInt16(payload, 60, 4);
-                TestFrame.WriteUInt32(payload, 64, 0x10203040u);
+                TestFrame.WriteUInt32(payload, 64, diagnosticsBootId);
                 return payload;
             }
 

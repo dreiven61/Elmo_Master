@@ -669,6 +669,130 @@ namespace LasalMotionControlApiExample
                     AssertEx.Equal(UiLanguage.Korean, selected.Language);
                     AssertEx.Equal(1, window.ComboUiLanguage.SelectedIndex);
                     AssertEx.Equal("연결", (string)window.ButtonConnect.Content);
+                    AssertEx.False(
+                        window.ExpanderRpcCallbackEvidence.IsExpanded);
+                    AssertEx.False(
+                        window.ExpanderSafetyAndRecoveryDetails
+                            .IsExpanded);
+                    AssertEx.Equal(
+                        "RPC 초기화 / 콜백 증거",
+                        (string)window.ExpanderRpcCallbackEvidence.Header);
+                    AssertEx.Equal(
+                        "안전 / 복구 상세 정보",
+                        (string)window
+                            .ExpanderSafetyAndRecoveryDetails.Header);
+                    AssertEx.False(window.TextRpcInitialization.IsVisible);
+                    AssertEx.False(window.TextMotionWarning.IsVisible);
+                    window.ExpanderRpcCallbackEvidence.IsExpanded = true;
+                    PumpUiOnce();
+                    AssertEx.True(window.TextRpcInitialization.IsVisible);
+                    window.ExpanderRpcCallbackEvidence.IsExpanded = false;
+                    PumpUiOnce();
+                    AssertEx.False(window.TextRpcInitialization.IsVisible);
+                    window.ExpanderSafetyAndRecoveryDetails.IsExpanded = true;
+                    PumpUiOnce();
+                    AssertEx.True(window.TextMotionWarning.IsVisible);
+                    window.ExpanderSafetyAndRecoveryDetails.IsExpanded = false;
+                    PumpUiOnce();
+                    AssertEx.False(window.TextMotionWarning.IsVisible);
+                    window.Width = window.MinWidth;
+                    window.Height = window.MinHeight;
+                    var rootLayout = window.Content as Grid;
+                    AssertEx.NotNull(rootLayout);
+                    AssertEx.Equal(4, rootLayout.RowDefinitions.Count);
+                    AssertEx.True(rootLayout.RowDefinitions[0].Height.IsAuto);
+                    AssertEx.True(rootLayout.RowDefinitions[1].Height.IsStar);
+                    AssertEx.True(rootLayout.RowDefinitions[2].Height.IsAuto);
+                    AssertEx.True(rootLayout.RowDefinitions[3].Height.IsAuto);
+                    AssertEx.Equal(
+                        1,
+                        Grid.GetRow(window.GridWorkspaceLayout));
+                    AssertEx.Equal(
+                        2,
+                        Grid.GetRow(window.ExpanderExecutionLog));
+                    AssertEx.Equal(
+                        3,
+                        Grid.GetRow(window.StatusOperationBar));
+                    AssertEx.Equal(
+                        3,
+                        window.GridWorkspaceLayout.RowDefinitions.Count);
+                    AssertEx.True(
+                        window.GridWorkspaceLayout.RowDefinitions[2]
+                            .Height.IsStar);
+                    AssertEx.Equal(2, Grid.GetRow(window.TabsMotion));
+                    window.ExpanderRpcCallbackEvidence.IsExpanded = true;
+                    window.ExpanderSafetyAndRecoveryDetails.IsExpanded = true;
+                    window.UpdateLayout();
+                    PumpUiOnce();
+                    var workspaceBottom =
+                        window.GridWorkspaceLayout.TransformToAncestor(window)
+                            .Transform(new Point(
+                                0,
+                                window.GridWorkspaceLayout.ActualHeight)).Y;
+                    var executionLogTop =
+                        window.ExpanderExecutionLog.TransformToAncestor(window)
+                            .Transform(new Point(0, 0)).Y;
+                    var executionLogBottom =
+                        executionLogTop
+                        + window.ExpanderExecutionLog.ActualHeight;
+                    var statusTop =
+                        window.StatusOperationBar.TransformToAncestor(window)
+                            .Transform(new Point(0, 0)).Y;
+                    var rootBottom =
+                        rootLayout.TransformToAncestor(window)
+                            .Transform(new Point(0, rootLayout.ActualHeight)).Y;
+                    AssertEx.True(
+                        window.ExpanderExecutionLog.IsVisible
+                            && window.ExpanderExecutionLog.ActualHeight > 0,
+                        "The execution log header disappeared at the minimum window size.");
+                    AssertEx.True(
+                        executionLogTop >= workspaceBottom - 1.0,
+                        "The workspace rendered over the fixed execution log row.");
+                    AssertEx.True(
+                        executionLogBottom <= statusTop + 1.0,
+                        "The fixed execution log row overlapped the status row.");
+                    AssertEx.True(
+                        statusTop + window.StatusOperationBar.ActualHeight
+                            <= rootBottom + 1.0,
+                        "The bottom status row was pushed outside the window.");
+                    window.ExpanderRpcCallbackEvidence.IsExpanded = false;
+                    window.ExpanderSafetyAndRecoveryDetails.IsExpanded = false;
+                    window.UpdateLayout();
+                    PumpUiOnce();
+                    var tabsHeightWithCollapsedLog =
+                        window.TabsMotion.ActualHeight;
+                    AssertEx.True(tabsHeightWithCollapsedLog > 0);
+                    window.ExpanderExecutionLog.IsExpanded = true;
+                    window.UpdateLayout();
+                    PumpUiOnce();
+                    workspaceBottom =
+                        window.GridWorkspaceLayout.TransformToAncestor(window)
+                            .Transform(new Point(
+                                0,
+                                window.GridWorkspaceLayout.ActualHeight)).Y;
+                    executionLogTop =
+                        window.ExpanderExecutionLog.TransformToAncestor(window)
+                            .Transform(new Point(0, 0)).Y;
+                    executionLogBottom =
+                        executionLogTop
+                        + window.ExpanderExecutionLog.ActualHeight;
+                    statusTop =
+                        window.StatusOperationBar.TransformToAncestor(window)
+                            .Transform(new Point(0, 0)).Y;
+                    AssertEx.True(window.TextExecutionLog.IsVisible);
+                    AssertEx.True(
+                        window.TabsMotion.ActualHeight
+                            < tabsHeightWithCollapsedLog,
+                        "Expanding the fixed execution log did not consume workspace height.");
+                    AssertEx.True(
+                        executionLogTop >= workspaceBottom - 1.0,
+                        "The expanded execution log was not kept below the workspace row.");
+                    AssertEx.True(
+                        executionLogBottom <= statusTop + 1.0,
+                        "The expanded execution log overlapped the status row.");
+                    window.ExpanderExecutionLog.IsExpanded = false;
+                    window.UpdateLayout();
+                    PumpUiOnce();
                     AssertEx.Equal("연결 끊김", window.TextConnectionState.Text);
                     AssertEx.Equal(
                         "10.10.150.1",
@@ -719,6 +843,8 @@ namespace LasalMotionControlApiExample
 
                     const string operatorInput = "192.0.2.55";
                     window.TextRemoteIp.Text = operatorInput;
+                    window.ExpanderRpcCallbackEvidence.IsExpanded = true;
+                    window.ExpanderSafetyAndRecoveryDetails.IsExpanded = true;
                     window.ComboUiLanguage.SelectedIndex = 0;
                     PumpUiOnce();
 
@@ -727,6 +853,18 @@ namespace LasalMotionControlApiExample
                     AssertEx.NotNull(selected);
                     AssertEx.Equal(UiLanguage.English, selected.Language);
                     AssertEx.Equal("Connect", (string)window.ButtonConnect.Content);
+                    AssertEx.True(
+                        window.ExpanderRpcCallbackEvidence.IsExpanded);
+                    AssertEx.True(
+                        window.ExpanderSafetyAndRecoveryDetails.IsExpanded);
+                    AssertEx.Equal(
+                        "RPC initialization / callback evidence",
+                        (string)window.ExpanderRpcCallbackEvidence.Header);
+                    AssertEx.Equal(
+                        "Safety / recovery details",
+                        (string)window
+                            .ExpanderSafetyAndRecoveryDetails.Header);
+                    AssertEx.True(window.TextMotionWarning.IsVisible);
                     AssertEx.Equal(
                         "Run Same-Value Qualification First",
                         (string)window.ButtonSubmitSdo.Content,
