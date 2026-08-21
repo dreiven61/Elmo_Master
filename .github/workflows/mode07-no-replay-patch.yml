@@ -1,0 +1,493 @@
+name: MODE-07 no-replay recovery patch
+
+on:
+  pull_request:
+    branches:
+      - dev
+    types:
+      - opened
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.head_ref == 'codex/mode-07-no-replay-recovery'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout MODE-07 branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/mode-07-no-replay-recovery
+          fetch-depth: 0
+
+      - name: Apply exact MODE-07 patch
+        shell: python
+        run: |
+          from pathlib import Path
+
+          p = Path('Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st')
+          raw = p.read_bytes()
+          text = raw.decode('utf-8')
+          nl = '\r\n' if b'\r\n' in raw else '\n'
+
+          def n(s):
+              return s.replace('\r\n', '\n').replace('\n', nl)
+
+          replacements = [
+              (
+                  'activation flag',
+                  '''#define LMC_DIAG_DS402_HOME_ENABLED FALSE
+#define LMC_DIAG_DS402_PREFLIGHT_READY -2''',
+                  '''#define LMC_DIAG_DS402_HOME_ENABLED FALSE
+// SetOperationMode runtime remains private until MODE-14 paired activation.
+#define LMC_DIAG_SET_OPERATION_MODE_ENABLED FALSE
+#define LMC_DIAG_DS402_PREFLIGHT_READY -2''',
+                  1,
+              ),
+              (
+                  'recovery stages',
+                  '''#define LMC_DIAG_MODE_STAGE_QUARANTINE 9
+#define LMC_DIAG_MODE_STAGE_QUARANTINE_HOLD 10
+#define LMC_DIAG_MODE_OWNER_KIND 6''',
+                  '''#define LMC_DIAG_MODE_STAGE_QUARANTINE 9
+#define LMC_DIAG_MODE_STAGE_QUARANTINE_HOLD 10
+#define LMC_DIAG_MODE_STAGE_RECOVERY_START 11
+#define LMC_DIAG_MODE_STAGE_RECOVERY_WAIT 12
+#define LMC_DIAG_MODE_RECOVERY_READ_TIMEOUT_MS 2000
+#define LMC_DIAG_MODE_OWNER_KIND 6''',
+                  1,
+              ),
+              (
+                  'start activation gate',
+                  '''\telsif requestedMode <> 8 then
+\t\tdetailCode := LMC_DIAG_MODE_DETAIL_UNSUPPORTED;
+\tend_if;
+
+\taxisMask := 0;''',
+                  '''\telsif requestedMode <> 8 then
+\t\tdetailCode := LMC_DIAG_MODE_DETAIL_UNSUPPORTED;
+\telsif LMC_DIAG_SET_OPERATION_MODE_ENABLED = FALSE then
+\t\tdetailCode := LMC_DIAG_MODE_DETAIL_STORAGE;
+\tend_if;
+
+\taxisMask := 0;''',
+                  1,
+              ),
+              (
+                  'processor locals',
+                  '''\t\tstage, recordBase, finalRecordState : DINT;
+\t\taxisReference : UINT;''',
+                  '''\t\tstage, recordBase, finalRecordState : DINT;
+\t\trecoveryScanAxis, recoveryScanBase : DINT;
+\t\taxisReference : UINT;''',
+                  1,
+              ),
+              (
+                  'processor bool locals',
+                  '''\t\texecutorConnected, executorReusable, safetyReady, expired : BOOL;
+\tEND_VAR
+
+\tstage := AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE];
+\tif stage = 0 then
+\t\tRETURN;
+\tend_if;
+\taxisReference := AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_AXIS]$UINT;''',
+                  '''\t\texecutorConnected, executorReusable, safetyReady, expired : BOOL;
+\t\trecoveryCandidateFound : BOOL;
+\tEND_VAR
+
+\tstage := AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE];
+\tif stage = 0 then
+\t\t// Warm-start recovery is admitted only for one exact Running record that
+\t\t// proves the 0x6060 write was already dispatched. Never reconstruct a
+\t\t// pre-write stage because that could replay the mutation.
+\t\trecoveryCandidateFound := FALSE;
+\t\trecoveryScanAxis := 1;
+\t\twhile recoveryScanAxis <= 4 do
+\t\t\trecoveryScanBase :=
+\t\t\t\t(recoveryScanAxis - 1) * LMC_DIAG_MODE_RECORD_STRIDE;
+\t\t\tif (AxisOperationModeState[recoveryScanBase] =
+\t\t\t    LMC_DIAG_MODE_RECORD_RUNNING) &
+\t\t\t   (AxisOperationModeState[recoveryScanBase + 31]$UDINT =
+\t\t\t    LMC_DIAG_MODE_RECORD_MAGIC) &
+\t\t\t   ((AxisOperationModeState[recoveryScanBase + 18]$UDINT and
+\t\t\t     LMC_DIAG_MODE_EVIDENCE_WRITE_DISPATCHED) <> 0) &
+\t\t\t   ((AxisOperationModeState[recoveryScanBase + 18]$UDINT and
+\t\t\t     LMC_DIAG_MODE_EVIDENCE_OWNER_RELEASED) = 0) &
+\t\t\t   (AxisOperationModeState[recoveryScanBase + 9] = recoveryScanAxis) &
+\t\t\t   (AxisOperationModeState[recoveryScanBase + 10]$SINT = 8) &
+\t\t\t   (AxisOperationModeState[recoveryScanBase + 27]$UDINT <> 0) &
+\t\t\t   (AxisOperationModeState[recoveryScanBase + 28]$UDINT <> 0) then
+\t\t\t\tif recoveryCandidateFound then
+\t\t\t\t\t// More than one candidate violates the singleton SDO owner model.
+\t\t\t\t\tRETURN;
+\t\t\t\tend_if;
+\t\t\t\trecoveryCandidateFound := TRUE;
+\t\t\t\t_memset(dest:=#AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_BASE],
+\t\t\t\t\tusByte:=0, cntr:=32 * 4);
+\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
+\t\t\t\t\tLMC_DIAG_MODE_STAGE_RECOVERY_START;
+\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_AXIS] :=
+\t\t\t\t\trecoveryScanAxis;
+\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_RECORD_BASE] :=
+\t\t\t\t\trecoveryScanBase;
+\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_SDO_TOKEN]$UDINT :=
+\t\t\t\t\tAxisOperationModeState[recoveryScanBase + 17]$UDINT;
+\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_ADMISSION_TOKEN]$UDINT :=
+\t\t\t\t\tAxisOperationModeState[recoveryScanBase + 27]$UDINT;
+\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_OWNER_GENERATION]$UDINT :=
+\t\t\t\t\tAxisOperationModeState[recoveryScanBase + 28]$UDINT;
+\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_SESSION]$UDINT :=
+\t\t\t\t\tAxisOperationModeState[recoveryScanBase + 29]$UDINT;
+\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_SEQUENCE]$UDINT :=
+\t\t\t\t\tAxisOperationModeState[recoveryScanBase + 30]$UDINT;
+\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_START_MS]$UDINT :=
+\t\t\t\t\tops.tAbsolute;
+\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_TIMEOUT_MS]$UDINT :=
+\t\t\t\t\tLMC_DIAG_MODE_RECOVERY_READ_TIMEOUT_MS;
+\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_WRITE_DATA] := 8;
+\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_QUARANTINE_REASON]$UDINT :=
+\t\t\t\t\tAxisOperationModeState[recoveryScanBase + 24]$UDINT;
+\t\t\tend_if;
+\t\t\trecoveryScanAxis += 1;
+\t\tend_while;
+\t\tif recoveryCandidateFound = FALSE then
+\t\t\tRETURN;
+\t\tend_if;
+\t\tstage := LMC_DIAG_MODE_STAGE_RECOVERY_START;
+\tend_if;
+\taxisReference := AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_AXIS]$UINT;''',
+                  1,
+              ),
+              (
+                  'no replay normalization',
+                  '''\tcurrentToken := AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_SDO_TOKEN]$UDINT;
+\tevidenceFlags := AxisOperationModeState[recordBase + 18]$UDINT;
+\tserviceNow := ops.tAbsolute;''',
+                  '''\tcurrentToken := AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_SDO_TOKEN]$UDINT;
+\tevidenceFlags := AxisOperationModeState[recordBase + 18]$UDINT;
+
+\t// Once dispatch evidence exists, no state repair is allowed to return to
+\t// the 0x6060 write stage. Torn/restarted pre-write metadata is normalized
+\t// directly into the read-only recovery path.
+\tif (evidenceFlags and LMC_DIAG_MODE_EVIDENCE_WRITE_DISPATCHED) <> 0 then
+\t\tif (stage = LMC_DIAG_MODE_STAGE_PREFLIGHT_START) |
+\t\t   (stage = LMC_DIAG_MODE_STAGE_PREFLIGHT_WAIT) |
+\t\t   (stage = LMC_DIAG_MODE_STAGE_WRITE_START) then
+\t\t\tstage := LMC_DIAG_MODE_STAGE_RECOVERY_START;
+\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] := stage;
+\t\tend_if;
+\t\tif (LMC_DIAG_SET_OPERATION_MODE_ENABLED = FALSE) &
+\t\t   ((stage = LMC_DIAG_MODE_STAGE_WRITE_WAIT) |
+\t\t    (stage = LMC_DIAG_MODE_STAGE_VERIFY_START) |
+\t\t    (stage = LMC_DIAG_MODE_STAGE_VERIFY_WAIT)) then
+\t\t\tstage := LMC_DIAG_MODE_STAGE_RECOVERY_START;
+\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] := stage;
+\t\tend_if;
+\telsif (LMC_DIAG_SET_OPERATION_MODE_ENABLED = FALSE) &
+\t      ((stage = LMC_DIAG_MODE_STAGE_PREFLIGHT_START) |
+\t       (stage = LMC_DIAG_MODE_STAGE_PREFLIGHT_WAIT) |
+\t       (stage = LMC_DIAG_MODE_STAGE_WRITE_START) |
+\t       (stage = LMC_DIAG_MODE_STAGE_WRITE_WAIT) |
+\t       (stage = LMC_DIAG_MODE_STAGE_VERIFY_START) |
+\t       (stage = LMC_DIAG_MODE_STAGE_VERIFY_WAIT)) then
+\t\t// OFF builds never dispatch a new mutation. Existing terminal/quarantine
+\t\t// cleanup remains available below.
+\t\tRETURN;
+\tend_if;
+
+\tserviceNow := ops.tAbsolute;''',
+                  1,
+              ),
+              (
+                  'write wait uncertainty',
+                  '''\t\t\telsif (completionResult = -2) | (completionResult = -3) then
+\t\t\t\tif expired then
+\t\t\t\t\torphanResult := -1;
+\t\t\t\t\tcase axisReference of
+\t\t\t\t\t\t1: if executorConnected then orphanResult := SdoAxis1.MarkOrphan(currentToken); end_if;
+\t\t\t\t\t\t2: if executorConnected then orphanResult := SdoAxis2.MarkOrphan(currentToken); end_if;
+\t\t\t\t\t\t3: if executorConnected then orphanResult := SdoAxis3.MarkOrphan(currentToken); end_if;
+\t\t\t\t\t\t4: if executorConnected then orphanResult := SdoAxis4.MarkOrphan(currentToken); end_if;
+\t\t\t\t\tend_case;
+\t\t\t\t\tif orphanResult <> -2 then
+\t\t\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_QUARANTINE_REASON] :=
+\t\t\t\t\t\t\tLMC_DIAG_MODE_QUARANTINE_WRITE_TIMEOUT;
+\t\t\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
+\t\t\t\t\t\t\tLMC_DIAG_MODE_STAGE_QUARANTINE;
+\t\t\t\t\tend_if;
+\t\t\t\tend_if;
+\t\t\telse
+\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_QUARANTINE_REASON] :=
+\t\t\t\t\tLMC_DIAG_MODE_QUARANTINE_CALLBACK;
+\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
+\t\t\t\t\tLMC_DIAG_MODE_STAGE_QUARANTINE;
+\t\t\tend_if;''',
+                  '''\t\t\telsif (completionResult = -2) | (completionResult = -3) then
+\t\t\t\tif expired then
+\t\t\t\t\torphanResult := -1;
+\t\t\t\t\tcase axisReference of
+\t\t\t\t\t\t1: if executorConnected then orphanResult := SdoAxis1.MarkOrphan(currentToken); end_if;
+\t\t\t\t\t\t2: if executorConnected then orphanResult := SdoAxis2.MarkOrphan(currentToken); end_if;
+\t\t\t\t\t\t3: if executorConnected then orphanResult := SdoAxis3.MarkOrphan(currentToken); end_if;
+\t\t\t\t\t\t4: if executorConnected then orphanResult := SdoAxis4.MarkOrphan(currentToken); end_if;
+\t\t\t\t\tend_case;
+\t\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_QUARANTINE_REASON] :=
+\t\t\t\t\t\tLMC_DIAG_MODE_QUARANTINE_WRITE_TIMEOUT;
+\t\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
+\t\t\t\t\t\tLMC_DIAG_MODE_STAGE_RECOVERY_START;
+\t\t\t\tend_if;
+\t\t\telse
+\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_QUARANTINE_REASON] :=
+\t\t\t\t\tLMC_DIAG_MODE_QUARANTINE_CALLBACK;
+\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
+\t\t\t\t\tLMC_DIAG_MODE_STAGE_RECOVERY_START;
+\t\t\tend_if;''',
+                  1,
+              ),
+              (
+                  'verify start uncertainty',
+                  '''\t\tLMC_DIAG_MODE_STAGE_VERIFY_START:
+\t\t\tif expired | (executorConnected = FALSE) then
+\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_QUARANTINE_REASON] :=
+\t\t\t\t\tLMC_DIAG_MODE_QUARANTINE_VERIFY_START;
+\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
+\t\t\t\t\tLMC_DIAG_MODE_STAGE_QUARANTINE;
+\t\t\t\tRETURN;
+\t\t\tend_if;''',
+                  '''\t\tLMC_DIAG_MODE_STAGE_VERIFY_START:
+\t\t\tif expired | (executorConnected = FALSE) then
+\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_QUARANTINE_REASON] :=
+\t\t\t\t\tLMC_DIAG_MODE_QUARANTINE_VERIFY_START;
+\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
+\t\t\t\t\tLMC_DIAG_MODE_STAGE_RECOVERY_START;
+\t\t\t\tRETURN;
+\t\t\tend_if;''',
+                  1,
+              ),
+              (
+                  'verify start dispatch failure',
+                  '''\t\t\telse
+\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_QUARANTINE_REASON] :=
+\t\t\t\t\tLMC_DIAG_MODE_QUARANTINE_VERIFY_START;
+\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
+\t\t\t\t\tLMC_DIAG_MODE_STAGE_QUARANTINE;
+\t\t\tend_if;
+
+\t\tLMC_DIAG_MODE_STAGE_VERIFY_WAIT:''',
+                  '''\t\t\telse
+\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_QUARANTINE_REASON] :=
+\t\t\t\t\tLMC_DIAG_MODE_QUARANTINE_VERIFY_START;
+\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
+\t\t\t\t\tLMC_DIAG_MODE_STAGE_RECOVERY_START;
+\t\t\tend_if;
+
+\t\tLMC_DIAG_MODE_STAGE_VERIFY_WAIT:''',
+                  1,
+              ),
+              (
+                  'verify wait uncertainty',
+                  '''\t\t\t\telse
+\t\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_QUARANTINE_REASON] :=
+\t\t\t\t\t\tLMC_DIAG_MODE_QUARANTINE_CALLBACK;
+\t\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
+\t\t\t\t\t\tLMC_DIAG_MODE_STAGE_QUARANTINE;
+\t\t\t\tend_if;
+\t\t\telsif (completionResult = -2) | (completionResult = -3) then
+\t\t\t\tif expired then
+\t\t\t\t\torphanResult := -1;
+\t\t\t\t\tcase axisReference of
+\t\t\t\t\t\t1: if executorConnected then orphanResult := SdoAxis1.MarkOrphan(currentToken); end_if;
+\t\t\t\t\t\t2: if executorConnected then orphanResult := SdoAxis2.MarkOrphan(currentToken); end_if;
+\t\t\t\t\t\t3: if executorConnected then orphanResult := SdoAxis3.MarkOrphan(currentToken); end_if;
+\t\t\t\t\t\t4: if executorConnected then orphanResult := SdoAxis4.MarkOrphan(currentToken); end_if;
+\t\t\t\t\tend_case;
+\t\t\t\t\tif orphanResult <> -2 then
+\t\t\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_QUARANTINE_REASON] :=
+\t\t\t\t\t\t\tLMC_DIAG_MODE_QUARANTINE_VERIFY_TIMEOUT;
+\t\t\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
+\t\t\t\t\t\t\tLMC_DIAG_MODE_STAGE_QUARANTINE;
+\t\t\t\t\tend_if;
+\t\t\t\tend_if;
+\t\t\telse
+\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_QUARANTINE_REASON] :=
+\t\t\t\t\tLMC_DIAG_MODE_QUARANTINE_CALLBACK;
+\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
+\t\t\t\t\tLMC_DIAG_MODE_STAGE_QUARANTINE;
+\t\t\tend_if;
+
+\t\tLMC_DIAG_MODE_STAGE_TERMINAL_SUCCESS,''',
+                  '''\t\t\t\telse
+\t\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_QUARANTINE_REASON] :=
+\t\t\t\t\t\tLMC_DIAG_MODE_QUARANTINE_CALLBACK;
+\t\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
+\t\t\t\t\t\tLMC_DIAG_MODE_STAGE_RECOVERY_START;
+\t\t\t\tend_if;
+\t\t\telsif (completionResult = -2) | (completionResult = -3) then
+\t\t\t\tif expired then
+\t\t\t\t\torphanResult := -1;
+\t\t\t\t\tcase axisReference of
+\t\t\t\t\t\t1: if executorConnected then orphanResult := SdoAxis1.MarkOrphan(currentToken); end_if;
+\t\t\t\t\t\t2: if executorConnected then orphanResult := SdoAxis2.MarkOrphan(currentToken); end_if;
+\t\t\t\t\t\t3: if executorConnected then orphanResult := SdoAxis3.MarkOrphan(currentToken); end_if;
+\t\t\t\t\t\t4: if executorConnected then orphanResult := SdoAxis4.MarkOrphan(currentToken); end_if;
+\t\t\t\t\tend_case;
+\t\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_QUARANTINE_REASON] :=
+\t\t\t\t\t\tLMC_DIAG_MODE_QUARANTINE_VERIFY_TIMEOUT;
+\t\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
+\t\t\t\t\t\tLMC_DIAG_MODE_STAGE_RECOVERY_START;
+\t\t\t\tend_if;
+\t\t\telse
+\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_QUARANTINE_REASON] :=
+\t\t\t\t\tLMC_DIAG_MODE_QUARANTINE_CALLBACK;
+\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
+\t\t\t\t\tLMC_DIAG_MODE_STAGE_RECOVERY_START;
+\t\t\tend_if;
+
+\t\tLMC_DIAG_MODE_STAGE_RECOVERY_START:
+\t\t\t// Recovery after a dispatched mutation is read-only. Wait for the
+\t\t\t// executor to reconnect and drain; never fall back to WRITE_START.
+\t\t\tif executorConnected = FALSE then
+\t\t\t\tRETURN;
+\t\t\tend_if;
+\t\t\tif executorReusable = FALSE then
+\t\t\t\tRETURN;
+\t\t\tend_if;
+\t\t\tnextToken := AxisOperationModeState[LMC_DIAG_MODE_META_OPERATION_TOKEN]$UDINT + 1;
+\t\t\tif nextToken = 0 then nextToken := 1; end_if;
+\t\t\tAxisOperationModeState[LMC_DIAG_MODE_META_OPERATION_TOKEN]$UDINT := nextToken;
+\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_SDO_TOKEN]$UDINT := nextToken;
+\t\t\tAxisOperationModeState[recordBase + 17]$UDINT := nextToken;
+\t\t\tcurrentToken := nextToken;
+\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_START_MS]$UDINT := serviceNow;
+\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_TIMEOUT_MS]$UDINT :=
+\t\t\t\tLMC_DIAG_MODE_RECOVERY_READ_TIMEOUT_MS;
+\t\t\tstartResult := ERROR;
+\t\t\tcase axisReference of
+\t\t\t\t1: startResult := SdoAxis1.TryStartRead(
+\t\t\t\t\tOperationToken:=currentToken, ObjectIndex:=0x6061,
+\t\t\t\t\tSubIndex:=0, ReadLength:=1,
+\t\t\t\t\tTimeoutMs:=LMC_DIAG_MODE_RECOVERY_READ_TIMEOUT_MS);
+\t\t\t\t2: startResult := SdoAxis2.TryStartRead(
+\t\t\t\t\tOperationToken:=currentToken, ObjectIndex:=0x6061,
+\t\t\t\t\tSubIndex:=0, ReadLength:=1,
+\t\t\t\t\tTimeoutMs:=LMC_DIAG_MODE_RECOVERY_READ_TIMEOUT_MS);
+\t\t\t\t3: startResult := SdoAxis3.TryStartRead(
+\t\t\t\t\tOperationToken:=currentToken, ObjectIndex:=0x6061,
+\t\t\t\t\tSubIndex:=0, ReadLength:=1,
+\t\t\t\t\tTimeoutMs:=LMC_DIAG_MODE_RECOVERY_READ_TIMEOUT_MS);
+\t\t\t\t4: startResult := SdoAxis4.TryStartRead(
+\t\t\t\t\tOperationToken:=currentToken, ObjectIndex:=0x6061,
+\t\t\t\t\tSubIndex:=0, ReadLength:=1,
+\t\t\t\t\tTimeoutMs:=LMC_DIAG_MODE_RECOVERY_READ_TIMEOUT_MS);
+\t\t\tend_case;
+\t\t\tif startResult = READY then
+\t\t\t\tevidenceFlags := evidenceFlags or
+\t\t\t\t\tLMC_DIAG_MODE_EVIDENCE_VERIFY_DISPATCHED;
+\t\t\t\tAxisOperationModeState[recordBase + 18]$UDINT := evidenceFlags;
+\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
+\t\t\t\t\tLMC_DIAG_MODE_STAGE_RECOVERY_WAIT;
+\t\t\telse
+\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_QUARANTINE_REASON] :=
+\t\t\t\t\tLMC_DIAG_MODE_QUARANTINE_VERIFY_START;
+\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
+\t\t\t\t\tLMC_DIAG_MODE_STAGE_QUARANTINE;
+\t\t\tend_if;
+
+\t\tLMC_DIAG_MODE_STAGE_RECOVERY_WAIT:
+\t\t\tcompletionResult := -2;
+\t\t\tcase axisReference of
+\t\t\t\t1: if executorConnected then completionResult := SdoAxis1.CopyCompletion(currentToken, #completion, sizeof(completion)); end_if;
+\t\t\t\t2: if executorConnected then completionResult := SdoAxis2.CopyCompletion(currentToken, #completion, sizeof(completion)); end_if;
+\t\t\t\t3: if executorConnected then completionResult := SdoAxis3.CopyCompletion(currentToken, #completion, sizeof(completion)); end_if;
+\t\t\t\t4: if executorConnected then completionResult := SdoAxis4.CopyCompletion(currentToken, #completion, sizeof(completion)); end_if;
+\t\t\tend_case;
+\t\t\tif completionResult = 0 then
+\t\t\t\tif (completion.ValidationCode = 0) & (completion.OsResult = 0) &
+\t\t\t\t   (completion.AbortCode = 0) & (completion.ActualLength = 1) &
+\t\t\t\t   (completion.ObjectIndex = 0x6061) & (completion.SubIndex = 0) &
+\t\t\t\t   (completion.IsWrite = 0) then
+\t\t\t\t\tevidenceFlags := evidenceFlags or
+\t\t\t\t\t\tLMC_DIAG_MODE_EVIDENCE_VERIFY_COMPLETED;
+\t\t\t\t\tAxisOperationModeState[recordBase + 18]$UDINT := evidenceFlags;
+\t\t\t\t\tobservedMode := (completion.Data and 0x000000FF)$SINT;
+\t\t\t\t\tAxisOperationModeState[recordBase + 11] := TO_DINT(observedMode);
+\t\t\t\t\tif observedMode = AxisOperationModeState[recordBase + 10]$SINT then
+\t\t\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
+\t\t\t\t\t\t\tLMC_DIAG_MODE_STAGE_TERMINAL_SUCCESS;
+\t\t\t\t\telse
+\t\t\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_QUARANTINE_REASON] :=
+\t\t\t\t\t\t\tLMC_DIAG_MODE_QUARANTINE_VERIFY_MISMATCH;
+\t\t\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
+\t\t\t\t\t\t\tLMC_DIAG_MODE_STAGE_QUARANTINE;
+\t\t\t\t\tend_if;
+\t\t\t\telse
+\t\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_QUARANTINE_REASON] :=
+\t\t\t\t\t\tLMC_DIAG_MODE_QUARANTINE_CALLBACK;
+\t\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
+\t\t\t\t\t\tLMC_DIAG_MODE_STAGE_QUARANTINE;
+\t\t\t\tend_if;
+\t\t\telsif (completionResult = -2) | (completionResult = -3) then
+\t\t\t\tif expired then
+\t\t\t\t\torphanResult := -1;
+\t\t\t\t\tcase axisReference of
+\t\t\t\t\t\t1: if executorConnected then orphanResult := SdoAxis1.MarkOrphan(currentToken); end_if;
+\t\t\t\t\t\t2: if executorConnected then orphanResult := SdoAxis2.MarkOrphan(currentToken); end_if;
+\t\t\t\t\t\t3: if executorConnected then orphanResult := SdoAxis3.MarkOrphan(currentToken); end_if;
+\t\t\t\t\t\t4: if executorConnected then orphanResult := SdoAxis4.MarkOrphan(currentToken); end_if;
+\t\t\t\t\tend_case;
+\t\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_QUARANTINE_REASON] :=
+\t\t\t\t\t\tLMC_DIAG_MODE_QUARANTINE_VERIFY_TIMEOUT;
+\t\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
+\t\t\t\t\t\tLMC_DIAG_MODE_STAGE_QUARANTINE;
+\t\t\t\tend_if;
+\t\t\telse
+\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_QUARANTINE_REASON] :=
+\t\t\t\t\tLMC_DIAG_MODE_QUARANTINE_CALLBACK;
+\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
+\t\t\t\t\tLMC_DIAG_MODE_STAGE_QUARANTINE;
+\t\t\tend_if;
+
+\t\tLMC_DIAG_MODE_STAGE_TERMINAL_SUCCESS,''',
+                  1,
+              ),
+          ]
+
+          for label, old, new, expected in replacements:
+              old_n = n(old)
+              new_n = n(new)
+              count = text.count(old_n)
+              if count != expected:
+                  raise SystemExit(f'{label}: expected {expected}, got {count}')
+              text = text.replace(old_n, new_n, expected)
+
+          checks = {
+              'activation flag': text.count('LMC_DIAG_SET_OPERATION_MODE_ENABLED FALSE'),
+              'recovery start stage': text.count('LMC_DIAG_MODE_STAGE_RECOVERY_START'),
+              'recovery wait stage': text.count('LMC_DIAG_MODE_STAGE_RECOVERY_WAIT'),
+              '6060 write sites': text.count('ObjectIndex:=0x6060'),
+          }
+          if checks['activation flag'] != 1:
+              raise SystemExit(f'activation flag count {checks}')
+          if checks['recovery start stage'] < 7 or checks['recovery wait stage'] < 3:
+              raise SystemExit(f'recovery stage counts {checks}')
+          # MODE-07 must not add any new 0x6060 dispatch sites.
+          if checks['6060 write sites'] != 4:
+              raise SystemExit(f'6060 write site count changed: {checks}')
+
+          p.write_bytes(text.encode('utf-8'))
+
+      - name: Validate and commit source only
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          test "$(git diff --name-only | wc -l)" -eq 1
+          test "$(git diff --name-only)" = "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st"
+          git config user.name "openai-codex[bot]"
+          git config user.email "openai-codex[bot]@users.noreply.github.com"
+          git add Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st
+          git diff --cached --check
+          git commit -m "feat(mode): add SetOperationMode no-replay recovery"
+          git push origin HEAD:codex/mode-07-no-replay-recovery
