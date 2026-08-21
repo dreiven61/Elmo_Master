@@ -50,11 +50,13 @@ jobs:
           grep -q '#define LMC_DIAG_SET_OPERATION_MODE_ENABLED FALSE' \
             Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st
           git diff -- Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st \
-                     Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st | \
-            grep -q 'LMC_OWNER_KIND_AXIS_OPERATION_MODE\|AxisOperationModeState'
-          ! git diff -- Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st \
-                        Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st | \
-            grep -E '^[-+].*LSL_DECLARATION'
+                     Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st \
+            > /tmp/mode08.diff
+          grep -q 'LMC_OWNER_KIND_AXIS_OPERATION_MODE\|AxisOperationModeState' /tmp/mode08.diff
+          if grep -E '^[-+].*LSL_DECLARATION' /tmp/mode08.diff; then
+            echo 'LASAL declaration marker changed' >&2
+            exit 1
+          fi
 
       - name: Commit implementation and remove one-shot workflows
         shell: bash
