@@ -667,6 +667,7 @@ END_FUNCTION
 #define LMC_OWNER_STATE_TW20_DRAINING 9
 #define LMC_OWNER_STATE_SAFETY_PREEMPTING 10
 #define LMC_OWNER_STATE_QUARANTINED 11
+#define LMC_OWNER_STATE_AXIS_OPERATION_MODE_ACTIVE 12
 #define LMC_OWNER_KIND_DIRECT 1
 #define LMC_OWNER_KIND_GROUP 2
 #define LMC_OWNER_KIND_LMC_HOME 3
@@ -2741,7 +2742,7 @@ FUNCTION GLOBAL LMCControlCommandService::ReserveAxisOwnership
 	   (CommandId = 0) | (CallerSessionEpoch = 0) |
 	   (RequestSequence = 0) |
 	   (OwnerKind < LMC_OWNER_KIND_DIRECT) |
-	   (OwnerKind > LMC_OWNER_KIND_ENCODER) |
+	   (OwnerKind > LMC_OWNER_KIND_AXIS_OPERATION_MODE) |
 	   (ResourceKind < LMC_OWNER_RESOURCE_AXIS) |
 	   (ResourceKind > LMC_OWNER_RESOURCE_DIAGNOSTICS_SDO_ENGINE) |
 	   (AdmissionMode < LMC_OWNER_ADMISSION_ORDINARY) |
@@ -2775,6 +2776,8 @@ FUNCTION GLOBAL LMCControlCommandService::ReserveAxisOwnership
 	elsif CommandId = 0x7D12 then
 		identityShapeValid := IdentitySize = 48;
 	elsif CommandId = 0x7D13 then
+		identityShapeValid := IdentitySize = 56;
+	elsif CommandId = 0x7D23 then
 		identityShapeValid := IdentitySize = 56;
 	elsif (CommandId = 0x7D15) | (CommandId = 0x7E53) then
 		identityShapeValid := IdentitySize = 72;
@@ -2915,9 +2918,11 @@ FUNCTION GLOBAL LMCControlCommandService::ReserveAxisOwnership
 			RETURN;
 		end_if;
 	elsif ResourceKind = LMC_OWNER_RESOURCE_DIAGNOSTICS_SDO_ENGINE then
-		if (OwnerKind <> LMC_OWNER_KIND_ENCODER) |
+		if (((OwnerKind = LMC_OWNER_KIND_ENCODER) & (CommandId = 0x7E53)) |
+		    ((OwnerKind = LMC_OWNER_KIND_AXIS_OPERATION_MODE) &
+		     (CommandId = 0x7D23))) = FALSE |
 		   (AdmissionMode <> LMC_OWNER_ADMISSION_LIFECYCLE) |
-		   (CommandId <> 0x7E53) | (referenceAxisMask = 0) |
+		   (referenceAxisMask = 0) |
 		   (referenceAxisMask > 0x00000008) |
 		   (RequestedAxisMask <> referenceAxisMask) then
 			RETURN;
@@ -2935,6 +2940,9 @@ FUNCTION GLOBAL LMCControlCommandService::ReserveAxisOwnership
 			 (ResourceKind = LMC_OWNER_RESOURCE_LMC_HOME_ENGINE)) |
 			((CommandId = 0x7E53) &
 			 (OwnerKind = LMC_OWNER_KIND_ENCODER) &
+			 (ResourceKind = LMC_OWNER_RESOURCE_DIAGNOSTICS_SDO_ENGINE)) |
+			((CommandId = 0x7D23) &
+			 (OwnerKind = LMC_OWNER_KIND_AXIS_OPERATION_MODE) &
 			 (ResourceKind = LMC_OWNER_RESOURCE_DIAGNOSTICS_SDO_ENGINE)) |
 			(CommandId = 0x2024) | (CommandId = 0x2049);
 		if ((effectiveAxisMask and rebaseAxisMask) <> 0) &
@@ -4851,6 +4859,14 @@ FUNCTION GLOBAL LMCControlCommandService::ValidateAxisOwnership
 				(referenceAxisMask <> 0) &
 				(referenceAxisMask <= 0x00000008) &
 				(ExpectedAxisMask = referenceAxisMask);
+		0x7D23:
+			tupleValid :=
+				(OwnerKind = LMC_OWNER_KIND_AXIS_OPERATION_MODE) &
+				(ResourceKind = LMC_OWNER_RESOURCE_DIAGNOSTICS_SDO_ENGINE) &
+				(AdmissionMode = LMC_OWNER_ADMISSION_LIFECYCLE) &
+				(referenceAxisMask <> 0) &
+				(referenceAxisMask <= 0x00000008) &
+				(ExpectedAxisMask = referenceAxisMask);
 		0x7E53:
 			tupleValid :=
 				(OwnerKind = LMC_OWNER_KIND_ENCODER) &
@@ -4893,6 +4909,8 @@ FUNCTION GLOBAL LMCControlCommandService::ValidateAxisOwnership
 					expectedState := LMC_OWNER_STATE_DS402_HOME_ACTIVE;
 				LMC_OWNER_KIND_ENCODER:
 					expectedState := LMC_OWNER_STATE_TW20_QUEUED;
+				LMC_OWNER_KIND_AXIS_OPERATION_MODE:
+					expectedState := LMC_OWNER_STATE_AXIS_OPERATION_MODE_ACTIVE;
 			else
 				RETURN;
 			end_case;
@@ -5105,6 +5123,8 @@ FUNCTION GLOBAL LMCControlCommandService::CommitAxisOwnership
 				activeState := LMC_OWNER_STATE_DS402_HOME_ACTIVE;
 			LMC_OWNER_KIND_ENCODER:
 				activeState := LMC_OWNER_STATE_TW20_QUEUED;
+			LMC_OWNER_KIND_AXIS_OPERATION_MODE:
+				activeState := LMC_OWNER_STATE_AXIS_OPERATION_MODE_ACTIVE;
 		else
 			activeState := LMC_OWNER_STATE_DIRECT_ACTIVE;
 		end_case;
@@ -6124,6 +6144,8 @@ FUNCTION GLOBAL LMCControlCommandService::PublishAxisOwnership
 	elsif expectedCommandId = 0x20E7 then
 		identityShapeValid := identitySize = 1320;
 	elsif expectedCommandId = 0x7D13 then
+		identityShapeValid := identitySize = 56;
+	elsif expectedCommandId = 0x7D23 then
 		identityShapeValid := identitySize = 56;
 	elsif (expectedCommandId = 0x7D15) |
 	      (expectedCommandId = 0x7E53) then
@@ -12222,6 +12244,14 @@ FUNCTION GLOBAL LMCControlCommandService::ValidateAxisOwnershipIdentity
 				(referenceAxisMask <> 0) &
 				(referenceAxisMask <= 0x00000008) &
 				(ExpectedAxisMask = referenceAxisMask);
+		0x7D23:
+			tupleValid :=
+				(OwnerKind = LMC_OWNER_KIND_AXIS_OPERATION_MODE) &
+				(ResourceKind = LMC_OWNER_RESOURCE_DIAGNOSTICS_SDO_ENGINE) &
+				(AdmissionMode = LMC_OWNER_ADMISSION_LIFECYCLE) &
+				(referenceAxisMask <> 0) &
+				(referenceAxisMask <= 0x00000008) &
+				(ExpectedAxisMask = referenceAxisMask);
 		0x7E53:
 			tupleValid :=
 				(OwnerKind = LMC_OWNER_KIND_ENCODER) &
@@ -12264,6 +12294,8 @@ FUNCTION GLOBAL LMCControlCommandService::ValidateAxisOwnershipIdentity
 					expectedState := LMC_OWNER_STATE_DS402_HOME_ACTIVE;
 				LMC_OWNER_KIND_ENCODER:
 					expectedState := LMC_OWNER_STATE_TW20_QUEUED;
+				LMC_OWNER_KIND_AXIS_OPERATION_MODE:
+					expectedState := LMC_OWNER_STATE_AXIS_OPERATION_MODE_ACTIVE;
 			else
 				RETURN;
 			end_case;
