@@ -1087,6 +1087,24 @@ FUNCTION GLOBAL LMCDiagnosticsService::ProcessOperations
 		RETURN;
 	end_if;
 
+	if (OperationState = LMC_DIAG_SDO_STATE_QUEUED) &
+	   (SdoSlaveReference >= 1) & (SdoSlaveReference <= 4) &
+	   ((((AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] <> 0) &
+	      (AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_AXIS] =
+	       TO_DINT(SdoSlaveReference))) |
+	     (AxisOperationModeState[TO_DINT(SdoSlaveReference - 1) *
+	      LMC_DIAG_MODE_RECORD_STRIDE] = LMC_DIAG_MODE_RECORD_RUNNING) |
+	     (AxisOperationModeState[TO_DINT(SdoSlaveReference - 1) *
+	      LMC_DIAG_MODE_RECORD_STRIDE] = LMC_DIAG_MODE_RECORD_QUARANTINED))) then
+		OperationState := LMC_DIAG_SDO_STATE_FAILED;
+		OperationOutcome := LMC_DIAG_SDO_OUTCOME_FAILED;
+		SdoCompletionCycle := SdoSubmitCycle;
+		SdoOperationErrorId := LMC_DIAG_ERROR_ID;
+		SdoOperationDetail := 9;
+		SdoWriteData := 0;
+		RETURN;
+	end_if;
+
 	// The RT latch cycle is the only operation clock. CyWork scans are not
 	// treated as EtherCAT cycles.
 	copyResult := -1;
@@ -2135,6 +2153,16 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 					detailCode := 5;
 				elsif (Ds402HomeState[92] <> 0) |
 					(EncoderMaintenanceState[LMC_DIAG_ENCODER_RUNTIME_BASE] <> 0) then
+					detailCode := 9;
+				elsif (((AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] <> 0) &
+				        (AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_AXIS] =
+				         TO_DINT(requestSdoSlaveReference))) |
+				       (AxisOperationModeState[
+				        TO_DINT(requestSdoSlaveReference - 1) *
+				        LMC_DIAG_MODE_RECORD_STRIDE] = LMC_DIAG_MODE_RECORD_RUNNING) |
+				       (AxisOperationModeState[
+				        TO_DINT(requestSdoSlaveReference - 1) *
+				        LMC_DIAG_MODE_RECORD_STRIDE] = LMC_DIAG_MODE_RECORD_QUARANTINED)) then
 					detailCode := 9;
 				elsif ((OperationState = LMC_DIAG_SDO_STATE_QUEUED) |
 					(OperationState = LMC_DIAG_SDO_STATE_RUNNING) |
@@ -7938,9 +7966,10 @@ FUNCTION LMCDiagnosticsService::HandleAxisSetOperationModeStart
 			detailCode := LMC_DIAG_MODE_DETAIL_SLOT_OCCUPIED;
 		elsif (Ds402HomeState[92] <> 0) |
 		      (EncoderMaintenanceState[152] <> 0) |
-		      (OperationState = LMC_DIAG_SDO_STATE_QUEUED) |
-		      (OperationState = LMC_DIAG_SDO_STATE_RUNNING) |
-		      (SdoInternalDrainState <> 0) then
+		      ((((OperationState = LMC_DIAG_SDO_STATE_QUEUED) |
+		         (OperationState = LMC_DIAG_SDO_STATE_RUNNING) |
+		         (SdoInternalDrainState <> 0)) &
+		        (SdoSlaveReference = axisReference))) then
 			detailCode := LMC_DIAG_MODE_DETAIL_UNSAFE;
 		end_if;
 	end_if;
