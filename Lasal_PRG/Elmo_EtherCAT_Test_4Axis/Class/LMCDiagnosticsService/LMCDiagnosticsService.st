@@ -89,6 +89,8 @@ LMCDiagnosticsService : CLASS
 
 		EncoderMaintenanceState : ARRAY [0..191] OF DINT;
 
+		AxisOperationModeState : ARRAY [0..191] OF DINT;
+
 		EncoderMaintenanceServiceMilliseconds 	: UDINT;
 		EncoderMaintenanceObservedLatchCycle 	: UDINT;
 		EncoderMaintenanceLatchAdvanceServiceMilliseconds 	: UDINT;
