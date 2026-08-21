@@ -7,8 +7,10 @@ raw = SOURCE.read_bytes()
 text = raw.decode('utf-8')
 nl = '\r\n' if b'\r\n' in raw else '\n'
 
+
 def norm(value):
     return value.replace('\r\n', '\n').replace('\n', nl)
+
 
 if text.count('AxisOperationModeState : ARRAY [0..191] OF DINT;') != 1:
     raise SystemExit('AxisOperationModeState declaration is missing or duplicated')
@@ -77,6 +79,28 @@ if fragment.count(preflight_completion) != 1:
     raise SystemExit('preflight completion fragment changed')
 fragment = fragment.replace(preflight_completion, preflight_completion_fixed, 1)
 
+# Match the existing LASAL source convention: use named arguments for the
+# executor API instead of relying on positional parameter ordering.
+for axis in range(1, 5):
+    old = 'SdoAxis%d.TryStartRead(currentToken, 0x6061, 0, 1, remainingMs)' % axis
+    new = '''SdoAxis%d.TryStartRead(
+\t\t\t\t\tOperationToken:=currentToken,
+\t\t\t\t\tObjectIndex:=0x6061,
+\t\t\t\t\tSubIndex:=0,
+\t\t\t\t\tReadLength:=1,
+\t\t\t\t\tTimeoutMs:=remainingMs)''' % axis
+    count = fragment.count(old)
+    if count != 2:
+        raise SystemExit('axis %d read call count changed: %d' % (axis, count))
+    fragment = fragment.replace(old, new)
+
+# 0x6061 is an Int8 object. Explicitly isolate the low byte before casting.
+mode_cast_old = 'observedMode := completion.Data$SINT;'
+mode_cast_new = 'observedMode := (completion.Data and 0x000000FF)$SINT;'
+if fragment.count(mode_cast_old) != 2:
+    raise SystemExit('observed-mode cast count changed')
+fragment = fragment.replace(mode_cast_old, mode_cast_new)
+
 fragment = norm(fragment)
 idx = text.index(tail_marker)
 text = text[:idx] + fragment
@@ -90,8 +114,9 @@ checks = {
     'single write stage': tail.count('LMC_DIAG_MODE_STAGE_WRITE_START:') == 1,
     'four axis write call sites': tail.count('ObjectIndex:=0x6060') == 4,
     'no second write stage': tail.count('TryStartWrite(') == 4,
-    'preflight and verify reads': tail.count('0x6061') >= 12,
+    'eight named 6061 read call sites': tail.count('ObjectIndex:=0x6061') == 8,
     '112 byte outcome': tail.count('ResponseSize := 112;') >= 2,
+    'no positional 6061 executor calls': 'TryStartRead(currentToken, 0x6061' not in tail,
     'capability untouched by patch shape': text.index('#define LMC_DIAG_MODE_RECORD_STRIDE') > text.index(implementation_marker),
 }
 failed = [name for name, ok in checks.items() if not ok]
