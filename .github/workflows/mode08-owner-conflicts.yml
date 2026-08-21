@@ -1,0 +1,235 @@
+name: MODE-08 owner conflicts patch
+
+on:
+  push:
+    branches:
+      - codex/mode-08-owner-conflicts
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/mode-08-owner-conflicts
+          fetch-depth: 0
+
+      - name: Apply MODE-08 patch
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          control_path = Path('Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st')
+          diag_path = Path('Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st')
+
+          control = control_path.read_text(encoding='utf-8')
+          diag = diag_path.read_text(encoding='utf-8')
+          control_decl = control.split('//{{LSL_IMPLEMENTATION', 1)[0]
+          diag_decl = diag.split('//{{LSL_IMPLEMENTATION', 1)[0]
+
+          def insert_owner_mode_cases(src: str):
+              lines = src.splitlines(keepends=True)
+              out = []
+              inserted = {k: 0 for k in ('identityMetadataValid','currentStateValid','oldSpecialValid','snapshotTupleValid','preemptSpecialValid','replacementStateValid')}
+              i = 0
+              while i < len(lines):
+                  line = lines[i]
+                  out.append(line)
+                  if line.strip() != 'LMC_OWNER_KIND_ENCODER:':
+                      i += 1
+                      continue
+                  indent = line[:len(line)-len(line.lstrip())]
+                  j = i + 1
+                  block = []
+                  while j < len(lines):
+                      s = lines[j].strip()
+                      same_indent = lines[j].startswith(indent) and (len(lines[j])-len(lines[j].lstrip()) == len(indent))
+                      if same_indent and (s == 'else' or (s.startswith('LMC_OWNER_KIND_') and s.endswith(':'))):
+                          break
+                      block.append(lines[j])
+                      j += 1
+                  next_is_mode = j < len(lines) and lines[j].strip() == 'LMC_OWNER_KIND_AXIS_OPERATION_MODE:'
+                  for b in block:
+                      out.append(b)
+                  if not next_is_mode:
+                      text = ''.join(block)
+                      add = None
+                      if 'identityMetadataValid' in text:
+                          add = (
+                              f'{indent}LMC_OWNER_KIND_AXIS_OPERATION_MODE:\n'
+                              f'{indent}\tidentityMetadataValid := identityMetadataValid &\n'
+                              f'{indent}\t\t((oldState = LMC_OWNER_STATE_RESERVED) |\n'
+                              f'{indent}\t\t (oldState = LMC_OWNER_STATE_AXIS_OPERATION_MODE_ACTIVE));\n')
+                          inserted['identityMetadataValid'] += 1
+                      elif 'currentStateValid' in text:
+                          add = (
+                              f'{indent}LMC_OWNER_KIND_AXIS_OPERATION_MODE:\n'
+                              f'{indent}\tcurrentStateValid :=\n'
+                              f'{indent}\t\t(OwnershipState[currentRecordBase + 1] = LMC_OWNER_STATE_RESERVED) |\n'
+                              f'{indent}\t\t(OwnershipState[currentRecordBase + 1] = LMC_OWNER_STATE_AXIS_OPERATION_MODE_ACTIVE);\n')
+                          inserted['currentStateValid'] += 1
+                      elif 'oldSpecialValid' in text:
+                          add = (
+                              f'{indent}LMC_OWNER_KIND_AXIS_OPERATION_MODE:\n'
+                              f'{indent}\toldIdentityExpectedSize := 56;\n'
+                              f'{indent}\toldSpecialValid :=\n'
+                              f'{indent}\t\t(oldCommand = 0x7D23) &\n'
+                              f'{indent}\t\t(oldResourceKind = LMC_OWNER_RESOURCE_DIAGNOSTICS_SDO_ENGINE) &\n'
+                              f'{indent}\t\t(oldAdmissionMode = LMC_OWNER_ADMISSION_LIFECYCLE) &\n'
+                              f'{indent}\t\t(oldState = LMC_OWNER_STATE_AXIS_OPERATION_MODE_ACTIVE);\n')
+                          inserted['oldSpecialValid'] += 1
+                      elif 'snapshotTupleValid' in text:
+                          add = (
+                              f'{indent}LMC_OWNER_KIND_AXIS_OPERATION_MODE:\n'
+                              f'{indent}\tsnapshotTupleValid :=\n'
+                              f'{indent}\t\t(snapshotCommand = 0x7D23) &\n'
+                              f'{indent}\t\t(snapshotResourceKind = LMC_OWNER_RESOURCE_DIAGNOSTICS_SDO_ENGINE) &\n'
+                              f'{indent}\t\t(snapshotAdmissionMode = LMC_OWNER_ADMISSION_LIFECYCLE) &\n'
+                              f'{indent}\t\t(snapshotIdentitySize = 56) &\n'
+                              f'{indent}\t\t((snapshotState = LMC_OWNER_STATE_RESERVED) |\n'
+                              f'{indent}\t\t (snapshotState = LMC_OWNER_STATE_AXIS_OPERATION_MODE_ACTIVE) |\n'
+                              f'{indent}\t\t (snapshotState = LMC_OWNER_STATE_QUARANTINED));\n')
+                          inserted['snapshotTupleValid'] += 1
+                      elif 'preemptSpecialValid' in text:
+                          add = (
+                              f'{indent}LMC_OWNER_KIND_AXIS_OPERATION_MODE:\n'
+                              f'{indent}\tpreemptSpecialValid :=\n'
+                              f'{indent}\t\t(preemptCommand = 0x7D23) &\n'
+                              f'{indent}\t\t(preemptResourceKind = LMC_OWNER_RESOURCE_DIAGNOSTICS_SDO_ENGINE) &\n'
+                              f'{indent}\t\t(preemptAdmission = LMC_OWNER_ADMISSION_LIFECYCLE) &\n'
+                              f'{indent}\t\t((preemptState = LMC_OWNER_STATE_RESERVED) |\n'
+                              f'{indent}\t\t (preemptState = LMC_OWNER_STATE_AXIS_OPERATION_MODE_ACTIVE)) &\n'
+                              f'{indent}\t\t(preemptIdentitySize = 56);\n')
+                          inserted['preemptSpecialValid'] += 1
+                      elif 'replacementStateValid' in text:
+                          add = (
+                              f'{indent}LMC_OWNER_KIND_AXIS_OPERATION_MODE:\n'
+                              f'{indent}\treplacementStateValid :=\n'
+                              f'{indent}\t\t(OwnershipState[replacementRecordBase + 1] = LMC_OWNER_STATE_RESERVED) |\n'
+                              f'{indent}\t\t(OwnershipState[replacementRecordBase + 1] = LMC_OWNER_STATE_AXIS_OPERATION_MODE_ACTIVE) |\n'
+                              f'{indent}\t\t(OwnershipState[replacementRecordBase + 1] = LMC_OWNER_STATE_QUARANTINED);\n')
+                          inserted['replacementStateValid'] += 1
+                      if add:
+                          out.append(add)
+                  i = j
+              return ''.join(out), inserted
+
+          control, inserted = insert_owner_mode_cases(control)
+
+          # Add command-shape support to any preemption snapshot validator that
+          # understands 0x7E53 but still lacks the 0x7D23 sibling case.
+          lines = control.splitlines(keepends=True)
+          out = []
+          command_inserts = 0
+          i = 0
+          while i < len(lines):
+              line = lines[i]
+              out.append(line)
+              if line.strip() != '0x7E53:':
+                  i += 1
+                  continue
+              indent = line[:len(line)-len(line.lstrip())]
+              j = i + 1
+              block = []
+              while j < len(lines):
+                  s = lines[j].strip()
+                  same_indent = lines[j].startswith(indent) and (len(lines[j])-len(lines[j].lstrip()) == len(indent))
+                  if same_indent and (s == 'else' or (re.match(r'^(0x[0-9A-Fa-f]+|[0-9]+.*):$', s) is not None)):
+                      break
+                  block.append(lines[j]); j += 1
+              for b in block: out.append(b)
+              next_is_mode = j < len(lines) and lines[j].strip() == '0x7D23:'
+              text = ''.join(block)
+              if (not next_is_mode) and ('identityMetadataValid' in text):
+                  out.append(
+                      f'{indent}0x7D23:\n'
+                      f'{indent}\tidentityExpectedSize := 56;\n'
+                      f'{indent}\tidentityMetadataValid :=\n'
+                      f'{indent}\t\t(oldOwnerKind = LMC_OWNER_KIND_AXIS_OPERATION_MODE) &\n'
+                      f'{indent}\t\t(oldResourceKind = LMC_OWNER_RESOURCE_DIAGNOSTICS_SDO_ENGINE) &\n'
+                      f'{indent}\t\t(oldAdmissionMode = LMC_OWNER_ADMISSION_LIFECYCLE) &\n'
+                      f'{indent}\t\t(referenceAxisMask <> 0) &\n'
+                      f'{indent}\t\t(referenceAxisMask <= 0x00000008) &\n'
+                      f'{indent}\t\t(oldAxisMask = referenceAxisMask);\n')
+                  command_inserts += 1
+              i = j
+          control = ''.join(out)
+
+          # SetOperationMode only conflicts with the generic D5 operation that
+          # owns the same physical axis/executor. Other-axis D5 work is disjoint.
+          old = '''\telsif (Ds402HomeState[92] <> 0) |\n\t\t      (EncoderMaintenanceState[152] <> 0) |\n\t\t      (OperationState = LMC_DIAG_SDO_STATE_QUEUED) |\n\t\t      (OperationState = LMC_DIAG_SDO_STATE_RUNNING) |\n\t\t      (SdoInternalDrainState <> 0) then\n\t\t\tdetailCode := LMC_DIAG_MODE_DETAIL_UNSAFE;'''
+          new = '''\telsif (Ds402HomeState[92] <> 0) |\n\t\t      (EncoderMaintenanceState[152] <> 0) |\n\t\t      ((((OperationState = LMC_DIAG_SDO_STATE_QUEUED) |\n\t\t         (OperationState = LMC_DIAG_SDO_STATE_RUNNING) |\n\t\t         (SdoInternalDrainState <> 0)) &\n\t\t        (SdoSlaveReference = axisReference))) then\n\t\t\tdetailCode := LMC_DIAG_MODE_DETAIL_UNSAFE;'''
+          if diag.count(old) != 1:
+              raise SystemExit(f'SetOperationMode D5 conflict pattern count={diag.count(old)}')
+          diag = diag.replace(old, new, 1)
+
+          # Generic D5 admission must reject an active, recovering, or
+          # quarantined SetOperationMode lifecycle on the same axis. This is
+          # checked before the SDO executor reusable probe, so D5 cannot race a
+          # lifecycle that has not dispatched yet.
+          old = '''\t\t\t\telsif (Ds402HomeState[92] <> 0) |\n\t\t\t\t\t(EncoderMaintenanceState[LMC_DIAG_ENCODER_RUNTIME_BASE] <> 0) then\n\t\t\t\t\tdetailCode := 9;'''
+          new = '''\t\t\t\telsif (Ds402HomeState[92] <> 0) |\n\t\t\t\t\t(EncoderMaintenanceState[LMC_DIAG_ENCODER_RUNTIME_BASE] <> 0) then\n\t\t\t\t\tdetailCode := 9;\n\t\t\t\telsif (((AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] <> 0) &\n\t\t\t\t        (AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_AXIS] =\n\t\t\t\t         TO_DINT(requestSdoSlaveReference))) |\n\t\t\t\t       (AxisOperationModeState[\n\t\t\t\t        TO_DINT(requestSdoSlaveReference - 1) *\n\t\t\t\t        LMC_DIAG_MODE_RECORD_STRIDE] = LMC_DIAG_MODE_RECORD_RUNNING) |\n\t\t\t\t       (AxisOperationModeState[\n\t\t\t\t        TO_DINT(requestSdoSlaveReference - 1) *\n\t\t\t\t        LMC_DIAG_MODE_RECORD_STRIDE] = LMC_DIAG_MODE_RECORD_QUARANTINED)) then\n\t\t\t\t\tdetailCode := 9;'''
+          if diag.count(old) != 1:
+              raise SystemExit(f'generic D5 conflict pattern count={diag.count(old)}')
+          diag = diag.replace(old, new, 1)
+
+          # Guard the generic queued->dispatch boundary as well. Admission is
+          # normally serialized, but this makes a late/warm SetOperationMode
+          # recovery fail the D5 request before vendor dispatch.
+          old = '''\tif (OperationState <> LMC_DIAG_SDO_STATE_QUEUED) &\n\t\t(OperationState <> LMC_DIAG_SDO_STATE_RUNNING) then\n\t\tRETURN;\n\tend_if;\n\n\t// The RT latch cycle is the only operation clock.'''
+          new = '''\tif (OperationState <> LMC_DIAG_SDO_STATE_QUEUED) &\n\t\t(OperationState <> LMC_DIAG_SDO_STATE_RUNNING) then\n\t\tRETURN;\n\tend_if;\n\n\tif (OperationState = LMC_DIAG_SDO_STATE_QUEUED) &\n\t   (SdoSlaveReference >= 1) & (SdoSlaveReference <= 4) &\n\t   ((((AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] <> 0) &\n\t      (AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_AXIS] =\n\t       TO_DINT(SdoSlaveReference))) |\n\t     (AxisOperationModeState[TO_DINT(SdoSlaveReference - 1) *\n\t      LMC_DIAG_MODE_RECORD_STRIDE] = LMC_DIAG_MODE_RECORD_RUNNING) |\n\t     (AxisOperationModeState[TO_DINT(SdoSlaveReference - 1) *\n\t      LMC_DIAG_MODE_RECORD_STRIDE] = LMC_DIAG_MODE_RECORD_QUARANTINED))) then\n\t\tOperationState := LMC_DIAG_SDO_STATE_FAILED;\n\t\tOperationOutcome := LMC_DIAG_SDO_OUTCOME_FAILED;\n\t\tSdoCompletionCycle := SdoSubmitCycle;\n\t\tSdoOperationErrorId := LMC_DIAG_ERROR_ID;\n\t\tSdoOperationDetail := 9;\n\t\tSdoWriteData := 0;\n\t\tRETURN;\n\tend_if;\n\n\t// The RT latch cycle is the only operation clock.'''
+          if diag.count(old) != 1:
+              raise SystemExit(f'queued boundary pattern count={diag.count(old)}')
+          diag = diag.replace(old, new, 1)
+
+          if control.split('//{{LSL_IMPLEMENTATION', 1)[0] != control_decl:
+              raise SystemExit('Control LASAL declaration region changed')
+          if diag.split('//{{LSL_IMPLEMENTATION', 1)[0] != diag_decl:
+              raise SystemExit('Diagnostics LASAL declaration region changed')
+          if '#define LMC_DIAG_SET_OPERATION_MODE_ENABLED FALSE' not in diag:
+              raise SystemExit('SetOperationMode activation gate moved or enabled')
+          if '#define LMC_DIAG_D5_SDO_WRITE_GLOBAL_ENABLED TRUE' not in diag:
+              raise SystemExit('unexpected D5 global feature-gate change')
+          if command_inserts < 1:
+              raise SystemExit('no 0x7D23 preemption command validator inserted')
+          required = ('identityMetadataValid','oldSpecialValid','preemptSpecialValid','replacementStateValid')
+          missing = [k for k in required if inserted[k] < 1]
+          if missing:
+              raise SystemExit(f'missing owner-mode preemption cases: {missing}; counts={inserted}')
+
+          control_path.write_text(control, encoding='utf-8')
+          diag_path.write_text(diag, encoding='utf-8')
+          print('control mode-case inserts:', inserted)
+          print('command inserts:', command_inserts)
+          PY
+
+      - name: Static validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          git diff -- Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st \
+                     Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st | \
+            grep -q 'LMC_OWNER_KIND_AXIS_OPERATION_MODE\|AxisOperationModeState'
+          grep -q '#define LMC_DIAG_SET_OPERATION_MODE_ENABLED FALSE' \
+            Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st
+          ! git diff -- Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st \
+                        Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st | \
+            grep -E '^[-+].*LSL_DECLARATION'
+
+      - name: Commit patch and remove one-shot workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/mode08-owner-conflicts.yml
+          git add Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st
+          git add Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st
+          git commit -m 'feat(mode): enforce MODE-08 owner conflicts'
+          git push origin HEAD:codex/mode-08-owner-conflicts
