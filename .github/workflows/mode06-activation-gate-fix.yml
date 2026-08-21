@@ -1,0 +1,132 @@
+name: MODE-06 activation gate fix
+
+on:
+  pull_request:
+    branches:
+      - dev
+    types:
+      - synchronize
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.head_ref == 'codex/mode-06-diagnostics-executor'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/mode-06-diagnostics-executor
+          fetch-depth: 0
+
+      - name: Apply exact activation-gate patch
+        shell: python
+        run: |
+          from pathlib import Path
+
+          p = Path('Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st')
+          raw = p.read_bytes()
+          text = raw.decode('utf-8')
+          nl = '\r\n' if b'\r\n' in raw else '\n'
+
+          def n(s):
+              return s.replace('\r\n', '\n').replace('\n', nl)
+
+          replacements = [
+              (
+                  'compile-time gate',
+                  '''#define LMC_DIAG_DS402_HOME_ENABLED FALSE
+#define LMC_DIAG_DS402_PREFLIGHT_READY -2''',
+                  '''#define LMC_DIAG_DS402_HOME_ENABLED FALSE
+// The runtime is source-complete before public activation. Keep raw Start
+// fail-closed until C78/PLC/hardware qualification and paired capability enable.
+#define LMC_DIAG_SET_OPERATION_MODE_ENABLED FALSE
+#define LMC_DIAG_DS402_PREFLIGHT_READY -2''',
+                  1,
+              ),
+              (
+                  'Start dormant gate',
+                  '''\telsif requestedMode <> 8 then
+\t\tdetailCode := LMC_DIAG_MODE_DETAIL_UNSUPPORTED;
+\tend_if;
+
+\taxisMask := 0;''',
+                  '''\telsif requestedMode <> 8 then
+\t\tdetailCode := LMC_DIAG_MODE_DETAIL_UNSUPPORTED;
+\telsif LMC_DIAG_SET_OPERATION_MODE_ENABLED = FALSE then
+\t\tdetailCode := LMC_DIAG_MODE_DETAIL_STORAGE;
+\tend_if;
+
+\taxisMask := 0;''',
+                  1,
+              ),
+              (
+                  'Outcome dormant gate',
+                  '''\telsif requestedMode <> 8 then
+\t\tdetailCode := LMC_DIAG_MODE_DETAIL_KEY_MISMATCH;
+\telse
+\t\tdetailCode := 0;
+\tend_if;
+
+\tif detailCode <> 0 then''',
+                  '''\telsif requestedMode <> 8 then
+\t\tdetailCode := LMC_DIAG_MODE_DETAIL_KEY_MISMATCH;
+\telsif LMC_DIAG_SET_OPERATION_MODE_ENABLED = FALSE then
+\t\tdetailCode := LMC_DIAG_MODE_DETAIL_STORAGE;
+\telse
+\t\tdetailCode := 0;
+\tend_if;
+
+\tif detailCode <> 0 then''',
+                  1,
+              ),
+              (
+                  'processor dormant gate',
+                  '''\tstage := AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE];
+\tif stage = 0 then
+\t\tRETURN;
+\tend_if;
+\taxisReference :=''',
+                  '''\tstage := AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE];
+\tif stage = 0 then
+\t\tRETURN;
+\tend_if;
+\tif LMC_DIAG_SET_OPERATION_MODE_ENABLED = FALSE then
+\t\t// Never dispatch SDO from an OFF build, even if stale warm state exists.
+\t\tRETURN;
+\tend_if;
+\taxisReference :=''',
+                  1,
+              ),
+          ]
+
+          for label, old, new, expected in replacements:
+              old_n = n(old)
+              new_n = n(new)
+              count = text.count(old_n)
+              if count != expected:
+                  raise SystemExit(f'{label}: expected {expected}, got {count}')
+              text = text.replace(old_n, new_n, expected)
+
+          if text.count('LMC_DIAG_SET_OPERATION_MODE_ENABLED FALSE') != 1:
+              raise SystemExit('activation gate count mismatch')
+          if text.count('LMC_DIAG_SET_OPERATION_MODE_ENABLED = FALSE') != 3:
+              raise SystemExit('activation gate use count mismatch')
+          p.write_bytes(text.encode('utf-8'))
+
+      - name: Validate and commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          test "$(git diff --name-only | wc -l)" -eq 1
+          test "$(git diff --name-only)" = "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st"
+          git config user.name "openai-codex[bot]"
+          git config user.email "openai-codex[bot]@users.noreply.github.com"
+          git add Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st
+          git rm .github/workflows/mode06-activation-gate-fix.yml
+          git diff --cached --check
+          git commit -m "fix(mode): keep SetOperationMode runtime activation gated"
+          git push origin HEAD:codex/mode-06-diagnostics-executor
