@@ -1,0 +1,75 @@
+name: MODE-09 block generic 0x6060
+
+on:
+  pull_request:
+    branches: [dev]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.head_ref == 'codex/mode-09-block-generic-6060' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/mode-09-block-generic-6060
+          fetch-depth: 0
+
+      - name: Apply permanent generic D5 0x6060 deny
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st')
+          text = path.read_text(encoding='utf-8')
+          declaration = text.split('//}}LSL_DECLARATION', 1)[0]
+
+          old = '''\tDetailCode := 0;\n\tif (ObjectIndex = 0x6040) | (ObjectIndex = 0x607A) |\n\t\t(ObjectIndex = 0x60FF) | (ObjectIndex = 0x6071) then\n\t\tDetailCode := 8;\n\t\tRETURN;\n\tend_if;'''
+          new = '''\tDetailCode := 0;\n\t// 0x6060 is owned exclusively by the SetOperationMode lifecycle.\n\t// Generic D5 must never bypass its owner/outcome/no-replay contract.\n\tif (ObjectIndex = 0x6040) | (ObjectIndex = 0x6060) |\n\t\t(ObjectIndex = 0x607A) | (ObjectIndex = 0x60FF) |\n\t\t(ObjectIndex = 0x6071) then\n\t\tDetailCode := 8;\n\t\tRETURN;\n\tend_if;'''
+          count = text.count(old)
+          if count != 1:
+              raise SystemExit(f'unsafe-object policy anchor count={count}')
+          text = text.replace(old, new, 1)
+
+          if text.split('//}}LSL_DECLARATION', 1)[0] != declaration:
+              raise SystemExit('LASAL declaration region changed')
+
+          start = text.index('FUNCTION LMCDiagnosticsService::GetSdoWritePolicyDetail')
+          end = text.index('END_FUNCTION', start)
+          fn = text[start:end]
+          if '(ObjectIndex = 0x6060)' not in fn:
+              raise SystemExit('0x6060 permanent deny missing')
+          if fn.index('(ObjectIndex = 0x6060)') > fn.index('LMC_DIAG_D5_SDO_WRITE_GLOBAL_ENABLED = FALSE'):
+              raise SystemExit('0x6060 deny is not feature-gate independent')
+          if 'DetailCode := 8;' not in fn:
+              raise SystemExit('permanent-unsafe detail code changed')
+          if '(ObjectIndex <> 0x2F00)' not in fn or '(SubIndex <> 24)' not in fn:
+              raise SystemExit('generic UI24 allow-list changed unexpectedly')
+
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Static validation
+        shell: bash
+        run: |
+          git diff --check
+          git diff --exit-code -- '*.cs' '*.csproj' '*.xaml' '*.md' || true
+          test "$(git diff --name-only | wc -l)" -eq 1
+          test "$(git diff --name-only)" = "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st"
+          grep -Fq '(ObjectIndex = 0x6060)' Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st
+          grep -Fq '#define LMC_DIAG_SET_OPERATION_MODE_ENABLED FALSE' Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st
+
+      - name: Commit source change and remove staging workflow
+        shell: bash
+        run: |
+          rm -f .github/workflows/mode09-block-generic-6060.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st .github/workflows/mode09-block-generic-6060.yml
+          git diff --cached --check
+          git commit -m 'fix(mode): permanently deny generic D5 0x6060 writes'
+          git push origin HEAD:codex/mode-09-block-generic-6060
