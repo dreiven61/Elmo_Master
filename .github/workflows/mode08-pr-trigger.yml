@@ -33,6 +33,12 @@ jobs:
               line[10:] if line.startswith('          ') else line
               for line in lines[start:end]
           ) + '\n'
+          script = script.replace(
+              "if same_indent and (s == 'else' or (s.startswith('LMC_OWNER_KIND_') and s.endswith(':'))):",
+              "if (s == 'end_case;') or (same_indent and (s == 'else' or (s.startswith('LMC_OWNER_KIND_') and s.endswith(':')))):")
+          script = script.replace(
+              "if same_indent and (s == 'else' or (re.match(r'^(0x[0-9A-Fa-f]+|[0-9]+.*):$', s) is not None)):",
+              "if (s == 'end_case;') or (same_indent and (s == 'else' or (re.match(r'^(0x[0-9A-Fa-f]+|[0-9]+.*):$', s) is not None))):")
           exec(compile(script, 'mode08-owner-conflicts-embedded.py', 'exec'), {})
           PY
 
