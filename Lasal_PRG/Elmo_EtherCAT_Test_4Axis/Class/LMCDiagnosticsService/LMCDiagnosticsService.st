@@ -562,6 +562,7 @@ END_FUNCTION
 #define LMC_DIAG_OWNER_STATE_TW20_DRAINING 9
 #define LMC_DIAG_OWNER_STATE_SAFETY_PREEMPTING 10
 #define LMC_DIAG_OWNER_STATE_QUARANTINED 11
+#define LMC_DIAG_OWNER_STATE_AXIS_OPERATION_MODE_ACTIVE 12
 #define LMC_DIAG_PREEMPT_CLEANUP_SAFE 1
 #define LMC_DIAG_PREEMPT_CLEANUP_COMPLETE_QUARANTINE 2
 #define LMC_DIAG_PREEMPT_CLEANUP_INCOMPLETE_QUARANTINE 3
@@ -7780,6 +7781,7 @@ END_FUNCTION
 #define LMC_DIAG_MODE_RUNTIME_WRITE_DATA 138
 #define LMC_DIAG_MODE_RUNTIME_FAILURE_DETAIL 139
 #define LMC_DIAG_MODE_RUNTIME_QUARANTINE_REASON 140
+#define LMC_DIAG_MODE_RUNTIME_PREEMPT_START_MS 141
 #define LMC_DIAG_MODE_META_RECORD_GENERATION 160
 #define LMC_DIAG_MODE_META_OPERATION_TOKEN 161
 #define LMC_DIAG_MODE_STAGE_PREFLIGHT_START 1
@@ -7795,6 +7797,8 @@ END_FUNCTION
 #define LMC_DIAG_MODE_STAGE_RECOVERY_START 11
 #define LMC_DIAG_MODE_STAGE_RECOVERY_WAIT 12
 #define LMC_DIAG_MODE_RECOVERY_READ_TIMEOUT_MS 2000
+#define LMC_DIAG_MODE_PREEMPT_DRAIN_TIMEOUT_MS 1000
+#define LMC_DIAG_MODE_PREEMPT_SNAPSHOT_SIZE 200
 #define LMC_DIAG_MODE_OWNER_KIND 6
 #define LMC_DIAG_MODE_RESOURCE_KIND 4
 #define LMC_DIAG_MODE_ADMISSION_MODE 4
@@ -7825,6 +7829,7 @@ END_FUNCTION
 #define LMC_DIAG_MODE_QUARANTINE_VERIFY_MISMATCH 4
 #define LMC_DIAG_MODE_QUARANTINE_CALLBACK 5
 #define LMC_DIAG_MODE_QUARANTINE_OWNER_PUBLISH 6
+#define LMC_DIAG_MODE_QUARANTINE_SAFETY_PREEMPT 7
 
 
 FUNCTION LMCDiagnosticsService::HandleAxisSetOperationModeStart
@@ -8510,18 +8515,22 @@ FUNCTION LMCDiagnosticsService::ProcessAxisSetOperationMode
 	VAR
 		completion : LMCSdoExecutor::LMCSdoExecutorResult;
 		startupSnapshot : ARRAY [0..11] OF UDINT;
+		preemptionSnapshot : ARRAY [0..199] OF USINT;
 		stage, recordBase, finalRecordState : DINT;
 		recoveryScanAxis, recoveryScanBase : DINT;
-		axisReference : UINT;
+		axisReference, preemptionCleanupKind : UINT;
 		axisMask, currentToken, evidenceFlags, serviceNow : UDINT;
 		startMs, timeoutMs, elapsedMs, remainingMs : UDINT;
 		currentCycle, selectedAxisStatus, selectedStatusWord : UDINT;
 		contextCheck, failureDetail, quarantineReason, nextToken : UDINT;
+		safetyAdmissionToken, safetyOwnerGeneration, preemptionStartMs : UDINT;
 		copyResult, completionResult, orphanResult, ownerResult : DINT;
+		preemptionResult : DINT;
 		startResult : iprStates;
 		observedMode : SINT;
 		executorConnected, executorReusable, safetyReady, expired : BOOL;
-		recoveryCandidateFound : BOOL;
+		recoveryCandidateFound, preemptionSnapshotValid : BOOL;
+		writeDispatched, publishPreemptionCleanup : BOOL;
 	END_VAR
 
 	stage := AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE];
@@ -8603,6 +8612,267 @@ FUNCTION LMCDiagnosticsService::ProcessAxisSetOperationMode
 	axisMask := TO_UDINT(1) shl TO_UDINT(axisReference - 1);
 	currentToken := AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_SDO_TOKEN]$UDINT;
 	evidenceFlags := AxisOperationModeState[recordBase + 18]$UDINT;
+	serviceNow := ops.tAbsolute;
+
+	// Safety preemption has priority over feature activation and over every
+	// normal SetOperationMode stage. PENDING_FREEZE changes no local runtime.
+	// After the 0x6060 irreversible-dispatch boundary, cleanup never starts a
+	// new SDO; it only drains the exact outstanding token and quarantines.
+	_memset(dest:=#preemptionSnapshot[0], usByte:=0,
+		cntr:=sizeof(preemptionSnapshot));
+	preemptionResult := -1;
+	if IsClientConnected(#AxisOwnership) &
+	   (AxisOperationModeState[recordBase + 27]$UDINT <> 0) &
+	   (AxisOperationModeState[recordBase + 28]$UDINT <> 0) then
+		preemptionResult := AxisOwnership.CopyAxisOwnershipPreemption(
+			PreemptedAdmissionToken:=AxisOperationModeState[recordBase + 27]$UDINT,
+			PreemptedOwnerGeneration:=AxisOperationModeState[recordBase + 28]$UDINT,
+			pDest:=#preemptionSnapshot[0],
+			DestSize:=sizeof(preemptionSnapshot));
+	end_if;
+	if preemptionResult = LMC_DIAG_PREEMPT_PENDING_FREEZE then
+		RETURN;
+	end_if;
+	if (preemptionResult < 0) |
+	   (preemptionResult > LMC_DIAG_PREEMPT_CLEANUP_QUARANTINED) then
+		AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_QUARANTINE_REASON] :=
+			LMC_DIAG_MODE_QUARANTINE_SAFETY_PREEMPT;
+		AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
+			LMC_DIAG_MODE_STAGE_QUARANTINE;
+		RETURN;
+	end_if;
+	if preemptionResult = 0 then
+		AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_PREEMPT_START_MS] := 0;
+	else
+		preemptionSnapshotValid :=
+			(preemptionSnapshot[0]$UDINT = LMC_DIAG_PREEMPT_SNAPSHOT_MAGIC) &
+			(preemptionSnapshot[4]$UDINT = LMC_DIAG_PREEMPT_SNAPSHOT_VERSION) &
+			(preemptionSnapshot[8]$UDINT = LMC_DIAG_PREEMPT_SNAPSHOT_HEADER_SIZE) &
+			(preemptionSnapshot[12]$UDINT = LMC_DIAG_MODE_PREEMPT_SNAPSHOT_SIZE) &
+			(preemptionSnapshot[16]$DINT = preemptionResult) &
+			(preemptionSnapshot[32]$UDINT = axisMask) &
+			(preemptionSnapshot[36]$UDINT = AxisOperationModeState[recordBase + 27]$UDINT) &
+			(preemptionSnapshot[40]$UDINT = AxisOperationModeState[recordBase + 28]$UDINT) &
+			(preemptionSnapshot[44]$UDINT = AxisOperationModeState[recordBase + 29]$UDINT) &
+			(preemptionSnapshot[48]$UDINT = AxisOperationModeState[recordBase + 30]$UDINT) &
+			(preemptionSnapshot[52]$UDINT = 0x7D23) &
+			(preemptionSnapshot[56]$UDINT = TO_UDINT(axisReference)) &
+			(preemptionSnapshot[60]$UDINT = LMC_DIAG_MODE_OWNER_KIND) &
+			(preemptionSnapshot[64]$UDINT = LMC_DIAG_MODE_RESOURCE_KIND) &
+			(preemptionSnapshot[68]$UDINT = LMC_DIAG_MODE_ADMISSION_MODE) &
+			(preemptionSnapshot[72]$UDINT = LMC_DIAG_OWNER_STATE_AXIS_OPERATION_MODE_ACTIVE) &
+			(preemptionSnapshot[76]$UDINT = 56) &
+			((preemptionSnapshot[104]$UDINT and axisMask) = axisMask) &
+			(preemptionSnapshot[108]$UDINT <> 0) &
+			(preemptionSnapshot[112]$UDINT <> 0) &
+			((preemptionSnapshot[124]$UDINT = LMC_DIAG_OWNER_STATE_SAFETY_PREEMPTING) |
+			 (preemptionSnapshot[124]$UDINT = LMC_DIAG_OWNER_STATE_QUARANTINED)) &
+			(preemptionSnapshot[136]$UDINT = LMC_DIAG_ADMISSION_SAFETY) &
+			(preemptionSnapshot[144]$UINT = LMC_DIAG_SCHEMA_VERSION) &
+			(preemptionSnapshot[146]$UINT = 0) &
+			(preemptionSnapshot[148]$UDINT = AxisOperationModeState[recordBase + 4]$UDINT) &
+			(preemptionSnapshot[152]$UINT = LMC_DIAG_SCHEMA_VERSION) &
+			(preemptionSnapshot[154]$UINT = 0) &
+			(preemptionSnapshot[156]$UDINT = AxisOperationModeState[recordBase + 1]$UDINT) &
+			(preemptionSnapshot[160]$UDINT = AxisOperationModeState[recordBase + 2]$UDINT) &
+			(preemptionSnapshot[164]$UDINT = AxisOperationModeState[recordBase + 3]$UDINT) &
+			(preemptionSnapshot[168]$UDINT = AxisOperationModeState[recordBase + 4]$UDINT) &
+			(preemptionSnapshot[172]$UDINT = AxisOperationModeState[recordBase + 5]$UDINT) &
+			(preemptionSnapshot[176]$UDINT = AxisOperationModeState[recordBase + 6]$UDINT) &
+			(preemptionSnapshot[180]$UDINT = AxisOperationModeState[recordBase + 7]$UDINT) &
+			(preemptionSnapshot[184]$UDINT = AxisOperationModeState[recordBase + 8]$UDINT) &
+			(preemptionSnapshot[188]$UINT = axisReference) &
+			(preemptionSnapshot[190]$SINT = AxisOperationModeState[recordBase + 10]$SINT) &
+			(preemptionSnapshot[191]$USINT = 0) &
+			(preemptionSnapshot[192]$UDINT = AxisOperationModeState[recordBase + 12]$UDINT) &
+			(preemptionSnapshot[196]$UDINT = AxisOperationModeState[recordBase + 13]$UDINT);
+		if preemptionResult = LMC_DIAG_PREEMPT_CLEANUP_REQUIRED then
+			preemptionSnapshotValid := preemptionSnapshotValid &
+				((preemptionSnapshot[24]$UDINT and axisMask) = axisMask) &
+				((preemptionSnapshot[28]$UDINT and axisMask) = 0);
+		elsif preemptionResult = LMC_DIAG_PREEMPT_CLEANUP_COMPLETE then
+			preemptionSnapshotValid := preemptionSnapshotValid &
+				((preemptionSnapshot[28]$UDINT and axisMask) = axisMask);
+		end_if;
+		if preemptionSnapshotValid = FALSE then
+			AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_QUARANTINE_REASON] :=
+				LMC_DIAG_MODE_QUARANTINE_SAFETY_PREEMPT;
+			AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
+				LMC_DIAG_MODE_STAGE_QUARANTINE;
+			RETURN;
+		end_if;
+
+		currentCycle := AxisOperationModeState[recordBase + 19]$UDINT;
+		_memset(dest:=#startupSnapshot[0], usByte:=0, cntr:=sizeof(startupSnapshot));
+		copyResult := -1;
+		if IsClientConnected(#InputLatch) then
+			copyResult := InputLatch.CopyAxisOwnershipStartupSnapshot(
+				pDest:=#startupSnapshot[0], DestSize:=sizeof(startupSnapshot));
+		end_if;
+		if (copyResult = 0) &
+		   (startupSnapshot[0] = LMC_OWNER_STARTUP_SNAPSHOT_MAGIC) &
+		   (startupSnapshot[1] >= currentCycle) then
+			currentCycle := startupSnapshot[1];
+			AxisOperationModeState[recordBase + 25]$UDINT :=
+				startupSnapshot[TO_DINT(5 + axisReference)];
+			AxisOperationModeState[recordBase + 26]$UDINT := startupSnapshot[10];
+		end_if;
+		if currentCycle = 0 then currentCycle := 1; end_if;
+
+		if preemptionResult = LMC_DIAG_PREEMPT_CLEANUP_COMPLETE then
+			evidenceFlags := evidenceFlags or
+				LMC_DIAG_MODE_EVIDENCE_OWNER_RELEASED or
+				LMC_DIAG_MODE_EVIDENCE_EXECUTOR_REUSABLE;
+			AxisOperationModeState[recordBase + 18]$UDINT := evidenceFlags;
+			AxisOperationModeState[recordBase + 14] := 1;
+			AxisOperationModeState[recordBase + 15] := LMC_DIAG_ADMIN_ERROR_ID;
+			AxisOperationModeState[recordBase + 16] := LMC_DIAG_MODE_DETAIL_UNSAFE;
+			AxisOperationModeState[recordBase + 20]$UDINT := currentCycle;
+			AxisOperationModeState[recordBase + 24] := 0;
+			AxisOperationModeState[recordBase] := LMC_DIAG_MODE_RECORD_ABORTED;
+			_memset(dest:=#AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_BASE],
+				usByte:=0, cntr:=32 * 4);
+			RETURN;
+		elsif preemptionResult = LMC_DIAG_PREEMPT_CLEANUP_QUARANTINED then
+			AxisOperationModeState[recordBase + 14] := 1;
+			AxisOperationModeState[recordBase + 15] := LMC_DIAG_ADMIN_ERROR_ID;
+			AxisOperationModeState[recordBase + 16] := LMC_DIAG_MODE_DETAIL_INDETERMINATE;
+			AxisOperationModeState[recordBase + 20]$UDINT := currentCycle;
+			AxisOperationModeState[recordBase + 24] :=
+				LMC_DIAG_MODE_QUARANTINE_SAFETY_PREEMPT;
+			AxisOperationModeState[recordBase] := LMC_DIAG_MODE_RECORD_QUARANTINED;
+			AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
+				LMC_DIAG_MODE_STAGE_QUARANTINE_HOLD;
+			RETURN;
+		end_if;
+
+		safetyAdmissionToken := preemptionSnapshot[108]$UDINT;
+		safetyOwnerGeneration := preemptionSnapshot[112]$UDINT;
+		preemptionStartMs := AxisOperationModeState[
+			LMC_DIAG_MODE_RUNTIME_PREEMPT_START_MS]$UDINT;
+		if preemptionStartMs = 0 then
+			preemptionStartMs := serviceNow;
+			if preemptionStartMs = 0 then preemptionStartMs := 1; end_if;
+			AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_PREEMPT_START_MS]$UDINT :=
+				preemptionStartMs;
+		end_if;
+		writeDispatched :=
+			(evidenceFlags and LMC_DIAG_MODE_EVIDENCE_WRITE_DISPATCHED) <> 0;
+
+		executorConnected := FALSE;
+		executorReusable := FALSE;
+		case axisReference of
+			1:
+				executorConnected := IsClientConnected(#SdoAxis1) <> 0;
+				if executorConnected then executorReusable := SdoAxis1.IsReusable(); end_if;
+			2:
+				executorConnected := IsClientConnected(#SdoAxis2) <> 0;
+				if executorConnected then executorReusable := SdoAxis2.IsReusable(); end_if;
+			3:
+				executorConnected := IsClientConnected(#SdoAxis3) <> 0;
+				if executorConnected then executorReusable := SdoAxis3.IsReusable(); end_if;
+			4:
+				executorConnected := IsClientConnected(#SdoAxis4) <> 0;
+				if executorConnected then executorReusable := SdoAxis4.IsReusable(); end_if;
+		end_case;
+		completionResult := -2;
+		if executorConnected & (executorReusable = FALSE) then
+			case axisReference of
+				1: completionResult := SdoAxis1.CopyCompletion(currentToken, #completion, sizeof(completion));
+				2: completionResult := SdoAxis2.CopyCompletion(currentToken, #completion, sizeof(completion));
+				3: completionResult := SdoAxis3.CopyCompletion(currentToken, #completion, sizeof(completion));
+				4: completionResult := SdoAxis4.CopyCompletion(currentToken, #completion, sizeof(completion));
+			end_case;
+			if completionResult = 0 then
+				executorReusable := TRUE;
+				evidenceFlags := evidenceFlags or
+					LMC_DIAG_MODE_EVIDENCE_EXECUTOR_REUSABLE;
+				AxisOperationModeState[recordBase + 18]$UDINT := evidenceFlags;
+			elsif ((completionResult = -2) | (completionResult = -3)) &
+			      ((serviceNow - preemptionStartMs) >=
+			       LMC_DIAG_MODE_PREEMPT_DRAIN_TIMEOUT_MS) then
+				orphanResult := -1;
+				case axisReference of
+					1: orphanResult := SdoAxis1.MarkOrphan(currentToken);
+					2: orphanResult := SdoAxis2.MarkOrphan(currentToken);
+					3: orphanResult := SdoAxis3.MarkOrphan(currentToken);
+					4: orphanResult := SdoAxis4.MarkOrphan(currentToken);
+				end_case;
+			end_if;
+		end_if;
+
+		publishPreemptionCleanup := executorReusable |
+			(executorConnected = FALSE) | (completionResult < -3) |
+			((serviceNow - preemptionStartMs) >=
+			 LMC_DIAG_MODE_PREEMPT_DRAIN_TIMEOUT_MS);
+		if publishPreemptionCleanup = FALSE then
+			RETURN;
+		end_if;
+		if (writeDispatched = FALSE) & executorReusable then
+			preemptionCleanupKind := LMC_DIAG_PREEMPT_CLEANUP_SAFE;
+		else
+			if executorReusable then
+				preemptionCleanupKind :=
+					LMC_DIAG_PREEMPT_CLEANUP_COMPLETE_QUARANTINE;
+			else
+				preemptionCleanupKind :=
+					LMC_DIAG_PREEMPT_CLEANUP_INCOMPLETE_QUARANTINE;
+			end_if;
+		end_if;
+
+		ownerResult := AxisOwnership.PublishAxisOwnershipPreemptionCleanup(
+			ExpectedAxisMask:=axisMask,
+			PreemptedAdmissionToken:=AxisOperationModeState[recordBase + 27]$UDINT,
+			PreemptedOwnerGeneration:=AxisOperationModeState[recordBase + 28]$UDINT,
+			SafetyAdmissionToken:=safetyAdmissionToken,
+			SafetyOwnerGeneration:=safetyOwnerGeneration,
+			CleanupKind:=preemptionCleanupKind,
+			ReportValue0:=AxisOperationModeState[recordBase + 22]$UDINT,
+			ReportValue1:=currentToken,
+			ObservationCycle:=currentCycle);
+		if (ownerResult <> 0) & (ownerResult <> 1) then
+			AxisOperationModeState[recordBase + 14] := 1;
+			AxisOperationModeState[recordBase + 15] := LMC_DIAG_ADMIN_ERROR_ID;
+			AxisOperationModeState[recordBase + 16] := LMC_DIAG_MODE_DETAIL_INDETERMINATE;
+			AxisOperationModeState[recordBase + 20]$UDINT := currentCycle;
+			AxisOperationModeState[recordBase + 24] :=
+				LMC_DIAG_MODE_QUARANTINE_SAFETY_PREEMPT;
+			AxisOperationModeState[recordBase] := LMC_DIAG_MODE_RECORD_QUARANTINED;
+			AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
+				LMC_DIAG_MODE_STAGE_QUARANTINE_HOLD;
+			RETURN;
+		end_if;
+
+		if preemptionCleanupKind = LMC_DIAG_PREEMPT_CLEANUP_SAFE then
+			evidenceFlags := evidenceFlags or
+				LMC_DIAG_MODE_EVIDENCE_OWNER_RELEASED or
+				LMC_DIAG_MODE_EVIDENCE_EXECUTOR_REUSABLE;
+			AxisOperationModeState[recordBase + 18]$UDINT := evidenceFlags;
+			AxisOperationModeState[recordBase + 14] := 1;
+			AxisOperationModeState[recordBase + 15] := LMC_DIAG_ADMIN_ERROR_ID;
+			AxisOperationModeState[recordBase + 16] := LMC_DIAG_MODE_DETAIL_UNSAFE;
+			AxisOperationModeState[recordBase + 20]$UDINT := currentCycle;
+			AxisOperationModeState[recordBase + 24] := 0;
+			AxisOperationModeState[recordBase] := LMC_DIAG_MODE_RECORD_ABORTED;
+			_memset(dest:=#AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_BASE],
+				usByte:=0, cntr:=32 * 4);
+		else
+			if executorReusable then
+				AxisOperationModeState[recordBase + 18]$UDINT :=
+					evidenceFlags or LMC_DIAG_MODE_EVIDENCE_EXECUTOR_REUSABLE;
+			end_if;
+			AxisOperationModeState[recordBase + 14] := 1;
+			AxisOperationModeState[recordBase + 15] := LMC_DIAG_ADMIN_ERROR_ID;
+			AxisOperationModeState[recordBase + 16] := LMC_DIAG_MODE_DETAIL_INDETERMINATE;
+			AxisOperationModeState[recordBase + 20]$UDINT := currentCycle;
+			AxisOperationModeState[recordBase + 24] :=
+				LMC_DIAG_MODE_QUARANTINE_SAFETY_PREEMPT;
+			AxisOperationModeState[recordBase] := LMC_DIAG_MODE_RECORD_QUARANTINED;
+			AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
+				LMC_DIAG_MODE_STAGE_QUARANTINE_HOLD;
+		end_if;
+		RETURN;
+	end_if;
 
 	// Once dispatch evidence exists, no state repair is allowed to return to
 	// the 0x6060 write stage. Torn/restarted pre-write metadata is normalized
@@ -8767,9 +9037,10 @@ FUNCTION LMCDiagnosticsService::ProcessAxisSetOperationMode
 					((startupSnapshot[10] and LMC_DIAG_MODE_CONTEXT_PHYSICAL_VALID) <> 0) &
 					(Ds402HomeState[92] = 0) &
 					(EncoderMaintenanceState[152] = 0) &
-					(OperationState <> LMC_DIAG_SDO_STATE_QUEUED) &
-					(OperationState <> LMC_DIAG_SDO_STATE_RUNNING) &
-					(SdoInternalDrainState = 0) & executorReusable;
+					(((OperationState <> LMC_DIAG_SDO_STATE_QUEUED) &
+					  (OperationState <> LMC_DIAG_SDO_STATE_RUNNING) &
+					  (SdoInternalDrainState = 0)) |
+					 (SdoSlaveReference <> axisReference)) & executorReusable;
 				case axisReference of
 					1: selectedAxisStatus := startupSnapshot[2]; selectedStatusWord := startupSnapshot[6];
 					2: selectedAxisStatus := startupSnapshot[3]; selectedStatusWord := startupSnapshot[7];
@@ -8826,9 +9097,10 @@ FUNCTION LMCDiagnosticsService::ProcessAxisSetOperationMode
 				(startupSnapshot[1] <> 0) & (startupSnapshot[11] = 0) &
 				((startupSnapshot[10] and LMC_DIAG_MODE_CONTEXT_PHYSICAL_VALID) <> 0) &
 				(Ds402HomeState[92] = 0) & (EncoderMaintenanceState[152] = 0) &
-				(OperationState <> LMC_DIAG_SDO_STATE_QUEUED) &
-				(OperationState <> LMC_DIAG_SDO_STATE_RUNNING) &
-				(SdoInternalDrainState = 0) & executorReusable;
+				(((OperationState <> LMC_DIAG_SDO_STATE_QUEUED) &
+				  (OperationState <> LMC_DIAG_SDO_STATE_RUNNING) &
+				  (SdoInternalDrainState = 0)) |
+				 (SdoSlaveReference <> axisReference)) & executorReusable;
 			case axisReference of
 				1: selectedAxisStatus := startupSnapshot[2]; selectedStatusWord := startupSnapshot[6];
 				2: selectedAxisStatus := startupSnapshot[3]; selectedStatusWord := startupSnapshot[7];

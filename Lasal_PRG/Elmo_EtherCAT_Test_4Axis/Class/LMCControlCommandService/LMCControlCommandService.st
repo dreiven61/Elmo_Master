@@ -12977,12 +12977,12 @@ FUNCTION GLOBAL LMCControlCommandService::CopyAxisOwnershipPreemption
 					 (oldState = LMC_OWNER_STATE_TW20_QUEUED) |
 					 (oldState = LMC_OWNER_STATE_TW20_RUNNING) |
 					 (oldState = LMC_OWNER_STATE_TW20_DRAINING));
-		else
-			identityMetadataValid := FALSE;
 			LMC_OWNER_KIND_AXIS_OPERATION_MODE:
 				identityMetadataValid := identityMetadataValid &
 					((oldState = LMC_OWNER_STATE_RESERVED) |
 					 (oldState = LMC_OWNER_STATE_AXIS_OPERATION_MODE_ACTIVE));
+		else
+			identityMetadataValid := FALSE;
 		end_case;
 	end_if;
 	if (identityMetadataValid = FALSE) |
