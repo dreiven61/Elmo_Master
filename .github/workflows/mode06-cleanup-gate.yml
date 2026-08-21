@@ -1,0 +1,129 @@
+name: MODE-06 cleanup and activation gate
+
+on:
+  push:
+    branches:
+      - codex/mode-06-gate-cleanup
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout cleanup branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/mode-06-gate-cleanup
+          fetch-depth: 0
+
+      - name: Apply exact activation gate
+        shell: python
+        run: |
+          from pathlib import Path
+
+          p = Path('Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st')
+          raw = p.read_bytes()
+          text = raw.decode('utf-8')
+          nl = '\r\n' if b'\r\n' in raw else '\n'
+
+          def n(s):
+              return s.replace('\r\n', '\n').replace('\n', nl)
+
+          replacements = [
+              (
+                  'compile-time gate',
+                  '''#define LMC_DIAG_DS402_HOME_ENABLED FALSE
+#define LMC_DIAG_DS402_PREFLIGHT_READY -2''',
+                  '''#define LMC_DIAG_DS402_HOME_ENABLED FALSE
+// MODE-06 runtime remains fail-closed until MODE-14 paired activation.
+#define LMC_DIAG_SET_OPERATION_MODE_ENABLED FALSE
+#define LMC_DIAG_DS402_PREFLIGHT_READY -2''',
+                  1,
+              ),
+              (
+                  'Start dormant gate',
+                  '''\telsif requestedMode <> 8 then
+\t\tdetailCode := LMC_DIAG_MODE_DETAIL_UNSUPPORTED;
+\tend_if;
+
+\taxisMask := 0;''',
+                  '''\telsif requestedMode <> 8 then
+\t\tdetailCode := LMC_DIAG_MODE_DETAIL_UNSUPPORTED;
+\telsif LMC_DIAG_SET_OPERATION_MODE_ENABLED = FALSE then
+\t\tdetailCode := LMC_DIAG_MODE_DETAIL_STORAGE;
+\tend_if;
+
+\taxisMask := 0;''',
+                  1,
+              ),
+              (
+                  'Outcome dormant gate',
+                  '''\telsif requestedMode <> 8 then
+\t\tdetailCode := LMC_DIAG_MODE_DETAIL_KEY_MISMATCH;
+\telse
+\t\tdetailCode := 0;
+\tend_if;
+
+\tif detailCode <> 0 then''',
+                  '''\telsif requestedMode <> 8 then
+\t\tdetailCode := LMC_DIAG_MODE_DETAIL_KEY_MISMATCH;
+\telsif LMC_DIAG_SET_OPERATION_MODE_ENABLED = FALSE then
+\t\tdetailCode := LMC_DIAG_MODE_DETAIL_STORAGE;
+\telse
+\t\tdetailCode := 0;
+\tend_if;
+
+\tif detailCode <> 0 then''',
+                  1,
+              ),
+              (
+                  'processor dormant gate',
+                  '''\tstage := AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE];
+\tif stage = 0 then
+\t\tRETURN;
+\tend_if;
+\taxisReference :=''',
+                  '''\tstage := AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE];
+\tif stage = 0 then
+\t\tRETURN;
+\tend_if;
+\tif LMC_DIAG_SET_OPERATION_MODE_ENABLED = FALSE then
+\t\t// Never dispatch SDO from an OFF build, including stale warm state.
+\t\tRETURN;
+\tend_if;
+\taxisReference :=''',
+                  1,
+              ),
+          ]
+
+          for label, old, new, expected in replacements:
+              old_n = n(old)
+              new_n = n(new)
+              count = text.count(old_n)
+              if count != expected:
+                  raise SystemExit(f'{label}: expected {expected}, got {count}')
+              text = text.replace(old_n, new_n, expected)
+
+          if text.count('LMC_DIAG_SET_OPERATION_MODE_ENABLED FALSE') != 1:
+              raise SystemExit('activation gate definition count mismatch')
+          if text.count('LMC_DIAG_SET_OPERATION_MODE_ENABLED = FALSE') != 3:
+              raise SystemExit('activation gate use count mismatch')
+          p.write_bytes(text.encode('utf-8'))
+
+      - name: Validate, clean scaffolding, and commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          git config user.name "openai-codex[bot]"
+          git config user.email "openai-codex[bot]@users.noreply.github.com"
+          git add Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st
+          git rm .github/workflows/mode06-activation-gate-fix.yml
+          git rm .github/workflows/mode06-cleanup-gate.yml
+          git diff --cached --check
+          test "$(git diff --cached --name-only | wc -l)" -eq 3
+          git commit -m "fix(mode): keep SetOperationMode activation fail-closed"
+          git push origin HEAD:codex/mode-06-gate-cleanup
