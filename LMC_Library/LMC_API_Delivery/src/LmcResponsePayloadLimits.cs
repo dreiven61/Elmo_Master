@@ -100,6 +100,15 @@ namespace LasalMotionControlLib
                 case LMC_CommandId.GroupMoveLinearRelative:
                     return LMC_AdminParser.CommonResponsePayloadLength;
 
+                case LMC_CommandId.StartAxisSetOperationMode:
+                    return LMC_AdminParser
+                        .StartAxisSetOperationModeResponsePayloadLength;
+
+                case LMC_CommandId.ReadAxisSetOperationModeOutcome:
+                case LMC_CommandId.RetireAxisSetOperationModeOutcome:
+                    return LMC_AdminParser
+                        .AxisSetOperationModeOutcomeResponsePayloadLength;
+
                 case LMC_CommandId.GetDiagnosticsCapabilities:
                     return LMC_DiagnosticsParser.CapabilitiesPayloadLength;
 

@@ -34,6 +34,9 @@
     <Compile Include="LmcAdminSetAxisPositionProtocol.cs" />
     <Compile Include="LmcAdminSetAxisPositionOutcomeProtocol.cs" />
     <Compile Include="LmcAdminSetAxisPositionOutcomeRetirementProtocol.cs" />
+    <Compile Include="LmcAdminSetOperationModeProtocol.cs" />
+    <Compile Include="LmcAdminSetOperationModeOutcomeProtocol.cs" />
+    <Compile Include="LmcAdminSetOperationModeOutcomeRetirementProtocol.cs" />
     <Compile Include="LmcAdminHomeProtocol.cs" />
     <Compile Include="LmcAdminDs402HomeProtocol.cs" />
     <Compile Include="LmcAdminDs402HomeOutcomeProtocol.cs" />
@@ -42,6 +45,9 @@
     <Compile Include="LmcAdminSetAxisPositionModels.cs" />
     <Compile Include="LmcAdminSetAxisPositionOutcomeModels.cs" />
     <Compile Include="LmcAdminSetAxisPositionOutcomeRetirementModels.cs" />
+    <Compile Include="LmcAdminSetOperationModeModels.cs" />
+    <Compile Include="LmcAdminSetOperationModeOutcomeModels.cs" />
+    <Compile Include="LmcAdminSetOperationModeOutcomeRetirementModels.cs" />
     <Compile Include="LmcAdminHomeModels.cs" />
     <Compile Include="LmcAdminDs402HomeModels.cs" />
     <Compile Include="LmcAdminDs402HomeExModels.cs" />
@@ -51,6 +57,7 @@
     <Compile Include="LmcAdminSetAxisPosition.cs" />
     <Compile Include="LmcAdminSetAxisPositionOutcome.cs" />
     <Compile Include="LmcAdminSetAxisPositionOutcomeRetirement.cs" />
+    <Compile Include="LmcAdminSetOperationMode.cs" />
     <Compile Include="LmcAdminHome.cs" />
     <Compile Include="LmcAdminDs402Home.cs" />
     <Compile Include="LmcAdminDs402HomeOutcome.cs" />
@@ -104,6 +111,7 @@
     <Compile Include="LmcAxis.cs" />
     <Compile Include="LmcAxisSetPosition.cs" />
     <Compile Include="LmcAxisSetPositionOutcomeRetirement.cs" />
+    <Compile Include="LmcAxisSetOperationMode.cs" />
     <Compile Include="LmcAxisDs402Home.cs" />
     <Compile Include="LmcAxisDs402HomeOutcomeRetirement.cs" />
     <Compile Include="LmcAxisDriveReads.cs" />

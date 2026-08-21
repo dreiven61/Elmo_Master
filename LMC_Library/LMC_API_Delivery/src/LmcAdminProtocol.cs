@@ -268,7 +268,10 @@ namespace LasalMotionControlLib
                 | LMCAdminFeature.AxisHome
                 | LMCAdminFeature.AxisSetPositionOutcomeRead
                 | LMCAdminFeature.AxisDs402Home
-                | LMCAdminFeature.AxisSetPositionOutcomeRetirement;
+                | LMCAdminFeature.AxisSetPositionOutcomeRetirement
+                | LMCAdminFeature.AxisSetOperationModeStart
+                | LMCAdminFeature.AxisSetOperationModeOutcomeRead
+                | LMCAdminFeature.AxisSetOperationModeOutcomeRetire;
             const uint knownAxisMask = 0x0000003Fu;
 
             if ((features & ~knownFeatures) != 0
@@ -320,6 +323,26 @@ namespace LasalMotionControlLib
                     && (physicalAxisCount == 0
                         || physicalAxisCount > 4
                         || errorCatalogVersion < 4))
+                || (((features
+                            & (LMCAdminFeature.AxisSetOperationModeStart
+                                | LMCAdminFeature
+                                    .AxisSetOperationModeOutcomeRead
+                                | LMCAdminFeature
+                                    .AxisSetOperationModeOutcomeRetire)) != 0)
+                    && ((features
+                            & (LMCAdminFeature.AxisSetOperationModeStart
+                                | LMCAdminFeature
+                                    .AxisSetOperationModeOutcomeRead
+                                | LMCAdminFeature
+                                    .AxisSetOperationModeOutcomeRetire))
+                        != (LMCAdminFeature.AxisSetOperationModeStart
+                            | LMCAdminFeature
+                                .AxisSetOperationModeOutcomeRead
+                            | LMCAdminFeature
+                                .AxisSetOperationModeOutcomeRetire)
+                        || physicalAxisCount == 0
+                        || physicalAxisCount > 4
+                        || errorCatalogVersion < 6))
                 || errorCatalogVersion == 0)
             {
                 throw new InvalidDataException(
@@ -570,6 +593,7 @@ namespace LasalMotionControlLib
                 allowDs402HomeOutcomeFailureDetails,
                 allowDs402HomeStartFailureDetails,
                 false,
+                false,
                 false);
         }
 
@@ -583,6 +607,48 @@ namespace LasalMotionControlLib
             bool allowDs402HomeStartFailureDetails,
             bool allowLmcHomeOutcomeFailureDetails,
             bool allowLmcHomeStartFailureDetails)
+        {
+            return ParseCommonResponse(
+                transport,
+                expectedRequestId,
+                allowMotionFailureDetails,
+                allowSetPositionFailureDetails,
+                allowSetPositionOutcomeFailureDetails,
+                allowDs402HomeOutcomeFailureDetails,
+                allowDs402HomeStartFailureDetails,
+                allowLmcHomeOutcomeFailureDetails,
+                allowLmcHomeStartFailureDetails,
+                false);
+        }
+
+        internal static LMCAdminResponse ParseSetOperationModeCommonResponse(
+            LMC_Response transport,
+            uint expectedRequestId)
+        {
+            return ParseCommonResponse(
+                transport,
+                expectedRequestId,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                true);
+        }
+
+        private static LMCAdminResponse ParseCommonResponse(
+            LMC_Response transport,
+            uint expectedRequestId,
+            bool allowMotionFailureDetails,
+            bool allowSetPositionFailureDetails,
+            bool allowSetPositionOutcomeFailureDetails,
+            bool allowDs402HomeOutcomeFailureDetails,
+            bool allowDs402HomeStartFailureDetails,
+            bool allowLmcHomeOutcomeFailureDetails,
+            bool allowLmcHomeStartFailureDetails,
+            bool allowSetOperationModeFailureDetails)
         {
             if (transport.Payload.Length < CommonResponsePayloadLength)
             {
@@ -619,7 +685,8 @@ namespace LasalMotionControlLib
                         allowDs402HomeOutcomeFailureDetails,
                         allowDs402HomeStartFailureDetails,
                         allowLmcHomeOutcomeFailureDetails,
-                        allowLmcHomeStartFailureDetails)))
+                        allowLmcHomeStartFailureDetails,
+                        allowSetOperationModeFailureDetails)))
             {
                 throw new InvalidDataException(
                     "Admin response contains an invalid status/error/detail combination.");
@@ -644,7 +711,8 @@ namespace LasalMotionControlLib
             bool allowDs402HomeOutcomeFailureDetails,
             bool allowDs402HomeStartFailureDetails,
             bool allowLmcHomeOutcomeFailureDetails,
-            bool allowLmcHomeStartFailureDetails)
+            bool allowLmcHomeStartFailureDetails,
+            bool allowSetOperationModeFailureDetails)
         {
             if (detailCode >= (uint)LMCAdminDetailCode.UnsupportedSchema
                 && detailCode <= (uint)LMCAdminDetailCode.InvalidSelection)
@@ -784,6 +852,26 @@ namespace LasalMotionControlLib
                     == (uint)LMCAdminDetailCode.NativeCommandRejected)
             {
                 return errorId > 0 || errorId == -6;
+            }
+
+            if (allowSetOperationModeFailureDetails
+                && ((detailCode
+                            >= (uint)LMCAdminDetailCode
+                                .DiagnosticsBuildMismatch
+                        && detailCode
+                            <= (uint)LMCAdminDetailCode.MapRevisionMismatch)
+                    || detailCode
+                        == (uint)LMCAdminDetailCode.AxisOwnershipConflict
+                    || detailCode
+                        == (uint)LMCAdminDetailCode.AxisOwnershipQuarantined
+                    || (detailCode
+                            >= (uint)LMCAdminDetailCode
+                                .SetOperationModeUnsupportedMode
+                        && detailCode
+                            <= (uint)LMCAdminDetailCode
+                                .SetOperationModeOutcomeSlotOccupied)))
+            {
+                return errorId == AdminErrorId;
             }
 
             return false;

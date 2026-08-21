@@ -3,11 +3,9 @@
 Elmo PMAS/MMCLib 기준 동작을 분석하고 SIGMATEK/LASAL 전용 DINT API와 WPF
 예제로 이식·검증하는 저장소다.
 
-현재 개발 버전은 `LasalMotionControlLib 0.9.1-preview`다. PC 자동 시험과 LASAL
-정적 계약은 통과했다. 2026-07-23 live capture에서 Admin read, 상대/절대 group 대표
-경로, PowerOff, None/ACS static alias, D1 PI/D2 Bulk와 D5 SDO Read happy path를
-확인했지만 25-command 전체 matrix와 fault/race/soak 검증은 끝나지 않았다.
-따라서 production 승인본이 아니다.
+현재 개발 버전은 `LasalMotionControlLib 0.9.1-preview`이며 production 승인본이 아니다.
+current API 계약과 개발 상태는 각각 `docs/api/API_MANUAL.md`와
+`docs/api/API_DEVELOPMENT_PROGRESS.md`에서만 관리한다.
 
 ## 현재 구성
 
@@ -35,9 +33,9 @@ Elmo PMAS/MMCLib 기준 동작을 분석하고 SIGMATEK/LASAL 전용 DINT API와
 
 ## 먼저 읽을 문서
 
-1. [현재 아키텍처 및 릴리스 상태](docs/architecture/ELMO_MASTER_CURRENT_ARCHITECTURE_AND_RELEASE_STATUS_2026-07-16.md)
-2. [내부 API 개발 설명서](LMC_Library/LMC_API/API_DEVELOPMENT_GUIDE.md)
-3. [LMC API 현재 구현 상태](LMC_Library/LMC_API_Delivery/README.md)
+1. [API 설명서](docs/api/API_MANUAL.md)
+2. [API 개발 진척도](docs/api/API_DEVELOPMENT_PROGRESS.md)
+3. [현재 아키텍처 및 릴리스 상태](docs/architecture/ELMO_MASTER_CURRENT_ARCHITECTURE_AND_RELEASE_STATUS_2026-07-16.md)
 4. [LASAL 코딩 규칙](docs/architecture/SIGMATEK_LASAL_coding_rules.md)
 5. [LASAL 프로그래밍 방법](docs/architecture/SIGMATEK_LASAL_programming_method_study.md)
 6. [LASAL 오류 예방 지침](docs/architecture/SIGMATEK_LASAL_programming_error_prevention_guide.md)

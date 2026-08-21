@@ -1,5 +1,11 @@
 # LasalMotionControlLib 내부 코드 및 실행 구조 설명서
 
+> **Historical implementation guide:** current public API contract와 개발 상태는 각각
+> [API 설명서](../../docs/api/API_MANUAL.md)와
+> [API 개발 진척도](../../docs/api/API_DEVELOPMENT_PROGRESS.md)를 따른다. 이 문서는
+> 2026-08-12 구현 구조와 2.3-candidate 배포 baseline을 보존하는 참고 자료이며 current
+> 시험 수치나 release 판정을 소유하지 않는다.
+
 - 문서 버전: `2.9`
 - 작성 기준: `2026-08-12` / active dependency closure `3c63dea`, initial canonical manual
   promotion `bcc6a9c`, preview README policy `f304e8b`, release-input documentation
@@ -20,8 +26,9 @@ Tracked canonical Distribution DOCX
 와 PDF는 독립 검토한 문서 버전 `2.3-candidate` release-input baseline이다.
 각 기능에서 sync/async signature를 함께 보여 주지만 두 메서드가 내부적으로 같은
 transport와 command를 공유한다는 사실은 설명하지 않는다.
-현재 내부 사용자 매뉴얼 원본은 [API_USER_MANUAL_KO.md](API_USER_MANUAL_KO.md) 문서
-버전 `2.3-candidate`다. 이 문서는 그 사용자 매뉴얼을 대체하지 않고 구현 이해와 유지보수를 보완한다.
+Current 사용자 매뉴얼 원본은 [API_MANUAL.md](../../docs/api/API_MANUAL.md)다. 기존
+2.3-candidate DOCX/PDF는 historical release input으로 남아 있다. 이 문서는 사용자 매뉴얼을
+대체하지 않고 당시 구현 이해와 유지보수를 보완한다.
 
 > **상태 경고:** `0.9.1-preview`는 production 승인본이 아니다. 2026-08-11 implementation checkpoint
 > `cbf2548`은 PC 자동 시험 Debug/Release direct runner 각각 1133/1133, WPF

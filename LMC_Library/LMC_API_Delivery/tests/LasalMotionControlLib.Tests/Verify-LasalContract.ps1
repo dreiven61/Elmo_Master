@@ -68,6 +68,8 @@ param(
 
     [switch]$SetPositionCloseWithoutResponseVerifierSelfTestOnly,
 
+    [switch]$SetPositionAsyncControlVerifierSelfTestOnly,
+
     [switch]$SetPositionAdminStoreWiringVerifierSelfTestOnly,
 
     [switch]$SetPositionStoreReadOnlyScanVerifierSelfTestOnly,
@@ -4558,8 +4560,23 @@ function Assert-LasalAxisOwnershipPublishSplitMutationFences {
             'implementation order drifted.')
     }
 
+    $publishIdentifiers = [Collections.Generic.HashSet[string]]::new(
+        [StringComparer]::OrdinalIgnoreCase)
+    foreach ($fragmentScan in @($adapterScan, $homeScan, $decisionScan)) {
+        foreach ($identifierMatch in [regex]::Matches(
+                $fragmentScan,
+                '\b[A-Za-z_][A-Za-z0-9_]*\b')) {
+            [void]$publishIdentifiers.Add($identifierMatch.Value)
+        }
+    }
+    # Freeze only macro definitions referenced by the split publish provider.
+    # Other Control features own their macro contracts independently and may
+    # add definitions without changing this provider's executable closure.
     $macroInventory = @(
         $macroMatches |
+            Where-Object {
+                $publishIdentifiers.Contains($_.Groups['Name'].Value)
+            } |
             ForEach-Object {
                 ($_.Groups['Name'].Value.ToLowerInvariant() + '=' +
                  [regex]::Replace(
@@ -4568,11 +4585,15 @@ function Assert-LasalAxisOwnershipPublishSplitMutationFences {
                      ' ').ToLowerInvariant())
             })
     $joinedMacros = [string]::Join('|', $macroInventory)
-    if (($macroInventory.Count -ne 173) -or
-        ($joinedMacros.Length -ne 6495) -or
+    if (($macroInventory.Count -ne 68) -or
+        ($joinedMacros.Length -ne 2387) -or
         ((Get-LasalPublishSplitTextSha256 -Text $joinedMacros) -cne
-            'B12A65E42732E15A7045679B057F05A2B6BEB624A558A92913202B7929C2BEE5')) {
-        throw "$blocker whole-control macro inventory drifted."
+            '064544E3EC5498E4ECAFC0C4C1E77FEBF1C0E59BDA7440C9A73867A343D6C2AF')) {
+        throw (
+            "$blocker referenced macro closure drifted " +
+            "($($macroInventory.Count)/68, " +
+            "$($joinedMacros.Length)/2387, " +
+            "$(Get-LasalPublishSplitTextSha256 -Text $joinedMacros)).")
     }
 
     $fragmentContracts = @(
@@ -4804,6 +4825,18 @@ function Invoke-LasalAxisOwnershipPublishSplitVerifierSelfTest {
     if ($crlfState.Mode -cne 'Split') {
         throw "$Owner CRLF positive fixture did not resolve to Split."
     }
+    $unrelatedMacroFixture = Replace-LasalPublishSplitExactOne `
+        -Text $splitFixture `
+        -Old '#define LMC_OWNER_AXIS_COUNT 9' `
+        -New ('#define LMC_OWNER_AXIS_COUNT 9' + "`n" +
+            '#define LMC_ADMIN_SET_POSITION_VERIFIER_UNRELATED 1') `
+        -Owner "$Owner unrelated macro positive fixture"
+    $unrelatedMacroState = Assert-LasalAxisOwnershipPublishStateContract `
+        -ControlServiceText $unrelatedMacroFixture `
+        -Owner "$Owner positive unrelated Control macro"
+    if ($unrelatedMacroState.Mode -cne 'Split') {
+        throw "$Owner unrelated Control macro fixture did not resolve to Split."
+    }
     $fragments = Get-LasalAxisOwnershipPublishSplitFragments `
         -ControlServiceText $splitFixture `
         -Owner $Owner
@@ -4975,9 +5008,18 @@ function Invoke-LasalAxisOwnershipPublishSplitVerifierSelfTest {
                 -Old '#pragma usingLtd LMCSetPositionStore' `
                 -New '' `
                 -Owner "$Owner split fourth pragma removal fixture"
+        },
+        @{
+            Name = 'ReferencedMacroValueChanged'
+            Expected = 'referenced macro closure drifted'
+            Value = Replace-LasalPublishSplitExactOne `
+                -Text $splitFixture `
+                -Old '#define LMC_OWNER_AXIS_COUNT 9' `
+                -New '#define LMC_OWNER_AXIS_COUNT 8' `
+                -Owner "$Owner split referenced macro fixture"
         })
-    if (($fenceFixtures.Count -ne 12) -or
-        (@($fenceFixtures.Name | Select-Object -Unique).Count -ne 12)) {
+    if (($fenceFixtures.Count -ne 13) -or
+        (@($fenceFixtures.Name | Select-Object -Unique).Count -ne 13)) {
         throw "$Owner split fence fixture inventory drifted."
     }
 
@@ -5070,6 +5112,12 @@ function Invoke-LasalAxisOwnershipPublishSplitVerifierSelfTest {
             if (-not $_.Exception.Message.StartsWith(
                     "$negativeOwner axis ownership publish split blocker:",
                     [StringComparison]::Ordinal)) {
+                throw
+            }
+            if ($fixture.ContainsKey('Expected') -and
+                ($_.Exception.Message.IndexOf(
+                    $fixture.Expected,
+                    [StringComparison]::Ordinal) -lt 0)) {
                 throw
             }
             $didReject = $true
@@ -7988,7 +8036,8 @@ function Assert-LasalAxisOwnershipReserveMutationFences {
     }
     $expectedImplementationHeaderInventory += @(
         'handleadminsetposition',
-        'dispatchrequestcommand')
+        'dispatchrequestcommand',
+        'processadminsetpositionasync')
     if ([string]::Join('|', $implementationHeaderInventory) -cne
         [string]::Join('|', $expectedImplementationHeaderInventory)) {
         throw "$blocker whole implementation header inventory/order drifted."
@@ -9518,6 +9567,7 @@ function Assert-LasalControlHandleRequestMutationFences {
         'RequestSequence\s*:\s*UDINT\s*;\s*' +
         'AdmissionToken\s*:\s*UDINT\s*;\s*' +
         'OwnerGeneration\s*:\s*UDINT\s*;\s*' +
+        'ResponseSocket\s*:\s*DINT\s*;\s*' +
         'END_VAR\s*;?\s*' +
         'VAR_OUTPUT\s*' +
         'ResponseSize\s*:\s*DINT\s*;\s*' +
@@ -9553,7 +9603,7 @@ function Assert-LasalControlHandleRequestMutationFences {
         ($implementationAbiMatches.Count -ne 1)) {
         throw (
             "$blocker declaration and implementation must expose the exact " +
-            'closed ten-input/one-output ABI.')
+            'closed eleven-input/one-output ABI.')
     }
     $classBlockMatches = [regex]::Matches(
         $controlScan,
@@ -9719,18 +9769,18 @@ function Assert-LasalControlHandleRequestMutationFences {
             ForEach-Object { "$_=$($actualCallHistogram[$_])" })
     $joinedCalls = [string]::Join('|', $callInventory)
     $expectedJoinedCalls = (
-        '_memset=12|commitaxisownership=1|dispatchrequestcommand=1|' +
+        '_memset=13|commitaxisownership=1|dispatchrequestcommand=1|' +
         'handleaxisownershipsafetyrepeat=1|' +
         'isclientconnected=1|processaxiszerohome=1|' +
         'publishaxisownership=3|requestds402homesafetydrain=1|' +
-        'rollbackaxisownership=6|to_dint=4|to_udint=13|' +
+        'rollbackaxisownership=6|to_dint=6|to_udint=16|' +
         'validateaxisownershipidentity=1')
     $callSha256 = Get-LasalControlHandleRequestTextSha256 $joinedCalls
     if (($callInventory.Count -ne 12) -or
         ($joinedCalls.Length -ne 264) -or
         ($joinedCalls -cne $expectedJoinedCalls) -or
         ($callSha256 -cne
-            '3761366441C358D51506BC53CDD6FBC293A2BDACBB7DBC12022CBB76CD76327A')) {
+            '779467AE5F259ECA092596A0CEA051E602DC5D9CED523A640862C6FB5FFB8CD4')) {
         throw (
             "$blocker call histogram drifted " +
             "($($callInventory.Count)/12, " +
@@ -9787,12 +9837,12 @@ function Assert-LasalControlHandleRequestMutationFences {
         ($responseSha256 -cne
             '0FE75C49CA6720908B12AA1CE42DE7A27BF334CD60B37203D78747F24A868615') -or
         ($resultAssignmentCount -ne 0) -or
-        ($returnCount -ne 2)) {
+        ($returnCount -ne 3)) {
         throw (
             "$blocker ResponseSize/Result/RETURN inventory drifted " +
             "($($responseValues.Count)/25, " +
             "$($joinedResponseValues.Length)/633, $responseSha256, " +
-            "Result=$resultAssignmentCount/0, RETURN=$returnCount/2).")
+            "Result=$resultAssignmentCount/0, RETURN=$returnCount/3).")
     }
 
     $controlFlowTokens = @(
@@ -9810,14 +9860,14 @@ function Assert-LasalControlHandleRequestMutationFences {
     $controlFlowInventory = [string]::Join('|', $controlFlowTokens)
     $controlFlowSha256 =
         Get-LasalControlHandleRequestTextSha256 $controlFlowInventory
-    if (($controlFlowTokens.Count -ne 226) -or
-        ($controlFlowInventory.Length -ne 2070) -or
+    if (($controlFlowTokens.Count -ne 231) -or
+        ($controlFlowInventory.Length -ne 2098) -or
         ($controlFlowSha256 -cne
-            '341BE59D610A94176178B9215897293F4480C33E6C1959EB3E187F1A44BB0E92')) {
+            '147FD0DB94F0A257E16C1F96EDE9F680F4B32FF7216C3B30D577C71556910E71')) {
         throw (
             "$blocker executable control-flow inventory drifted " +
-            "($($controlFlowTokens.Count)/226, " +
-            "$($controlFlowInventory.Length)/2070, $controlFlowSha256).")
+            "($($controlFlowTokens.Count)/231, " +
+            "$($controlFlowInventory.Length)/2098, $controlFlowSha256).")
     }
 
     Assert-Match $scan (
@@ -9846,6 +9896,25 @@ function Assert-LasalControlHandleRequestMutationFences {
     $dispatchWrapperMatches = [regex]::Matches(
         $scan,
         ('(?is)if\s+ownershipInvokeHandler\s+then\s*' +
+         'AxisSetPositionAsyncState\[114\]\$UDINT\s*:=\s*' +
+         'CallerSessionEpoch\s*;\s*' +
+         'AxisSetPositionAsyncState\[115\]\$UDINT\s*:=\s*' +
+         'RequestSequence\s*;\s*' +
+         'AxisSetPositionAsyncState\[116\]\s*:=\s*ResponseSocket\s*;\s*' +
+         'AxisSetPositionAsyncState\[117\]\s*:=\s*' +
+         'TO_DINT\s*\(\s*CommandId\s*\)\s*;\s*' +
+         'AxisSetPositionAsyncState\[118\]\s*:=\s*' +
+         'TO_DINT\s*\(\s*Reference\s*\)\s*;\s*' +
+         'AxisSetPositionAsyncState\[119\]\$UDINT\s*:=\s*' +
+         'AdmissionToken\s*;\s*' +
+         'AxisSetPositionAsyncState\[120\]\$UDINT\s*:=\s*' +
+         'OwnerGeneration\s*;\s*' +
+         'AxisSetPositionAsyncState\[121\]\$UDINT\s*:=\s*' +
+         'CallerSessionEpoch\s+xor\s+RequestSequence\s+xor\s+' +
+         'TO_UDINT\s*\(\s*ResponseSocket\s*\)\s+xor\s+' +
+         'TO_UDINT\s*\(\s*CommandId\s*\)\s+xor\s+' +
+         'TO_UDINT\s*\(\s*Reference\s*\)\s+xor\s+' +
+         'AdmissionToken\s+xor\s+OwnerGeneration\s*;\s*' +
          'ResponseSize\s*:=\s*DispatchRequestCommand\s*\(\s*' +
          'CommandId\s*:=\s*CommandId\s*,\s*' +
          'Reference\s*:=\s*Reference\s*,\s*' +
@@ -9853,6 +9922,9 @@ function Assert-LasalControlHandleRequestMutationFences {
          'RequestFrameSize\s*:=\s*RequestFrameSize\s*,\s*' +
          'pResponseFrame\s*:=\s*pResponseFrame\s*,\s*' +
          'ResponseCapacity\s*:=\s*ResponseCapacity\s*\)\s*;\s*' +
+         '_memset\s*\(\s*dest\s*:=\s*#' +
+         'AxisSetPositionAsyncState\[114\]\s*,\s*' +
+         'usByte\s*:=\s*0\s*,\s*cntr\s*:=\s*32\s*\)\s*;\s*' +
          'end_if\s*;'))
     if ($dispatchWrapperMatches.Count -ne 1) {
         throw "$blocker exact guarded private dispatch wrapper is missing."
@@ -10008,12 +10080,12 @@ function Assert-LasalControlHandleRequestMutationFences {
         '\s+', '').ToLowerInvariant()
     $semanticSha256 =
         Get-LasalControlHandleRequestTextSha256 $semanticTokens
-    if (($semanticTokens.Length -ne 24269) -or
+    if (($semanticTokens.Length -ne 25037) -or
         ($semanticSha256 -cne
-            '8930EACC78CBF9EBD5DC195678DA775076FBABFD218580360E10D3870DF415D4')) {
+            'CF46EA4075C7B33AB877F774766E0E0AED63A454BF3118194696AD710583CE27')) {
         throw (
             "$blocker normalized semantic token inventory drifted " +
-            "($($semanticTokens.Length)/24269, $semanticSha256).")
+            "($($semanticTokens.Length)/25037, $semanticSha256).")
     }
     $lexicalTokens = @(
         [regex]::Matches(
@@ -10024,14 +10096,14 @@ function Assert-LasalControlHandleRequestMutationFences {
     $lexicalInventory = [string]::Join('|', $lexicalTokens)
     $lexicalSha256 =
         Get-LasalControlHandleRequestTextSha256 $lexicalInventory
-    if (($lexicalTokens.Count -ne 5690) -or
-        ($lexicalInventory.Length -ne 29958) -or
+    if (($lexicalTokens.Count -ne 5836) -or
+        ($lexicalInventory.Length -ne 30872) -or
         ($lexicalSha256 -cne
-            '7DAE010A6AD8EE6B14C8CC1CD337EC304BD86BD84D3DE486FCAC4A463A7EEB0F')) {
+            '7BB7B8A93A29F19F5372E199BAC68E45431D0C1861C7C0B06E3FBF3CEE5792A4')) {
         throw (
             "$blocker lexical token boundary inventory drifted " +
-            "($($lexicalTokens.Count)/5690, " +
-            "$($lexicalInventory.Length)/29958, $lexicalSha256).")
+            "($($lexicalTokens.Count)/5836, " +
+            "$($lexicalInventory.Length)/30872, $lexicalSha256).")
     }
 }
 
@@ -10205,7 +10277,7 @@ function Invoke-LasalControlHandleRequestVerifierSelfTest {
                 '(?is)(FUNCTION\s+GLOBAL\s+' +
                 'LMCControlCommandService::HandleRequest.*?\bif\s+)' +
                 'ownershipInvokeHandler(\s+then\s*' +
-                'ResponseSize\s*:=\s*DispatchRequestCommand)')
+                'AxisSetPositionAsyncState\[114\])')
             Replacement = '${1}TRUE${2}'
         }
     )
@@ -13028,6 +13100,35 @@ function Assert-LasalAxisOwnershipPhaseContract {
         '(?i)FUNCTION\s+LMCControlCommandService::HandleAxisOwnershipSafetyRepeat\b') {
         $expectedControlIdentityCallCount += 4
     }
+    $setPositionAsyncStateCount = [regex]::Matches(
+        $controlScan,
+        ('(?im)^\s*AxisSetPositionAsyncState\s*:\s*ARRAY\s*' +
+         '\[\s*0\.\.127\s*\]\s*OF\s*DINT\s*;\s*$')).Count
+    $setPositionAsyncProcessMatches = [regex]::Matches(
+        $controlScan,
+        ('(?ims)^\s*FUNCTION\s+' +
+         'LMCControlCommandService::ProcessAdminSetPositionAsync\b.*?' +
+         '^\s*END_FUNCTION\s*$'))
+    if (($setPositionAsyncStateCount -ne 0) -or
+        ($setPositionAsyncProcessMatches.Count -ne 0)) {
+        if ($AllowLegacySetPositionOwnershipFixture -or
+            $setPositionAsyncStateCount -ne 1 -or
+            $setPositionAsyncProcessMatches.Count -ne 1) {
+            throw (
+                "$blocker P1 SetPosition async ownership inventory marker " +
+                    'drifted.')
+        }
+        $setPositionAsyncIdentityCallCount = [regex]::Matches(
+            $setPositionAsyncProcessMatches[0].Value,
+            '(?i)(?:AxisOwnership\s*\.\s*)?' +
+                'ValidateAxisOwnershipIdentity\s*\(').Count
+        if ($setPositionAsyncIdentityCallCount -ne 2) {
+            throw (
+                "$blocker P1 SetPosition async identity call inventory is " +
+                    "$setPositionAsyncIdentityCallCount, expected 2.")
+        }
+        $expectedControlIdentityCallCount += 2
+    }
     if ($controlCallCount -ne 3 -or $diagnosticsCallCount -ne 5 -or
         $controlIdentityCallCount -ne $expectedControlIdentityCallCount -or
         $diagnosticsIdentityCallCount -ne 2) {
@@ -13531,6 +13632,13 @@ function Assert-LasalOrdinaryAxisGroupOwnershipDormantContract {
     $tcpMsgParserBlock = [regex]::Match(
         $tcpScan,
         '(?is)FUNCTION\s+TCPMotionInterface::MsgPaser.*?END_FUNCTION').Value
+    $tcpServiceDispatchTail = if ($AllowLegacySetPositionOwnershipFixture) {
+        'OwnerGeneration:=controlOwnerGeneration\s*'
+    }
+    else {
+        ('OwnerGeneration:=controlOwnerGeneration\s*,\s*' +
+         'ResponseSocket:=ActiveRequest\.Socket\s*')
+    }
     $tcpServiceDispatch = [regex]::Match(
         $tcpMsgParserBlock,
         ('(?is)if\s+controlInvokeService\s*&\s*' +
@@ -13544,7 +13652,8 @@ function Assert-LasalOrdinaryAxisGroupOwnershipDormantContract {
          'CallerSessionEpoch:=ActiveRequest\.SessionEpoch\s*,\s*' +
          'RequestSequence:=ActiveRequest\.Sequence\s*,\s*' +
          'AdmissionToken:=controlAdmissionToken\s*,\s*' +
-         'OwnerGeneration:=controlOwnerGeneration\s*\)\s*;\s*end_if\s*;'))
+         $tcpServiceDispatchTail +
+         '\)\s*;\s*end_if\s*;'))
     $tcpClassifierIndex = $tcpMsgParserBlock.IndexOf(
         $tcpClassifierBlock,
         [System.StringComparison]::Ordinal)
@@ -13975,11 +14084,38 @@ function Assert-LasalOrdinaryAxisGroupOwnershipDormantContract {
             "$blocker terminal observer is not dormant before its first " +
             'observer state, hardware read, or publish action.')
     }
-    if (-not $AllowLegacySetPositionOwnershipFixture -and
-        [regex]::Matches($observerBlock, '(?i)\b0x7D12\b').Count -ne 0) {
+    $observerSetPositionReferenceCount = [regex]::Matches(
+        $observerBlock,
+        '(?i)\b0x7D12\b').Count
+    $setPositionAsyncObserverExpected =
+        [regex]::Matches(
+            $controlScan,
+            ('(?im)^\s*AxisSetPositionAsyncState\s*:\s*ARRAY\s*' +
+             '\[\s*0\.\.127\s*\]\s*OF\s*DINT\s*;\s*$')).Count -eq 1 -and
+        [regex]::Matches(
+            $controlScan,
+            ('(?ims)^\s*FUNCTION\s+' +
+             'LMCControlCommandService::ProcessAdminSetPositionAsync\b.*?' +
+             '^\s*END_FUNCTION\s*$')).Count -eq 1
+    if ($setPositionAsyncObserverExpected) {
+        $observerSetPositionExclusionCount = [regex]::Matches(
+            $observerBlock,
+            ('(?is)\(\s*OwnershipState\s*\[\s*recordBase\s*\+\s*3\s*\]' +
+             '\s*<>\s*0x7D12\s*\)\s+then\s*' +
+             'axisMask\s*:=\s*OwnershipState\s*' +
+             '\[\s*recordBase\s*\+\s*11\s*\]\$UDINT\s*;')).Count
+        if ($AllowLegacySetPositionOwnershipFixture -or
+            $observerSetPositionReferenceCount -ne 1 -or
+            $observerSetPositionExclusionCount -ne 1) {
+            throw (
+                "$blocker P1 ProcessAxisOwnership must exclude exactly " +
+                    'the dormant 0x7D12 ACTIVE owner from the ordinary observer.')
+        }
+    }
+    elseif ($observerSetPositionReferenceCount -ne 0) {
         throw (
-            "$blocker ProcessAxisOwnership must not auto-release or " +
-            'special-case the immediate 0x7D12 Reserved boundary.')
+            "$blocker ProcessAxisOwnership must not special-case 0x7D12 " +
+                'without the exact P1 async context.')
     }
 
     Assert-Match $SdkErrorCatalogText (
@@ -16687,6 +16823,20 @@ function Assert-TCPMotionInterfaceFreshOwnerReset {
         CurrentSocketPublish =
             '(?i)(?<![A-Za-z0-9_])CurrentSock\s*:=\s*dSock\s*;'
     }
+    $setPositionPendingExpected = [regex]::Matches(
+        $scanText,
+        ('(?im)^\s*FUNCTION\s+' +
+         'TCPMotionInterface::HandleAdminSetPositionPending\s*$')).Count -eq 1
+    if ($setPositionPendingExpected) {
+        $orderedStatements.Insert(
+            4,
+            'SetPositionPendingTailRecognition',
+            ('(?is)setPositionPendingTailPresent\s*:=\s*FALSE\s*;\s*' +
+             'if\s*\(ActiveRequest\.CommandId\s*=\s*0x7D12\)\s*&\s*' +
+             '\(ActiveRequest\.PayloadLength\s*=\s*48\)\s+then\s*' +
+             '.*?end_if\s*;\s*' +
+             '(?=preservePendingActive\s*:=)'))
+    }
     if ($UdpCallbackCandidate) {
         foreach ($legacyCallbackReset in @(
                 'RpcCallbackRegisteredFalse',
@@ -16750,7 +16900,12 @@ function Assert-TCPMotionInterfaceFreshOwnerReset {
         $lastStatementIndex = $matches[0].Index
     }
 
-    $canonicalControlFlowStatements = @(
+    $canonicalControlFlowStatements = @()
+    if ($setPositionPendingExpected) {
+        $canonicalControlFlowStatements +=
+            'SetPositionPendingTailRecognition'
+    }
+    $canonicalControlFlowStatements += @(
         'ActiveRequestPreserveOrZero',
         'SessionEpochAdvanceAndWrap')
     if ($UdpCallbackCandidate) {
@@ -17293,6 +17448,16 @@ function Assert-LasalAdminSetAxisPositionContract {
         [string]$TcpText,
         [string]$Owner
     )
+
+    if ($ControlServiceText -match
+            '(?im)^\s*AxisSetPositionAsyncState\s*:\s*' +
+            'ARRAY\s*\[\s*0\.\.127\s*\]\s*OF\s*DINT\s*;') {
+        Assert-LasalSetPositionAsyncControlContract `
+            -ControlServiceText $ControlServiceText `
+            -TcpText $TcpText `
+            -Owner "$Owner P1 async"
+        return
+    }
 
     $serviceScan = Get-LasalScanText $ControlServiceText
     $tcpScan = Get-LasalScanText $TcpText
@@ -18342,6 +18507,11 @@ function Assert-LasalSetPositionCloseWithoutResponseContract {
         '[ \t]+-12[ \t]*\r?$')
     $serviceScan = Get-LasalScanText $ControlServiceText
     $tcpScan = Get-LasalScanText $TcpText
+    $isP1Async = [regex]::IsMatch(
+        $serviceScan,
+        '(?im)^\s*AxisSetPositionAsyncState\s*:\s*' +
+        'ARRAY\s*\[\s*0\.\.127\s*\]\s*OF\s*DINT\s*;')
+    $expectedServiceSentinelTokenCount = if ($isP1Async) { 3 } else { 2 }
 
     if ([regex]::Matches(
             $serviceScan,
@@ -18357,7 +18527,7 @@ function Assert-LasalSetPositionCloseWithoutResponseContract {
     $serviceSentinelProducerCount = [regex]::Matches(
         $serviceScan,
         ('(?i)ResponseSize\s*:=\s*' + $sentinelTokenPattern + '\s*;')).Count
-    if ($serviceSentinelTokenCount -ne 2 -or
+    if ($serviceSentinelTokenCount -ne $expectedServiceSentinelTokenCount -or
         $serviceSentinelLiteralCount -ne 1 -or
         $serviceSentinelProducerCount -ne 1) {
         throw (
@@ -18365,6 +18535,17 @@ function Assert-LasalSetPositionCloseWithoutResponseContract {
             "found $serviceSentinelProducerCount producer(s), " +
             "$serviceSentinelTokenCount token(s), and " +
             "$serviceSentinelLiteralCount literal(s).")
+    }
+    if ($isP1Async) {
+        Assert-Match $serviceScan (
+            ('(?is)elsif\s+\(AxisSetPositionAsyncState\[21\]\s*=\s*1\)\s*' +
+             '\|\s*\(AxisSetPositionAsyncState\[21\]\s*=\s*' +
+             'LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE\)\s+then\s*' +
+             'ResponseSize\s*:=\s*' +
+             'LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE\s*;\s*' +
+             'RETURN\s*;')) (
+            "$Owner P1 terminal uncertainty must route result 1 and exact " +
+            '-12 through one no-response producer.')
     }
     if ([regex]::Matches(
             $serviceScan,
@@ -18464,17 +18645,37 @@ function Assert-LasalSetPositionCloseWithoutResponseContract {
          'RETURN\s*;\s*end_if\s*;\s*$')) (
         "$Owner no-response consumer order or exact close fence drifted.")
 
-    Assert-Match $msgParserBlock (
-        ('(?is)ControlCommands\.HandleRequest\s*\(.*?' +
-         'OwnerGeneration\s*:=\s*controlOwnerGeneration\s*\)\s*;\s*' +
-         'end_if\s*;\s*' +
-         '//[ \t]*LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE_BEGIN.*?' +
-         '//[ \t]*LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE_END\s*' +
-         'if\s+controlResponseSize\s*=\s*' +
-         'LMC_OWNER_SAFETY_DRAIN_PENDING\s+then.*?' +
-         'if\s+\(controlResponseSize\s*<=\s*0\)\s*\|')) (
-        "$Owner no-response consumer must stay immediately after the service " +
-        'call and before pending/generic error handling.')
+    if ($ControlServiceText -match
+            '(?im)^\s*AxisSetPositionAsyncState\s*:') {
+        Assert-Match $msgParserBlock (
+            ('(?is)ControlCommands\.HandleRequest\s*\(.*?' +
+             'ResponseSocket\s*:=\s*ActiveRequest\.Socket\s*\)\s*;\s*' +
+             'end_if\s*;\s*' +
+             '//[ \t]*LMC_ADMIN_SET_POSITION_PENDING_BEGIN.*?' +
+             '//[ \t]*LMC_ADMIN_SET_POSITION_PENDING_END\s*' +
+             '//[ \t]*LMC_ADMIN_SET_POSITION_QUARANTINE_BEGIN.*?' +
+             '//[ \t]*LMC_ADMIN_SET_POSITION_QUARANTINE_END\s*' +
+             '//[ \t]*LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE_BEGIN.*?' +
+             '//[ \t]*LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE_END\s*' +
+             'if\s+controlResponseSize\s*=\s*' +
+             'LMC_OWNER_SAFETY_DRAIN_PENDING\s+then.*?' +
+             'if\s+\(controlResponseSize\s*<=\s*0\)\s*\|')) (
+            "$Owner P1 -13/-14/-12 consumers must remain ordered before " +
+            'safety/generic error handling.')
+    }
+    else {
+        Assert-Match $msgParserBlock (
+            ('(?is)ControlCommands\.HandleRequest\s*\(.*?' +
+             'OwnerGeneration\s*:=\s*controlOwnerGeneration\s*\)\s*;\s*' +
+             'end_if\s*;\s*' +
+             '//[ \t]*LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE_BEGIN.*?' +
+             '//[ \t]*LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE_END\s*' +
+             'if\s+controlResponseSize\s*=\s*' +
+             'LMC_OWNER_SAFETY_DRAIN_PENDING\s+then.*?' +
+             'if\s+\(controlResponseSize\s*<=\s*0\)\s*\|')) (
+            "$Owner no-response consumer must stay immediately after the " +
+            'service call and before pending/generic error handling.')
+    }
 }
 
 function Invoke-LasalSetPositionCloseWithoutResponseVerifierSelfTest {
@@ -18574,6 +18775,43 @@ function Invoke-LasalSetPositionCloseWithoutResponseVerifierSelfTest {
         Tcp = $TcpText
         Expected = 'service sentinel producer count must remain exactly one'
     }
+    if ($ControlServiceText -match
+            '(?im)^\s*AxisSetPositionAsyncState\s*:\s*' +
+            'ARRAY\s*\[\s*0\.\.127\s*\]\s*OF\s*DINT\s*;') {
+        $relocatedTerminalComparison = ([regex]::new(
+            ('(?is)(AxisSetPositionAsyncState\[21\]\s*=\s*)' +
+             'LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE'))).Replace(
+                $ControlServiceText,
+                '${1}LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE',
+                1)
+        $relocatedTerminalComparison = ([regex]::new(
+            '(?im)^\s*adminDetailCode\s*:=\s*0\s*;')).Replace(
+                $relocatedTerminalComparison,
+                'adminDetailCode := ' +
+                'LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE;',
+                1)
+        $fixtures['TerminalUncertaintyComparisonRelocated'] = @{
+            Service = $relocatedTerminalComparison
+            Tcp = $TcpText
+            Expected =
+                'P1 terminal uncertainty must route result 1 and exact -12'
+        }
+        $terminalResultOneRemoved = ([regex]::new(
+            ('(?is)(LMC_ADMIN_SET_POSITION_ASYNC_STATE_' +
+             'TERMINAL_COMMIT_PENDING\s*:.*?' +
+             'elsif\s*\(AxisSetPositionAsyncState\[21\]\s*=\s*)1' +
+             '(\)\s*\|\s*\(AxisSetPositionAsyncState\[21\]\s*=\s*' +
+             'LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE\))'))).Replace(
+                $ControlServiceText,
+                '${1}2${2}',
+                1)
+        $fixtures['TerminalUncertaintyResultOneRemoved'] = @{
+            Service = $terminalResultOneRemoved
+            Tcp = $TcpText
+            Expected =
+                'P1 terminal uncertainty must route result 1 and exact -12'
+        }
+    }
     $fixtures['StoreConfiguredTrue'] = @{
         Service = $ControlServiceText.Replace(
             $storeDefine,
@@ -18620,9 +18858,12 @@ function Invoke-LasalSetPositionCloseWithoutResponseVerifierSelfTest {
     }
     $fixtures['CallbackLocalTypeChanged'] = @{
         Service = $ControlServiceText
-        Tcp = $TcpText.Replace(
-            "`t`tcallbackDisarmResult : DINT;`n`t`tdiagnosticsResponseSize",
-            "`t`tcallbackDisarmResult : UDINT;`n`t`tdiagnosticsResponseSize")
+        Tcp = ([regex]::new(
+            ('(?ims)(FUNCTION\s+TCPMotionInterface::MsgPaser\s*\r?\n' +
+             '.*?^[ \t]*)callbackDisarmResult\s*:\s*DINT;'))).Replace(
+                $TcpText,
+                '${1}callbackDisarmResult : UDINT;',
+                1)
         Expected = 'MsgPaser local callbackDisarmResult'
     }
     $fixtures['CommandConditionChanged'] = @{
@@ -18645,7 +18886,7 @@ function Invoke-LasalSetPositionCloseWithoutResponseVerifierSelfTest {
             '// LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE_BEGIN',
             ('controlPendingResult := 0;' + [Environment]::NewLine +
              '    // LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE_BEGIN'))
-        Expected = 'must stay immediately after the service call'
+        Expected = 'P1 -13/-14/-12 consumers must remain ordered'
     }
     $fixtures['SocketSnapshotChanged'] = @{
         Service = $ControlServiceText
@@ -18812,9 +19053,3841 @@ function Invoke-LasalSetPositionCloseWithoutResponseVerifierSelfTest {
         }
         $rejectedCount++
     }
-    if ($rejectedCount -ne 38) {
-        throw "$Owner negative fixture count is $rejectedCount, expected 38."
+    $expectedRejectedCount = if ($ControlServiceText -match
+            '(?im)^\s*AxisSetPositionAsyncState\s*:') { 40 } else { 38 }
+    if ($rejectedCount -ne $expectedRejectedCount) {
+        throw (
+            "$Owner negative fixture count is $rejectedCount, expected " +
+            "$expectedRejectedCount.")
     }
+    return $rejectedCount
+}
+
+function Assert-LasalSetPositionAsyncControlContract {
+    param(
+        [string]$ControlServiceText,
+        [string]$TcpText,
+        [string]$Owner
+    )
+
+    $serviceScan = Get-LasalScanText $ControlServiceText
+    $tcpScan = Get-LasalScanText $TcpText
+    $stateNamePrefix = 'LMC_ADMIN_SET_POSITION_ASYNC_STATE_'
+    $stateArray = 'AxisSetPositionAsyncState'
+
+    $requiredControlDefines = [ordered]@{
+        LMC_ADMIN_SET_POSITION_ASYNC_MAGIC = '0x53504131'
+        LMC_ADMIN_SET_POSITION_PENDING = '-13'
+        LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE = '-14'
+        LMC_ADMIN_SET_POSITION_ASYNC_STATE_IDLE = '0'
+        LMC_ADMIN_SET_POSITION_ASYNC_STATE_BEGIN_PENDING = '1'
+        LMC_ADMIN_SET_POSITION_ASYNC_STATE_FRESH_ARMED = '2'
+        LMC_ADMIN_SET_POSITION_ASYNC_STATE_OWNERSHIP_RESERVED = '3'
+        LMC_ADMIN_SET_POSITION_ASYNC_STATE_PREFLIGHT_PENDING = '4'
+        LMC_ADMIN_SET_POSITION_ASYNC_STATE_PREFLIGHT_READY = '5'
+        LMC_ADMIN_SET_POSITION_ASYNC_STATE_OWNERSHIP_ACTIVE = '6'
+        LMC_ADMIN_SET_POSITION_ASYNC_STATE_EXECUTION_PENDING = '7'
+        LMC_ADMIN_SET_POSITION_ASYNC_STATE_TERMINAL_COMMIT_PENDING = '8'
+        LMC_ADMIN_SET_POSITION_ASYNC_STATE_TERMINAL_PROVEN = '9'
+        LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED = '10'
+        LMC_SET_POSITION_PREFLIGHT_READY = '1'
+        LMC_SET_POSITION_PREFLIGHT_REJECTED = '2'
+        LMC_SET_POSITION_PREFLIGHT_CLIENT = '-4'
+        LMC_SET_POSITION_PREFLIGHT_STATE = '-5'
+        LMC_SET_POSITION_PREFLIGHT_CONFIG = '-6'
+        LMC_SET_POSITION_PREFLIGHT_VELOCITY = '-7'
+        LMC_SET_POSITION_PREFLIGHT_AXIS_ERROR = '-8'
+        LMC_SET_POSITION_PREFLIGHT_COORDINATE = '-9'
+        LMC_SET_POSITION_EVIDENCE_READY_MASK = '0x800003FF'
+        LMC_SET_POSITION_EVIDENCE_REJECT_MASK = '0x80000003'
+    }
+    foreach ($define in $requiredControlDefines.GetEnumerator()) {
+        $defineCount = [regex]::Matches(
+            $serviceScan,
+            ('(?im)^\s*#define\s+' + [regex]::Escape($define.Key) +
+             '\s+' + [regex]::Escape($define.Value) + '\s*$')).Count
+        if ($defineCount -ne 1) {
+            throw (
+                "$Owner Control define $($define.Key) must exist exactly " +
+                "once as $($define.Value).")
+        }
+    }
+    foreach ($sentinel in @(
+            @{ Name = 'LMC_ADMIN_SET_POSITION_PENDING'; Value = '-13' },
+            @{ Name = 'LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE'; Value = '-14' })) {
+        $tcpDefineCount = [regex]::Matches(
+            $tcpScan,
+            ('(?im)^\s*#define\s+' + [regex]::Escape($sentinel.Name) +
+             '\s+' + [regex]::Escape($sentinel.Value) + '\s*$')).Count
+        if ($tcpDefineCount -ne 1) {
+            throw (
+                "$Owner TCP define $($sentinel.Name) must exist exactly " +
+                "once as $($sentinel.Value).")
+        }
+    }
+    foreach ($sentinelLiteral in @('-13', '-14')) {
+        $literalPattern =
+            '(?<![0-9])' + [regex]::Escape($sentinelLiteral) + '(?![0-9])'
+        if ([regex]::Matches($serviceScan, $literalPattern).Count -ne 1 -or
+            [regex]::Matches($tcpScan, $literalPattern).Count -ne 1) {
+            throw (
+                "$Owner internal sentinel $sentinelLiteral must appear only " +
+                'in its one Control and one TCP definition.')
+        }
+    }
+    if ([regex]::Matches(
+            $serviceScan,
+            ('(?im)^\s*' + [regex]::Escape($stateArray) +
+             '\s*:\s*ARRAY\s*\[\s*0\.\.127\s*\]\s*OF\s*DINT\s*;\s*$')
+            ).Count -ne 1) {
+        throw "$Owner async context must be one exact DINT[0..127] member."
+    }
+
+    $handleRequestBlock = Get-LasalExactFunctionImplementationBlock `
+        -SourceText $serviceScan `
+        -ClassName 'LMCControlCommandService' `
+        -FunctionName 'HandleRequest' `
+        -Owner "$Owner HandleRequest"
+    $dispatchBlock = Get-LasalExactFunctionImplementationBlock `
+        -SourceText $serviceScan `
+        -ClassName 'LMCControlCommandService' `
+        -FunctionName 'DispatchRequestCommand' `
+        -Owner "$Owner DispatchRequestCommand"
+    $setPositionBlock = Get-LasalExactFunctionImplementationBlock `
+        -SourceText $serviceScan `
+        -ClassName 'LMCControlCommandService' `
+        -FunctionName 'HandleAdminSetPosition' `
+        -Owner "$Owner HandleAdminSetPosition"
+    $asyncProcessBlock = Get-LasalExactFunctionImplementationBlock `
+        -SourceText $serviceScan `
+        -ClassName 'LMCControlCommandService' `
+        -FunctionName 'ProcessAdminSetPositionAsync' `
+        -Owner "$Owner ProcessAdminSetPositionAsync"
+    $msgParserBlock = Get-LasalExactFunctionImplementationBlock `
+        -SourceText $tcpScan `
+        -ClassName 'TCPMotionInterface' `
+        -FunctionName 'MsgPaser' `
+        -Owner "$Owner MsgPaser"
+    $pendingHelperBlock = Get-LasalExactFunctionImplementationBlock `
+        -SourceText $tcpScan `
+        -ClassName 'TCPMotionInterface' `
+        -FunctionName 'HandleAdminSetPositionPending' `
+        -Owner "$Owner HandleAdminSetPositionPending"
+    $connSocketInfoBlock = Get-LasalExactFunctionImplementationBlock `
+        -SourceText $tcpScan `
+        -ClassName 'TCPMotionInterface' `
+        -FunctionName 'ConnSocketInfo' `
+        -Owner "$Owner ConnSocketInfo"
+    $cyWorkBlock = Get-LasalExactFunctionImplementationBlock `
+        -SourceText $tcpScan `
+        -ClassName 'TCPMotionInterface' `
+        -FunctionName 'CyWork' `
+        -Owner "$Owner CyWork"
+    $notifySessionClosedBlock = Get-LasalExactFunctionImplementationBlock `
+        -SourceText $serviceScan `
+        -ClassName 'LMCControlCommandService' `
+        -FunctionName 'NotifyAxisOwnershipSessionClosed' `
+        -Owner "$Owner NotifyAxisOwnershipSessionClosed"
+    $rawMsgParserMatches = [regex]::Matches(
+        $TcpText,
+        ('(?ims)^\s*FUNCTION\s+TCPMotionInterface::MsgPaser\s*$' +
+         '.*?^\s*END_FUNCTION\s*$'))
+    if ($rawMsgParserMatches.Count -ne 1) {
+        throw "$Owner raw TCP MsgPaser must exist exactly once."
+    }
+    $rawMsgParserBlock = $rawMsgParserMatches[0].Value
+
+    foreach ($responseSocketBlock in @(
+            @{ Name = 'HandleRequest'; Text = $handleRequestBlock })) {
+        if ([regex]::Matches(
+                $responseSocketBlock.Text,
+                '(?im)^\s*ResponseSocket\s*:\s*DINT\s*;\s*$').Count -ne 1) {
+            throw (
+                "$Owner $($responseSocketBlock.Name) must expose one exact " +
+                'ResponseSocket DINT input.')
+        }
+    }
+    Assert-Match $msgParserBlock (
+        '(?is)ControlCommands\.HandleRequest\s*\(.*?' +
+        'CallerSessionEpoch\s*:=\s*ActiveRequest\.SessionEpoch\s*,\s*' +
+        'RequestSequence\s*:=\s*ActiveRequest\.Sequence\s*,\s*' +
+        'AdmissionToken\s*:=\s*controlAdmissionToken\s*,\s*' +
+        'OwnerGeneration\s*:=\s*controlOwnerGeneration\s*,\s*' +
+        'ResponseSocket\s*:=\s*ActiveRequest\.Socket\s*\)') (
+        "$Owner TCP must pass the exact active response socket to Control.")
+
+    $scratchBeforeDispatchPattern =
+        '(?is)' + [regex]::Escape($stateArray) +
+        '\[114\](?:\$UDINT)?\s*:=\s*' +
+        'CallerSessionEpoch\s*;\s*' + [regex]::Escape($stateArray) +
+        '\[115\](?:\$UDINT)?\s*:=\s*RequestSequence\s*;\s*' +
+        [regex]::Escape($stateArray) + '\[116\]\s*:=\s*ResponseSocket\s*;\s*' +
+        [regex]::Escape($stateArray) + '\[117\]\s*:=\s*' +
+        'TO_DINT\s*\(\s*CommandId\s*\)\s*;\s*' +
+        [regex]::Escape($stateArray) + '\[118\]\s*:=\s*' +
+        'TO_DINT\s*\(\s*Reference\s*\)\s*;\s*' +
+        [regex]::Escape($stateArray) +
+        '\[119\](?:\$UDINT)?\s*:=\s*' +
+        'AdmissionToken\s*;\s*' + [regex]::Escape($stateArray) +
+        '\[120\](?:\$UDINT)?\s*:=\s*OwnerGeneration\s*;\s*' +
+        [regex]::Escape($stateArray) +
+        '\[121\](?:\$UDINT)?\s*:=\s*' +
+        'CallerSessionEpoch\s+xor\s+RequestSequence\s+xor\s+' +
+        'TO_UDINT\s*\(\s*ResponseSocket\s*\)\s+xor\s+' +
+        'TO_UDINT\s*\(\s*CommandId\s*\)\s+xor\s+' +
+        'TO_UDINT\s*\(\s*Reference\s*\)\s+xor\s+' +
+        'AdmissionToken\s+xor\s+OwnerGeneration\s*;\s*' +
+        'ResponseSize\s*:=\s*DispatchRequestCommand\s*\('
+    Assert-Match $handleRequestBlock $scratchBeforeDispatchPattern (
+        "$Owner transient invocation scratch 114..121 must be frozen " +
+        'immediately before DispatchRequestCommand.')
+    $scratchDirectClearPattern =
+        [regex]::Escape($stateArray) +
+        '\[114\](?:\$UDINT)?\s*:=\s*0\s*;\s*' +
+        [regex]::Escape($stateArray) +
+        '\[115\](?:\$UDINT)?\s*:=\s*0\s*;\s*' +
+        [regex]::Escape($stateArray) + '\[116\]\s*:=\s*0\s*;\s*' +
+        [regex]::Escape($stateArray) + '\[117\]\s*:=\s*0\s*;\s*' +
+        [regex]::Escape($stateArray) + '\[118\]\s*:=\s*0\s*;\s*' +
+        [regex]::Escape($stateArray) +
+        '\[119\](?:\$UDINT)?\s*:=\s*0\s*;\s*' +
+        [regex]::Escape($stateArray) +
+        '\[120\](?:\$UDINT)?\s*:=\s*0\s*;\s*' +
+        [regex]::Escape($stateArray) +
+        '\[121\](?:\$UDINT)?\s*:=\s*0\s*;'
+    $scratchMemsetClearPattern =
+        '_memset\s*\(\s*dest\s*:=\s*#' +
+        [regex]::Escape($stateArray) + '\[114\]\s*,\s*' +
+        'usByte\s*:=\s*0\s*,\s*cntr\s*:=\s*32\s*\)\s*;'
+    Assert-Match $handleRequestBlock (
+        '(?is)ResponseSize\s*:=\s*DispatchRequestCommand\s*\(.*?\)\s*;\s*' +
+        '(?:' + $scratchDirectClearPattern + '|' +
+        $scratchMemsetClearPattern + ')') (
+        "$Owner transient invocation scratch 114..121 must be zeroed " +
+        'immediately after DispatchRequestCommand.')
+    Assert-Match $handleRequestBlock (
+        '(?is)CommandId\s*=\s*0x7D12.*?' +
+        'AdmissionToken\s*=\s*0.*?OwnerGeneration\s*=\s*0') (
+        "$Owner 0x7D12 outer admission token/generation must remain zero.")
+    Assert-Match $dispatchBlock (
+        '(?ims)case\s+CommandId\s+of.*?^\s*0x7D12\s*:\s*' +
+        'ResponseSize\s*:=\s*HandleAdminSetPosition\s*\(\s*' +
+        'Reference\s*:=\s*Reference\s*,\s*' +
+        'pRequestFrame\s*:=\s*pRequestFrame\s*,\s*' +
+        'RequestFrameSize\s*:=\s*RequestFrameSize\s*,\s*' +
+        'pResponseFrame\s*:=\s*pResponseFrame\s*,\s*' +
+        'ResponseCapacity\s*:=\s*ResponseCapacity\s*\)\s*;') (
+        "$Owner DispatchRequestCommand must retain one dedicated exact " +
+        '0x7D12 route to HandleAdminSetPosition.')
+
+    Assert-Match $asyncProcessBlock (
+        '(?is)adminInvokeCheck\s*:=\s*' +
+        [regex]::Escape($stateArray) + '\[114\]\$UDINT\s+xor\s+' +
+        [regex]::Escape($stateArray) + '\[115\]\$UDINT\s+xor\s+' +
+        [regex]::Escape($stateArray) + '\[116\]\$UDINT\s+xor\s+' +
+        [regex]::Escape($stateArray) + '\[117\]\$UDINT\s+xor\s+' +
+        [regex]::Escape($stateArray) + '\[118\]\$UDINT\s+xor\s+' +
+        [regex]::Escape($stateArray) + '\[119\]\$UDINT\s+xor\s+' +
+        [regex]::Escape($stateArray) + '\[120\]\$UDINT\s*;\s*' +
+        'adminInvocationValid\s*:=\s*' +
+        '\(' + [regex]::Escape($stateArray) +
+        '\[114\]\$UDINT\s*<>\s*0\)\s*&\s*' +
+        '\(' + [regex]::Escape($stateArray) +
+        '\[115\]\$UDINT\s*<>\s*0\)\s*&\s*' +
+        '\(' + [regex]::Escape($stateArray) +
+        '\[116\]\s*<>\s*0\)\s*&\s*' +
+        '\(' + [regex]::Escape($stateArray) +
+        '\[117\]\s*=\s*0x7D12\)\s*&\s*' +
+        '\(' + [regex]::Escape($stateArray) +
+        '\[118\]\s*=\s*TO_DINT\s*\(\s*Reference\s*\)\)\s*&\s*' +
+        '\(' + [regex]::Escape($stateArray) +
+        '\[119\]\$UDINT\s*=\s*0\)\s*&\s*' +
+        '\(' + [regex]::Escape($stateArray) +
+        '\[120\]\$UDINT\s*=\s*0\)\s*&\s*' +
+        '\(' + [regex]::Escape($stateArray) +
+        '\[121\]\$UDINT\s*=\s*adminInvokeCheck\)\s*;\s*' +
+        'if\s+adminInvocationValid\s*=\s*FALSE\s+then.*?' +
+         'LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED.*?' +
+         [regex]::Escape($stateArray) + '\[31\]\s*:=\s*2\s*;.*?' +
+        'ResponseSize\s*:=\s*LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE\s*;.*?' +
+        'RETURN\s*;\s*end_if\s*;') (
+        "$Owner private async processor must validate the exact invocation " +
+        'XOR, nonzero socket, command/reference, and zero outer tuple.')
+
+    foreach ($requestLocal in @(
+            @{ Name = 'adminSetPositionKey'; Size = '0\.\.47'; Type = 'USINT' },
+            @{ Name = 'adminSchemaVersion'; Type = 'UINT' },
+            @{ Name = 'adminRequestFlags'; Type = 'UINT' },
+            @{ Name = 'adminRequestId'; Type = 'UDINT' },
+            @{ Name = 'adminDiagnosticsBuild'; Type = 'UDINT' },
+            @{ Name = 'adminBootId'; Type = 'UDINT' },
+            @{ Name = 'adminMapRevision'; Type = 'UDINT' },
+            @{ Name = 'adminClientIntentId0'; Type = 'UDINT' },
+            @{ Name = 'adminClientIntentId1'; Type = 'UDINT' },
+            @{ Name = 'adminClientIntentId2'; Type = 'UDINT' },
+            @{ Name = 'adminClientIntentId3'; Type = 'UDINT' },
+            @{ Name = 'adminAxisPosition'; Type = 'DINT' },
+            @{ Name = 'adminExpectedActualPosition'; Type = 'DINT' },
+            @{ Name = 'adminIdentityCompareResult'; Type = 'UDINT' },
+            @{ Name = 'adminKeyCompareResult'; Type = 'UDINT' },
+            @{ Name = 'adminExecuteToken'; Type = 'UDINT' })) {
+        $requestLocalPattern = if ($requestLocal.ContainsKey('Size')) {
+            ('(?im)^\s*' + $requestLocal.Name + '\s*:\s*ARRAY\s*\[\s*' +
+             $requestLocal.Size + '\s*\]\s*OF\s*' +
+             $requestLocal.Type + '\s*;\s*$')
+        }
+        else {
+            ('(?im)^\s*' + $requestLocal.Name + '\s*:\s*' +
+             $requestLocal.Type + '\s*;\s*$')
+        }
+        if ([regex]::Matches(
+                $asyncProcessBlock, $requestLocalPattern).Count -ne 1) {
+            throw (
+                "$Owner private async request ABI local " +
+                "$($requestLocal.Name) drifted.")
+        }
+    }
+    Assert-Match $asyncProcessBlock (
+        '(?is)ResponseSize\s*:=\s*-1\s*;.*?' +
+        'adminContextCheck\s*:=\s*0\s*;.*?' +
+        'adminInvokeCheck\s*:=\s*0\s*;.*?' +
+        'adminIdentityCompareResult\s*:=\s*0\s*;.*?' +
+        'adminKeyCompareResult\s*:=\s*0\s*;.*?' +
+        'adminPreflightState\s*:=\s*0\s*;.*?' +
+        'adminPreflightFailure\s*:=\s*0\s*;.*?' +
+        'adminPreflightDetail\s*:=\s*0\s*;.*?' +
+        'adminPreflightEvidence\s*:=\s*0\s*;.*?' +
+        'adminInvocationValid\s*:=\s*FALSE\s*;.*?' +
+        'adminPreflightValid\s*:=\s*FALSE\s*;.*?' +
+        'adminPreflightRejected\s*:=\s*FALSE\s*;.*?' +
+        '_memset\s*\(\s*dest\s*:=\s*#adminSetPositionKey\[0\]\s*,\s*' +
+        'usByte\s*:=\s*0\s*,\s*cntr\s*:=\s*48\s*\)\s*;') (
+        "$Owner private async invocation must initialize every decision/result " +
+        'local and zero the normalized key before reading state.')
+    Assert-Match $asyncProcessBlock (
+        '(?is)_memset\s*\(\s*dest\s*:=\s*#adminFrozenResponse\[0\]\s*,\s*' +
+        'usByte\s*:=\s*0\s*,\s*cntr\s*:=\s*36\s*\)\s*;\s*' +
+        'if\s+\(pRequestFrame\s*=\s*NIL\)\s*\|\s*' +
+        '\(pResponseFrame\s*=\s*NIL\)\s*\|\s*' +
+        '\(ResponseCapacity\s*<\s*36\)\s+then\s*' +
+        'RETURN\s*;\s*end_if\s*;\s*adminInvokeCheck\s*:=' ) (
+        "$Owner private async entry must reject NIL frames and response " +
+        'capacity below 36 before invocation or request reads.')
+    Assert-Match $asyncProcessBlock (
+        '(?is)if\s+RequestFrameSize\s*>=\s*56\s+then\s*' +
+        'adminSchemaVersion\s*:=\s*' +
+        '\(pRequestFrame\s*\+\s*8\)\^\$UINT\s*;.*?' +
+        'adminRequestFlags\s*:=\s*' +
+        '\(pRequestFrame\s*\+\s*10\)\^\$UINT\s*;.*?' +
+        'adminRequestId\s*:=\s*' +
+        '\(pRequestFrame\s*\+\s*12\)\^\$UDINT\s*;.*?' +
+        'adminDiagnosticsBuild\s*:=\s*' +
+        '\(pRequestFrame\s*\+\s*16\)\^\$UDINT\s*;.*?' +
+        'adminBootId\s*:=\s*' +
+        '\(pRequestFrame\s*\+\s*20\)\^\$UDINT\s*;.*?' +
+        'adminMapRevision\s*:=\s*' +
+        '\(pRequestFrame\s*\+\s*24\)\^\$UDINT\s*;.*?' +
+        'adminClientIntentId0\s*:=\s*' +
+        '\(pRequestFrame\s*\+\s*28\)\^\$UDINT\s*;.*?' +
+        'adminClientIntentId1\s*:=\s*' +
+        '\(pRequestFrame\s*\+\s*32\)\^\$UDINT\s*;.*?' +
+        'adminClientIntentId2\s*:=\s*' +
+        '\(pRequestFrame\s*\+\s*36\)\^\$UDINT\s*;.*?' +
+        'adminClientIntentId3\s*:=\s*' +
+        '\(pRequestFrame\s*\+\s*40\)\^\$UDINT\s*;.*?' +
+        'adminAxisPosition\s*:=\s*' +
+        '\(pRequestFrame\s*\+\s*44\)\^\$DINT\s*;.*?' +
+        'adminExpectedActualPosition\s*:=\s*' +
+        '\(pRequestFrame\s*\+\s*48\)\^\$DINT\s*;.*?' +
+        'adminExecuteToken\s*:=\s*' +
+        '\(pRequestFrame\s*\+\s*52\)\^\$UDINT\s*;\s*end_if\s*;') (
+        "$Owner private async request decoding must retain every exact " +
+        '0x7D12 byte offset through the execute token behind the size guard.')
+    Assert-Match $asyncProcessBlock (
+        '(?is)if\s+RequestFrameSize\s*<>\s*56\s+then.*?' +
+        'elsif\s+\(Reference\s*<\s*1\)\s*\|\s*' +
+        '\(Reference\s*>\s*4\).*?' +
+        'elsif\s+adminSchemaVersion\s*<>\s*1.*?' +
+        'elsif\s+adminRequestFlags\s*<>\s*0.*?' +
+        'elsif\s+adminRequestId\s*=\s*0.*?' +
+        'elsif\s+adminExecuteToken\s*<>\s*0x50544553') (
+        "$Owner private async request shape/schema/reference guards drifted.")
+    Assert-Match $asyncProcessBlock (
+        '(?is)adminSetPositionKey\[0\]\$UINT\s*:=\s*1\s*;\s*' +
+        'adminSetPositionKey\[2\]\$UINT\s*:=\s*1\s*;\s*' +
+        'adminSetPositionKey\[4\]\$UDINT\s*:=\s*adminDiagnosticsBuild\s*;\s*' +
+        'adminSetPositionKey\[8\]\$UDINT\s*:=\s*adminBootId\s*;\s*' +
+        'adminSetPositionKey\[12\]\$UDINT\s*:=\s*adminMapRevision\s*;\s*' +
+        'adminSetPositionKey\[16\]\$UDINT\s*:=\s*adminRequestId\s*;\s*' +
+        'adminSetPositionKey\[20\]\$UDINT\s*:=\s*adminClientIntentId0\s*;\s*' +
+        'adminSetPositionKey\[24\]\$UDINT\s*:=\s*adminClientIntentId1\s*;\s*' +
+        'adminSetPositionKey\[28\]\$UDINT\s*:=\s*adminClientIntentId2\s*;\s*' +
+        'adminSetPositionKey\[32\]\$UDINT\s*:=\s*adminClientIntentId3\s*;\s*' +
+        'adminSetPositionKey\[36\]\$UINT\s*:=\s*Reference\s*;\s*' +
+        'adminSetPositionKey\[38\]\$UINT\s*:=\s*0\s*;\s*' +
+        'adminSetPositionKey\[40\]\$DINT\s*:=\s*adminAxisPosition\s*;\s*' +
+        'adminSetPositionKey\[44\]\$DINT\s*:=\s*' +
+        'adminExpectedActualPosition\s*;.*?' +
+        '_memcpy\s*\(\s*ptr1\s*:=\s*#' +
+        [regex]::Escape($stateArray) + '\[44\]\s*,\s*' +
+        'ptr2\s*:=\s*#adminSetPositionKey\[0\]\s*,\s*' +
+        'cntr\s*:=\s*48\s*\)') (
+        "$Owner P1 must build and freeze the exact normalized 48-byte Store key.")
+    $contextCheckExpression =
+        'LMC_ADMIN_SET_POSITION_ASYNC_MAGIC\s+xor\s+' +
+        [regex]::Escape($stateArray) + '\[2\]\$UDINT\s+xor\s+' +
+        [regex]::Escape($stateArray) + '\[3\]\$UDINT\s+xor\s+' +
+        [regex]::Escape($stateArray) + '\[4\]\$UDINT\s+xor\s+' +
+        [regex]::Escape($stateArray) + '\[5\]\$UDINT\s+xor\s+' +
+        [regex]::Escape($stateArray) + '\[6\]\$UDINT\s+xor\s+' +
+        [regex]::Escape($stateArray) + '\[7\]\$UDINT\s+xor\s+' +
+        [regex]::Escape($stateArray) + '\[8\]\$UDINT\s+xor\s+' +
+        [regex]::Escape($stateArray) + '\[9\]\$UDINT\s+xor\s+' +
+        [regex]::Escape($stateArray) + '\[10\]\$UDINT\s+xor\s+' +
+        [regex]::Escape($stateArray) + '\[11\]\$UDINT\s+xor\s+' +
+        [regex]::Escape($stateArray) + '\[12\]\$UDINT\s+xor\s+' +
+        [regex]::Escape($stateArray) + '\[13\]\$UDINT\s+xor\s+' +
+        [regex]::Escape($stateArray) + '\[14\]\$UDINT'
+    $contextCheckComputations = [regex]::Matches(
+        $asyncProcessBlock,
+        ('(?is)adminContextCheck\s*:=\s*' +
+         $contextCheckExpression + '\s*;'))
+    if ($contextCheckComputations.Count -lt 2) {
+        throw (
+            "$Owner ContextCheck must be computed from magic plus slots " +
+            '2..14 both when freezing and before every continuation use.')
+    }
+    if ($asyncProcessBlock -match
+            ('(?is)adminContextCheck\s*:=[^;]*' +
+             [regex]::Escape($stateArray) + '\[(?:3[2-9]|4[0-9]|5[0-5])\]')) {
+        throw (
+            "$Owner ContextCheck must exclude mutable/raw identity and Store " +
+            'buffers 32..55; those are verified by full byte compares.')
+    }
+    Assert-Match $asyncProcessBlock (
+        '(?is)' + [regex]::Escape($stateArray) +
+        '\[30\]\$UDINT\s*:=\s*adminContextCheck\s*;.*?' +
+        '\(' + [regex]::Escape($stateArray) +
+        '\[30\]\$UDINT\s*=\s*adminContextCheck\)') (
+        "$Owner frozen ContextCheck slot 30 must be written once and " +
+        'revalidated before continuation use.')
+    Assert-Match $asyncProcessBlock (
+        '(?is)adminIdentityCompareResult\s*:=\s*_memcmp\s*\(\s*' +
+        'ptr1\s*:=\s*#' + [regex]::Escape($stateArray) +
+        '\[32\]\s*,\s*ptr2\s*:=\s*\(pRequestFrame\s*\+\s*8\)\s*,\s*' +
+        'cntr\s*:=\s*48\s*\)\s*;\s*' +
+        'adminKeyCompareResult\s*:=\s*_memcmp\s*\(\s*' +
+        'ptr1\s*:=\s*#' + [regex]::Escape($stateArray) +
+        '\[44\]\s*,\s*ptr2\s*:=\s*#adminSetPositionKey\[0\]\s*,\s*' +
+        'cntr\s*:=\s*48\s*\)\s*;\s*' +
+        'if\s+\(adminIdentityCompareResult\s*<>\s*0\)\s*\|\s*' +
+        '\(adminKeyCompareResult\s*<>\s*0\)\s+then.*?' +
+        'LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED.*?' +
+        'RETURN\s*;\s*end_if\s*;') (
+        "$Owner must full-compare both 48-byte raw identity and normalized " +
+        'Store key before continuing or committing.')
+    $identityKeyProofPattern =
+        '(?is)adminIdentityCompareResult\s*:=\s*_memcmp\s*\(\s*' +
+        'ptr1\s*:=\s*#' + [regex]::Escape($stateArray) +
+        '\[32\]\s*,\s*ptr2\s*:=\s*\(pRequestFrame\s*\+\s*8\)\s*,\s*' +
+        'cntr\s*:=\s*48\s*\)\s*;\s*' +
+        'adminKeyCompareResult\s*:=\s*_memcmp\s*\(\s*' +
+        'ptr1\s*:=\s*#' + [regex]::Escape($stateArray) +
+        '\[44\]\s*,\s*ptr2\s*:=\s*#adminSetPositionKey\[0\]\s*,\s*' +
+        'cntr\s*:=\s*48\s*\)\s*;\s*' +
+        'if\s+\(adminIdentityCompareResult\s*<>\s*0\)\s*\|\s*' +
+        '\(adminKeyCompareResult\s*<>\s*0\)\s+then.*?' +
+        'LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED.*?' +
+        'RETURN\s*;\s*end_if\s*;'
+    $identityKeyProofMatch = [regex]::Match(
+        $asyncProcessBlock,
+        $identityKeyProofPattern)
+    $lifecycleCaseMatch = [regex]::Match(
+        $asyncProcessBlock,
+        ('(?is)case\s+' + [regex]::Escape($stateArray) +
+         '\[1\]\s+of'))
+    $firstPersistentCallMatch = [regex]::Match(
+        $asyncProcessBlock,
+        ('(?is)(?:SetPositionStore\.BeginSetPosition|' +
+         'ReserveAxisOwnership|CommitAxisOwnership|' +
+         'SetPositionStore\.CommitSetPositionTerminal)\s*\('))
+    if (-not $identityKeyProofMatch.Success -or
+        -not $lifecycleCaseMatch.Success -or
+        -not $firstPersistentCallMatch.Success -or
+        $identityKeyProofMatch.Index -ge $lifecycleCaseMatch.Index -or
+        $identityKeyProofMatch.Index -ge $firstPersistentCallMatch.Index) {
+        throw (
+            "$Owner raw identity and normalized-key full proof must quarantine " +
+            'mismatch before lifecycle CASE and every Begin/Reserve/Commit call.')
+    }
+    Assert-Match $asyncProcessBlock (
+        '(?is)if\s+\(' + [regex]::Escape($stateArray) +
+        '\[1\]\s*>=\s*LMC_ADMIN_SET_POSITION_ASYNC_STATE_OWNERSHIP_RESERVED\)\s*&\s*' +
+        '\(' + [regex]::Escape($stateArray) +
+        '\[1\]\s*<=\s*LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED\)\s+then\s*' +
+        'adminContextCheck\s*:=\s*' + $contextCheckExpression + '\s*;\s*' +
+        'if\s+\(' + [regex]::Escape($stateArray) +
+        '\[0\]\$UDINT\s*<>\s*LMC_ADMIN_SET_POSITION_ASYNC_MAGIC\)\s*\|\s*' +
+        '\(' + [regex]::Escape($stateArray) +
+        '\[30\]\$UDINT\s*<>\s*adminContextCheck\).*?' +
+        '\(' + [regex]::Escape($stateArray) +
+        '\[122\]\s*<>\s*0\).*?' +
+        '\(' + [regex]::Escape($stateArray) +
+        '\[127\]\s*<>\s*0\)\s+then\s*' +
+        [regex]::Escape($stateArray) + '\[1\]\s*:=\s*' +
+        'LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED\s*;\s*' +
+        [regex]::Escape($stateArray) + '\[31\]\s*:=\s*1\s*;\s*' +
+        'ResponseSize\s*:=\s*LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE\s*;\s*' +
+        'RETURN\s*;\s*end_if\s*;\s*end_if\s*;') (
+        "$Owner continuation must reprove magic, exact ContextCheck, and all " +
+        'reserved-zero slots before lifecycle use.')
+    Assert-Match $asyncProcessBlock (
+        '(?is)if\s+\(' + [regex]::Escape($stateArray) +
+        '\[1\]\s*<>\s*LMC_ADMIN_SET_POSITION_ASYNC_STATE_IDLE\)\s*&\s*' +
+        '\(\(' + [regex]::Escape($stateArray) +
+        '\[3\]\$UDINT\s*<>\s*' + [regex]::Escape($stateArray) +
+        '\[114\]\$UDINT\)\s*\|\s*\(' + [regex]::Escape($stateArray) +
+        '\[4\]\$UDINT\s*<>\s*' + [regex]::Escape($stateArray) +
+        '\[115\]\$UDINT\)\s*\|\s*\(' + [regex]::Escape($stateArray) +
+        '\[8\]\s*<>\s*' + [regex]::Escape($stateArray) +
+        '\[116\]\)\s*\|\s*\(' + [regex]::Escape($stateArray) +
+        '\[11\]\s*<>\s*TO_DINT\s*\(\s*Reference\s*\)\)\)\s+then\s*' +
+        [regex]::Escape($stateArray) + '\[1\]\s*:=\s*' +
+        'LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED\s*;\s*' +
+        [regex]::Escape($stateArray) + '\[31\]\s*:=\s*2\s*;\s*' +
+        'ResponseSize\s*:=\s*LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE\s*;\s*' +
+        'RETURN\s*;\s*end_if\s*;') (
+        "$Owner continuation must quarantine exact session/sequence/socket/" +
+        'reference tuple drift as reason 2 before state use.')
+    $deadlineMatches = [regex]::Matches(
+        $asyncProcessBlock,
+        ('(?is)if\s+\(' + [regex]::Escape($stateArray) +
+         '\[1\]\s*>=\s*LMC_ADMIN_SET_POSITION_ASYNC_STATE_OWNERSHIP_RESERVED\)\s*&\s*' +
+         '\(' + [regex]::Escape($stateArray) +
+         '\[1\]\s*<=\s*LMC_ADMIN_SET_POSITION_ASYNC_STATE_OWNERSHIP_ACTIVE\)\s*&\s*' +
+         '\(\(ops\.tAbsolute\s*-\s*' + [regex]::Escape($stateArray) +
+         '\[9\]\$UDINT\)\$UDINT\s*>=\s*' + [regex]::Escape($stateArray) +
+         '\[10\]\$UDINT\)\s+then\s*' + [regex]::Escape($stateArray) +
+         '\[1\]\s*:=\s*LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED\s*;\s*' +
+         [regex]::Escape($stateArray) + '\[31\]\s*:=\s*3\s*;\s*' +
+         'ResponseSize\s*:=\s*LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE\s*;\s*' +
+         'RETURN\s*;\s*end_if\s*;'))
+    $copyPollMatch = [regex]::Match(
+        $asyncProcessBlock,
+        '(?i)InputLatch\.CopyAxisSetPositionPreflightResult\s*\(')
+    if ($deadlineMatches.Count -ne 1 -or
+        -not $copyPollMatch.Success -or
+        $deadlineMatches[0].Index -ge $copyPollMatch.Index) {
+        throw (
+            "$Owner exact wrap-safe 1000 ms deadline must dominate every " +
+            'preflight Copy/result observation.')
+    }
+    $fullContextClearPresent = [regex]::IsMatch(
+        $serviceScan,
+        ('(?is)_memset\s*\(\s*dest\s*:=\s*#' +
+         [regex]::Escape($stateArray) + '(?:\[0\])?\s*,\s*' +
+         'usByte\s*:=\s*0\s*,\s*cntr\s*:=\s*' +
+         '(?:512|sizeof\s*\(\s*' + [regex]::Escape($stateArray) +
+         '\s*\))\s*\)\s*;'))
+    foreach ($reservedSlot in 122..127) {
+        $reservedAssignments = [regex]::Matches(
+            $serviceScan,
+            ('(?i)' + [regex]::Escape($stateArray) + '\[' +
+             $reservedSlot + '\]\s*:=\s*(?<Value>[^;]+);'))
+        if ($reservedAssignments.Count -lt 1 -and
+            -not $fullContextClearPresent) {
+            throw (
+                "$Owner reserved async slot $reservedSlot must be zeroed " +
+                'directly or by one exact full-context clear.')
+        }
+        if (@($reservedAssignments | Where-Object {
+                    $_.Groups['Value'].Value.Trim() -cne '0'
+                }).Count -ne 0) {
+            throw "$Owner reserved async slot $reservedSlot must never persist data."
+        }
+    }
+
+    $getMarkedBody = {
+        param([string]$Text, [string]$Marker, [string]$Label)
+        $markedMatches = [regex]::Matches(
+            $Text,
+            ('(?ims)^\s*//\s*' + [regex]::Escape($Marker) +
+             '_BEGIN\s*$' + '(?<Body>.*?)' + '^\s*//\s*' +
+             [regex]::Escape($Marker) + '_END\s*$'))
+        if ($markedMatches.Count -ne 1) {
+            throw "$Owner $Label marker block must exist exactly once."
+        }
+        return Get-LasalScanText $markedMatches[0].Groups['Body'].Value
+    }
+    $asyncBlock = & $getMarkedBody `
+        $ControlServiceText 'LMC_ADMIN_SET_POSITION_ASYNC' 'Control async'
+    $pendingBlock = & $getMarkedBody `
+        $TcpText 'LMC_ADMIN_SET_POSITION_PENDING' 'TCP pending'
+    $quarantineBlock = & $getMarkedBody `
+        $TcpText 'LMC_ADMIN_SET_POSITION_QUARANTINE' 'TCP quarantine'
+    $rawAsyncProcessMatches = [regex]::Matches(
+        $ControlServiceText,
+        ('(?ims)^\s*FUNCTION\s+' +
+         'LMCControlCommandService::ProcessAdminSetPositionAsync\s*$' +
+         '.*?^\s*END_FUNCTION\s*$'))
+    if ($rawAsyncProcessMatches.Count -ne 1 -or
+        $asyncProcessBlock -notmatch
+            '(?i)LMC_ADMIN_SET_POSITION_ASYNC_MAGIC' -or
+        $rawAsyncProcessMatches[0].Value -notmatch
+            '(?is)LMC_ADMIN_SET_POSITION_ASYNC_BEGIN.*?' +
+            'LMC_ADMIN_SET_POSITION_ASYNC_END') {
+        throw (
+            "$Owner async marker block must remain inside private " +
+            'ProcessAdminSetPositionAsync.')
+    }
+    if ([regex]::Matches(
+            $setPositionBlock,
+            '(?i)(?<![A-Za-z0-9_.:])ProcessAdminSetPositionAsync\s*\(').Count -ne 1 -or
+        $setPositionBlock -match
+            '(?i)BeginSetPosition|ReserveAxisOwnership|' +
+            'SubmitAxisSetPositionPreflight|CopyAxisSetPositionPreflightResult|' +
+            'CommitSetPositionTerminal|CommitAxisOwnership|' +
+            'RollbackAxisOwnership') {
+        throw (
+            "$Owner HandleAdminSetPosition must delegate exactly once to " +
+            'the private async processor and own no lifecycle operation.')
+    }
+
+    $getStateBody = {
+        param([string]$StateSuffix)
+        $stateName = $stateNamePrefix + $StateSuffix
+        $stateMatches = [regex]::Matches(
+            $asyncBlock,
+            ('(?ims)^\s*' + [regex]::Escape($stateName) +
+             '\s*:\s*(?<Body>.*?)(?=^\s*(?:' +
+             [regex]::Escape($stateNamePrefix) +
+             '[A-Z_]+\s*:|end_case\b))'))
+        if ($stateMatches.Count -ne 1) {
+            throw "$Owner lifecycle state $StateSuffix must have one case body."
+        }
+        return $stateMatches[0].Groups['Body'].Value
+    }
+    $stateBlocks = [ordered]@{}
+    foreach ($stateSuffix in @(
+            'IDLE', 'BEGIN_PENDING', 'FRESH_ARMED',
+            'OWNERSHIP_RESERVED', 'PREFLIGHT_PENDING', 'PREFLIGHT_READY',
+            'OWNERSHIP_ACTIVE', 'EXECUTION_PENDING',
+            'TERMINAL_COMMIT_PENDING', 'TERMINAL_PROVEN', 'QUARANTINED')) {
+        $stateBlocks[$stateSuffix] = & $getStateBody $stateSuffix
+    }
+
+    $sameInvocationRepeatPattern =
+        '(?is)\brepeat\s*case\s+' + [regex]::Escape($stateArray) +
+        '\[1\]\s+of.*?end_case\s*;\s*until\s*\(' +
+        [regex]::Escape($stateArray) + '\[1\]\s*<>\s*' +
+        'LMC_ADMIN_SET_POSITION_ASYNC_STATE_BEGIN_PENDING\)\s*&\s*\(' +
+        [regex]::Escape($stateArray) + '\[1\]\s*<>\s*' +
+        'LMC_ADMIN_SET_POSITION_ASYNC_STATE_FRESH_ARMED\)\s*&\s*\(' +
+        [regex]::Escape($stateArray) + '\[1\]\s*<>\s*' +
+        'LMC_ADMIN_SET_POSITION_ASYNC_STATE_PREFLIGHT_READY\)\s*&\s*\(' +
+        [regex]::Escape($stateArray) + '\[1\]\s*<>\s*' +
+        'LMC_ADMIN_SET_POSITION_ASYNC_STATE_TERMINAL_COMMIT_PENDING\)\s*&\s*\(' +
+        [regex]::Escape($stateArray) + '\[1\]\s*<>\s*' +
+        'LMC_ADMIN_SET_POSITION_ASYNC_STATE_TERMINAL_PROVEN\)\s*' +
+        'end_repeat\s*;'
+    if ([regex]::Matches(
+            $asyncBlock,
+            $sameInvocationRepeatPattern).Count -ne 1) {
+        throw (
+            "$Owner async lifecycle must use one exact same-invocation " +
+            'REPEAT continuation for BeginPending, FreshArmed, ' +
+            'PreflightReady, TerminalCommitPending, and TerminalProven.')
+    }
+    if ($stateBlocks['IDLE'] -match '(?i)\bRETURN\b|\bResponseSize\s*:=') {
+        throw (
+            "$Owner IDLE must enter BeginPending in the same invocation " +
+            'without publishing pending or returning.')
+    }
+
+    $callPatterns = [ordered]@{
+        Begin = '(?i)\bSetPositionStore\.BeginSetPosition\s*\('
+        Reserve = '(?i)(?<![A-Za-z0-9_.:])ReserveAxisOwnership\s*\('
+        Submit = '(?i)\bInputLatch\.SubmitAxisSetPositionPreflight\s*\('
+        Copy = '(?i)\bInputLatch\.CopyAxisSetPositionPreflightResult\s*\('
+        Validate = '(?i)(?<![A-Za-z0-9_.:])ValidateAxisOwnershipIdentity\s*\('
+        CommitOwnership = '(?i)(?<![A-Za-z0-9_.:])CommitAxisOwnership\s*\('
+        CommitTerminal = '(?i)\bSetPositionStore\.CommitSetPositionTerminal\s*\('
+        Release = '(?i)(?<![A-Za-z0-9_.:])RollbackAxisOwnership\s*\('
+    }
+    $callState = [ordered]@{
+        Begin = 'BEGIN_PENDING'
+        Reserve = 'FRESH_ARMED'
+        Submit = 'OWNERSHIP_RESERVED'
+        Copy = 'PREFLIGHT_PENDING'
+        Validate = 'PREFLIGHT_READY'
+        CommitOwnership = 'PREFLIGHT_READY'
+        CommitTerminal = 'TERMINAL_COMMIT_PENDING'
+        Release = 'TERMINAL_PROVEN'
+    }
+    foreach ($call in $callPatterns.GetEnumerator()) {
+        $totalCount = [regex]::Matches($asyncBlock, $call.Value).Count
+        $ownerState = $callState[$call.Key]
+        $ownerCount = [regex]::Matches(
+            $stateBlocks[$ownerState], $call.Value).Count
+        $expectedCallCount = if ($call.Key -ceq 'Validate') { 2 } else { 1 }
+        if ($totalCount -ne $expectedCallCount -or
+            $ownerCount -ne $expectedCallCount) {
+            throw (
+                "$Owner async $($call.Key) call must occur exactly " +
+                "$expectedCallCount time(s) and only in $ownerState.")
+        }
+    }
+    if ($asyncBlock -match
+            '(?i)(?:LMCAxis[1-9]|_LMCAxis)\s*\.\s*SetPosition\s*\(') {
+        throw "$Owner Admin async lifecycle must contain zero native SetPosition calls."
+    }
+
+    Assert-Match $stateBlocks['IDLE'] (
+        '(?is)' + [regex]::Escape($stateArray) +
+        '\[0\]\$UDINT\s*:=\s*LMC_ADMIN_SET_POSITION_ASYNC_MAGIC\s*;.*?' +
+        [regex]::Escape($stateArray) +
+        '\[1\]\s*:=\s*LMC_ADMIN_SET_POSITION_ASYNC_STATE_BEGIN_PENDING\s*;') (
+        "$Owner IDLE must freeze a versioned context before BeginPending.")
+    Assert-Match $stateBlocks['IDLE'] (
+        '(?is)_memcpy\s*\(\s*ptr1\s*:=\s*#' +
+        [regex]::Escape($stateArray) + '\[32\]\s*,\s*' +
+        'ptr2\s*:=\s*\(pRequestFrame\s*\+\s*8\).*?' +
+        'cntr\s*:=\s*48\s*\)') (
+        "$Owner IDLE must freeze the exact 48-byte raw identity at slots 32..43.")
+    Assert-Match $stateBlocks['IDLE'] (
+        '(?is)adminOwnerSession\s*:=\s*' +
+        [regex]::Escape($stateArray) + '\[114\]\$UDINT\s*;\s*' +
+        'adminOwnerSequence\s*:=\s*' +
+        [regex]::Escape($stateArray) + '\[115\]\$UDINT\s*;\s*' +
+        'adminResponseSocket\s*:=\s*' +
+        [regex]::Escape($stateArray) + '\[116\]\s*;.*?' +
+        '_memset\s*\(\s*dest\s*:=\s*#' +
+        [regex]::Escape($stateArray) + '\[0\]\s*,\s*' +
+        'usByte\s*:=\s*0\s*,\s*cntr\s*:=\s*512\s*\)\s*;.*?' +
+        [regex]::Escape($stateArray) + '\[0\]\$UDINT\s*:=\s*' +
+        'LMC_ADMIN_SET_POSITION_ASYNC_MAGIC\s*;.*?' +
+        [regex]::Escape($stateArray) + '\[3\]\$UDINT\s*:=\s*' +
+        'adminOwnerSession\s*;.*?' + [regex]::Escape($stateArray) +
+        '\[4\]\$UDINT\s*:=\s*adminOwnerSequence\s*;.*?' +
+        [regex]::Escape($stateArray) + '\[8\]\s*:=\s*' +
+        'adminResponseSocket\s*;.*?' + [regex]::Escape($stateArray) +
+        '\[10\]\$UDINT\s*:=\s*1000\s*;') (
+        "$Owner IDLE must capture invocation identity, zero all 128 slots, " +
+        'then initialize the frozen magic/session/sequence/socket/deadline.')
+    Assert-Match $stateBlocks['BEGIN_PENDING'] (
+        '(?is)SetPositionStore\.BeginSetPosition\s*\(\s*' +
+        'pKey\s*:=\s*#' + [regex]::Escape($stateArray) + '\[44\]\s*,\s*' +
+        'KeySize\s*:=\s*48\s*,\s*pSnapshot\s*:=\s*#' +
+        [regex]::Escape($stateArray) + '\[56\]\s*,\s*' +
+        'SnapshotCapacity\s*:=\s*68\s*,\s*' +
+        'pRecordGeneration\s*:=\s*\(#' + [regex]::Escape($stateArray) +
+        '\[2\]\)\$\^UDINT\s*,\s*pDetailCode\s*:=\s*\(#' +
+        [regex]::Escape($stateArray) + '\[22\]\)\$\^UDINT\s*\)') (
+        "$Owner BeginPending Store Begin must use frozen key/snapshot/generation slots.")
+    Assert-Match $stateBlocks['BEGIN_PENDING'] (
+        '(?is)' + [regex]::Escape($stateArray) + '\[21\]\s*=\s*2.*?' +
+        [regex]::Escape($stateArray) + '\[21\]\s*=\s*1.*?' +
+        'LMC_ADMIN_SET_POSITION_ASYNC_STATE_FRESH_ARMED.*?' +
+        [regex]::Escape($stateArray) + '\[21\]\s*=\s*0.*?' +
+        [regex]::Escape($stateArray) + '\[22\]\s*=\s*20.*?' +
+        [regex]::Escape($stateArray) + '\[22\]\s*=\s*21.*?' +
+        [regex]::Escape($stateArray) + '\[22\]\s*=\s*23.*?' +
+        [regex]::Escape($stateArray) + '\[22\]\s*=\s*24') (
+        "$Owner BeginPending must distinguish replay, fresh Armed, and exact " +
+        '20/21/23/24 non-admitted Store outcomes.')
+    $beginReplayMatch = [regex]::Match(
+        $stateBlocks['BEGIN_PENDING'],
+        ('(?is)if\s+' + [regex]::Escape($stateArray) +
+         '\[21\]\s*=\s*2\s+then(?<Body>.*?)elsif\s+' +
+         [regex]::Escape($stateArray) + '\[21\]\s*=\s*1\s+then'))
+    if (-not $beginReplayMatch.Success) {
+        throw "$Owner Begin replay branch must precede fresh admission exactly."
+    }
+    $beginReplayBody = $beginReplayMatch.Groups['Body'].Value
+    Assert-Match $beginReplayBody (
+        '(?is)adminKeyCompareResult\s*:=\s*_memcmp\s*\(\s*' +
+        'ptr1\s*:=\s*#' + [regex]::Escape($stateArray) +
+        '\[57\]\s*,\s*ptr2\s*:=\s*#' + [regex]::Escape($stateArray) +
+        '\[45\]\s*,\s*cntr\s*:=\s*44\s*\)\s*;\s*' +
+        'adminTerminalValid\s*:=') (
+        "$Owner Begin replay must byte-prove the full 44-byte stored key " +
+        'before accepting the snapshot.')
+    $beginReplayProof = [regex]::Match(
+        $beginReplayBody,
+        '(?is)adminTerminalValid\s*:=\s*(?<Expression>.*?);')
+    if (-not $beginReplayProof.Success) {
+        throw "$Owner Begin replay must compute one full stored-snapshot proof."
+    }
+    foreach ($replayGuard in @(
+            ([regex]::Escape($stateArray) +
+                '\[56\]\$UDINT\s*=\s*0x00010002'),
+            ([regex]::Escape($stateArray) +
+                '\[56\]\$UDINT\s*=\s*0x00010003'),
+            ([regex]::Escape($stateArray) +
+                '\[22\]\s*=\s*0'),
+            'adminKeyCompareResult\s*=\s*0',
+            ([regex]::Escape($stateArray) +
+                '\[72\]\$UDINT\s*=\s*' + [regex]::Escape($stateArray) +
+                '\[2\]\$UDINT'),
+            ([regex]::Escape($stateArray) +
+                '\[72\]\$UDINT\s*<>\s*0'))) {
+        if ($beginReplayProof.Groups['Expression'].Value -notmatch
+                ('(?is)' + $replayGuard)) {
+            throw "$Owner Begin replay full proof omitted guard: $replayGuard"
+        }
+    }
+    Assert-Match $beginReplayBody (
+        '(?is)if\s+adminTerminalValid\s*=\s*FALSE\s+then.*?' +
+        [regex]::Escape($stateArray) + '\[31\]\s*:=\s*7\s*;.*?' +
+        'RETURN\s*;\s*end_if\s*;.*?' +
+        '_memcpy\s*\(\s*ptr1\s*:=\s*#' + [regex]::Escape($stateArray) +
+        '\[105\]\s*,\s*ptr2\s*:=\s*#adminFrozenResponse\[0\]\s*,\s*' +
+        'cntr\s*:=\s*36\s*\)\s*;\s*' +
+        '_memcpy\s*\(\s*ptr1\s*:=\s*pResponseFrame\s*,\s*ptr2\s*:=\s*#' +
+        [regex]::Escape($stateArray) + '\[105\]\s*,\s*cntr\s*:=\s*36\s*\)\s*;\s*' +
+        '_memset\s*\(\s*dest\s*:=\s*#' + [regex]::Escape($stateArray) +
+        '\[0\]\s*,\s*usByte\s*:=\s*0\s*,\s*cntr\s*:=\s*512\s*\)\s*;\s*' +
+        'ResponseSize\s*:=\s*36\s*;\s*RETURN\s*;') (
+        "$Owner exact stored replay must prove snapshot, copy one frozen " +
+        '36-byte response, then clear the whole volatile context.')
+    Assert-Match $stateBlocks['BEGIN_PENDING'] (
+        '(?is)elsif\s+' + [regex]::Escape($stateArray) +
+        '\[21\]\s*=\s*1\s+then\s*if\s+\(' +
+        [regex]::Escape($stateArray) + '\[22\]\s*=\s*0\)\s*&\s*\(' +
+        [regex]::Escape($stateArray) + '\[2\]\$UDINT\s*<>\s*0\)\s+then\s*' +
+        [regex]::Escape($stateArray) + '\[9\]\$UDINT\s*:=\s*ops\.tAbsolute\s*;\s*' +
+        [regex]::Escape($stateArray) + '\[1\]\s*:=\s*' +
+        'LMC_ADMIN_SET_POSITION_ASYNC_STATE_FRESH_ARMED\s*;\s*' +
+        'else\s*' + [regex]::Escape($stateArray) +
+        '\[1\]\s*:=\s*LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED\s*;\s*' +
+        [regex]::Escape($stateArray) + '\[31\]\s*:=\s*7\s*;\s*' +
+        'ResponseSize\s*:=\s*LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE\s*;\s*' +
+        'RETURN\s*;\s*end_if\s*;') (
+        "$Owner only Begin=1 with detail zero and nonzero generation may " +
+        'start the deadline and enter FreshArmed in the same invocation.')
+    Assert-Match $stateBlocks['BEGIN_PENDING'] (
+        '(?is)elsif\s+' + [regex]::Escape($stateArray) +
+        '\[21\]\s*=\s*0\s+then\s*if\s+\(' +
+        [regex]::Escape($stateArray) + '\[22\]\s*=\s*20\)\s*\|\s*\(' +
+        [regex]::Escape($stateArray) + '\[22\]\s*=\s*21\)\s*\|\s*\(' +
+        [regex]::Escape($stateArray) + '\[22\]\s*=\s*23\)\s*\|\s*\(' +
+        [regex]::Escape($stateArray) + '\[22\]\s*=\s*24\)\s+then\s*' +
+        '_memset\s*\(\s*dest\s*:=\s*pResponseFrame\s*,\s*' +
+        'usByte\s*:=\s*0\s*,\s*cntr\s*:=\s*36\s*\)\s*;\s*' +
+        'pResponseFrame\^\$UINT\s*:=\s*0\s*;\s*' +
+        '\(pResponseFrame\s*\+\s*2\)\^\$UINT\s*:=\s*28\s*;\s*' +
+        '\(pResponseFrame\s*\+\s*8\)\^\$UINT\s*:=\s*1\s*;\s*' +
+        '\(pResponseFrame\s*\+\s*12\)\^\$UINT\s*:=\s*1\s*;\s*' +
+        '\(pResponseFrame\s*\+\s*14\)\^\$INT\s*:=\s*-31000\s*;\s*' +
+        '\(pResponseFrame\s*\+\s*16\)\^\$UDINT\s*:=\s*' +
+        [regex]::Escape($stateArray) + '\[48\]\$UDINT\s*;\s*' +
+        '\(pResponseFrame\s*\+\s*20\)\^\$UDINT\s*:=\s*' +
+        [regex]::Escape($stateArray) + '\[22\]\$UDINT\s*;\s*' +
+        '\(pResponseFrame\s*\+\s*28\)\^\$UINT\s*:=\s*1\s*;\s*' +
+        '_memset\s*\(\s*dest\s*:=\s*#' + [regex]::Escape($stateArray) +
+        '\[0\]\s*,\s*usByte\s*:=\s*0\s*,\s*cntr\s*:=\s*512\s*\)\s*;\s*' +
+        'ResponseSize\s*:=\s*36\s*;\s*RETURN\s*;\s*else\s*' +
+        [regex]::Escape($stateArray) + '\[1\]\s*:=\s*' +
+        'LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED\s*;\s*' +
+        [regex]::Escape($stateArray) + '\[31\]\s*:=\s*7\s*;\s*' +
+        'ResponseSize\s*:=\s*LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE\s*;\s*' +
+        'RETURN\s*;\s*end_if\s*;\s*else\s*' +
+        [regex]::Escape($stateArray) + '\[1\]\s*:=\s*' +
+        'LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED\s*;\s*' +
+        [regex]::Escape($stateArray) + '\[31\]\s*:=\s*7\s*;\s*' +
+        'ResponseSize\s*:=\s*LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE\s*;\s*' +
+        'RETURN\s*;\s*end_if\s*;') (
+        "$Owner Begin=0 may clear only exact 20/21/23/24 outcomes; every " +
+        'allowed outcome must emit the exact failure frame and every other ' +
+        'documented-set anomaly must reason-7 quarantine.')
+
+    Assert-Match $stateBlocks['FRESH_ARMED'] (
+        '(?is)ReserveAxisOwnership\s*\(.*?' +
+        'CommandId\s*:=\s*0x7D12\s*,.*?' +
+        'RequestedAxisMask\s*:=\s*' + [regex]::Escape($stateArray) +
+        '\[7\]\$UDINT\s*,.*?CallerSessionEpoch\s*:=\s*' +
+        [regex]::Escape($stateArray) + '\[3\]\$UDINT\s*,.*?' +
+        'RequestSequence\s*:=\s*' + [regex]::Escape($stateArray) +
+        '\[4\]\$UDINT\s*,.*?pIdentity\s*:=\s*\(#' +
+        [regex]::Escape($stateArray) + '\[32\]\)\$\^void\s*,\s*' +
+        'IdentitySize\s*:=\s*48\s*,.*?pEffectiveAxisMask\s*:=\s*\(#' +
+        [regex]::Escape($stateArray) + '\[23\]\)\$\^UDINT\s*,.*?' +
+        'pAdmissionToken\s*:=\s*\(#' + [regex]::Escape($stateArray) +
+        '\[5\]\)\$\^UDINT\s*,.*?pOwnerGeneration\s*:=\s*\(#' +
+        [regex]::Escape($stateArray) + '\[6\]\)\$\^UDINT\s*\)') (
+        "$Owner FreshArmed must reserve the exact frozen ownership tuple once.")
+    Assert-Match $stateBlocks['FRESH_ARMED'] (
+        '(?is)' + [regex]::Escape($stateArray) +
+        '\[24\]\s*:=\s*ReserveAxisOwnership\s*\(.*?\)\s*;\s*' +
+        'if\s+\(' + [regex]::Escape($stateArray) +
+        '\[24\]\s*=\s*0\)\s*&\s*\(' +
+        [regex]::Escape($stateArray) + '\[23\]\$UDINT\s*=\s*' +
+        [regex]::Escape($stateArray) + '\[7\]\$UDINT\)\s*&\s*\(' +
+        [regex]::Escape($stateArray) + '\[5\]\$UDINT\s*<>\s*0\)\s*&\s*\(' +
+        [regex]::Escape($stateArray) + '\[6\]\$UDINT\s*<>\s*0\)\s+then\s*' +
+        [regex]::Escape($stateArray) + '\[1\]\s*:=\s*' +
+        'LMC_ADMIN_SET_POSITION_ASYNC_STATE_OWNERSHIP_RESERVED\s*;\s*' +
+        'else\s*' + [regex]::Escape($stateArray) +
+        '\[1\]\s*:=\s*LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED\s*;\s*' +
+        [regex]::Escape($stateArray) + '\[31\]\s*:=\s*5\s*;\s*' +
+        'ResponseSize\s*:=\s*LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE\s*;\s*' +
+        'RETURN\s*;\s*end_if\s*;') (
+        "$Owner FreshArmed must consume the single reserve result into one " +
+        'OwnershipReserved transition or reason-5 quarantine.')
+    Assert-Match $stateBlocks['OWNERSHIP_RESERVED'] (
+        '(?is)InputLatch\.SubmitAxisSetPositionPreflight\s*\(\s*' +
+        'OperationToken\s*:=\s*' + [regex]::Escape($stateArray) +
+        '\[5\]\$UDINT\s*,\s*OwnerGeneration\s*:=\s*' +
+        [regex]::Escape($stateArray) + '\[6\]\$UDINT\s*,\s*' +
+        'StoreRecordGeneration\s*:=\s*' + [regex]::Escape($stateArray) +
+        '\[2\]\$UDINT\s*,\s*CallerSessionEpoch\s*:=\s*' +
+        [regex]::Escape($stateArray) + '\[3\]\$UDINT\s*,\s*' +
+        'RequestSequence\s*:=\s*' + [regex]::Escape($stateArray) +
+        '\[4\]\$UDINT\s*,.*?ExpectedAxisMask\s*:=\s*' +
+        [regex]::Escape($stateArray) + '\[7\]\$UDINT\s*\)') (
+        "$Owner OwnershipReserved must submit the exact frozen tuple once.")
+    Assert-Match $stateBlocks['OWNERSHIP_RESERVED'] (
+        '(?is)' + [regex]::Escape($stateArray) + '\[28\]\s*:=\s*' +
+        'InputLatch\.SubmitAxisSetPositionPreflight\s*\(.*?\)\s*;\s*' +
+        'if\s+\(' + [regex]::Escape($stateArray) +
+        '\[28\]\s*=\s*0\)\s*\|\s*\(' +
+        [regex]::Escape($stateArray) + '\[28\]\s*=\s*1\)\s+then\s*' +
+        [regex]::Escape($stateArray) + '\[1\]\s*:=\s*' +
+        'LMC_ADMIN_SET_POSITION_ASYNC_STATE_PREFLIGHT_PENDING\s*;\s*' +
+        'ResponseSize\s*:=\s*LMC_ADMIN_SET_POSITION_PENDING\s*;\s*' +
+        'else\s*' + [regex]::Escape($stateArray) + '\[1\]\s*:=\s*' +
+        'LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED\s*;\s*' +
+        [regex]::Escape($stateArray) + '\[31\]\s*:=\s*4\s*;\s*' +
+        'ResponseSize\s*:=\s*LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE\s*;\s*' +
+        'RETURN\s*;\s*end_if\s*;') (
+        "$Owner OwnershipReserved must consume Submit 0/1 once into " +
+        'PreflightPending and quarantine every other result.')
+    Assert-Match $stateBlocks['PREFLIGHT_PENDING'] (
+        '(?is)InputLatch\.CopyAxisSetPositionPreflightResult\s*\(\s*' +
+        'OperationToken\s*:=\s*' + [regex]::Escape($stateArray) +
+        '\[5\]\$UDINT\s*,\s*OwnerGeneration\s*:=\s*' +
+        [regex]::Escape($stateArray) + '\[6\]\$UDINT\s*,\s*' +
+        'StoreRecordGeneration\s*:=\s*' + [regex]::Escape($stateArray) +
+        '\[2\]\$UDINT\s*,\s*pDest\s*:=\s*#' +
+        [regex]::Escape($stateArray) + '\[73\]\s*,\s*DestSize\s*:=\s*128\s*\)') (
+        "$Owner PreflightPending must only poll the exact 128-byte RT result.")
+    Assert-Match $stateBlocks['PREFLIGHT_PENDING'] (
+        '(?is)' + [regex]::Escape($stateArray) + '\[29\]\s*:=\s*' +
+        'InputLatch\.CopyAxisSetPositionPreflightResult\s*\(.*?\)\s*;\s*' +
+        'if\s+' + [regex]::Escape($stateArray) +
+        '\[29\]\s*=\s*1\s+then\s*' +
+        'ResponseSize\s*:=\s*LMC_ADMIN_SET_POSITION_PENDING\s*;\s*' +
+        'RETURN\s*;\s*elsif\s+' + [regex]::Escape($stateArray) +
+        '\[29\]\s*<>\s*0\s+then\s*' +
+        [regex]::Escape($stateArray) + '\[1\]\s*:=\s*' +
+        'LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED\s*;\s*' +
+        [regex]::Escape($stateArray) + '\[31\]\s*:=\s*4\s*;\s*' +
+        'ResponseSize\s*:=\s*LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE\s*;\s*' +
+        'RETURN\s*;\s*end_if\s*;') (
+        "$Owner PreflightPending must retry only Copy=1 and quarantine every " +
+        'nonzero nonpending Copy result before inspecting the buffer.')
+    Assert-Match $stateBlocks['PREFLIGHT_PENDING'] (
+        '(?is)if\s+' + [regex]::Escape($stateArray) +
+        '\[15\]\$UDINT\s*=\s*0\s+then\s*' +
+        [regex]::Escape($stateArray) + '\[15\]\$UDINT\s*:=\s*' +
+        [regex]::Escape($stateArray) + '\[83\]\$UDINT\s*;\s*end_if\s*;') (
+        "$Owner first coherent Copy must freeze the nonzero mailbox sequence.")
+
+    $resultEchoMap = [ordered]@{
+        73 = 5; 74 = 6; 75 = 2; 76 = 3; 77 = 4
+        78 = 11; 79 = 12; 80 = 13; 81 = 14; 82 = 7
+    }
+    foreach ($resultEcho in $resultEchoMap.GetEnumerator()) {
+        if ($stateBlocks['PREFLIGHT_PENDING'] -notmatch
+                ('(?i)' + [regex]::Escape($stateArray) + '\[' +
+                 $resultEcho.Key + '\]\$UDINT\s*=\s*' +
+                 [regex]::Escape($stateArray) + '\[' +
+                 $resultEcho.Value + '\]\$UDINT')) {
+            throw (
+                "$Owner coherent RT result echo slot $($resultEcho.Key) " +
+                "must match context slot $($resultEcho.Value).")
+        }
+    }
+    foreach ($zeroResultSlot in 102..104) {
+        if ($stateBlocks['PREFLIGHT_PENDING'] -notmatch
+                ('(?i)' + [regex]::Escape($stateArray) + '\[' +
+                 $zeroResultSlot + '\]\s*=\s*0')) {
+            throw (
+                "$Owner coherent RT result slot $zeroResultSlot must prove " +
+                'claim/native zero.')
+        }
+    }
+    Assert-Match $stateBlocks['PREFLIGHT_PENDING'] (
+        '(?is)adminPreflightState\s*:=\s*' +
+        [regex]::Escape($stateArray) + '\[84\]\s*;\s*' +
+        'adminPreflightFailure\s*:=\s*' +
+        [regex]::Escape($stateArray) + '\[85\]\s*;\s*' +
+        'adminPreflightDetail\s*:=\s*' +
+        [regex]::Escape($stateArray) + '\[86\]\s*;\s*' +
+        'adminPreflightEvidence\s*:=\s*' +
+        [regex]::Escape($stateArray) + '\[101\]\$UDINT\s*;') (
+        "$Owner Control must bind state/failure/detail/evidence from the " +
+        'copied RT result before classifying it.')
+    Assert-Match $stateBlocks['PREFLIGHT_PENDING'] (
+        '(?is)adminPreflightRejected\s*:=\s*' +
+        '\(adminPreflightState\s*=\s*LMC_SET_POSITION_PREFLIGHT_REJECTED\)\s*&\s*' +
+        '\(\(\(adminPreflightFailure\s*=\s*LMC_SET_POSITION_PREFLIGHT_CLIENT\)\s*&\s*' +
+        '\(adminPreflightDetail\s*=\s*10\)\)\s*\|\s*' +
+        '\(\(adminPreflightFailure\s*=\s*LMC_SET_POSITION_PREFLIGHT_STATE\)\s*&\s*' +
+        '\(adminPreflightDetail\s*=\s*10\)\)\s*\|\s*' +
+        '\(\(adminPreflightFailure\s*=\s*LMC_SET_POSITION_PREFLIGHT_CONFIG\)\s*&\s*' +
+        '\(adminPreflightDetail\s*=\s*14\)\)\s*\|\s*' +
+        '\(\(adminPreflightFailure\s*=\s*LMC_SET_POSITION_PREFLIGHT_VELOCITY\)\s*&\s*' +
+        '\(adminPreflightDetail\s*=\s*12\)\)\s*\|\s*' +
+        '\(\(adminPreflightFailure\s*=\s*LMC_SET_POSITION_PREFLIGHT_AXIS_ERROR\)\s*&\s*' +
+        '\(adminPreflightDetail\s*=\s*13\)\)\s*\|\s*' +
+        '\(\(adminPreflightFailure\s*=\s*LMC_SET_POSITION_PREFLIGHT_COORDINATE\)\s*&\s*' +
+        '\(adminPreflightDetail\s*=\s*15\)\)\)\s*&\s*' +
+        '\(\(adminPreflightEvidence\s+and\s+' +
+        'LMC_SET_POSITION_EVIDENCE_REJECT_MASK\)\s*=\s*' +
+        'LMC_SET_POSITION_EVIDENCE_REJECT_MASK\)\s*;') (
+        "$Owner coherent REJECTED classification must use only the six " +
+        'frozen failure/detail pairs and activation/identity evidence mask.')
+    $preflightValidMatches = [regex]::Matches(
+        $stateBlocks['PREFLIGHT_PENDING'],
+        '(?is)adminPreflightValid\s*:=\s*(?<Expression>.*?);')
+    if ($preflightValidMatches.Count -ne 1) {
+        throw "$Owner PreflightPending must compute one adminPreflightValid guard."
+    }
+    $preflightValidExpression =
+        $preflightValidMatches[0].Groups['Expression'].Value
+    foreach ($requiredPreflightGuard in @(
+            ([regex]::Escape($stateArray) + '\[73\]\$UDINT\s*=\s*' +
+                [regex]::Escape($stateArray) + '\[5\]\$UDINT'),
+            ([regex]::Escape($stateArray) + '\[74\]\$UDINT\s*=\s*' +
+                [regex]::Escape($stateArray) + '\[6\]\$UDINT'),
+            ([regex]::Escape($stateArray) + '\[75\]\$UDINT\s*=\s*' +
+                [regex]::Escape($stateArray) + '\[2\]\$UDINT'),
+            ([regex]::Escape($stateArray) + '\[76\]\$UDINT\s*=\s*' +
+                [regex]::Escape($stateArray) + '\[3\]\$UDINT'),
+            ([regex]::Escape($stateArray) + '\[77\]\$UDINT\s*=\s*' +
+                [regex]::Escape($stateArray) + '\[4\]\$UDINT'),
+            ([regex]::Escape($stateArray) + '\[78\]\$UDINT\s*=\s*' +
+                [regex]::Escape($stateArray) + '\[11\]\$UDINT'),
+            ([regex]::Escape($stateArray) + '\[79\]\$UDINT\s*=\s*' +
+                [regex]::Escape($stateArray) + '\[12\]\$UDINT'),
+            ([regex]::Escape($stateArray) + '\[80\]\$UDINT\s*=\s*' +
+                [regex]::Escape($stateArray) + '\[13\]\$UDINT'),
+            ([regex]::Escape($stateArray) + '\[81\]\$UDINT\s*=\s*' +
+                [regex]::Escape($stateArray) + '\[14\]\$UDINT'),
+            ([regex]::Escape($stateArray) + '\[82\]\$UDINT\s*=\s*' +
+                [regex]::Escape($stateArray) + '\[7\]\$UDINT'),
+            ([regex]::Escape($stateArray) + '\[83\]\$UDINT\s*<>\s*0'),
+            ('\(\s*' + [regex]::Escape($stateArray) +
+                '\[15\]\$UDINT\s*=\s*0\s*\)\s*\|\s*\(\s*' +
+                [regex]::Escape($stateArray) +
+                '\[83\]\$UDINT\s*=\s*' + [regex]::Escape($stateArray) +
+                '\[15\]\$UDINT\s*\)'),
+            ([regex]::Escape($stateArray) + '\[102\]\s*=\s*0'),
+            ([regex]::Escape($stateArray) + '\[103\]\s*=\s*0'),
+            ([regex]::Escape($stateArray) + '\[104\]\s*=\s*0'),
+            'adminPreflightState\s*=\s*LMC_SET_POSITION_PREFLIGHT_READY',
+            'adminPreflightFailure\s*=\s*0',
+            'adminPreflightDetail\s*=\s*0',
+            'adminPreflightEvidence\s*=\s*LMC_SET_POSITION_EVIDENCE_READY_MASK',
+            'adminPreflightRejected')) {
+        if ($preflightValidExpression -notmatch
+                ('(?is)' + $requiredPreflightGuard)) {
+            throw (
+                "$Owner adminPreflightValid omitted required coherent guard: " +
+                $requiredPreflightGuard)
+        }
+    }
+    $mailboxLatchAssignmentPattern =
+        [regex]::Escape($stateArray) + '\[15\]\$UDINT\s*:=\s*' +
+        [regex]::Escape($stateArray) + '\[83\]\$UDINT\s*;'
+    if ([regex]::Matches(
+            $stateBlocks['PREFLIGHT_PENDING'],
+            ('(?is)' + $mailboxLatchAssignmentPattern)).Count -ne 1) {
+        throw (
+            "$Owner PreflightPending must first-win latch the coherent " +
+            'mailbox sequence exactly once after validation.')
+    }
+    Assert-Match $stateBlocks['PREFLIGHT_PENDING'] (
+        '(?is)if\s+adminPreflightValid\s*=\s*FALSE\s+then\s*' +
+        [regex]::Escape($stateArray) + '\[1\]\s*:=\s*' +
+        'LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED\s*;\s*' +
+        [regex]::Escape($stateArray) + '\[31\]\s*:=\s*4\s*;\s*' +
+        'ResponseSize\s*:=\s*LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE\s*;\s*' +
+        'RETURN\s*;\s*end_if\s*;\s*' +
+        'if\s+' + [regex]::Escape($stateArray) +
+        '\[15\]\$UDINT\s*=\s*0\s+then\s*' +
+        [regex]::Escape($stateArray) + '\[15\]\$UDINT\s*:=\s*' +
+        [regex]::Escape($stateArray) + '\[83\]\$UDINT\s*;\s*end_if\s*;\s*' +
+        'if\s+adminPreflightState\s*=\s*' +
+        'LMC_SET_POSITION_PREFLIGHT_READY\s+then\s*' +
+        [regex]::Escape($stateArray) + '\[1\]\s*:=\s*' +
+        'LMC_ADMIN_SET_POSITION_ASYNC_STATE_PREFLIGHT_READY\s*;\s*' +
+        'else\s*' + [regex]::Escape($stateArray) +
+        '\[16\]\s*:=\s*adminPreflightDetail\s*;\s*' +
+        [regex]::Escape($stateArray) + '\[17\]\s*:=\s*1\s*;\s*' +
+        [regex]::Escape($stateArray) + '\[18\]\s*:=\s*-31000\s*;\s*' +
+        [regex]::Escape($stateArray) + '\[19\]\s*:=\s*0\s*;\s*' +
+        [regex]::Escape($stateArray) + '\[20\]\s*:=\s*0\s*;\s*' +
+        [regex]::Escape($stateArray) + '\[1\]\s*:=\s*' +
+        'LMC_ADMIN_SET_POSITION_ASYNC_STATE_TERMINAL_COMMIT_PENDING\s*;\s*' +
+        'end_if\s*;') (
+        "$Owner mailbox latch and READY/REJECTED candidate transition must " +
+        'be dominated by the full adminPreflightValid guard.')
+
+    foreach ($readyZeroSlot in 102..104) {
+        if ($stateBlocks['PREFLIGHT_READY'] -notmatch
+                ('(?i)' + [regex]::Escape($stateArray) + '\[' +
+                 $readyZeroSlot + '\]\s*=\s*0')) {
+            throw (
+                "$Owner PreflightReady must re-prove result slot " +
+                "$readyZeroSlot zero before ownership activation.")
+        }
+    }
+    Assert-Match $stateBlocks['PREFLIGHT_READY'] (
+        '(?is)' + [regex]::Escape($stateArray) + '\[25\]\s*:=\s*' +
+        'ValidateAxisOwnershipIdentity\s*\(\s*' +
+        'CommandId\s*:=\s*0x7D12\s*,\s*Reference\s*:=\s*' +
+        [regex]::Escape($stateArray) + '\[11\].*?' +
+        'ExpectedAxisMask\s*:=\s*' + [regex]::Escape($stateArray) +
+        '\[7\]\$UDINT.*?CallerSessionEpoch\s*:=\s*' +
+        [regex]::Escape($stateArray) + '\[3\]\$UDINT.*?' +
+        'RequestSequence\s*:=\s*' + [regex]::Escape($stateArray) +
+        '\[4\]\$UDINT.*?AdmissionToken\s*:=\s*' +
+        [regex]::Escape($stateArray) + '\[5\]\$UDINT.*?' +
+        'OwnerGeneration\s*:=\s*' + [regex]::Escape($stateArray) +
+        '\[6\]\$UDINT.*?RequiredPhase\s*:=\s*' +
+        'LMC_OWNER_PHASE_RESERVED.*?pIdentity\s*:=\s*#' +
+        [regex]::Escape($stateArray) + '\[32\].*?' +
+        'IdentitySize\s*:=\s*48\s*\)\s*;\s*' +
+        'if\s+' + [regex]::Escape($stateArray) +
+        '\[25\]\s*<>\s*0\s+then.*?' +
+        'LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED.*?' +
+        [regex]::Escape($stateArray) + '\[31\]\s*:=\s*5\s*;.*?' +
+        'RETURN\s*;\s*end_if\s*;\s*' +
+        [regex]::Escape($stateArray) + '\[26\]\s*:=\s*' +
+        'CommitAxisOwnership\s*\(\s*CommandId\s*:=\s*0x7D12\s*,\s*' +
+        'Reference\s*:=\s*' + [regex]::Escape($stateArray) +
+        '\[11\].*?ExpectedAxisMask\s*:=\s*' +
+        [regex]::Escape($stateArray) + '\[7\]\$UDINT.*?' +
+        'CallerSessionEpoch\s*:=\s*' + [regex]::Escape($stateArray) +
+        '\[3\]\$UDINT.*?RequestSequence\s*:=\s*' +
+        [regex]::Escape($stateArray) + '\[4\]\$UDINT.*?' +
+        'AdmissionToken\s*:=\s*' + [regex]::Escape($stateArray) +
+        '\[5\]\$UDINT.*?OwnerGeneration\s*:=\s*' +
+        [regex]::Escape($stateArray) + '\[6\]\$UDINT\s*\)\s*;\s*' +
+        'if\s+' + [regex]::Escape($stateArray) +
+        '\[26\]\s*<>\s*0\s+then.*?' +
+        'LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED.*?' +
+        [regex]::Escape($stateArray) + '\[31\]\s*:=\s*5\s*;.*?' +
+        'RETURN\s*;\s*end_if\s*;\s*' +
+        [regex]::Escape($stateArray) + '\[25\]\s*:=\s*' +
+        'ValidateAxisOwnershipIdentity\s*\(.*?' +
+        'RequiredPhase\s*:=\s*LMC_OWNER_PHASE_ACTIVE.*?' +
+        'pIdentity\s*:=\s*#' + [regex]::Escape($stateArray) +
+        '\[32\].*?IdentitySize\s*:=\s*48\s*\)\s*;\s*' +
+        'if\s+' + [regex]::Escape($stateArray) +
+        '\[25\]\s*<>\s*0\s+then.*?' +
+        'LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED.*?' +
+        [regex]::Escape($stateArray) + '\[31\]\s*:=\s*5\s*;.*?' +
+        'RETURN\s*;\s*end_if\s*;\s*' +
+        [regex]::Escape($stateArray) + '\[1\]\s*:=\s*' +
+        'LMC_ADMIN_SET_POSITION_ASYNC_STATE_OWNERSHIP_ACTIVE\s*;') (
+        "$Owner READY must validate RESERVED, check Commit, validate ACTIVE, " +
+        'and only then enter OwnershipActive.')
+    if ($stateBlocks['PREFLIGHT_READY'] -match
+            '(?i)pResponseFrame|\bResponseSize\s*:=\s*36|' +
+            'RollbackAxisOwnership|CommitSetPositionTerminal|' +
+            '(?:LMCAxis[1-9]|_LMCAxis)\s*\.\s*SetPosition\s*\(') {
+        throw (
+            "$Owner READY activation must perform zero response, release, " +
+            'terminal Store commit, or native SetPosition.')
+    }
+    if ($stateBlocks['OWNERSHIP_ACTIVE'] -match
+            '(?i)LMC_ADMIN_SET_POSITION_ASYNC_STATE_EXECUTION_PENDING|' +
+            'pResponseFrame|RollbackAxisOwnership|' +
+            '(?:LMCAxis[1-9]|_LMCAxis)\s*\.\s*SetPosition\s*\(') {
+        throw (
+            "$Owner P1 OwnershipActive must stop pending with zero claim, " +
+            'native, response, and release.')
+    }
+    Assert-Match $stateBlocks['OWNERSHIP_ACTIVE'] (
+        '(?i)ResponseSize\s*:=\s*LMC_ADMIN_SET_POSITION_PENDING\s*;') (
+        "$Owner P1 OwnershipActive must remain internally pending.")
+    if ($stateBlocks['EXECUTION_PENDING'] -match '(?i):=') {
+        throw (
+            "$Owner P1 future ExecutionPending state must remain unreachable " +
+            'and contain zero assignments.')
+    }
+
+    Assert-Match $stateBlocks['TERMINAL_COMMIT_PENDING'] (
+        '(?is)SetPositionStore\.CommitSetPositionTerminal\s*\(.*?' +
+        'RecordGeneration\s*:=\s*' + [regex]::Escape($stateArray) +
+        '\[2\]\$UDINT\s*,.*?RecordState\s*:=\s*3\s*,.*?' +
+        'AppliedPosition\s*:=\s*' + [regex]::Escape($stateArray) +
+        '\[19\]\s*,.*?OriginalCommandStatus\s*:=\s*' +
+        [regex]::Escape($stateArray) + '\[17\]\$UINT\s*,.*?' +
+        'OriginalErrorId\s*:=\s*' + [regex]::Escape($stateArray) +
+        '\[18\]\$INT\s*,.*?' +
+        'OriginalDetailCode\s*:=\s*' + [regex]::Escape($stateArray) +
+        '\[16\]\$UDINT\s*,.*?NativeCommandState\s*:=\s*' +
+        [regex]::Escape($stateArray) + '\[20\]\$UDINT\s*,.*?' +
+        'pSnapshot\s*:=\s*#' + [regex]::Escape($stateArray) +
+        '\[56\]\s*,\s*SnapshotCapacity\s*:=\s*68\s*,.*?' +
+        'pDetailCode\s*:=\s*\(#' + [regex]::Escape($stateArray) +
+        '\[22\]\)\$\^UDINT\s*\)') (
+        "$Owner coherent REJECTED terminal commit ABI drifted.")
+    Assert-Match $stateBlocks['TERMINAL_COMMIT_PENDING'] (
+        '(?is)adminKeyCompareResult\s*:=\s*_memcmp\s*\(\s*' +
+        'ptr1\s*:=\s*#' + [regex]::Escape($stateArray) +
+        '\[57\]\s*,\s*ptr2\s*:=\s*#' + [regex]::Escape($stateArray) +
+        '\[45\]\s*,\s*cntr\s*:=\s*44\s*\)\s*;\s*' +
+        'adminTerminalValid\s*:=') (
+        "$Owner terminal commit must byte-prove the full 44-byte stored key " +
+        'before accepting the snapshot.')
+    $terminalValidMatches = [regex]::Matches(
+        $stateBlocks['TERMINAL_COMMIT_PENDING'],
+        '(?is)adminTerminalValid\s*:=\s*(?<Expression>.*?);')
+    if ($terminalValidMatches.Count -ne 1) {
+        throw "$Owner terminal state must compute one full adminTerminalValid guard."
+    }
+    $terminalValidExpression =
+        $terminalValidMatches[0].Groups['Expression'].Value
+    $terminalSnapshotGuards = @(
+        ([regex]::Escape($stateArray) + '\[21\]\s*=\s*1'),
+        ([regex]::Escape($stateArray) + '\[22\]\s*=\s*0'),
+        ([regex]::Escape($stateArray) +
+            '\[56\]\$UDINT\s*=\s*0x00010003'),
+        'adminKeyCompareResult\s*=\s*0')
+    $terminalSnapshotGuards += @(
+        ([regex]::Escape($stateArray) + '\[68\]\s*=\s*' +
+            [regex]::Escape($stateArray) + '\[19\]'),
+        ([regex]::Escape($stateArray) +
+            '\[69\]\$UDINT\s*=\s*0x86E80001'),
+        ([regex]::Escape($stateArray) + '\[70\]\$UDINT\s*=\s*' +
+            [regex]::Escape($stateArray) + '\[16\]\$UDINT'),
+        ([regex]::Escape($stateArray) + '\[71\]\$UDINT\s*=\s*' +
+            [regex]::Escape($stateArray) + '\[20\]\$UDINT'),
+        ([regex]::Escape($stateArray) + '\[72\]\$UDINT\s*=\s*' +
+            [regex]::Escape($stateArray) + '\[2\]\$UDINT'))
+    foreach ($terminalSnapshotGuard in $terminalSnapshotGuards) {
+        if ($terminalValidExpression -notmatch
+                ('(?is)' + $terminalSnapshotGuard)) {
+            throw (
+                "$Owner terminal full 68-byte readback omitted guard: " +
+                $terminalSnapshotGuard)
+        }
+    }
+    Assert-Match $stateBlocks['TERMINAL_COMMIT_PENDING'] (
+        '(?is)if\s+adminTerminalValid\s+then\s*' +
+        [regex]::Escape($stateArray) + '\[1\]\s*:=\s*' +
+        'LMC_ADMIN_SET_POSITION_ASYNC_STATE_TERMINAL_PROVEN\s*;\s*' +
+        'elsif\s+\(' + [regex]::Escape($stateArray) +
+        '\[21\]\s*=\s*1\)\s*\|\s*\(' + [regex]::Escape($stateArray) +
+        '\[21\]\s*=\s*LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE\)\s+then\s*' +
+        'ResponseSize\s*:=\s*LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE\s*;\s*' +
+        'RETURN\s*;\s*else\s*' + [regex]::Escape($stateArray) +
+        '\[1\]\s*:=\s*LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED\s*;\s*' +
+        [regex]::Escape($stateArray) + '\[31\]\s*:=\s*7\s*;\s*' +
+        'ResponseSize\s*:=\s*LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE\s*;\s*' +
+        'RETURN\s*;\s*end_if\s*;') (
+        "$Owner terminal proof must dominate state 9; result 1 with invalid " +
+        'readback and exact -12 must share one durability-close producer, ' +
+        'and every other anomaly must reason-7 quarantine.')
+    if ($stateBlocks['TERMINAL_COMMIT_PENDING'] -match
+            '(?i)pResponseFrame|RollbackAxisOwnership') {
+        throw (
+            "$Owner terminal commit/readback must precede every response and release.")
+    }
+    Assert-Match $stateBlocks['TERMINAL_COMMIT_PENDING'] (
+        '(?i)ResponseSize\s*:=\s*' +
+        'LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE\s*;') (
+        "$Owner failed terminal proof must retain the distinct -12 close fence.")
+
+    Assert-Match $stateBlocks['TERMINAL_PROVEN'] (
+        '(?is)RollbackAxisOwnership\s*\(\s*AdmissionToken\s*:=\s*' +
+        [regex]::Escape($stateArray) + '\[5\]\$UDINT\s*,\s*' +
+        'OwnerGeneration\s*:=\s*' + [regex]::Escape($stateArray) +
+        '\[6\]\$UDINT\s*,\s*CallerSessionEpoch\s*:=\s*' +
+        [regex]::Escape($stateArray) + '\[3\]\$UDINT\s*,\s*' +
+        'RequestSequence\s*:=\s*' + [regex]::Escape($stateArray) +
+        '\[4\]\$UDINT\s*,\s*Reason\s*:=\s*0\s*\)\s*;') (
+        "$Owner TerminalProven release tuple must be exact.")
+    $terminalReleaseIndex = $stateBlocks['TERMINAL_PROVEN'].IndexOf(
+        'RollbackAxisOwnership(', [StringComparison]::Ordinal)
+    $terminalResponseMatch = [regex]::Match(
+        $stateBlocks['TERMINAL_PROVEN'],
+        '(?i)(?:pResponseFrame|ResponseSize\s*:=\s*36)')
+    if ($terminalReleaseIndex -lt 0 -or
+        -not $terminalResponseMatch.Success -or
+        $terminalResponseMatch.Index -le $terminalReleaseIndex) {
+        throw "$Owner TerminalProven response must follow exact ownership release."
+    }
+    Assert-Match $stateBlocks['TERMINAL_PROVEN'] (
+        '(?is)' + [regex]::Escape($stateArray) + '\[27\]\s*<>\s*0.*?' +
+        'ResponseSize\s*:=\s*LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE\s*;.*?' +
+        'RETURN\s*;.*?_memcpy\s*\(\s*ptr1\s*:=\s*pResponseFrame.*?' +
+        'ptr2\s*:=\s*#' + [regex]::Escape($stateArray) +
+        '\[105\].*?cntr\s*:=\s*36.*?' +
+        'ResponseSize\s*:=\s*36\s*;') (
+        "$Owner TerminalProven may respond only after successful exact release.")
+    Assert-Match $stateBlocks['TERMINAL_PROVEN'] (
+        '(?is)if\s+' + [regex]::Escape($stateArray) +
+        '\[27\]\s*<>\s*0\s+then\s*' + [regex]::Escape($stateArray) +
+        '\[1\]\s*:=\s*LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED\s*;\s*' +
+        [regex]::Escape($stateArray) + '\[31\]\s*:=\s*6\s*;\s*' +
+        'ResponseSize\s*:=\s*LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE\s*;\s*' +
+        'RETURN\s*;\s*end_if\s*;\s*' +
+        'adminFrozenResponse\[0\]\$UINT\s*:=\s*0\s*;\s*' +
+        'adminFrozenResponse\[2\]\$UINT\s*:=\s*28\s*;\s*' +
+        'adminFrozenResponse\[4\]\$UDINT\s*:=\s*0\s*;\s*' +
+        'adminFrozenResponse\[8\]\$UINT\s*:=\s*1\s*;\s*' +
+        'adminFrozenResponse\[10\]\$UINT\s*:=\s*0\s*;\s*' +
+        'adminFrozenResponse\[12\]\$UINT\s*:=\s*' +
+        [regex]::Escape($stateArray) + '\[69\]\$UINT\s*;\s*' +
+        'adminFrozenResponse\[14\]\$INT\s*:=.*?' +
+        [regex]::Escape($stateArray) + '\[69\]\$UDINT.*?;\s*' +
+        'adminFrozenResponse\[16\]\$UDINT\s*:=\s*' +
+        [regex]::Escape($stateArray) + '\[60\]\$UDINT\s*;\s*' +
+        'adminFrozenResponse\[20\]\$UDINT\s*:=\s*' +
+        [regex]::Escape($stateArray) + '\[70\]\$UDINT\s*;\s*' +
+        'adminFrozenResponse\[24\]\$DINT\s*:=\s*' +
+        [regex]::Escape($stateArray) + '\[68\]\s*;\s*' +
+        'adminFrozenResponse\[28\]\$UINT\s*:=\s*1\s*;\s*' +
+        'adminFrozenResponse\[30\]\$UINT\s*:=\s*0\s*;\s*' +
+        'adminFrozenResponse\[32\]\$UDINT\s*:=\s*' +
+        [regex]::Escape($stateArray) + '\[71\]\$UDINT\s*;\s*' +
+        '_memcpy\s*\(\s*ptr1\s*:=\s*#' + [regex]::Escape($stateArray) +
+        '\[105\]\s*,\s*ptr2\s*:=\s*#adminFrozenResponse\[0\]\s*,\s*' +
+        'cntr\s*:=\s*36\s*\)\s*;\s*' +
+        '_memcpy\s*\(\s*ptr1\s*:=\s*pResponseFrame\s*,\s*ptr2\s*:=\s*#' +
+        [regex]::Escape($stateArray) + '\[105\]\s*,\s*cntr\s*:=\s*36\s*\)\s*;\s*' +
+        '_memset\s*\(\s*dest\s*:=\s*#' + [regex]::Escape($stateArray) +
+        '\[0\]\s*,\s*usByte\s*:=\s*0\s*,\s*cntr\s*:=\s*512\s*\)\s*;\s*' +
+        'ResponseSize\s*:=\s*36\s*;\s*RETURN\s*;') (
+        "$Owner TerminalProven must quarantine failed release, otherwise " +
+        'format from proven stored fields, freeze/copy 36 bytes, clear all ' +
+        '512 context bytes, and only then return the response.')
+    Assert-Match $stateBlocks['QUARANTINED'] (
+        '(?i)ResponseSize\s*:=\s*' +
+        'LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE\s*;') (
+        "$Owner Quarantined state must use only the distinct -14 close result.")
+    if ($stateBlocks['QUARANTINED'] -match
+            '(?i)pResponseFrame|\bResponseSize\s*:=\s*36|' +
+            'CommitSetPositionTerminal|RollbackAxisOwnership') {
+        throw "$Owner Quarantined state must not respond, resolve, or release."
+    }
+    Assert-Match $notifySessionClosedBlock (
+        '(?is)if\s+\(SessionEpoch\s*<>\s*0\)\s*&\s*' +
+        '\(' + [regex]::Escape($stateArray) +
+        '\[3\]\$UDINT\s*=\s*SessionEpoch\)\s*&\s*\(\(' +
+        [regex]::Escape($stateArray) + '\[1\]\s*=\s*' +
+        'LMC_ADMIN_SET_POSITION_ASYNC_STATE_OWNERSHIP_RESERVED\)\s*\|\s*\(' +
+        [regex]::Escape($stateArray) + '\[1\]\s*=\s*' +
+        'LMC_ADMIN_SET_POSITION_ASYNC_STATE_PREFLIGHT_PENDING\)\s*\|\s*\(' +
+        [regex]::Escape($stateArray) + '\[1\]\s*=\s*' +
+        'LMC_ADMIN_SET_POSITION_ASYNC_STATE_PREFLIGHT_READY\)\s*\|\s*\(' +
+        [regex]::Escape($stateArray) + '\[1\]\s*=\s*' +
+        'LMC_ADMIN_SET_POSITION_ASYNC_STATE_OWNERSHIP_ACTIVE\)\)\s+then\s*' +
+        [regex]::Escape($stateArray) + '\[1\]\s*:=\s*' +
+        'LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED\s*;\s*' +
+        [regex]::Escape($stateArray) + '\[31\]\s*:=\s*2\s*;\s*end_if\s*;') (
+        "$Owner Control session-close callback must quarantine only the " +
+        'matching RESERVED-through-ACTIVE async owner as reason 2.')
+    if ($notifySessionClosedBlock -match
+            '(?i)RollbackAxisOwnership|CommitSetPositionTerminal|' +
+            'BeginSetPosition|pResponseFrame|ResponseSize\s*:=|' +
+            '_memset\s*\(\s*dest\s*:=\s*#AxisSetPositionAsyncState|' +
+            '(?:LMCAxis[1-9]|_LMCAxis)\s*\.\s*SetPosition\s*\(') {
+        throw (
+            "$Owner Control session close must preserve Store transaction/" +
+            'async context and perform zero rollback, response, clear, or native call.')
+    }
+
+    $pendingProducerCount = [regex]::Matches(
+        $asyncBlock,
+        '(?i)ResponseSize\s*:=\s*LMC_ADMIN_SET_POSITION_PENDING\s*;').Count
+    $quarantineProducerCount = [regex]::Matches(
+        $asyncBlock,
+        ('(?i)ResponseSize\s*:=\s*' +
+         'LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE\s*;')).Count
+    if ($pendingProducerCount -lt 1 -or $quarantineProducerCount -lt 1) {
+        throw "$Owner async lifecycle must produce distinct -13 and -14 results."
+    }
+    if ($asyncBlock -match
+            '(?i)(?:pResponseFrame\s*\^|pResponseFrame\s*\+).*?' +
+            'LMC_ADMIN_SET_POSITION_(?:PENDING|QUARANTINE_CLOSE)') {
+        throw "$Owner internal -13/-14 values must never enter a wire response."
+    }
+
+    $requiredTcpTailDefines = [ordered]@{
+        LMC_ADMIN_SET_POSITION_PENDING_MAGIC = '0x5350504E'
+        LMC_ADMIN_SET_POSITION_PENDING_MAGIC_OFFSET = '1152'
+        LMC_ADMIN_SET_POSITION_PENDING_SESSION_OFFSET = '1156'
+        LMC_ADMIN_SET_POSITION_PENDING_SEQUENCE_OFFSET = '1160'
+        LMC_ADMIN_SET_POSITION_PENDING_SOCKET_OFFSET = '1164'
+        LMC_ADMIN_SET_POSITION_PENDING_COMMAND_OFFSET = '1168'
+        LMC_ADMIN_SET_POSITION_PENDING_REFERENCE_OFFSET = '1170'
+        LMC_ADMIN_SET_POSITION_PENDING_LENGTH_OFFSET = '1172'
+        LMC_ADMIN_SET_POSITION_PENDING_CHECK_OFFSET = '1176'
+        LMC_ADMIN_SET_POSITION_PENDING_MAGIC_COPY_OFFSET = '1180'
+        LMC_ADMIN_SET_POSITION_PENDING_SESSION_COPY_OFFSET = '1184'
+        LMC_ADMIN_SET_POSITION_PENDING_SEQUENCE_COPY_OFFSET = '1188'
+        LMC_ADMIN_SET_POSITION_PENDING_SOCKET_COPY_OFFSET = '1192'
+        LMC_ADMIN_SET_POSITION_PENDING_COMMAND_COPY_OFFSET = '1196'
+        LMC_ADMIN_SET_POSITION_PENDING_REFERENCE_COPY_OFFSET = '1198'
+        LMC_ADMIN_SET_POSITION_PENDING_LENGTH_COPY_OFFSET = '1200'
+        LMC_ADMIN_SET_POSITION_PENDING_CHECK_COPY_OFFSET = '1204'
+        LMC_ADMIN_SET_POSITION_PENDING_PHASE_PREPARE = '1'
+        LMC_ADMIN_SET_POSITION_PENDING_PHASE_RETAIN = '2'
+        LMC_ADMIN_SET_POSITION_PENDING_PHASE_TERMINAL = '3'
+        LMC_ADMIN_SET_POSITION_PENDING_PHASE_QUARANTINE = '4'
+        LMC_OWNER_SAFETY_PENDING_RESPONSE_OFFSET = '1252'
+    }
+    foreach ($tailDefine in $requiredTcpTailDefines.GetEnumerator()) {
+        if ([regex]::Matches(
+                $tcpScan,
+                ('(?im)^\s*#define\s+' + [regex]::Escape($tailDefine.Key) +
+                 '\s+' + [regex]::Escape($tailDefine.Value) + '\s*$')
+                ).Count -ne 1) {
+            throw (
+                "$Owner TCP tail define $($tailDefine.Key) must remain " +
+                "exactly $($tailDefine.Value).")
+        }
+    }
+
+    foreach ($takeoverLocal in ([ordered]@{
+            preservePendingActive = 'BOOL'
+            setPositionPendingTailIndex = 'DINT'
+            setPositionPendingTailPresent = 'BOOL'
+        }).GetEnumerator()) {
+        if ([regex]::Matches(
+                $connSocketInfoBlock,
+                ('(?im)^\s*' + [regex]::Escape($takeoverLocal.Key) +
+                 '\s*:\s*' + $takeoverLocal.Value + '\s*;\s*$')
+                ).Count -ne 1) {
+            throw (
+                "$Owner ConnSocketInfo must declare one exact " +
+                "$($takeoverLocal.Key) $($takeoverLocal.Value) local.")
+        }
+    }
+    $takeoverTailDetectionMatches = [regex]::Matches(
+        $connSocketInfoBlock,
+        ('(?is)setPositionPendingTailPresent\s*:=\s*FALSE\s*;' +
+         '(?<Detection>.*?)' +
+         'preservePendingActive\s*:=\s*(?<Preserve>.*?);'))
+    if ($takeoverTailDetectionMatches.Count -ne 1) {
+        throw (
+            "$Owner ConnSocketInfo must compute one SetPosition pending-tail " +
+            'predicate immediately before preservePendingActive.')
+    }
+    $takeoverTailDetection =
+        $takeoverTailDetectionMatches[0].Groups['Detection'].Value
+    $takeoverPreserveExpression =
+        $takeoverTailDetectionMatches[0].Groups['Preserve'].Value
+    Assert-Match $takeoverTailDetection (
+        '(?is)ActiveRequest\.CommandId\s*=\s*0x7D12.*?' +
+        'ActiveRequest\.PayloadLength\s*=\s*48.*?' +
+        'LMC_ADMIN_SET_POSITION_PENDING_MAGIC_OFFSET.*?' +
+        'LMC_ADMIN_SET_POSITION_PENDING_MAGIC.*?' +
+        'LMC_ADMIN_SET_POSITION_PENDING_MAGIC_COPY_OFFSET.*?' +
+        'LMC_ADMIN_SET_POSITION_PENDING_MAGIC.*?' +
+        'setPositionPendingTailPresent\s*:=\s*TRUE\s*;') (
+        "$Owner ConnSocketInfo takeover must recognize either published " +
+        'SetPosition pending magic for exact 0x7D12/48.')
+    Assert-Match $takeoverTailDetection (
+        '(?is)setPositionPendingTailIndex\s*:=\s*' +
+        'LMC_ADMIN_SET_POSITION_PENDING_MAGIC_OFFSET\s*;\s*' +
+        'while\s+setPositionPendingTailIndex\s*<=\s*' +
+        'LMC_ADMIN_SET_POSITION_PENDING_CHECK_COPY_OFFSET\s+do\s*' +
+        'if\s+ActiveRequest\.PayloadData\s*\[\s*' +
+        'setPositionPendingTailIndex\s*\]\$UDINT\s*<>\s*0\s+then\s*' +
+        'setPositionPendingTailPresent\s*:=\s*TRUE\s*;\s*end_if\s*;\s*' +
+        'setPositionPendingTailIndex\s*\+=\s*4\s*;\s*end_while\s*;') (
+        "$Owner ConnSocketInfo takeover must preserve every partial nonzero " +
+        'DINT from the primary magic through duplicate check.')
+    if ($takeoverTailDetection -match
+            '(?i)ActiveRequestValid|_memset\s*\(.*?#ActiveRequest') {
+        throw (
+            "$Owner takeover pending-tail recognition must not depend on a " +
+            'cleared ActiveRequestValid flag or erase ActiveRequest.')
+    }
+    foreach ($requiredPreservePattern in @(
+            'ActiveRequest\.Reserved\s*=\s*1',
+            'LMC_OWNER_SAFETY_PENDING_MAGIC_OFFSET',
+            'LMC_OWNER_SAFETY_PENDING_MAGIC',
+            'ActiveRequest\.CommandId\s*=\s*0x7D12',
+            'ActiveRequest\.PayloadLength\s*=\s*48',
+            'setPositionPendingTailPresent')) {
+        Assert-Match $takeoverPreserveExpression (
+            '(?i)' + $requiredPreservePattern) (
+            "$Owner preservePendingActive must combine existing safety " +
+            'continuations with exact valid-or-partial SetPosition pending data.')
+    }
+    Assert-Match $connSocketInfoBlock (
+        '(?is)if\s+takeover\s*=\s*TRUE\s+then\s*' +
+        'if\s+\(SessionEpoch\s*<>\s*0\)\s*&\s*' +
+        '\(PendingClosedSessionEpoch\s*=\s*0\)\s+then\s*' +
+        'PendingClosedSessionEpoch\s*:=\s*SessionEpoch\s*;\s*' +
+        'end_if\s*;\s*end_if\s*;.*?' +
+        'setPositionPendingTailPresent\s*:=\s*FALSE\s*;.*?' +
+        'preservePendingActive\s*:=.*?;\s*' +
+        'if\s+preservePendingActive\s*=\s*FALSE\s+then\s*' +
+        '_memset\s*\(\s*dest\s*:=\s*#ActiveRequest\s*,\s*' +
+        'usByte\s*:=\s*0\s*,\s*cntr\s*:=\s*' +
+        'sizeof\s*\(\s*ActiveRequest\s*\)\s*\)\s*;\s*end_if\s*;') (
+        "$Owner takeover must first-win latch the old session and guard the " +
+        'only ActiveRequest clear with valid-or-partial pending preservation.')
+    $connActiveClearCount = [regex]::Matches(
+        $connSocketInfoBlock,
+        ('(?is)_memset\s*\(\s*dest\s*:=\s*#ActiveRequest\s*,\s*' +
+         'usByte\s*:=\s*0\s*,\s*cntr\s*:=\s*' +
+         'sizeof\s*\(\s*ActiveRequest\s*\)\s*\)\s*;')).Count
+    if ($connActiveClearCount -ne 1) {
+        throw (
+            "$Owner ConnSocketInfo must have one and only one full " +
+            'ActiveRequest clear, under preservePendingActive=FALSE.')
+    }
+
+    Assert-Match $cyWorkBlock (
+        '(?is)if\s+\(ActiveRequest\.Reserved\s*<\s*2\)\s*&\s*' +
+        '\(PendingClosedSessionEpoch\s*<>\s*0\).*?then.*?' +
+        'Diagnostics\.NotifySessionClosed\s*\(\s*' +
+        'SessionEpoch\s*:=\s*PendingClosedSessionEpoch\s*\)\s*;\s*' +
+        'ControlCommands\.NotifyAxisOwnershipSessionClosed\s*\(\s*' +
+        'SessionEpoch\s*:=\s*PendingClosedSessionEpoch\s*\)\s*;\s*' +
+        'if\s+ActiveRequest\.SessionEpoch\s*=\s*' +
+        'PendingClosedSessionEpoch\s+then\s*' +
+        '_memset\s*\(\s*dest\s*:=\s*#ActiveRequest\s*,\s*' +
+        'usByte\s*:=\s*0\s*,\s*cntr\s*:=\s*' +
+        'sizeof\s*\(\s*ActiveRequest\s*\)\s*\)\s*;\s*' +
+        'end_if\s*;\s*PendingClosedSessionEpoch\s*:=\s*0\s*;') (
+        "$Owner CyWork must complete Diagnostics and Control closed-session " +
+        'quarantine/Notify before clearing the preserved ActiveRequest.')
+    $cyWorkActiveClearMatches = [regex]::Matches(
+        $cyWorkBlock,
+        ('(?is)_memset\s*\(\s*dest\s*:=\s*#ActiveRequest\s*,\s*' +
+         'usByte\s*:=\s*0\s*,\s*cntr\s*:=\s*' +
+         'sizeof\s*\(\s*ActiveRequest\s*\)\s*\)\s*;'))
+    $cyWorkControlNotifyIndex = $cyWorkBlock.IndexOf(
+        'ControlCommands.NotifyAxisOwnershipSessionClosed(',
+        [StringComparison]::Ordinal)
+    if ($cyWorkActiveClearMatches.Count -ne 1 -or
+        $cyWorkControlNotifyIndex -lt 0 -or
+        $cyWorkActiveClearMatches[0].Index -le $cyWorkControlNotifyIndex) {
+        throw (
+            "$Owner CyWork may clear one full ActiveRequest only after the " +
+            'Control closed-session notification.')
+    }
+    Assert-Match $cyWorkBlock (
+        '(?is)setPositionPendingTailPresent\s*:=\s*FALSE\s*;\s*' +
+        'if\s+\(ActiveRequest\.CommandId\s*=\s*0x7D12\)\s*&\s*' +
+        '\(ActiveRequest\.PayloadLength\s*=\s*48\)\s*&\s*\(\(' +
+        'ActiveRequest\.PayloadData\s*\[\s*' +
+        'LMC_ADMIN_SET_POSITION_PENDING_MAGIC_OFFSET\s*\]\$UDINT\s*=\s*' +
+        'LMC_ADMIN_SET_POSITION_PENDING_MAGIC\)\s*\|\s*\(' +
+        'ActiveRequest\.PayloadData\s*\[\s*' +
+        'LMC_ADMIN_SET_POSITION_PENDING_MAGIC_COPY_OFFSET\s*\]\$UDINT\s*=\s*' +
+        'LMC_ADMIN_SET_POSITION_PENDING_MAGIC\)\)\s+then\s*' +
+        'setPositionPendingTailPresent\s*:=\s*TRUE\s*;') (
+        "$Owner CyWork pending-magic recognition must be scoped to exact " +
+        '0x7D12/48 before retaining or quarantining an ActiveRequest.')
+    Assert-Match $cyWorkBlock (
+        '(?is)if\s+\(ActiveRequest\.Reserved\s*=\s*0\)\s*&\s*' +
+        '\(\(\(ActiveRequest\.CommandId\s*<>\s*0x7D12\)\s*\|\s*' +
+        '\(ActiveRequest\.PayloadLength\s*<>\s*48\)\)\s*\|\s*' +
+        '\(\(ActiveRequest\.PayloadData\s*\[\s*' +
+        'LMC_ADMIN_SET_POSITION_PENDING_MAGIC_OFFSET\s*\]\$UDINT\s*<>\s*' +
+        'LMC_ADMIN_SET_POSITION_PENDING_MAGIC\)\s*&\s*\(' +
+        'ActiveRequest\.PayloadData\s*\[\s*' +
+        'LMC_ADMIN_SET_POSITION_PENDING_MAGIC_COPY_OFFSET\s*\]\$UDINT\s*<>\s*' +
+        'LMC_ADMIN_SET_POSITION_PENDING_MAGIC\)\)\)\s+then\s*' +
+        'ActiveRequestValid\s*:=\s*FALSE\s*;\s*end_if\s*;') (
+        "$Owner CyWork may retain Reserved=0 only for an exact 0x7D12/48 " +
+        'request carrying both published pending-magic evidence fields.')
+
+    foreach ($tailField in @(
+            'MAGIC', 'SESSION', 'SEQUENCE', 'SOCKET',
+            'COMMAND', 'REFERENCE', 'LENGTH', 'CHECK')) {
+        foreach ($tailSuffix in @('_OFFSET', '_COPY_OFFSET')) {
+            $tailName = 'LMC_ADMIN_SET_POSITION_PENDING_' +
+                $tailField + $tailSuffix
+            if ([regex]::Matches(
+                    $pendingHelperBlock,
+                    ('(?<![A-Za-z0-9_])' + [regex]::Escape($tailName) +
+                     '(?![A-Za-z0-9_])')).Count -lt 1) {
+                throw "$Owner TCP pending helper does not use tail field $tailName."
+            }
+        }
+    }
+    Assert-Match $pendingBlock (
+        '(?is)^\s*if\s+\(CommandID\s*=\s*0x7D12\)\s*&\s*' +
+        '\(controlResponseSize\s*=\s*LMC_ADMIN_SET_POSITION_PENDING\)\s+then' +
+        '\s*setPositionPendingResult\s*:=\s*' +
+        'HandleAdminSetPositionPending\s*\(\s*Phase\s*:=\s*' +
+        'LMC_ADMIN_SET_POSITION_PENDING_PHASE_RETAIN\s*\)\s*;\s*' +
+        'if\s+setPositionPendingResult\s*=\s*1\s+then\s*' +
+        'ActiveRequestValid\s*:=\s*TRUE\s*;\s*end_if\s*;\s*' +
+        'RETURN\s*;\s*end_if\s*;\s*' +
+        'if\s+CommandID\s*=\s*0x7D12\s+then\s*' +
+        'setPositionPendingResult\s*:=\s*' +
+        'HandleAdminSetPositionPending\s*\(\s*Phase\s*:=\s*' +
+        'LMC_ADMIN_SET_POSITION_PENDING_PHASE_TERMINAL\s*\)\s*;\s*' +
+        'end_if\s*;\s*$') (
+        "$Owner TCP -13 consumer must retain through the exact helper and " +
+        'clear its private tail only on a non-pending terminal result.')
+    if ($pendingBlock -match
+            ('(?i)\bSendData\s*\(|(?<![A-Za-z0-9_])Sendbuf|' +
+             'pResponseFrame|\b_memset\s*\(|' +
+             'controlResponseSize\s*:=|DisarmRpcCallbackEndpoint|' +
+             'PendingClosedSessionEpoch\s*:=|SessionEpoch\s*\+=|' +
+             'IngressBlocked\s*:=|IngressFault\w*\s*:=' +
+             'RpcSocket\s*:=|RpcInitialized\s*:=|SetSocketParameter|' +
+             'ActiveRequest\.Reserved\s*:=|QueueReadIndex\s*:=' +
+             'RequestQueue\s*\[')) {
+        throw (
+            "$Owner TCP -13 consumer must retain the active request, socket, " +
+            'session, queue head, callback epoch, and response buffer unchanged.')
+    }
+
+    Assert-Match $pendingHelperBlock (
+        '(?is)^\s*FUNCTION\s+TCPMotionInterface::' +
+        'HandleAdminSetPositionPending\s*' +
+        'VAR_INPUT\s*Phase\s*:\s*UINT\s*;\s*END_VAR\s*' +
+        'VAR_OUTPUT\s*Result\s*:\s*DINT\s*;\s*END_VAR') (
+        "$Owner TCP pending helper ABI must remain private Phase UINT to Result DINT.")
+    Assert-Match $pendingHelperBlock (
+        '(?is)pendingTailPresent\s*:=\s*FALSE\s*;.*?' +
+        'if\s+\(ActiveRequest\.CommandId\s*=\s*0x7D12\)\s*&\s*' +
+        '\(ActiveRequest\.PayloadLength\s*=\s*48\)\s*&\s*\(\(' +
+        'ActiveRequest\.PayloadData\s*\[\s*' +
+        'LMC_ADMIN_SET_POSITION_PENDING_MAGIC_OFFSET\s*\]\$UDINT\s*=\s*' +
+        'LMC_ADMIN_SET_POSITION_PENDING_MAGIC\)\s*\|\s*\(' +
+        'ActiveRequest\.PayloadData\s*\[\s*' +
+        'LMC_ADMIN_SET_POSITION_PENDING_MAGIC_COPY_OFFSET\s*\]\$UDINT\s*=\s*' +
+        'LMC_ADMIN_SET_POSITION_PENDING_MAGIC\)\)\s+then\s*' +
+        'pendingTailPresent\s*:=\s*TRUE\s*;') (
+        "$Owner TCP pending helper must ignore pending magic outside exact " +
+        '0x7D12/48 requests.')
+    Assert-Match $pendingHelperBlock (
+        '(?is)LMC_ADMIN_SET_POSITION_PENDING_PHASE_PREPARE\s*:\s*' +
+        'if\s+pendingTailPresent\s*=\s*FALSE\s+then\s*' +
+        'Result\s*:=\s*0\s*;\s*' +
+        'elsif\s+pendingContextValid\s+then\s*' +
+        'Result\s*:=\s*1\s*;\s*' +
+        'else\s*pendingCloseRequired\s*:=\s*TRUE\s*;\s*' +
+        'end_if\s*;.*?' +
+        'if\s+pendingCloseRequired\s+then.*?' +
+        'Result\s*:=\s*LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE\s*;') (
+        "$Owner TCP PREPARE must return 0 for no tail, 1 only for a valid " +
+        'duplicated tail, and -14 close for partial or invalid tail data.')
+    Assert-Match $pendingHelperBlock (
+        '(?is)pendingCheck\s*:=\s*LMC_ADMIN_SET_POSITION_PENDING_MAGIC\s+xor\s*' +
+        'ActiveRequest\.PayloadData\s*\[\s*' +
+        'LMC_ADMIN_SET_POSITION_PENDING_SESSION_OFFSET\s*\]\$UDINT\s+xor\s*' +
+        'ActiveRequest\.PayloadData\s*\[\s*' +
+        'LMC_ADMIN_SET_POSITION_PENDING_SEQUENCE_OFFSET\s*\]\$UDINT\s+xor\s*' +
+        'ActiveRequest\.PayloadData\s*\[\s*' +
+        'LMC_ADMIN_SET_POSITION_PENDING_SOCKET_OFFSET\s*\]\$UDINT\s+xor\s*' +
+        'ActiveRequest\.PayloadData\s*\[\s*' +
+        'LMC_ADMIN_SET_POSITION_PENDING_COMMAND_OFFSET\s*\]\$UDINT\s+xor\s*' +
+        'ActiveRequest\.PayloadData\s*\[\s*' +
+        'LMC_ADMIN_SET_POSITION_PENDING_LENGTH_OFFSET\s*\]\$UDINT\s*;\s*' +
+        'pendingPrimaryValid\s*:=\s*\(' +
+        'ActiveRequest\.PayloadData\s*\[\s*' +
+        'LMC_ADMIN_SET_POSITION_PENDING_MAGIC_OFFSET\s*\]\$UDINT\s*=\s*' +
+        'LMC_ADMIN_SET_POSITION_PENDING_MAGIC\)\s*&\s*\(' +
+        'ActiveRequest\.PayloadData\s*\[\s*' +
+        'LMC_ADMIN_SET_POSITION_PENDING_CHECK_OFFSET\s*\]\$UDINT\s*=\s*' +
+        'pendingCheck\)\s*;\s*' +
+        'pendingCheck\s*:=\s*LMC_ADMIN_SET_POSITION_PENDING_MAGIC\s+xor\s*' +
+        'ActiveRequest\.PayloadData\s*\[\s*' +
+        'LMC_ADMIN_SET_POSITION_PENDING_SESSION_COPY_OFFSET\s*\]\$UDINT\s+xor\s*' +
+        'ActiveRequest\.PayloadData\s*\[\s*' +
+        'LMC_ADMIN_SET_POSITION_PENDING_SEQUENCE_COPY_OFFSET\s*\]\$UDINT\s+xor\s*' +
+        'ActiveRequest\.PayloadData\s*\[\s*' +
+        'LMC_ADMIN_SET_POSITION_PENDING_SOCKET_COPY_OFFSET\s*\]\$UDINT\s+xor\s*' +
+        'ActiveRequest\.PayloadData\s*\[\s*' +
+        'LMC_ADMIN_SET_POSITION_PENDING_COMMAND_COPY_OFFSET\s*\]\$UDINT\s+xor\s*' +
+        'ActiveRequest\.PayloadData\s*\[\s*' +
+        'LMC_ADMIN_SET_POSITION_PENDING_LENGTH_COPY_OFFSET\s*\]\$UDINT\s*;\s*' +
+        'pendingCopyValid\s*:=\s*\(' +
+        'ActiveRequest\.PayloadData\s*\[\s*' +
+        'LMC_ADMIN_SET_POSITION_PENDING_MAGIC_COPY_OFFSET\s*\]\$UDINT\s*=\s*' +
+        'LMC_ADMIN_SET_POSITION_PENDING_MAGIC\)\s*&\s*\(' +
+        'ActiveRequest\.PayloadData\s*\[\s*' +
+        'LMC_ADMIN_SET_POSITION_PENDING_CHECK_COPY_OFFSET\s*\]\$UDINT\s*=\s*' +
+        'pendingCheck\)\s*;') (
+        "$Owner TCP consumer must recompute independent primary/copy XOR " +
+        'checks over magic, session, sequence, socket, packed command/reference, ' +
+        'and length before accepting either publication.')
+    $pendingConsumerContext = [regex]::Match(
+        $pendingHelperBlock,
+        '(?is)pendingContextValid\s*:=\s*pendingPrimaryValid\s*&\s*' +
+        'pendingCopyValid\s*&(?<Expression>.*?);')
+    if (-not $pendingConsumerContext.Success) {
+        throw "$Owner TCP consumer must compute one duplicated-tail context guard."
+    }
+    foreach ($consumerGuard in @(
+            'ActiveRequestValid\s*=\s*TRUE',
+            'ActiveRequest\.State\s*=\s*TCPMI_QUEUE_ACTIVE',
+            'ActiveRequest\.Reserved\s*=\s*0',
+            'ActiveRequest\.CommandId\s*=\s*0x7D12',
+            'ActiveRequest\.PayloadLength\s*=\s*48',
+            'ActiveRequest\.Reference\s*>=\s*1',
+            'ActiveRequest\.Reference\s*<=\s*4',
+            'ActiveRequest\.SessionEpoch\s*<>\s*0',
+            'ActiveRequest\.Sequence\s*<>\s*0',
+            'ActiveRequest\.Socket\s*<>\s*0',
+            'ActiveRequest\.CommandId\s*=\s*CommandID\$UINT',
+            'ActiveRequest\.Reference\s*=\s*AxisRef\$UINT',
+            'ActiveRequest\.PayloadLength\s*=\s*Payload\$UINT',
+            'ActiveRequest\.Socket\s*=\s*CurrentSock',
+            'ActiveRequest\.SessionEpoch\s*=\s*SessionEpoch',
+            'PendingClosedSessionEpoch\s*=\s*0',
+            'RequestBuf\[0\]\$UINT\s*=\s*ActiveRequest\.CommandId',
+            'RequestBuf\[4\]\$UINT\s*=\s*ActiveRequest\.PayloadLength',
+            'RequestBuf\[6\]\$UINT\s*=\s*ActiveRequest\.Reference')) {
+        if ($pendingConsumerContext.Groups['Expression'].Value -notmatch
+                ('(?is)' + $consumerGuard)) {
+            throw "$Owner TCP consumer omitted frozen tuple guard: $consumerGuard"
+        }
+    }
+    foreach ($tailCompare in @(
+            @{ Suffix = ''; Field = 'SESSION'; Type = 'UDINT'; Value = 'SessionEpoch' },
+            @{ Suffix = ''; Field = 'SEQUENCE'; Type = 'UDINT'; Value = 'Sequence' },
+            @{ Suffix = ''; Field = 'SOCKET'; Type = 'DINT'; Value = 'Socket' },
+            @{ Suffix = ''; Field = 'COMMAND'; Type = 'UINT'; Value = 'CommandId' },
+            @{ Suffix = ''; Field = 'REFERENCE'; Type = 'UINT'; Value = 'Reference' },
+            @{ Suffix = '_COPY'; Field = 'SESSION'; Type = 'UDINT'; Value = 'SessionEpoch' },
+            @{ Suffix = '_COPY'; Field = 'SEQUENCE'; Type = 'UDINT'; Value = 'Sequence' },
+            @{ Suffix = '_COPY'; Field = 'SOCKET'; Type = 'DINT'; Value = 'Socket' },
+            @{ Suffix = '_COPY'; Field = 'COMMAND'; Type = 'UINT'; Value = 'CommandId' },
+            @{ Suffix = '_COPY'; Field = 'REFERENCE'; Type = 'UINT'; Value = 'Reference' })) {
+        $tailComparePattern =
+            'ActiveRequest\.PayloadData\s*\[\s*' +
+            'LMC_ADMIN_SET_POSITION_PENDING_' + $tailCompare.Field +
+            $tailCompare.Suffix + '_OFFSET\s*\]\$' + $tailCompare.Type +
+            '\s*=\s*ActiveRequest\.' + $tailCompare.Value
+        if ($pendingConsumerContext.Groups['Expression'].Value -notmatch
+                ('(?is)' + $tailComparePattern)) {
+            throw (
+                "$Owner TCP consumer omitted exact $($tailCompare.Field)" +
+                "$($tailCompare.Suffix) ActiveRequest comparison.")
+        }
+    }
+    foreach ($lengthSuffix in @('', '_COPY')) {
+        if ($pendingConsumerContext.Groups['Expression'].Value -notmatch
+                ('(?is)ActiveRequest\.PayloadData\s*\[\s*' +
+                 'LMC_ADMIN_SET_POSITION_PENDING_LENGTH' + $lengthSuffix +
+                 '_OFFSET\s*\]\$UDINT\s*=\s*48')) {
+            throw "$Owner TCP consumer omitted exact LENGTH$lengthSuffix=48."
+        }
+    }
+    Assert-Match $pendingHelperBlock (
+        '(?is)LMC_ADMIN_SET_POSITION_PENDING_PHASE_RETAIN\s*:\s*.*?' +
+        'else\s*pendingContextValid\s*:=.*?' +
+        'ActiveRequest\.Reserved\s*=\s*0.*?' +
+        'if\s+pendingContextValid\s+then\s*' +
+        '_memset\s*\(\s*dest\s*:=\s*#ActiveRequest\.PayloadData\s*\[\s*' +
+        'LMC_ADMIN_SET_POSITION_PENDING_MAGIC_OFFSET\s*\]\s*,\s*' +
+        'usByte\s*:=\s*0\s*,\s*cntr\s*:=\s*56\s*\)\s*;.*?' +
+        'LMC_ADMIN_SET_POSITION_PENDING_SESSION_OFFSET\]\$UDINT\s*:=\s*' +
+        'ActiveRequest\.SessionEpoch\s*;.*?' +
+        'LMC_ADMIN_SET_POSITION_PENDING_SEQUENCE_OFFSET\]\$UDINT\s*:=\s*' +
+        'ActiveRequest\.Sequence\s*;.*?' +
+        'LMC_ADMIN_SET_POSITION_PENDING_SOCKET_OFFSET\]\$DINT\s*:=\s*' +
+        'ActiveRequest\.Socket\s*;.*?' +
+        'LMC_ADMIN_SET_POSITION_PENDING_COMMAND_OFFSET\]\$UINT\s*:=\s*' +
+        'ActiveRequest\.CommandId\s*;.*?' +
+        'LMC_ADMIN_SET_POSITION_PENDING_REFERENCE_OFFSET\]\$UINT\s*:=\s*' +
+        'ActiveRequest\.Reference\s*;.*?' +
+        'LMC_ADMIN_SET_POSITION_PENDING_LENGTH_OFFSET\]\$UDINT\s*:=\s*48\s*;.*?' +
+        'LMC_ADMIN_SET_POSITION_PENDING_SESSION_COPY_OFFSET\]\$UDINT\s*:=\s*' +
+        'ActiveRequest\.SessionEpoch\s*;.*?' +
+        'LMC_ADMIN_SET_POSITION_PENDING_SEQUENCE_COPY_OFFSET\]\$UDINT\s*:=\s*' +
+        'ActiveRequest\.Sequence\s*;.*?' +
+        'LMC_ADMIN_SET_POSITION_PENDING_SOCKET_COPY_OFFSET\]\$DINT\s*:=\s*' +
+        'ActiveRequest\.Socket\s*;.*?' +
+        'LMC_ADMIN_SET_POSITION_PENDING_COMMAND_COPY_OFFSET\]\$UINT\s*:=\s*' +
+        'ActiveRequest\.CommandId\s*;.*?' +
+        'LMC_ADMIN_SET_POSITION_PENDING_REFERENCE_COPY_OFFSET\]\$UINT\s*:=\s*' +
+        'ActiveRequest\.Reference\s*;.*?' +
+        'LMC_ADMIN_SET_POSITION_PENDING_LENGTH_COPY_OFFSET\]\$UDINT\s*:=\s*48\s*;.*?' +
+        'pendingCheck\s*:=\s*LMC_ADMIN_SET_POSITION_PENDING_MAGIC\s+xor\s*' +
+        'ActiveRequest\.SessionEpoch\s+xor\s*ActiveRequest\.Sequence\s+xor\s*' +
+        'TO_UDINT\s*\(\s*ActiveRequest\.Socket\s*\)\s+xor\s*' +
+        'ActiveRequest\.PayloadData\s*\[\s*' +
+        'LMC_ADMIN_SET_POSITION_PENDING_COMMAND_OFFSET\s*\]\$UDINT\s+xor\s*48\s*;.*?' +
+        'LMC_ADMIN_SET_POSITION_PENDING_CHECK_OFFSET\]\$UDINT\s*:=\s*' +
+        'pendingCheck\s*;.*?' +
+        'LMC_ADMIN_SET_POSITION_PENDING_CHECK_COPY_OFFSET\]\$UDINT\s*:=\s*' +
+        'pendingCheck\s*;.*?' +
+        'LMC_ADMIN_SET_POSITION_PENDING_MAGIC_COPY_OFFSET\]\$UDINT\s*:=\s*' +
+        'LMC_ADMIN_SET_POSITION_PENDING_MAGIC\s*;.*?' +
+        'LMC_ADMIN_SET_POSITION_PENDING_MAGIC_OFFSET\]\$UDINT\s*:=\s*' +
+        'LMC_ADMIN_SET_POSITION_PENDING_MAGIC\s*;\s*Result\s*:=\s*1\s*;') (
+        "$Owner TCP producer must clear 56 bytes, write both exact bodies/checks, " +
+        'then publish copy magic and primary magic last.')
+    $tailClearPattern =
+        '(?is)_memset\s*\(\s*dest\s*:=\s*#ActiveRequest\.PayloadData\s*\[\s*' +
+        'LMC_ADMIN_SET_POSITION_PENDING_MAGIC_OFFSET\s*\]\s*,\s*' +
+        'usByte\s*:=\s*0\s*,\s*cntr\s*:=\s*56\s*\)\s*;'
+    if ([regex]::Matches($pendingHelperBlock, $tailClearPattern).Count -ne 3) {
+        throw (
+            "$Owner TCP helper must have exactly three 56-byte tail clears: " +
+            'producer initialization, terminal, and quarantine close.')
+    }
+    Assert-Match $pendingHelperBlock (
+        '(?is)LMC_ADMIN_SET_POSITION_PENDING_PHASE_TERMINAL\s*:\s*' +
+        $tailClearPattern + '\s*Result\s*:=\s*0\s*;') (
+        "$Owner TCP terminal phase must clear the full 56-byte duplicated tail.")
+    Assert-Match $pendingHelperBlock (
+        '(?is)if\s+pendingCloseRequired\s+then.*?' +
+        'pendingCloseSocket\s*:=\s*ActiveRequest\.Socket\s*;.*?' +
+        $tailClearPattern + '.*?DisarmRpcCallbackEndpoint') (
+        "$Owner TCP quarantine close must clear the full tail before disarm/close.")
+    Assert-Match $pendingHelperBlock (
+        '(?is)if\s+pendingCloseRequired\s+then\s*' +
+        'pendingCloseSession\s*:=\s*ActiveRequest\.SessionEpoch\s*;\s*' +
+        'pendingCloseSocket\s*:=\s*ActiveRequest\.Socket\s*;.*?' +
+        'if\s+\(pendingCloseSession\s*<>\s*0\)\s*&\s*' +
+        '\(PendingClosedSessionEpoch\s*=\s*0\)\s+then\s*' +
+        'PendingClosedSessionEpoch\s*:=\s*pendingCloseSession\s*;\s*' +
+        'pendingCallbackDisarmResult\s*:=\s*' +
+        'DisarmRpcCallbackEndpoint\s*\(\s*\)\s*;\s*' +
+        'SessionEpoch\s*\+=\s*1\s*;\s*' +
+        'if\s+SessionEpoch\s*=\s*0\s+then\s*' +
+        'SessionEpoch\s*:=\s*1\s*;\s*end_if\s*;\s*' +
+        'end_if\s*;\s*IngressBlocked\s*:=\s*TRUE\s*;') (
+        "$Owner TCP quarantine close must first-win capture the old session, " +
+        'disarm, advance/wrap SessionEpoch, then fence new ingress.')
+    Assert-Match $msgParserBlock (
+        '(?is)END_VAR\s*' +
+        'setPositionPendingResult\s*:=\s*HandleAdminSetPositionPending\s*\(\s*' +
+        'Phase\s*:=\s*LMC_ADMIN_SET_POSITION_PENDING_PHASE_PREPARE\s*\)\s*;\s*' +
+        'if\s+setPositionPendingResult\s*=\s*' +
+        'LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE\s+then\s*' +
+        'RETURN\s*;\s*end_if\s*;') (
+        "$Owner MsgPaser first executable gate must PREPARE/validate an existing " +
+        'pending tail before parser, service, response, or socket logic.')
+    Assert-Match $pendingHelperBlock (
+        '(?is)LMC_ADMIN_SET_POSITION_PENDING_PHASE_RETAIN\s*:\s*' +
+        'if\s+pendingTailPresent\s+then\s*' +
+        'if\s+pendingContextValid.*?Result\s*:=\s*1\s*;\s*' +
+        'else\s*pendingCloseRequired\s*:=\s*TRUE\s*;\s*end_if\s*;\s*' +
+        'else.*?if\s+pendingContextValid\s+then.*?' +
+        'LMC_ADMIN_SET_POSITION_PENDING_MAGIC_COPY_OFFSET.*?' +
+        'LMC_ADMIN_SET_POSITION_PENDING_MAGIC_OFFSET.*?' +
+        'Result\s*:=\s*1\s*;\s*else\s*' +
+        'pendingCloseRequired\s*:=\s*TRUE') (
+        "$Owner TCP RETAIN helper must either preserve/freeze one coherent " +
+        'duplicated tail or enter quarantine close.')
+    if ($pendingHelperBlock -match
+            '(?i)\bSendData\s*\(|(?<![A-Za-z0-9_])Sendbuf|' +
+            'pResponseFrame|controlResponseSize\s*:=') {
+        throw "$Owner TCP pending helper must perform zero response writes."
+    }
+
+    Assert-Match $quarantineBlock (
+        '(?is)^\s*if\s+\(CommandID\s*=\s*0x7D12\)\s*&\s*' +
+        '\(controlResponseSize\s*=\s*' +
+        'LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE\)\s+then\s*' +
+        'setPositionPendingResult\s*:=\s*' +
+        'HandleAdminSetPositionPending\s*\(\s*Phase\s*:=\s*' +
+        'LMC_ADMIN_SET_POSITION_PENDING_PHASE_QUARANTINE\s*\)\s*;\s*' +
+        'RETURN\s*;\s*end_if\s*;\s*$') (
+        "$Owner TCP -14 consumer must route once through the quarantine helper.")
+    if ($quarantineBlock -match
+            '(?i)\bSendData\s*\(|(?<![A-Za-z0-9_])Sendbuf|' +
+            'pResponseFrame|\b_memset\s*\(|controlResponseSize\s*:=') {
+        throw "$Owner TCP -14 consumer must perform zero response writes."
+    }
+    Assert-Match $pendingHelperBlock (
+        '(?is)LMC_ADMIN_SET_POSITION_PENDING_PHASE_QUARANTINE\s*:\s*' +
+        'pendingCloseRequired\s*:=\s*TRUE\s*;.*?' +
+        'if\s+pendingCloseRequired\s+then.*?' +
+        'pendingCloseSocket\s*:=\s*ActiveRequest\.Socket\s*;.*?' +
+        'DisarmRpcCallbackEndpoint\s*\(\s*\).*?' +
+        'IngressBlocked\s*:=\s*TRUE\s*;.*?' +
+        'IngressFaultCloseRequired\s*:=\s*TRUE\s*;.*?' +
+        'RpcSocket\s*:=\s*0\s*;.*?' +
+        'RpcInitialized\s*:=\s*FALSE\s*;.*?' +
+        'SetSocketParameter\s*\(.*?Cmd\s*:=\s*100.*?\)\s*;.*?' +
+        'Result\s*:=\s*LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE\s*;') (
+        "$Owner TCP quarantine helper must perform the exact no-response close.")
+
+    $serviceCallIndex = $rawMsgParserBlock.IndexOf(
+        'ControlCommands.HandleRequest(', [StringComparison]::Ordinal)
+    $pendingMarkerIndex = $rawMsgParserBlock.IndexOf(
+        'LMC_ADMIN_SET_POSITION_PENDING_BEGIN', [StringComparison]::Ordinal)
+    $quarantineMarkerIndex = $rawMsgParserBlock.IndexOf(
+        'LMC_ADMIN_SET_POSITION_QUARANTINE_BEGIN', [StringComparison]::Ordinal)
+    $closeMarkerIndex = $rawMsgParserBlock.IndexOf(
+        'LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE_BEGIN',
+        [StringComparison]::Ordinal)
+    $genericErrorMatch = [regex]::Match(
+        $rawMsgParserBlock,
+        '(?i)controlResponseSize\s*<=\s*0')
+    if ($serviceCallIndex -lt 0 -or
+        $pendingMarkerIndex -le $serviceCallIndex -or
+        $quarantineMarkerIndex -le $pendingMarkerIndex -or
+        $closeMarkerIndex -le $quarantineMarkerIndex -or
+        -not $genericErrorMatch.Success -or
+        $genericErrorMatch.Index -le $closeMarkerIndex) {
+        throw (
+            "$Owner TCP consumer order must be service, -13 pending, -14 " +
+            'quarantine, -12 durability close, then generic error handling.')
+    }
+}
+
+function New-LasalSetPositionAsyncControlVerifierFixture {
+    $control = @'
+LMCControlCommandService : CLASS
+    AxisSetPositionAsyncState : ARRAY [0..127] OF DINT;
+END_CLASS
+
+#define LMC_ADMIN_SET_POSITION_ASYNC_MAGIC 0x53504131
+#define LMC_ADMIN_SET_POSITION_PENDING -13
+#define LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE -14
+#define LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE -12
+#define LMC_ADMIN_SET_POSITION_ASYNC_STATE_IDLE 0
+#define LMC_ADMIN_SET_POSITION_ASYNC_STATE_BEGIN_PENDING 1
+#define LMC_ADMIN_SET_POSITION_ASYNC_STATE_FRESH_ARMED 2
+#define LMC_ADMIN_SET_POSITION_ASYNC_STATE_OWNERSHIP_RESERVED 3
+#define LMC_ADMIN_SET_POSITION_ASYNC_STATE_PREFLIGHT_PENDING 4
+#define LMC_ADMIN_SET_POSITION_ASYNC_STATE_PREFLIGHT_READY 5
+#define LMC_ADMIN_SET_POSITION_ASYNC_STATE_OWNERSHIP_ACTIVE 6
+#define LMC_ADMIN_SET_POSITION_ASYNC_STATE_EXECUTION_PENDING 7
+#define LMC_ADMIN_SET_POSITION_ASYNC_STATE_TERMINAL_COMMIT_PENDING 8
+#define LMC_ADMIN_SET_POSITION_ASYNC_STATE_TERMINAL_PROVEN 9
+#define LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED 10
+#define LMC_SET_POSITION_PREFLIGHT_READY 1
+#define LMC_SET_POSITION_PREFLIGHT_REJECTED 2
+#define LMC_SET_POSITION_PREFLIGHT_CLIENT -4
+#define LMC_SET_POSITION_PREFLIGHT_STATE -5
+#define LMC_SET_POSITION_PREFLIGHT_CONFIG -6
+#define LMC_SET_POSITION_PREFLIGHT_VELOCITY -7
+#define LMC_SET_POSITION_PREFLIGHT_AXIS_ERROR -8
+#define LMC_SET_POSITION_PREFLIGHT_COORDINATE -9
+#define LMC_SET_POSITION_EVIDENCE_READY_MASK 0x800003FF
+#define LMC_SET_POSITION_EVIDENCE_REJECT_MASK 0x80000003
+
+FUNCTION GLOBAL LMCControlCommandService::HandleRequest
+VAR_INPUT
+    CommandId : UINT;
+    Reference : UINT;
+    pRequestFrame : ^USINT;
+    RequestFrameSize : UDINT;
+    pResponseFrame : ^USINT;
+    ResponseCapacity : UDINT;
+    CallerSessionEpoch : UDINT;
+    RequestSequence : UDINT;
+    AdmissionToken : UDINT;
+    OwnerGeneration : UDINT;
+    ResponseSocket : DINT;
+END_VAR
+VAR_OUTPUT
+    ResponseSize : DINT;
+END_VAR
+if (CommandId = 0x7D12) & (AdmissionToken = 0) &
+   (OwnerGeneration = 0) then
+end_if;
+AxisSetPositionAsyncState[114] := CallerSessionEpoch;
+AxisSetPositionAsyncState[115] := RequestSequence;
+AxisSetPositionAsyncState[116] := ResponseSocket;
+AxisSetPositionAsyncState[117] := TO_DINT(CommandId);
+AxisSetPositionAsyncState[118] := TO_DINT(Reference);
+AxisSetPositionAsyncState[119] := AdmissionToken;
+AxisSetPositionAsyncState[120] := OwnerGeneration;
+AxisSetPositionAsyncState[121]$UDINT :=
+    CallerSessionEpoch xor RequestSequence xor TO_UDINT(ResponseSocket) xor
+    TO_UDINT(CommandId) xor TO_UDINT(Reference) xor
+    AdmissionToken xor OwnerGeneration;
+ResponseSize := DispatchRequestCommand(
+    CommandId:=CommandId, Reference:=Reference,
+    pRequestFrame:=pRequestFrame, RequestFrameSize:=RequestFrameSize,
+    pResponseFrame:=pResponseFrame, ResponseCapacity:=ResponseCapacity);
+AxisSetPositionAsyncState[114] := 0;
+AxisSetPositionAsyncState[115] := 0;
+AxisSetPositionAsyncState[116] := 0;
+AxisSetPositionAsyncState[117] := 0;
+AxisSetPositionAsyncState[118] := 0;
+AxisSetPositionAsyncState[119] := 0;
+AxisSetPositionAsyncState[120] := 0;
+AxisSetPositionAsyncState[121] := 0;
+AxisSetPositionAsyncState[122] := 0;
+AxisSetPositionAsyncState[123] := 0;
+AxisSetPositionAsyncState[124] := 0;
+AxisSetPositionAsyncState[125] := 0;
+AxisSetPositionAsyncState[126] := 0;
+AxisSetPositionAsyncState[127] := 0;
+END_FUNCTION
+
+FUNCTION LMCControlCommandService::DispatchRequestCommand
+VAR_INPUT
+    CommandId : UINT;
+    Reference : UINT;
+    pRequestFrame : ^USINT;
+    RequestFrameSize : UDINT;
+    pResponseFrame : ^USINT;
+    ResponseCapacity : UDINT;
+END_VAR
+VAR_OUTPUT
+    ResponseSize : DINT;
+END_VAR
+case CommandId of
+0x7D12:
+    ResponseSize := HandleAdminSetPosition(
+        Reference:=Reference, pRequestFrame:=pRequestFrame,
+        RequestFrameSize:=RequestFrameSize, pResponseFrame:=pResponseFrame,
+        ResponseCapacity:=ResponseCapacity);
+end_case;
+END_FUNCTION
+
+FUNCTION LMCControlCommandService::HandleAdminSetPosition
+VAR_INPUT
+    Reference : UINT;
+    pRequestFrame : ^USINT;
+    RequestFrameSize : UDINT;
+    pResponseFrame : ^USINT;
+    ResponseCapacity : UDINT;
+END_VAR
+VAR_OUTPUT
+    ResponseSize : DINT;
+END_VAR
+ResponseSize := ProcessAdminSetPositionAsync(
+    Reference:=Reference, pRequestFrame:=pRequestFrame,
+    RequestFrameSize:=RequestFrameSize, pResponseFrame:=pResponseFrame,
+    ResponseCapacity:=ResponseCapacity);
+END_FUNCTION
+
+FUNCTION LMCControlCommandService::ProcessAdminSetPositionAsync
+VAR_INPUT
+    Reference : UINT;
+    pRequestFrame : ^USINT;
+    RequestFrameSize : UDINT;
+    pResponseFrame : ^USINT;
+    ResponseCapacity : UDINT;
+END_VAR
+VAR_OUTPUT
+    ResponseSize : DINT;
+END_VAR
+VAR
+    adminSetPositionKey : ARRAY [0..47] OF USINT;
+    adminFrozenResponse : ARRAY [0..35] OF USINT;
+    adminSchemaVersion : UINT;
+    adminRequestFlags : UINT;
+    adminRequestId : UDINT;
+    adminDiagnosticsBuild : UDINT;
+    adminBootId : UDINT;
+    adminMapRevision : UDINT;
+    adminClientIntentId0 : UDINT;
+    adminClientIntentId1 : UDINT;
+    adminClientIntentId2 : UDINT;
+    adminClientIntentId3 : UDINT;
+    adminAxisPosition : DINT;
+    adminExpectedActualPosition : DINT;
+    adminExecuteToken : UDINT;
+    adminOwnerSession : UDINT;
+    adminOwnerSequence : UDINT;
+    adminResponseSocket : DINT;
+    adminContextCheck : UDINT;
+    adminInvokeCheck : UDINT;
+    adminIdentityCompareResult : UDINT;
+    adminKeyCompareResult : UDINT;
+    adminPreflightState : DINT;
+    adminPreflightFailure : DINT;
+    adminPreflightDetail : DINT;
+    adminPreflightEvidence : UDINT;
+    adminInvocationValid : BOOL;
+    adminPreflightValid : BOOL;
+    adminPreflightRejected : BOOL;
+    adminTerminalValid : BOOL;
+END_VAR
+ResponseSize := -1;
+adminContextCheck := 0;
+adminInvokeCheck := 0;
+adminIdentityCompareResult := 0;
+adminKeyCompareResult := 0;
+adminPreflightState := 0;
+adminPreflightFailure := 0;
+adminPreflightDetail := 0;
+adminPreflightEvidence := 0;
+adminInvocationValid := FALSE;
+adminPreflightValid := FALSE;
+adminPreflightRejected := FALSE;
+_memset(dest:=#adminSetPositionKey[0], usByte:=0, cntr:=48);
+_memset(dest:=#adminFrozenResponse[0], usByte:=0, cntr:=36);
+if (pRequestFrame = NIL) | (pResponseFrame = NIL) |
+   (ResponseCapacity < 36) then
+    RETURN;
+end_if;
+
+adminInvokeCheck :=
+    AxisSetPositionAsyncState[114]$UDINT xor
+    AxisSetPositionAsyncState[115]$UDINT xor
+    AxisSetPositionAsyncState[116]$UDINT xor
+    AxisSetPositionAsyncState[117]$UDINT xor
+    AxisSetPositionAsyncState[118]$UDINT xor
+    AxisSetPositionAsyncState[119]$UDINT xor
+    AxisSetPositionAsyncState[120]$UDINT;
+adminInvocationValid :=
+    (AxisSetPositionAsyncState[114]$UDINT <> 0) &
+    (AxisSetPositionAsyncState[115]$UDINT <> 0) &
+    (AxisSetPositionAsyncState[116] <> 0) &
+    (AxisSetPositionAsyncState[117] = 0x7D12) &
+    (AxisSetPositionAsyncState[118] = TO_DINT(Reference)) &
+    (AxisSetPositionAsyncState[119]$UDINT = 0) &
+    (AxisSetPositionAsyncState[120]$UDINT = 0) &
+    (AxisSetPositionAsyncState[121]$UDINT = adminInvokeCheck);
+if adminInvocationValid = FALSE then
+    AxisSetPositionAsyncState[1] :=
+        LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+    AxisSetPositionAsyncState[31] := 2;
+    ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+    RETURN;
+end_if;
+
+if RequestFrameSize >= 56 then
+    adminSchemaVersion := (pRequestFrame + 8)^$UINT;
+    adminRequestFlags := (pRequestFrame + 10)^$UINT;
+    adminRequestId := (pRequestFrame + 12)^$UDINT;
+    adminDiagnosticsBuild := (pRequestFrame + 16)^$UDINT;
+    adminBootId := (pRequestFrame + 20)^$UDINT;
+    adminMapRevision := (pRequestFrame + 24)^$UDINT;
+    adminClientIntentId0 := (pRequestFrame + 28)^$UDINT;
+    adminClientIntentId1 := (pRequestFrame + 32)^$UDINT;
+    adminClientIntentId2 := (pRequestFrame + 36)^$UDINT;
+    adminClientIntentId3 := (pRequestFrame + 40)^$UDINT;
+    adminAxisPosition := (pRequestFrame + 44)^$DINT;
+    adminExpectedActualPosition := (pRequestFrame + 48)^$DINT;
+    adminExecuteToken := (pRequestFrame + 52)^$UDINT;
+end_if;
+if RequestFrameSize <> 56 then
+    RETURN;
+elsif (Reference < 1) | (Reference > 4) then
+    RETURN;
+elsif adminSchemaVersion <> 1 then
+    RETURN;
+elsif adminRequestFlags <> 0 then
+    RETURN;
+elsif adminRequestId = 0 then
+    RETURN;
+elsif adminExecuteToken <> 0x50544553 then
+    RETURN;
+end_if;
+
+adminSetPositionKey[0]$UINT := 1;
+adminSetPositionKey[2]$UINT := 1;
+adminSetPositionKey[4]$UDINT := adminDiagnosticsBuild;
+adminSetPositionKey[8]$UDINT := adminBootId;
+adminSetPositionKey[12]$UDINT := adminMapRevision;
+adminSetPositionKey[16]$UDINT := adminRequestId;
+adminSetPositionKey[20]$UDINT := adminClientIntentId0;
+adminSetPositionKey[24]$UDINT := adminClientIntentId1;
+adminSetPositionKey[28]$UDINT := adminClientIntentId2;
+adminSetPositionKey[32]$UDINT := adminClientIntentId3;
+adminSetPositionKey[36]$UINT := Reference;
+adminSetPositionKey[38]$UINT := 0;
+adminSetPositionKey[40]$DINT := adminAxisPosition;
+adminSetPositionKey[44]$DINT := adminExpectedActualPosition;
+
+if AxisSetPositionAsyncState[1] <>
+   LMC_ADMIN_SET_POSITION_ASYNC_STATE_IDLE then
+    adminIdentityCompareResult := _memcmp(
+        ptr1:=#AxisSetPositionAsyncState[32],
+        ptr2:=(pRequestFrame + 8), cntr:=48);
+    adminKeyCompareResult := _memcmp(
+        ptr1:=#AxisSetPositionAsyncState[44],
+        ptr2:=#adminSetPositionKey[0], cntr:=48);
+    if (adminIdentityCompareResult <> 0) |
+       (adminKeyCompareResult <> 0) then
+        AxisSetPositionAsyncState[1] :=
+            LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+        AxisSetPositionAsyncState[31] := 1;
+        ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+        RETURN;
+    end_if;
+end_if;
+
+if (AxisSetPositionAsyncState[1] >=
+    LMC_ADMIN_SET_POSITION_ASYNC_STATE_OWNERSHIP_RESERVED) &
+   (AxisSetPositionAsyncState[1] <=
+    LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED) then
+    adminContextCheck :=
+        LMC_ADMIN_SET_POSITION_ASYNC_MAGIC xor
+        AxisSetPositionAsyncState[2]$UDINT xor
+        AxisSetPositionAsyncState[3]$UDINT xor
+        AxisSetPositionAsyncState[4]$UDINT xor
+        AxisSetPositionAsyncState[5]$UDINT xor
+        AxisSetPositionAsyncState[6]$UDINT xor
+        AxisSetPositionAsyncState[7]$UDINT xor
+        AxisSetPositionAsyncState[8]$UDINT xor
+        AxisSetPositionAsyncState[9]$UDINT xor
+        AxisSetPositionAsyncState[10]$UDINT xor
+        AxisSetPositionAsyncState[11]$UDINT xor
+        AxisSetPositionAsyncState[12]$UDINT xor
+        AxisSetPositionAsyncState[13]$UDINT xor
+        AxisSetPositionAsyncState[14]$UDINT;
+    if (AxisSetPositionAsyncState[0]$UDINT <>
+        LMC_ADMIN_SET_POSITION_ASYNC_MAGIC) |
+       (AxisSetPositionAsyncState[30]$UDINT <> adminContextCheck) |
+       (AxisSetPositionAsyncState[122] <> 0) |
+       (AxisSetPositionAsyncState[123] <> 0) |
+       (AxisSetPositionAsyncState[124] <> 0) |
+       (AxisSetPositionAsyncState[125] <> 0) |
+       (AxisSetPositionAsyncState[126] <> 0) |
+       (AxisSetPositionAsyncState[127] <> 0) then
+        AxisSetPositionAsyncState[1] :=
+            LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+        AxisSetPositionAsyncState[31] := 1;
+        ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+        RETURN;
+    end_if;
+end_if;
+
+if (AxisSetPositionAsyncState[1] <>
+    LMC_ADMIN_SET_POSITION_ASYNC_STATE_IDLE) &
+   ((AxisSetPositionAsyncState[3]$UDINT <>
+     AxisSetPositionAsyncState[114]$UDINT) |
+    (AxisSetPositionAsyncState[4]$UDINT <>
+     AxisSetPositionAsyncState[115]$UDINT) |
+    (AxisSetPositionAsyncState[8] <>
+     AxisSetPositionAsyncState[116]) |
+    (AxisSetPositionAsyncState[11] <> TO_DINT(Reference))) then
+    AxisSetPositionAsyncState[1] :=
+        LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+    AxisSetPositionAsyncState[31] := 2;
+    ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+    RETURN;
+end_if;
+
+if (AxisSetPositionAsyncState[1] >=
+    LMC_ADMIN_SET_POSITION_ASYNC_STATE_OWNERSHIP_RESERVED) &
+   (AxisSetPositionAsyncState[1] <=
+    LMC_ADMIN_SET_POSITION_ASYNC_STATE_OWNERSHIP_ACTIVE) &
+   ((ops.tAbsolute - AxisSetPositionAsyncState[9]$UDINT)$UDINT >=
+    AxisSetPositionAsyncState[10]$UDINT) then
+    AxisSetPositionAsyncState[1] :=
+        LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+    AxisSetPositionAsyncState[31] := 3;
+    ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+    RETURN;
+end_if;
+
+// LMC_ADMIN_SET_POSITION_ASYNC_BEGIN
+repeat
+case AxisSetPositionAsyncState[1] of
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_IDLE:
+    adminOwnerSession := AxisSetPositionAsyncState[114]$UDINT;
+    adminOwnerSequence := AxisSetPositionAsyncState[115]$UDINT;
+    adminResponseSocket := AxisSetPositionAsyncState[116];
+    _memset(dest:=#AxisSetPositionAsyncState[0],
+        usByte:=0, cntr:=512);
+    AxisSetPositionAsyncState[0]$UDINT :=
+        LMC_ADMIN_SET_POSITION_ASYNC_MAGIC;
+    AxisSetPositionAsyncState[3]$UDINT := adminOwnerSession;
+    AxisSetPositionAsyncState[4]$UDINT := adminOwnerSequence;
+    AxisSetPositionAsyncState[7]$UDINT :=
+        1 shl TO_UDINT(Reference - 1);
+    AxisSetPositionAsyncState[8] := adminResponseSocket;
+    AxisSetPositionAsyncState[10]$UDINT := 1000;
+    AxisSetPositionAsyncState[11] := TO_DINT(Reference);
+    AxisSetPositionAsyncState[12] := adminAxisPosition;
+    AxisSetPositionAsyncState[13] := adminExpectedActualPosition;
+    AxisSetPositionAsyncState[14]$UDINT := 0;
+    _memcpy(ptr1:=#AxisSetPositionAsyncState[32],
+        ptr2:=(pRequestFrame + 8), cntr:=48);
+    _memcpy(ptr1:=#AxisSetPositionAsyncState[44],
+        ptr2:=#adminSetPositionKey[0], cntr:=48);
+    AxisSetPositionAsyncState[1] :=
+        LMC_ADMIN_SET_POSITION_ASYNC_STATE_BEGIN_PENDING;
+
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_BEGIN_PENDING:
+    AxisSetPositionAsyncState[21] := SetPositionStore.BeginSetPosition(
+        pKey:=#AxisSetPositionAsyncState[44], KeySize:=48,
+        pSnapshot:=#AxisSetPositionAsyncState[56], SnapshotCapacity:=68,
+        pRecordGeneration:=(#AxisSetPositionAsyncState[2])$^UDINT,
+        pDetailCode:=(#AxisSetPositionAsyncState[22])$^UDINT);
+    if AxisSetPositionAsyncState[21] = 2 then
+        adminKeyCompareResult := _memcmp(
+            ptr1:=#AxisSetPositionAsyncState[57],
+            ptr2:=#AxisSetPositionAsyncState[45], cntr:=44);
+        adminTerminalValid :=
+            (AxisSetPositionAsyncState[22] = 0) &
+            (adminKeyCompareResult = 0) &
+            ((AxisSetPositionAsyncState[56]$UDINT = 0x00010002) |
+             (AxisSetPositionAsyncState[56]$UDINT = 0x00010003)) &
+            (AxisSetPositionAsyncState[72]$UDINT =
+             AxisSetPositionAsyncState[2]$UDINT) &
+            (AxisSetPositionAsyncState[72]$UDINT <> 0);
+        if adminTerminalValid = FALSE then
+            AxisSetPositionAsyncState[1] :=
+                LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+            AxisSetPositionAsyncState[31] := 7;
+            ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+            RETURN;
+        end_if;
+        adminFrozenResponse[0]$UINT := 0;
+        adminFrozenResponse[2]$UINT := 28;
+        adminFrozenResponse[4]$UDINT := 0;
+        adminFrozenResponse[8]$UINT := 1;
+        adminFrozenResponse[10]$UINT := 0;
+        adminFrozenResponse[12]$UINT :=
+            AxisSetPositionAsyncState[69]$UINT;
+        adminFrozenResponse[14]$INT :=
+            (AxisSetPositionAsyncState[69]$UDINT / 65536)$INT;
+        adminFrozenResponse[16]$UDINT :=
+            AxisSetPositionAsyncState[60]$UDINT;
+        adminFrozenResponse[20]$UDINT :=
+            AxisSetPositionAsyncState[70]$UDINT;
+        adminFrozenResponse[24]$DINT := AxisSetPositionAsyncState[68];
+        adminFrozenResponse[28]$UINT := 1;
+        adminFrozenResponse[30]$UINT := 0;
+        adminFrozenResponse[32]$UDINT :=
+            AxisSetPositionAsyncState[71]$UDINT;
+        _memcpy(ptr1:=#AxisSetPositionAsyncState[105],
+            ptr2:=#adminFrozenResponse[0], cntr:=36);
+        _memcpy(ptr1:=pResponseFrame,
+            ptr2:=#AxisSetPositionAsyncState[105], cntr:=36);
+        _memset(dest:=#AxisSetPositionAsyncState[0],
+            usByte:=0, cntr:=512);
+        ResponseSize := 36;
+        RETURN;
+    elsif AxisSetPositionAsyncState[21] = 1 then
+        if (AxisSetPositionAsyncState[22] = 0) &
+           (AxisSetPositionAsyncState[2]$UDINT <> 0) then
+            AxisSetPositionAsyncState[9]$UDINT := ops.tAbsolute;
+            AxisSetPositionAsyncState[1] :=
+                LMC_ADMIN_SET_POSITION_ASYNC_STATE_FRESH_ARMED;
+        else
+            AxisSetPositionAsyncState[1] :=
+                LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+            AxisSetPositionAsyncState[31] := 7;
+            ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+            RETURN;
+        end_if;
+    elsif AxisSetPositionAsyncState[21] = 0 then
+        if (AxisSetPositionAsyncState[22] = 20) |
+           (AxisSetPositionAsyncState[22] = 21) |
+           (AxisSetPositionAsyncState[22] = 23) |
+           (AxisSetPositionAsyncState[22] = 24) then
+            _memset(dest:=pResponseFrame, usByte:=0, cntr:=36);
+            pResponseFrame^$UINT := 0;
+            (pResponseFrame + 2)^$UINT := 28;
+            (pResponseFrame + 8)^$UINT := 1;
+            (pResponseFrame + 12)^$UINT := 1;
+            (pResponseFrame + 14)^$INT := -31000;
+            (pResponseFrame + 16)^$UDINT :=
+                AxisSetPositionAsyncState[48]$UDINT;
+            (pResponseFrame + 20)^$UDINT :=
+                AxisSetPositionAsyncState[22]$UDINT;
+            (pResponseFrame + 28)^$UINT := 1;
+            _memset(dest:=#AxisSetPositionAsyncState[0],
+                usByte:=0, cntr:=512);
+            ResponseSize := 36;
+            RETURN;
+        else
+            AxisSetPositionAsyncState[1] :=
+                LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+            AxisSetPositionAsyncState[31] := 7;
+            ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+            RETURN;
+        end_if;
+    else
+        AxisSetPositionAsyncState[1] :=
+            LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+        AxisSetPositionAsyncState[31] := 7;
+        ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+        RETURN;
+    end_if;
+
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_FRESH_ARMED:
+    AxisSetPositionAsyncState[24] := ReserveAxisOwnership(
+        CommandId:=0x7D12, Reference:=Reference,
+        RequestedAxisMask:=AxisSetPositionAsyncState[7]$UDINT,
+        OwnerKind:=1, ResourceKind:=1, AdmissionMode:=1,
+        CallerSessionEpoch:=AxisSetPositionAsyncState[3]$UDINT,
+        RequestSequence:=AxisSetPositionAsyncState[4]$UDINT,
+        pIdentity:=(#AxisSetPositionAsyncState[32])$^void,
+        IdentitySize:=48,
+        pEffectiveAxisMask:=(#AxisSetPositionAsyncState[23])$^UDINT,
+        pAdmissionToken:=(#AxisSetPositionAsyncState[5])$^UDINT,
+        pOwnerGeneration:=(#AxisSetPositionAsyncState[6])$^UDINT);
+    if (AxisSetPositionAsyncState[24] = 0) &
+       (AxisSetPositionAsyncState[23]$UDINT =
+        AxisSetPositionAsyncState[7]$UDINT) &
+       (AxisSetPositionAsyncState[5]$UDINT <> 0) &
+       (AxisSetPositionAsyncState[6]$UDINT <> 0) then
+        AxisSetPositionAsyncState[1] :=
+            LMC_ADMIN_SET_POSITION_ASYNC_STATE_OWNERSHIP_RESERVED;
+    else
+        AxisSetPositionAsyncState[1] :=
+            LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+        AxisSetPositionAsyncState[31] := 5;
+        ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+        RETURN;
+    end_if;
+    adminContextCheck :=
+        LMC_ADMIN_SET_POSITION_ASYNC_MAGIC xor
+        AxisSetPositionAsyncState[2]$UDINT xor
+        AxisSetPositionAsyncState[3]$UDINT xor
+        AxisSetPositionAsyncState[4]$UDINT xor
+        AxisSetPositionAsyncState[5]$UDINT xor
+        AxisSetPositionAsyncState[6]$UDINT xor
+        AxisSetPositionAsyncState[7]$UDINT xor
+        AxisSetPositionAsyncState[8]$UDINT xor
+        AxisSetPositionAsyncState[9]$UDINT xor
+        AxisSetPositionAsyncState[10]$UDINT xor
+        AxisSetPositionAsyncState[11]$UDINT xor
+        AxisSetPositionAsyncState[12]$UDINT xor
+        AxisSetPositionAsyncState[13]$UDINT xor
+        AxisSetPositionAsyncState[14]$UDINT;
+    AxisSetPositionAsyncState[30]$UDINT := adminContextCheck;
+    adminContextCheck :=
+        LMC_ADMIN_SET_POSITION_ASYNC_MAGIC xor
+        AxisSetPositionAsyncState[2]$UDINT xor
+        AxisSetPositionAsyncState[3]$UDINT xor
+        AxisSetPositionAsyncState[4]$UDINT xor
+        AxisSetPositionAsyncState[5]$UDINT xor
+        AxisSetPositionAsyncState[6]$UDINT xor
+        AxisSetPositionAsyncState[7]$UDINT xor
+        AxisSetPositionAsyncState[8]$UDINT xor
+        AxisSetPositionAsyncState[9]$UDINT xor
+        AxisSetPositionAsyncState[10]$UDINT xor
+        AxisSetPositionAsyncState[11]$UDINT xor
+        AxisSetPositionAsyncState[12]$UDINT xor
+        AxisSetPositionAsyncState[13]$UDINT xor
+        AxisSetPositionAsyncState[14]$UDINT;
+    if (AxisSetPositionAsyncState[30]$UDINT = adminContextCheck) then
+        ResponseSize := LMC_ADMIN_SET_POSITION_PENDING;
+        RETURN;
+    else
+        AxisSetPositionAsyncState[1] :=
+            LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+        AxisSetPositionAsyncState[31] := 1;
+        ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+        RETURN;
+    end_if;
+
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_OWNERSHIP_RESERVED:
+    AxisSetPositionAsyncState[28] :=
+        InputLatch.SubmitAxisSetPositionPreflight(
+        OperationToken:=AxisSetPositionAsyncState[5]$UDINT,
+        OwnerGeneration:=AxisSetPositionAsyncState[6]$UDINT,
+        StoreRecordGeneration:=AxisSetPositionAsyncState[2]$UDINT,
+        CallerSessionEpoch:=AxisSetPositionAsyncState[3]$UDINT,
+        RequestSequence:=AxisSetPositionAsyncState[4]$UDINT,
+        AxisReference:=AxisSetPositionAsyncState[11],
+        TargetPosition:=AxisSetPositionAsyncState[12],
+        ExpectedActualPosition:=AxisSetPositionAsyncState[13],
+        MaxJump:=AxisSetPositionAsyncState[14]$UDINT,
+        ExpectedAxisMask:=AxisSetPositionAsyncState[7]$UDINT);
+    if (AxisSetPositionAsyncState[28] = 0) |
+       (AxisSetPositionAsyncState[28] = 1) then
+        AxisSetPositionAsyncState[1] :=
+            LMC_ADMIN_SET_POSITION_ASYNC_STATE_PREFLIGHT_PENDING;
+        ResponseSize := LMC_ADMIN_SET_POSITION_PENDING;
+    else
+        AxisSetPositionAsyncState[1] :=
+            LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+        AxisSetPositionAsyncState[31] := 4;
+        ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+        RETURN;
+    end_if;
+    RETURN;
+
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_PREFLIGHT_PENDING:
+    AxisSetPositionAsyncState[29] :=
+        InputLatch.CopyAxisSetPositionPreflightResult(
+        OperationToken:=AxisSetPositionAsyncState[5]$UDINT,
+        OwnerGeneration:=AxisSetPositionAsyncState[6]$UDINT,
+        StoreRecordGeneration:=AxisSetPositionAsyncState[2]$UDINT,
+        pDest:=#AxisSetPositionAsyncState[73], DestSize:=128);
+    if AxisSetPositionAsyncState[29] = 1 then
+        ResponseSize := LMC_ADMIN_SET_POSITION_PENDING;
+        RETURN;
+    elsif AxisSetPositionAsyncState[29] <> 0 then
+        AxisSetPositionAsyncState[1] :=
+            LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+        AxisSetPositionAsyncState[31] := 4;
+        ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+        RETURN;
+    end_if;
+    adminPreflightState := AxisSetPositionAsyncState[84];
+    adminPreflightFailure := AxisSetPositionAsyncState[85];
+    adminPreflightDetail := AxisSetPositionAsyncState[86];
+    adminPreflightEvidence := AxisSetPositionAsyncState[101]$UDINT;
+    adminPreflightRejected :=
+        (adminPreflightState = LMC_SET_POSITION_PREFLIGHT_REJECTED) &
+        (((adminPreflightFailure = LMC_SET_POSITION_PREFLIGHT_CLIENT) &
+          (adminPreflightDetail = 10)) |
+         ((adminPreflightFailure = LMC_SET_POSITION_PREFLIGHT_STATE) &
+          (adminPreflightDetail = 10)) |
+         ((adminPreflightFailure = LMC_SET_POSITION_PREFLIGHT_CONFIG) &
+          (adminPreflightDetail = 14)) |
+         ((adminPreflightFailure = LMC_SET_POSITION_PREFLIGHT_VELOCITY) &
+          (adminPreflightDetail = 12)) |
+         ((adminPreflightFailure = LMC_SET_POSITION_PREFLIGHT_AXIS_ERROR) &
+          (adminPreflightDetail = 13)) |
+         ((adminPreflightFailure = LMC_SET_POSITION_PREFLIGHT_COORDINATE) &
+          (adminPreflightDetail = 15))) &
+        ((adminPreflightEvidence and
+          LMC_SET_POSITION_EVIDENCE_REJECT_MASK) =
+         LMC_SET_POSITION_EVIDENCE_REJECT_MASK);
+    adminPreflightValid :=
+        (AxisSetPositionAsyncState[73]$UDINT = AxisSetPositionAsyncState[5]$UDINT) &
+        (AxisSetPositionAsyncState[74]$UDINT = AxisSetPositionAsyncState[6]$UDINT) &
+        (AxisSetPositionAsyncState[75]$UDINT = AxisSetPositionAsyncState[2]$UDINT) &
+        (AxisSetPositionAsyncState[76]$UDINT = AxisSetPositionAsyncState[3]$UDINT) &
+        (AxisSetPositionAsyncState[77]$UDINT = AxisSetPositionAsyncState[4]$UDINT) &
+        (AxisSetPositionAsyncState[78]$UDINT = AxisSetPositionAsyncState[11]$UDINT) &
+        (AxisSetPositionAsyncState[79]$UDINT = AxisSetPositionAsyncState[12]$UDINT) &
+        (AxisSetPositionAsyncState[80]$UDINT = AxisSetPositionAsyncState[13]$UDINT) &
+        (AxisSetPositionAsyncState[81]$UDINT = AxisSetPositionAsyncState[14]$UDINT) &
+        (AxisSetPositionAsyncState[82]$UDINT = AxisSetPositionAsyncState[7]$UDINT) &
+        (AxisSetPositionAsyncState[83]$UDINT <> 0) &
+        ((AxisSetPositionAsyncState[15]$UDINT = 0) |
+         (AxisSetPositionAsyncState[83]$UDINT =
+          AxisSetPositionAsyncState[15]$UDINT)) &
+        (AxisSetPositionAsyncState[102] = 0) &
+        (AxisSetPositionAsyncState[103] = 0) &
+        (AxisSetPositionAsyncState[104] = 0) &
+        (((adminPreflightState = LMC_SET_POSITION_PREFLIGHT_READY) &
+          (adminPreflightFailure = 0) &
+          (adminPreflightDetail = 0) &
+          (adminPreflightEvidence =
+           LMC_SET_POSITION_EVIDENCE_READY_MASK)) |
+         adminPreflightRejected);
+    if adminPreflightValid = FALSE then
+        AxisSetPositionAsyncState[1] :=
+            LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+        AxisSetPositionAsyncState[31] := 4;
+        ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+        RETURN;
+    end_if;
+    if AxisSetPositionAsyncState[15]$UDINT = 0 then
+        AxisSetPositionAsyncState[15]$UDINT :=
+            AxisSetPositionAsyncState[83]$UDINT;
+    end_if;
+    if adminPreflightState = LMC_SET_POSITION_PREFLIGHT_READY then
+        AxisSetPositionAsyncState[1] :=
+            LMC_ADMIN_SET_POSITION_ASYNC_STATE_PREFLIGHT_READY;
+    else
+        AxisSetPositionAsyncState[16] := adminPreflightDetail;
+        AxisSetPositionAsyncState[17] := 1;
+        AxisSetPositionAsyncState[18] := -31000;
+        AxisSetPositionAsyncState[19] := 0;
+        AxisSetPositionAsyncState[20] := 0;
+        AxisSetPositionAsyncState[1] :=
+            LMC_ADMIN_SET_POSITION_ASYNC_STATE_TERMINAL_COMMIT_PENDING;
+    end_if;
+
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_PREFLIGHT_READY:
+    adminPreflightValid :=
+        (AxisSetPositionAsyncState[102] = 0) &
+        (AxisSetPositionAsyncState[103] = 0) &
+        (AxisSetPositionAsyncState[104] = 0);
+    if adminPreflightValid = FALSE then
+        AxisSetPositionAsyncState[1] :=
+            LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+        AxisSetPositionAsyncState[31] := 4;
+        ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+        RETURN;
+    end_if;
+    AxisSetPositionAsyncState[25] := ValidateAxisOwnershipIdentity(
+        CommandId:=0x7D12, Reference:=AxisSetPositionAsyncState[11],
+        ExpectedAxisMask:=AxisSetPositionAsyncState[7]$UDINT,
+        OwnerKind:=LMC_OWNER_KIND_DIRECT,
+        ResourceKind:=LMC_OWNER_RESOURCE_AXIS,
+        AdmissionMode:=LMC_OWNER_ADMISSION_ORDINARY,
+        CallerSessionEpoch:=AxisSetPositionAsyncState[3]$UDINT,
+        RequestSequence:=AxisSetPositionAsyncState[4]$UDINT,
+        AdmissionToken:=AxisSetPositionAsyncState[5]$UDINT,
+        OwnerGeneration:=AxisSetPositionAsyncState[6]$UDINT,
+        RequiredPhase:=LMC_OWNER_PHASE_RESERVED,
+        pIdentity:=#AxisSetPositionAsyncState[32],
+        IdentitySize:=48);
+    if AxisSetPositionAsyncState[25] <> 0 then
+        AxisSetPositionAsyncState[1] :=
+            LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+        AxisSetPositionAsyncState[31] := 5;
+        ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+        RETURN;
+    end_if;
+    AxisSetPositionAsyncState[26] := CommitAxisOwnership(
+        CommandId:=0x7D12, Reference:=AxisSetPositionAsyncState[11],
+        ExpectedAxisMask:=AxisSetPositionAsyncState[7]$UDINT,
+        CallerSessionEpoch:=AxisSetPositionAsyncState[3]$UDINT,
+        RequestSequence:=AxisSetPositionAsyncState[4]$UDINT,
+        AdmissionToken:=AxisSetPositionAsyncState[5]$UDINT,
+        OwnerGeneration:=AxisSetPositionAsyncState[6]$UDINT);
+    if AxisSetPositionAsyncState[26] <> 0 then
+        AxisSetPositionAsyncState[1] :=
+            LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+        AxisSetPositionAsyncState[31] := 5;
+        ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+        RETURN;
+    end_if;
+    AxisSetPositionAsyncState[25] := ValidateAxisOwnershipIdentity(
+        CommandId:=0x7D12, Reference:=AxisSetPositionAsyncState[11],
+        ExpectedAxisMask:=AxisSetPositionAsyncState[7]$UDINT,
+        OwnerKind:=LMC_OWNER_KIND_DIRECT,
+        ResourceKind:=LMC_OWNER_RESOURCE_AXIS,
+        AdmissionMode:=LMC_OWNER_ADMISSION_ORDINARY,
+        CallerSessionEpoch:=AxisSetPositionAsyncState[3]$UDINT,
+        RequestSequence:=AxisSetPositionAsyncState[4]$UDINT,
+        AdmissionToken:=AxisSetPositionAsyncState[5]$UDINT,
+        OwnerGeneration:=AxisSetPositionAsyncState[6]$UDINT,
+        RequiredPhase:=LMC_OWNER_PHASE_ACTIVE,
+        pIdentity:=#AxisSetPositionAsyncState[32],
+        IdentitySize:=48);
+    if AxisSetPositionAsyncState[25] <> 0 then
+        AxisSetPositionAsyncState[1] :=
+            LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+        AxisSetPositionAsyncState[31] := 5;
+        ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+        RETURN;
+    end_if;
+    AxisSetPositionAsyncState[1] :=
+        LMC_ADMIN_SET_POSITION_ASYNC_STATE_OWNERSHIP_ACTIVE;
+    ResponseSize := LMC_ADMIN_SET_POSITION_PENDING;
+    RETURN;
+
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_OWNERSHIP_ACTIVE:
+    ResponseSize := LMC_ADMIN_SET_POSITION_PENDING;
+    RETURN;
+
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_EXECUTION_PENDING:
+    // P2 only: intentionally unreachable and mutation-free in P1.
+
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_TERMINAL_COMMIT_PENDING:
+    AxisSetPositionAsyncState[21] :=
+        SetPositionStore.CommitSetPositionTerminal(
+        pKey:=#AxisSetPositionAsyncState[44], KeySize:=48,
+        RecordGeneration:=AxisSetPositionAsyncState[2]$UDINT,
+        RecordState:=3, AppliedPosition:=AxisSetPositionAsyncState[19],
+        OriginalCommandStatus:=AxisSetPositionAsyncState[17]$UINT,
+        OriginalErrorId:=AxisSetPositionAsyncState[18]$INT,
+        OriginalDetailCode:=AxisSetPositionAsyncState[16]$UDINT,
+        NativeCommandState:=AxisSetPositionAsyncState[20]$UDINT,
+        pSnapshot:=#AxisSetPositionAsyncState[56], SnapshotCapacity:=68,
+        pDetailCode:=(#AxisSetPositionAsyncState[22])$^UDINT);
+    adminKeyCompareResult := _memcmp(
+        ptr1:=#AxisSetPositionAsyncState[57],
+        ptr2:=#AxisSetPositionAsyncState[45], cntr:=44);
+    adminTerminalValid :=
+        (AxisSetPositionAsyncState[21] = 1) &
+        (AxisSetPositionAsyncState[22] = 0) &
+        (AxisSetPositionAsyncState[56]$UDINT = 0x00010003) &
+        (adminKeyCompareResult = 0) &
+        (AxisSetPositionAsyncState[68] = AxisSetPositionAsyncState[19]) &
+        (AxisSetPositionAsyncState[69]$UDINT = 0x86E80001) &
+        (AxisSetPositionAsyncState[70]$UDINT =
+         AxisSetPositionAsyncState[16]$UDINT) &
+        (AxisSetPositionAsyncState[71]$UDINT =
+         AxisSetPositionAsyncState[20]$UDINT) &
+        (AxisSetPositionAsyncState[72]$UDINT = AxisSetPositionAsyncState[2]$UDINT);
+    if adminTerminalValid then
+        AxisSetPositionAsyncState[1] :=
+            LMC_ADMIN_SET_POSITION_ASYNC_STATE_TERMINAL_PROVEN;
+    elsif (AxisSetPositionAsyncState[21] = 1) |
+          (AxisSetPositionAsyncState[21] =
+           LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE) then
+        ResponseSize := LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE;
+        RETURN;
+    else
+        AxisSetPositionAsyncState[1] :=
+            LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+        AxisSetPositionAsyncState[31] := 7;
+        ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+        RETURN;
+    end_if;
+
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_TERMINAL_PROVEN:
+    AxisSetPositionAsyncState[27] := RollbackAxisOwnership(
+        AdmissionToken:=AxisSetPositionAsyncState[5]$UDINT,
+        OwnerGeneration:=AxisSetPositionAsyncState[6]$UDINT,
+        CallerSessionEpoch:=AxisSetPositionAsyncState[3]$UDINT,
+        RequestSequence:=AxisSetPositionAsyncState[4]$UDINT,
+        Reason:=0);
+    if AxisSetPositionAsyncState[27] <> 0 then
+        AxisSetPositionAsyncState[1] :=
+            LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+        AxisSetPositionAsyncState[31] := 6;
+        ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+        RETURN;
+    end_if;
+    adminFrozenResponse[0]$UINT := 0;
+    adminFrozenResponse[2]$UINT := 28;
+    adminFrozenResponse[4]$UDINT := 0;
+    adminFrozenResponse[8]$UINT := 1;
+    adminFrozenResponse[10]$UINT := 0;
+    adminFrozenResponse[12]$UINT := AxisSetPositionAsyncState[69]$UINT;
+    adminFrozenResponse[14]$INT :=
+        (AxisSetPositionAsyncState[69]$UDINT / 65536)$INT;
+    adminFrozenResponse[16]$UDINT := AxisSetPositionAsyncState[60]$UDINT;
+    adminFrozenResponse[20]$UDINT := AxisSetPositionAsyncState[70]$UDINT;
+    adminFrozenResponse[24]$DINT := AxisSetPositionAsyncState[68];
+    adminFrozenResponse[28]$UINT := 1;
+    adminFrozenResponse[30]$UINT := 0;
+    adminFrozenResponse[32]$UDINT := AxisSetPositionAsyncState[71]$UDINT;
+    _memcpy(ptr1:=#AxisSetPositionAsyncState[105],
+        ptr2:=#adminFrozenResponse[0], cntr:=36);
+    _memcpy(ptr1:=pResponseFrame,
+        ptr2:=#AxisSetPositionAsyncState[105], cntr:=36);
+    _memset(dest:=#AxisSetPositionAsyncState[0],
+        usByte:=0, cntr:=512);
+    ResponseSize := 36;
+    RETURN;
+
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED:
+    ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+    RETURN;
+end_case;
+until (AxisSetPositionAsyncState[1] <>
+       LMC_ADMIN_SET_POSITION_ASYNC_STATE_BEGIN_PENDING) &
+      (AxisSetPositionAsyncState[1] <>
+       LMC_ADMIN_SET_POSITION_ASYNC_STATE_FRESH_ARMED) &
+      (AxisSetPositionAsyncState[1] <>
+       LMC_ADMIN_SET_POSITION_ASYNC_STATE_PREFLIGHT_READY) &
+      (AxisSetPositionAsyncState[1] <>
+       LMC_ADMIN_SET_POSITION_ASYNC_STATE_TERMINAL_COMMIT_PENDING) &
+      (AxisSetPositionAsyncState[1] <>
+       LMC_ADMIN_SET_POSITION_ASYNC_STATE_TERMINAL_PROVEN)
+end_repeat;
+// LMC_ADMIN_SET_POSITION_ASYNC_END
+END_FUNCTION
+
+FUNCTION GLOBAL LMCControlCommandService::NotifyAxisOwnershipSessionClosed
+VAR_INPUT
+    SessionEpoch : UDINT;
+END_VAR
+if (SessionEpoch <> 0) &
+   (AxisSetPositionAsyncState[3]$UDINT = SessionEpoch) &
+   ((AxisSetPositionAsyncState[1] =
+     LMC_ADMIN_SET_POSITION_ASYNC_STATE_OWNERSHIP_RESERVED) |
+    (AxisSetPositionAsyncState[1] =
+     LMC_ADMIN_SET_POSITION_ASYNC_STATE_PREFLIGHT_PENDING) |
+    (AxisSetPositionAsyncState[1] =
+     LMC_ADMIN_SET_POSITION_ASYNC_STATE_PREFLIGHT_READY) |
+    (AxisSetPositionAsyncState[1] =
+     LMC_ADMIN_SET_POSITION_ASYNC_STATE_OWNERSHIP_ACTIVE)) then
+    AxisSetPositionAsyncState[1] :=
+        LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+    AxisSetPositionAsyncState[31] := 2;
+end_if;
+END_FUNCTION
+'@
+
+    $tcp = @'
+#define LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE -12
+#define LMC_ADMIN_SET_POSITION_PENDING -13
+#define LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE -14
+#define LMC_ADMIN_SET_POSITION_PENDING_MAGIC 0x5350504E
+#define LMC_ADMIN_SET_POSITION_PENDING_MAGIC_OFFSET 1152
+#define LMC_ADMIN_SET_POSITION_PENDING_SESSION_OFFSET 1156
+#define LMC_ADMIN_SET_POSITION_PENDING_SEQUENCE_OFFSET 1160
+#define LMC_ADMIN_SET_POSITION_PENDING_SOCKET_OFFSET 1164
+#define LMC_ADMIN_SET_POSITION_PENDING_COMMAND_OFFSET 1168
+#define LMC_ADMIN_SET_POSITION_PENDING_REFERENCE_OFFSET 1170
+#define LMC_ADMIN_SET_POSITION_PENDING_LENGTH_OFFSET 1172
+#define LMC_ADMIN_SET_POSITION_PENDING_CHECK_OFFSET 1176
+#define LMC_ADMIN_SET_POSITION_PENDING_MAGIC_COPY_OFFSET 1180
+#define LMC_ADMIN_SET_POSITION_PENDING_SESSION_COPY_OFFSET 1184
+#define LMC_ADMIN_SET_POSITION_PENDING_SEQUENCE_COPY_OFFSET 1188
+#define LMC_ADMIN_SET_POSITION_PENDING_SOCKET_COPY_OFFSET 1192
+#define LMC_ADMIN_SET_POSITION_PENDING_COMMAND_COPY_OFFSET 1196
+#define LMC_ADMIN_SET_POSITION_PENDING_REFERENCE_COPY_OFFSET 1198
+#define LMC_ADMIN_SET_POSITION_PENDING_LENGTH_COPY_OFFSET 1200
+#define LMC_ADMIN_SET_POSITION_PENDING_CHECK_COPY_OFFSET 1204
+#define LMC_ADMIN_SET_POSITION_PENDING_PHASE_PREPARE 1
+#define LMC_ADMIN_SET_POSITION_PENDING_PHASE_RETAIN 2
+#define LMC_ADMIN_SET_POSITION_PENDING_PHASE_TERMINAL 3
+#define LMC_ADMIN_SET_POSITION_PENDING_PHASE_QUARANTINE 4
+#define LMC_OWNER_SAFETY_PENDING_RESPONSE_OFFSET 1252
+#define LMC_OWNER_SAFETY_PENDING_MAGIC_OFFSET 1264
+#define LMC_OWNER_SAFETY_PENDING_MAGIC 0x5344504E
+
+FUNCTION VIRTUAL GLOBAL TCPMotionInterface::CyWork
+VAR_INPUT
+    EAX : UDINT;
+END_VAR
+VAR_OUTPUT
+    state (EAX) : UDINT;
+END_VAR
+VAR
+    setPositionPendingTailIndex : DINT;
+    setPositionPendingTailPresent : BOOL;
+END_VAR
+if (ActiveRequest.Reserved < 2) &
+   (PendingClosedSessionEpoch <> 0) &
+   IsClientConnected(#Diagnostics) &
+   IsClientConnected(#ControlCommands) then
+    Diagnostics.NotifySessionClosed(
+        SessionEpoch:=PendingClosedSessionEpoch);
+    ControlCommands.NotifyAxisOwnershipSessionClosed(
+        SessionEpoch:=PendingClosedSessionEpoch);
+    if ActiveRequest.SessionEpoch = PendingClosedSessionEpoch then
+        _memset(dest:=#ActiveRequest, usByte:=0,
+            cntr:=sizeof(ActiveRequest));
+    end_if;
+    PendingClosedSessionEpoch := 0;
+end_if;
+setPositionPendingTailPresent := FALSE;
+if (ActiveRequest.CommandId = 0x7D12) &
+   (ActiveRequest.PayloadLength = 48) &
+   ((ActiveRequest.PayloadData[
+     LMC_ADMIN_SET_POSITION_PENDING_MAGIC_OFFSET]$UDINT =
+     LMC_ADMIN_SET_POSITION_PENDING_MAGIC) |
+    (ActiveRequest.PayloadData[
+     LMC_ADMIN_SET_POSITION_PENDING_MAGIC_COPY_OFFSET]$UDINT =
+     LMC_ADMIN_SET_POSITION_PENDING_MAGIC)) then
+    setPositionPendingTailPresent := TRUE;
+elsif (ActiveRequestValid = TRUE) &
+      (ActiveRequest.CommandId = 0x7D12) &
+      (ActiveRequest.PayloadLength = 48) then
+    setPositionPendingTailIndex :=
+        LMC_ADMIN_SET_POSITION_PENDING_MAGIC_OFFSET;
+    while setPositionPendingTailIndex <=
+          LMC_ADMIN_SET_POSITION_PENDING_CHECK_COPY_OFFSET do
+        if ActiveRequest.PayloadData[
+             setPositionPendingTailIndex]$UDINT <> 0 then
+            setPositionPendingTailPresent := TRUE;
+        end_if;
+        setPositionPendingTailIndex += 4;
+    end_while;
+end_if;
+if (ActiveRequest.Reserved = 0) &
+   (((ActiveRequest.CommandId <> 0x7D12) |
+     (ActiveRequest.PayloadLength <> 48)) |
+    ((ActiveRequest.PayloadData[
+      LMC_ADMIN_SET_POSITION_PENDING_MAGIC_OFFSET]$UDINT <>
+     LMC_ADMIN_SET_POSITION_PENDING_MAGIC) &
+     (ActiveRequest.PayloadData[
+      LMC_ADMIN_SET_POSITION_PENDING_MAGIC_COPY_OFFSET]$UDINT <>
+     LMC_ADMIN_SET_POSITION_PENDING_MAGIC))) then
+    ActiveRequestValid := FALSE;
+end_if;
+END_FUNCTION
+
+FUNCTION VIRTUAL GLOBAL TCPMotionInterface::ConnSocketInfo
+VAR_INPUT
+    dSock : DINT;
+    InfoPara1 : DINT;
+    InfoPara2 : DINT;
+END_VAR
+VAR
+    takeover : BOOL;
+    preservePendingActive : BOOL;
+    setPositionPendingTailIndex : DINT;
+    setPositionPendingTailPresent : BOOL;
+END_VAR
+if takeover = TRUE then
+    if (SessionEpoch <> 0) & (PendingClosedSessionEpoch = 0) then
+        PendingClosedSessionEpoch := SessionEpoch;
+    end_if;
+end_if;
+ActiveRequestValid := FALSE;
+setPositionPendingTailPresent := FALSE;
+if (ActiveRequest.CommandId = 0x7D12) &
+   (ActiveRequest.PayloadLength = 48) &
+   ((ActiveRequest.PayloadData[
+       LMC_ADMIN_SET_POSITION_PENDING_MAGIC_OFFSET]$UDINT =
+     LMC_ADMIN_SET_POSITION_PENDING_MAGIC) |
+    (ActiveRequest.PayloadData[
+       LMC_ADMIN_SET_POSITION_PENDING_MAGIC_COPY_OFFSET]$UDINT =
+     LMC_ADMIN_SET_POSITION_PENDING_MAGIC)) then
+    setPositionPendingTailPresent := TRUE;
+elsif (ActiveRequest.CommandId = 0x7D12) &
+      (ActiveRequest.PayloadLength = 48) then
+    setPositionPendingTailIndex :=
+        LMC_ADMIN_SET_POSITION_PENDING_MAGIC_OFFSET;
+    while setPositionPendingTailIndex <=
+          LMC_ADMIN_SET_POSITION_PENDING_CHECK_COPY_OFFSET do
+        if ActiveRequest.PayloadData[
+             setPositionPendingTailIndex]$UDINT <> 0 then
+            setPositionPendingTailPresent := TRUE;
+        end_if;
+        setPositionPendingTailIndex += 4;
+    end_while;
+end_if;
+preservePendingActive :=
+    (ActiveRequest.Reserved = 1) |
+    ((ActiveRequest.PayloadData[
+        LMC_OWNER_SAFETY_PENDING_MAGIC_OFFSET]$UDINT =
+      LMC_OWNER_SAFETY_PENDING_MAGIC)) |
+    ((ActiveRequest.CommandId = 0x7D12) &
+     (ActiveRequest.PayloadLength = 48) &
+     setPositionPendingTailPresent);
+if preservePendingActive = FALSE then
+    _memset(dest:=#ActiveRequest, usByte:=0,
+        cntr:=sizeof(ActiveRequest));
+end_if;
+END_FUNCTION
+
+FUNCTION TCPMotionInterface::HandleAdminSetPositionPending
+VAR_INPUT
+    Phase : UINT;
+END_VAR
+VAR_OUTPUT
+    Result : DINT;
+END_VAR
+VAR
+    pendingTailIndex : DINT;
+    pendingTailPresent : BOOL;
+    pendingPrimaryValid : BOOL;
+    pendingCopyValid : BOOL;
+    pendingContextValid : BOOL;
+    pendingCloseRequired : BOOL;
+    pendingCheck : UDINT;
+    pendingCloseSession : UDINT;
+    pendingCloseSocket : DINT;
+    pendingCallbackDisarmResult : DINT;
+END_VAR
+Result := -1;
+pendingTailPresent := FALSE;
+pendingPrimaryValid := FALSE;
+pendingCopyValid := FALSE;
+pendingContextValid := FALSE;
+pendingCloseRequired := FALSE;
+pendingCheck := 0;
+pendingCloseSession := 0;
+pendingCloseSocket := 0;
+if (ActiveRequest.CommandId = 0x7D12) &
+   (ActiveRequest.PayloadLength = 48) &
+   ((ActiveRequest.PayloadData[
+     LMC_ADMIN_SET_POSITION_PENDING_MAGIC_OFFSET]$UDINT =
+     LMC_ADMIN_SET_POSITION_PENDING_MAGIC) |
+    (ActiveRequest.PayloadData[
+     LMC_ADMIN_SET_POSITION_PENDING_MAGIC_COPY_OFFSET]$UDINT =
+     LMC_ADMIN_SET_POSITION_PENDING_MAGIC)) then
+    pendingTailPresent := TRUE;
+elsif (CommandID = 0x7D12) & (Payload = 48) then
+    pendingTailIndex := LMC_ADMIN_SET_POSITION_PENDING_MAGIC_OFFSET;
+    while pendingTailIndex <=
+          LMC_ADMIN_SET_POSITION_PENDING_CHECK_COPY_OFFSET do
+        if ActiveRequest.PayloadData[pendingTailIndex]$UDINT <> 0 then
+            pendingTailPresent := TRUE;
+        end_if;
+        pendingTailIndex += 4;
+    end_while;
+end_if;
+if pendingTailPresent then
+    pendingCheck := LMC_ADMIN_SET_POSITION_PENDING_MAGIC xor
+        ActiveRequest.PayloadData[
+         LMC_ADMIN_SET_POSITION_PENDING_SESSION_OFFSET]$UDINT xor
+        ActiveRequest.PayloadData[
+         LMC_ADMIN_SET_POSITION_PENDING_SEQUENCE_OFFSET]$UDINT xor
+        ActiveRequest.PayloadData[
+         LMC_ADMIN_SET_POSITION_PENDING_SOCKET_OFFSET]$UDINT xor
+        ActiveRequest.PayloadData[
+         LMC_ADMIN_SET_POSITION_PENDING_COMMAND_OFFSET]$UDINT xor
+        ActiveRequest.PayloadData[
+         LMC_ADMIN_SET_POSITION_PENDING_LENGTH_OFFSET]$UDINT;
+    pendingPrimaryValid :=
+        (ActiveRequest.PayloadData[
+         LMC_ADMIN_SET_POSITION_PENDING_MAGIC_OFFSET]$UDINT =
+         LMC_ADMIN_SET_POSITION_PENDING_MAGIC) &
+        (ActiveRequest.PayloadData[
+         LMC_ADMIN_SET_POSITION_PENDING_CHECK_OFFSET]$UDINT =
+         pendingCheck);
+    pendingCheck := LMC_ADMIN_SET_POSITION_PENDING_MAGIC xor
+        ActiveRequest.PayloadData[
+         LMC_ADMIN_SET_POSITION_PENDING_SESSION_COPY_OFFSET]$UDINT xor
+        ActiveRequest.PayloadData[
+         LMC_ADMIN_SET_POSITION_PENDING_SEQUENCE_COPY_OFFSET]$UDINT xor
+        ActiveRequest.PayloadData[
+         LMC_ADMIN_SET_POSITION_PENDING_SOCKET_COPY_OFFSET]$UDINT xor
+        ActiveRequest.PayloadData[
+         LMC_ADMIN_SET_POSITION_PENDING_COMMAND_COPY_OFFSET]$UDINT xor
+        ActiveRequest.PayloadData[
+         LMC_ADMIN_SET_POSITION_PENDING_LENGTH_COPY_OFFSET]$UDINT;
+    pendingCopyValid :=
+        (ActiveRequest.PayloadData[
+         LMC_ADMIN_SET_POSITION_PENDING_MAGIC_COPY_OFFSET]$UDINT =
+         LMC_ADMIN_SET_POSITION_PENDING_MAGIC) &
+        (ActiveRequest.PayloadData[
+         LMC_ADMIN_SET_POSITION_PENDING_CHECK_COPY_OFFSET]$UDINT =
+         pendingCheck);
+    pendingContextValid := pendingPrimaryValid & pendingCopyValid &
+        (ActiveRequestValid = TRUE) &
+        (ActiveRequest.State = TCPMI_QUEUE_ACTIVE) &
+        (ActiveRequest.Reserved = 0) &
+        (ActiveRequest.CommandId = 0x7D12) &
+        (ActiveRequest.PayloadLength = 48) &
+        (ActiveRequest.Reference >= 1) &
+        (ActiveRequest.Reference <= 4) &
+        (ActiveRequest.SessionEpoch <> 0) &
+        (ActiveRequest.Sequence <> 0) &
+        (ActiveRequest.Socket <> 0) &
+        (ActiveRequest.CommandId = CommandID$UINT) &
+        (ActiveRequest.Reference = AxisRef$UINT) &
+        (ActiveRequest.PayloadLength = Payload$UINT) &
+        (ActiveRequest.Socket = CurrentSock) &
+        (ActiveRequest.SessionEpoch = SessionEpoch) &
+        (PendingClosedSessionEpoch = 0) &
+        (RequestBuf[0]$UINT = ActiveRequest.CommandId) &
+        (RequestBuf[4]$UINT = ActiveRequest.PayloadLength) &
+        (RequestBuf[6]$UINT = ActiveRequest.Reference) &
+        (ActiveRequest.PayloadData[
+         LMC_ADMIN_SET_POSITION_PENDING_SESSION_OFFSET]$UDINT =
+         ActiveRequest.SessionEpoch) &
+        (ActiveRequest.PayloadData[
+         LMC_ADMIN_SET_POSITION_PENDING_SEQUENCE_OFFSET]$UDINT =
+         ActiveRequest.Sequence) &
+        (ActiveRequest.PayloadData[
+         LMC_ADMIN_SET_POSITION_PENDING_SOCKET_OFFSET]$DINT =
+         ActiveRequest.Socket) &
+        (ActiveRequest.PayloadData[
+         LMC_ADMIN_SET_POSITION_PENDING_COMMAND_OFFSET]$UINT =
+         ActiveRequest.CommandId) &
+        (ActiveRequest.PayloadData[
+         LMC_ADMIN_SET_POSITION_PENDING_REFERENCE_OFFSET]$UINT =
+         ActiveRequest.Reference) &
+        (ActiveRequest.PayloadData[
+         LMC_ADMIN_SET_POSITION_PENDING_LENGTH_OFFSET]$UDINT = 48) &
+        (ActiveRequest.PayloadData[
+         LMC_ADMIN_SET_POSITION_PENDING_SESSION_COPY_OFFSET]$UDINT =
+         ActiveRequest.SessionEpoch) &
+        (ActiveRequest.PayloadData[
+         LMC_ADMIN_SET_POSITION_PENDING_SEQUENCE_COPY_OFFSET]$UDINT =
+         ActiveRequest.Sequence) &
+        (ActiveRequest.PayloadData[
+         LMC_ADMIN_SET_POSITION_PENDING_SOCKET_COPY_OFFSET]$DINT =
+         ActiveRequest.Socket) &
+        (ActiveRequest.PayloadData[
+         LMC_ADMIN_SET_POSITION_PENDING_COMMAND_COPY_OFFSET]$UINT =
+         ActiveRequest.CommandId) &
+        (ActiveRequest.PayloadData[
+         LMC_ADMIN_SET_POSITION_PENDING_REFERENCE_COPY_OFFSET]$UINT =
+         ActiveRequest.Reference) &
+        (ActiveRequest.PayloadData[
+         LMC_ADMIN_SET_POSITION_PENDING_LENGTH_COPY_OFFSET]$UDINT = 48);
+end_if;
+case Phase of
+LMC_ADMIN_SET_POSITION_PENDING_PHASE_PREPARE:
+    if pendingTailPresent = FALSE then
+        Result := 0;
+    elsif pendingContextValid then
+        Result := 1;
+    else
+        pendingCloseRequired := TRUE;
+    end_if;
+LMC_ADMIN_SET_POSITION_PENDING_PHASE_RETAIN:
+    if pendingTailPresent then
+        if pendingContextValid then
+            Result := 1;
+        else
+            pendingCloseRequired := TRUE;
+        end_if;
+    else
+        pendingContextValid :=
+            (ActiveRequestValid = TRUE) &
+            (ActiveRequest.State = TCPMI_QUEUE_ACTIVE) &
+            (ActiveRequest.Reserved = 0) &
+            (ActiveRequest.CommandId = 0x7D12) &
+            (ActiveRequest.PayloadLength = 48) &
+            (ActiveRequest.Reference >= 1) &
+            (ActiveRequest.Reference <= 4) &
+            (ActiveRequest.SessionEpoch <> 0) &
+            (ActiveRequest.Sequence <> 0) &
+            (ActiveRequest.Socket <> 0) &
+            (ActiveRequest.SessionEpoch = SessionEpoch) &
+            (ActiveRequest.CommandId = CommandID$UINT) &
+            (ActiveRequest.Reference = AxisRef$UINT) &
+            (ActiveRequest.PayloadLength = Payload$UINT) &
+            (ActiveRequest.Socket = CurrentSock) &
+            (PendingClosedSessionEpoch = 0) &
+            (RequestBuf[0]$UINT = ActiveRequest.CommandId) &
+            (RequestBuf[4]$UINT = ActiveRequest.PayloadLength) &
+            (RequestBuf[6]$UINT = ActiveRequest.Reference);
+        if pendingContextValid then
+            _memset(dest:=#ActiveRequest.PayloadData[
+                LMC_ADMIN_SET_POSITION_PENDING_MAGIC_OFFSET],
+                usByte:=0, cntr:=56);
+            ActiveRequest.PayloadData[
+                LMC_ADMIN_SET_POSITION_PENDING_SESSION_OFFSET]$UDINT :=
+                ActiveRequest.SessionEpoch;
+            ActiveRequest.PayloadData[
+                LMC_ADMIN_SET_POSITION_PENDING_SEQUENCE_OFFSET]$UDINT :=
+                ActiveRequest.Sequence;
+            ActiveRequest.PayloadData[
+                LMC_ADMIN_SET_POSITION_PENDING_SOCKET_OFFSET]$DINT :=
+                ActiveRequest.Socket;
+            ActiveRequest.PayloadData[
+                LMC_ADMIN_SET_POSITION_PENDING_COMMAND_OFFSET]$UINT :=
+                ActiveRequest.CommandId;
+            ActiveRequest.PayloadData[
+                LMC_ADMIN_SET_POSITION_PENDING_REFERENCE_OFFSET]$UINT :=
+                ActiveRequest.Reference;
+            ActiveRequest.PayloadData[
+                LMC_ADMIN_SET_POSITION_PENDING_LENGTH_OFFSET]$UDINT := 48;
+            ActiveRequest.PayloadData[
+                LMC_ADMIN_SET_POSITION_PENDING_SESSION_COPY_OFFSET]$UDINT :=
+                ActiveRequest.SessionEpoch;
+            ActiveRequest.PayloadData[
+                LMC_ADMIN_SET_POSITION_PENDING_SEQUENCE_COPY_OFFSET]$UDINT :=
+                ActiveRequest.Sequence;
+            ActiveRequest.PayloadData[
+                LMC_ADMIN_SET_POSITION_PENDING_SOCKET_COPY_OFFSET]$DINT :=
+                ActiveRequest.Socket;
+            ActiveRequest.PayloadData[
+                LMC_ADMIN_SET_POSITION_PENDING_COMMAND_COPY_OFFSET]$UINT :=
+                ActiveRequest.CommandId;
+            ActiveRequest.PayloadData[
+                LMC_ADMIN_SET_POSITION_PENDING_REFERENCE_COPY_OFFSET]$UINT :=
+                ActiveRequest.Reference;
+            ActiveRequest.PayloadData[
+                LMC_ADMIN_SET_POSITION_PENDING_LENGTH_COPY_OFFSET]$UDINT := 48;
+            pendingCheck := LMC_ADMIN_SET_POSITION_PENDING_MAGIC xor
+                ActiveRequest.SessionEpoch xor ActiveRequest.Sequence xor
+                TO_UDINT(ActiveRequest.Socket) xor
+                ActiveRequest.PayloadData[
+                 LMC_ADMIN_SET_POSITION_PENDING_COMMAND_OFFSET]$UDINT xor 48;
+            ActiveRequest.PayloadData[
+                LMC_ADMIN_SET_POSITION_PENDING_CHECK_OFFSET]$UDINT :=
+                pendingCheck;
+            ActiveRequest.PayloadData[
+                LMC_ADMIN_SET_POSITION_PENDING_CHECK_COPY_OFFSET]$UDINT :=
+                pendingCheck;
+            ActiveRequest.PayloadData[
+                LMC_ADMIN_SET_POSITION_PENDING_MAGIC_COPY_OFFSET]$UDINT :=
+                LMC_ADMIN_SET_POSITION_PENDING_MAGIC;
+            ActiveRequest.PayloadData[
+                LMC_ADMIN_SET_POSITION_PENDING_MAGIC_OFFSET]$UDINT :=
+                LMC_ADMIN_SET_POSITION_PENDING_MAGIC;
+            Result := 1;
+        else
+            pendingCloseRequired := TRUE;
+        end_if;
+    end_if;
+LMC_ADMIN_SET_POSITION_PENDING_PHASE_TERMINAL:
+    _memset(dest:=#ActiveRequest.PayloadData[
+        LMC_ADMIN_SET_POSITION_PENDING_MAGIC_OFFSET],
+        usByte:=0, cntr:=56);
+    Result := 0;
+LMC_ADMIN_SET_POSITION_PENDING_PHASE_QUARANTINE:
+    pendingCloseRequired := TRUE;
+end_case;
+if pendingCloseRequired then
+    pendingCloseSession := ActiveRequest.SessionEpoch;
+    pendingCloseSocket := ActiveRequest.Socket;
+    _memset(dest:=#ActiveRequest.PayloadData[
+        LMC_ADMIN_SET_POSITION_PENDING_MAGIC_OFFSET],
+        usByte:=0, cntr:=56);
+    if (pendingCloseSession <> 0) &
+       (PendingClosedSessionEpoch = 0) then
+        PendingClosedSessionEpoch := pendingCloseSession;
+        pendingCallbackDisarmResult := DisarmRpcCallbackEndpoint();
+        SessionEpoch += 1;
+        if SessionEpoch = 0 then
+            SessionEpoch := 1;
+        end_if;
+    end_if;
+    IngressBlocked := TRUE;
+    IngressFaultCloseRequired := TRUE;
+    RpcSocket := 0;
+    RpcInitialized := FALSE;
+    LastOwnerDisconnectRequestRet :=
+        _TCPIPServerInterface::SetSocketParameter(
+        dSock:=pendingCloseSocket, Cmd:=100, SubCmd:=0, ParaValue:=0);
+    Result := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+end_if;
+END_FUNCTION
+
+FUNCTION TCPMotionInterface::MsgPaser
+VAR
+    controlResponseSize : DINT;
+END_VAR
+// LMC_ADMIN_SET_POSITION_PENDING_GATE_BEGIN
+setPositionPendingResult := HandleAdminSetPositionPending(
+    Phase:=LMC_ADMIN_SET_POSITION_PENDING_PHASE_PREPARE);
+if setPositionPendingResult = LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE then
+    RETURN;
+end_if;
+// LMC_ADMIN_SET_POSITION_PENDING_GATE_END
+controlResponseSize := ControlCommands.HandleRequest(
+    CommandId:=CommandID$UINT, Reference:=AxisRef$UINT,
+    pRequestFrame:=(#RequestBuf[0])$^USINT,
+    RequestFrameSize:=(Payload + 8)$UDINT,
+    pResponseFrame:=(#Sendbuf[0])$^USINT,
+    ResponseCapacity:=sizeof(Sendbuf),
+    CallerSessionEpoch:=ActiveRequest.SessionEpoch,
+    RequestSequence:=ActiveRequest.Sequence,
+    AdmissionToken:=controlAdmissionToken,
+    OwnerGeneration:=controlOwnerGeneration,
+    ResponseSocket:=ActiveRequest.Socket);
+// LMC_ADMIN_SET_POSITION_PENDING_BEGIN
+if (CommandID = 0x7D12) &
+   (controlResponseSize = LMC_ADMIN_SET_POSITION_PENDING) then
+    setPositionPendingResult := HandleAdminSetPositionPending(
+        Phase:=LMC_ADMIN_SET_POSITION_PENDING_PHASE_RETAIN);
+    if setPositionPendingResult = 1 then
+        ActiveRequestValid := TRUE;
+    end_if;
+    RETURN;
+end_if;
+if CommandID = 0x7D12 then
+    setPositionPendingResult := HandleAdminSetPositionPending(
+        Phase:=LMC_ADMIN_SET_POSITION_PENDING_PHASE_TERMINAL);
+end_if;
+// LMC_ADMIN_SET_POSITION_PENDING_END
+// LMC_ADMIN_SET_POSITION_QUARANTINE_BEGIN
+if (CommandID = 0x7D12) &
+   (controlResponseSize = LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE) then
+    setPositionPendingResult := HandleAdminSetPositionPending(
+        Phase:=LMC_ADMIN_SET_POSITION_PENDING_PHASE_QUARANTINE);
+    RETURN;
+end_if;
+// LMC_ADMIN_SET_POSITION_QUARANTINE_END
+// LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE_BEGIN
+if (CommandID = 0x7D12) &
+   (controlResponseSize = LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE) then
+    RETURN;
+end_if;
+// LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE_END
+if (controlResponseSize <= 0) | FALSE then
+    RETURN;
+end_if;
+END_FUNCTION
+'@
+
+    return [pscustomobject]@{
+        Control = $control
+        Tcp = $tcp
+    }
+}
+
+function Invoke-LasalSetPositionAsyncControlVerifierSelfTest {
+    param(
+        [string]$Owner
+    )
+
+    $syntheticFixture = New-LasalSetPositionAsyncControlVerifierFixture
+    $ControlServiceText = $syntheticFixture.Control
+    $TcpText = $syntheticFixture.Tcp
+    Assert-LasalSetPositionAsyncControlContract `
+        -ControlServiceText $ControlServiceText `
+        -TcpText $TcpText `
+        -Owner "$Owner synthetic positive fixture"
+
+    $replaceFirst = {
+        param(
+            [string]$Source,
+            [string]$Pattern,
+            [string]$Replacement,
+            [string]$Label
+        )
+        $regex = [regex]::new(
+            $Pattern,
+            [Text.RegularExpressions.RegexOptions]::IgnoreCase -bor
+            [Text.RegularExpressions.RegexOptions]::Multiline -bor
+            [Text.RegularExpressions.RegexOptions]::Singleline)
+        $matches = $regex.Matches($Source)
+        if ($matches.Count -lt 1) {
+            throw "$Owner self-test mutation source was not found: $Label"
+        }
+        return $regex.Replace($Source, $Replacement, 1)
+    }
+    $fixtures = [ordered]@{}
+    $addControlFixture = {
+        param([string]$Name, [string]$Pattern, [string]$Replacement)
+        $fixtures[$Name] = @{
+            Control = & $replaceFirst `
+                $ControlServiceText $Pattern $Replacement $Name
+            Tcp = $TcpText
+        }
+    }
+    $addTcpFixture = {
+        param([string]$Name, [string]$Pattern, [string]$Replacement)
+        $fixtures[$Name] = @{
+            Control = $ControlServiceText
+            Tcp = & $replaceFirst $TcpText $Pattern $Replacement $Name
+        }
+    }
+
+    $scratchMemsetControl = & $replaceFirst `
+        $ControlServiceText `
+        ('AxisSetPositionAsyncState\[114\]\s*:=\s*0\s*;\s*' +
+         'AxisSetPositionAsyncState\[115\]\s*:=\s*0\s*;\s*' +
+         'AxisSetPositionAsyncState\[116\]\s*:=\s*0\s*;\s*' +
+         'AxisSetPositionAsyncState\[117\]\s*:=\s*0\s*;\s*' +
+         'AxisSetPositionAsyncState\[118\]\s*:=\s*0\s*;\s*' +
+         'AxisSetPositionAsyncState\[119\]\s*:=\s*0\s*;\s*' +
+         'AxisSetPositionAsyncState\[120\]\s*:=\s*0\s*;\s*' +
+         'AxisSetPositionAsyncState\[121\]\s*:=\s*0\s*;') `
+        ('_memset(dest:=#AxisSetPositionAsyncState[114], ' +
+         'usByte:=0, cntr:=32);') `
+        'ScratchMemsetPositive'
+    Assert-LasalSetPositionAsyncControlContract `
+        -ControlServiceText $scratchMemsetControl `
+        -TcpText $TcpText `
+        -Owner "$Owner positive exact scratch memset fixture"
+    $fixtures['ScratchMemsetNarrowed'] = @{
+        Control = & $replaceFirst `
+            $scratchMemsetControl `
+            '(_memset\s*\(\s*dest\s*:=\s*#AxisSetPositionAsyncState\[114\].*?cntr\s*:=\s*)32' `
+            '${1}28' `
+            'ScratchMemsetNarrowed'
+        Tcp = $TcpText
+    }
+
+    $reservedFullClearControl = & $replaceFirst `
+        $ControlServiceText `
+        ('AxisSetPositionAsyncState\[122\]\s*:=\s*0\s*;\s*' +
+         'AxisSetPositionAsyncState\[123\]\s*:=\s*0\s*;\s*' +
+         'AxisSetPositionAsyncState\[124\]\s*:=\s*0\s*;\s*' +
+         'AxisSetPositionAsyncState\[125\]\s*:=\s*0\s*;\s*' +
+         'AxisSetPositionAsyncState\[126\]\s*:=\s*0\s*;\s*' +
+         'AxisSetPositionAsyncState\[127\]\s*:=\s*0\s*;') `
+        '' `
+        'ReservedFullClearRemoveDirectZeros'
+    $reservedFullClearControl = & $replaceFirst `
+        $reservedFullClearControl `
+        '(LMC_ADMIN_SET_POSITION_ASYNC_STATE_IDLE\s*:\s*)' `
+        ('${1}' + [Environment]::NewLine +
+         '_memset(dest:=#AxisSetPositionAsyncState[0], ' +
+         'usByte:=0, cntr:=512);' + [Environment]::NewLine) `
+        'ReservedFullClearPositive'
+    Assert-LasalSetPositionAsyncControlContract `
+        -ControlServiceText $reservedFullClearControl `
+        -TcpText $TcpText `
+        -Owner "$Owner positive exact full-context clear fixture"
+    $fixtures['FullContextClearNarrowed'] = @{
+        Control = $reservedFullClearControl.Replace(
+            'usByte:=0, cntr:=512',
+            'usByte:=0, cntr:=508')
+        Tcp = $TcpText
+    }
+
+    & $addControlFixture 'AsyncArrayNarrowed' (
+        'AxisSetPositionAsyncState\s*:\s*ARRAY\s*\[\s*0\.\.127\s*\]') (
+        'AxisSetPositionAsyncState : ARRAY [0..126]')
+    & $addControlFixture 'AsyncMagicChanged' (
+        '(#define\s+LMC_ADMIN_SET_POSITION_ASYNC_MAGIC\s+)0x53504131') (
+        '${1}0x53504130')
+    & $addControlFixture 'PendingSentinelCollision' (
+        '(#define\s+LMC_ADMIN_SET_POSITION_PENDING\s+)-13') '${1}-12'
+    & $addControlFixture 'QuarantineSentinelCollision' (
+        '(#define\s+LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE\s+)-14') '${1}-13'
+    & $addControlFixture 'LifecycleFreshArmedRenumbered' (
+        '(#define\s+LMC_ADMIN_SET_POSITION_ASYNC_STATE_FRESH_ARMED\s+)2') (
+        '${1}3')
+    & $addControlFixture 'AsyncBeginMarkerChanged' (
+        '(//\s*LMC_ADMIN_SET_POSITION_ASYNC_)BEGIN') '${1}START'
+    & $addControlFixture 'EntryResponseCapacityNarrowed' (
+        '(\(ResponseCapacity\s*<\s*)36(\)\s+then)') '${1}32${2}'
+    & $addControlFixture 'RequestDecodeGuardNarrowed' (
+        '(if\s+RequestFrameSize\s*>=\s*)56(\s+then)') '${1}57${2}'
+    & $addControlFixture 'StoreKeySemanticModeChanged' (
+        '(adminSetPositionKey\[2\]\$UINT\s*:=\s*)1') '${1}2'
+    & $addControlFixture 'BeginZeroFailureDetailShifted' (
+        '(AxisSetPositionAsyncState\[21\]\s*=\s*0\s+then.*?' +
+         '\(pResponseFrame\s*\+\s*20\)\^\$UDINT\s*:=\s*' +
+         'AxisSetPositionAsyncState\[)22(\]\$UDINT)') '${1}21${2}'
+    & $addControlFixture 'BeginDuplicated' (
+        '(//\s*LMC_ADMIN_SET_POSITION_ASYNC_BEGIN\s*)') (
+        '${1}' + [Environment]::NewLine +
+        'SetPositionStore.BeginSetPosition();')
+    & $addControlFixture 'ReserveOutsideFreshArmed' (
+        '(LMC_ADMIN_SET_POSITION_ASYNC_STATE_BEGIN_PENDING\s*:\s*)') (
+        '${1}' + [Environment]::NewLine + 'ReserveAxisOwnership();')
+    & $addControlFixture 'SubmitDuplicated' (
+        '(LMC_ADMIN_SET_POSITION_ASYNC_STATE_OWNERSHIP_RESERVED\s*:\s*)') (
+        '${1}' + [Environment]::NewLine +
+        'InputLatch.SubmitAxisSetPositionPreflight();')
+    & $addControlFixture 'CopyDuplicated' (
+        '(LMC_ADMIN_SET_POSITION_ASYNC_STATE_PREFLIGHT_PENDING\s*:\s*)') (
+        '${1}' + [Environment]::NewLine +
+        'InputLatch.CopyAxisSetPositionPreflightResult();')
+    & $addControlFixture 'ValidateDuplicated' (
+        '(LMC_ADMIN_SET_POSITION_ASYNC_STATE_PREFLIGHT_READY\s*:\s*)') (
+        '${1}' + [Environment]::NewLine +
+        'ValidateAxisOwnershipIdentity();')
+    & $addControlFixture 'OwnershipCommitDuplicated' (
+        '(LMC_ADMIN_SET_POSITION_ASYNC_STATE_PREFLIGHT_READY\s*:\s*)') (
+        '${1}' + [Environment]::NewLine + 'CommitAxisOwnership();')
+    & $addControlFixture 'TerminalCommitDuplicated' (
+        '(LMC_ADMIN_SET_POSITION_ASYNC_STATE_TERMINAL_COMMIT_PENDING\s*:\s*)') (
+        '${1}' + [Environment]::NewLine +
+        'SetPositionStore.CommitSetPositionTerminal();')
+    & $addControlFixture 'ReleaseDuplicated' (
+        '(LMC_ADMIN_SET_POSITION_ASYNC_STATE_TERMINAL_PROVEN\s*:\s*)') (
+        '${1}' + [Environment]::NewLine + 'RollbackAxisOwnership();')
+    & $addControlFixture 'AdminNativeCallAdded' (
+        '(//\s*LMC_ADMIN_SET_POSITION_ASYNC_BEGIN\s*)') (
+        '${1}' + [Environment]::NewLine +
+        'LMCAxis1.SetPosition(Mode:=0, Position:=0);')
+    & $addControlFixture 'CopyDestinationShifted' (
+        '(CopyAxisSetPositionPreflightResult\s*\(.*?pDest\s*:=\s*#' +
+         'AxisSetPositionAsyncState\[)73(\])') '${1}72${2}'
+    & $addControlFixture 'CopySizeNarrowed' (
+        '(CopyAxisSetPositionPreflightResult\s*\(.*?DestSize\s*:=\s*)128') (
+        '${1}124')
+    & $addControlFixture 'ResultClaimProofShifted' (
+        '(LMC_ADMIN_SET_POSITION_ASYNC_STATE_PREFLIGHT_PENDING\s*:.*?' +
+         'AxisSetPositionAsyncState\[)102(\]\s*=\s*0)') '${1}101${2}'
+    & $addControlFixture 'ResultNativeCountProofShifted' (
+        '(LMC_ADMIN_SET_POSITION_ASYNC_STATE_PREFLIGHT_PENDING\s*:.*?' +
+         'AxisSetPositionAsyncState\[)103(\]\s*=\s*0)') '${1}102${2}'
+    & $addControlFixture 'ResultNativeStateProofShifted' (
+        '(LMC_ADMIN_SET_POSITION_ASYNC_STATE_PREFLIGHT_PENDING\s*:.*?' +
+         'AxisSetPositionAsyncState\[)104(\]\s*=\s*0)') '${1}103${2}'
+    & $addControlFixture 'ReadyResponseAdded' (
+        '(LMC_ADMIN_SET_POSITION_ASYNC_STATE_PREFLIGHT_READY\s*:\s*)') (
+        '${1}' + [Environment]::NewLine + 'ResponseSize := 36;')
+    & $addControlFixture 'ReadyReleaseAdded' (
+        '(LMC_ADMIN_SET_POSITION_ASYNC_STATE_PREFLIGHT_READY\s*:\s*)') (
+        '${1}' + [Environment]::NewLine + 'RollbackAxisOwnership();')
+    & $addControlFixture 'OwnershipActiveExecutionAdvanced' (
+        '(LMC_ADMIN_SET_POSITION_ASYNC_STATE_OWNERSHIP_ACTIVE\s*:\s*)') (
+        '${1}' + [Environment]::NewLine +
+        'AxisSetPositionAsyncState[1] := ' +
+        'LMC_ADMIN_SET_POSITION_ASYNC_STATE_EXECUTION_PENDING;')
+    & $addControlFixture 'TerminalCommitNativeStateChanged' (
+        '(CommitSetPositionTerminal\s*\(.*?NativeCommandState\s*:=\s*' +
+         'AxisSetPositionAsyncState\[)20(\]\$UDINT)') '${1}19${2}'
+    & $addControlFixture 'TerminalReadbackGenerationShifted' (
+        '(LMC_ADMIN_SET_POSITION_ASYNC_STATE_TERMINAL_COMMIT_PENDING\s*:.*?' +
+         'AxisSetPositionAsyncState\[72\]\$UDINT\s*=\s*' +
+         'AxisSetPositionAsyncState\[)2(\]\$UDINT)') '${1}1${2}'
+    & $addControlFixture 'TerminalResponseBeforeRelease' (
+        '(LMC_ADMIN_SET_POSITION_ASYNC_STATE_TERMINAL_PROVEN\s*:\s*)') (
+        '${1}' + [Environment]::NewLine + 'pResponseFrame^ := 0;')
+    & $addControlFixture 'TerminalReleaseReasonChanged' (
+        '(RollbackAxisOwnership\s*\(.*?Reason\s*:=\s*)0') '${1}1'
+    & $addControlFixture 'QuarantinedResponseAdded' (
+        '(LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED\s*:\s*)') (
+        '${1}' + [Environment]::NewLine + 'ResponseSize := 36;')
+    & $addControlFixture 'ScratchResponseSocketLost' (
+        '(AxisSetPositionAsyncState\[116\]\s*:=\s*)ResponseSocket') '${1}0'
+    & $addControlFixture 'ScratchCleanupLost' (
+        '(ResponseSize\s*:=\s*DispatchRequestCommand\s*\(.*?\)\s*;\s*' +
+         'AxisSetPositionAsyncState\[114\]\s*:=\s*)0') '${1}1'
+    & $addControlFixture 'ReservedSlotPersists' (
+        '(AxisSetPositionAsyncState\[122\]\s*:=\s*)0') '${1}1'
+    & $addControlFixture 'IdentityCompareResultTypeChanged' (
+        '(adminIdentityCompareResult\s*:\s*)UDINT') '${1}DINT'
+    & $addControlFixture 'KeyCompareResultTypeChanged' (
+        '(adminKeyCompareResult\s*:\s*)UDINT') '${1}DINT'
+    & $addControlFixture 'ReservedValidationExpectedMaskMovedAfterPhase' (
+        ('(LMC_ADMIN_SET_POSITION_ASYNC_STATE_PREFLIGHT_READY\s*:.*?' +
+         'ValidateAxisOwnershipIdentity\s*\(.*?' +
+         'Reference\s*:=\s*AxisSetPositionAsyncState\[11\]\s*,\s*)' +
+         '(ExpectedAxisMask\s*:=\s*' +
+         'AxisSetPositionAsyncState\[7\]\$UDINT\s*,\s*)' +
+         '(OwnerKind\s*:=.*?OwnerGeneration\s*:=\s*' +
+         'AxisSetPositionAsyncState\[6\]\$UDINT\s*,\s*)' +
+         '(RequiredPhase\s*:=\s*LMC_OWNER_PHASE_RESERVED\s*,\s*)')) (
+        '${1}${4}${2}${3}')
+    & $addControlFixture 'SameInvocationFreshArmedFenceInverted' (
+        '(until\s*\(AxisSetPositionAsyncState\[1\]\s*<>\s*' +
+         'LMC_ADMIN_SET_POSITION_ASYNC_STATE_BEGIN_PENDING\)\s*&\s*' +
+         '\(AxisSetPositionAsyncState\[1\]\s*)<>(\s*' +
+         'LMC_ADMIN_SET_POSITION_ASYNC_STATE_FRESH_ARMED\))') '${1}=${2}'
+    & $addControlFixture 'BeginGenerationPointerCastChanged' (
+        '(pRecordGeneration\s*:=\s*\(#' +
+         'AxisSetPositionAsyncState\[2\]\)\$)\^UDINT') '${1}^DINT'
+    & $addControlFixture 'BeginDetailPointerCastChanged' (
+        '(LMC_ADMIN_SET_POSITION_ASYNC_STATE_BEGIN_PENDING\s*:.*?' +
+         'pDetailCode\s*:=\s*\(#AxisSetPositionAsyncState\[22\]\)\$)' +
+         '\^UDINT') '${1}^DINT'
+    & $addControlFixture 'ReserveAdmissionPointerCastChanged' (
+        '(LMC_ADMIN_SET_POSITION_ASYNC_STATE_FRESH_ARMED\s*:.*?' +
+         'pAdmissionToken\s*:=\s*\(#AxisSetPositionAsyncState\[5\]\)\$)' +
+         '\^UDINT') '${1}^DINT'
+    & $addControlFixture 'ReplayKeyCompareNarrowed' (
+        '(LMC_ADMIN_SET_POSITION_ASYNC_STATE_BEGIN_PENDING\s*:.*?' +
+         'AxisSetPositionAsyncState\[21\]\s*=\s*2\s+then.*?' +
+         'adminKeyCompareResult\s*:=\s*_memcmp\s*\(.*?' +
+         'ptr1\s*:=\s*#AxisSetPositionAsyncState\[57\].*?' +
+         'ptr2\s*:=\s*#AxisSetPositionAsyncState\[45\].*?' +
+         'cntr\s*:=\s*)44') '${1}40'
+    & $addControlFixture 'MailboxFirstCopyOrNarrowed' (
+        ('\(\(\s*AxisSetPositionAsyncState\[15\]\$UDINT\s*=\s*0\s*\)' +
+         '\s*\|\s*\(\s*AxisSetPositionAsyncState\[83\]\$UDINT\s*=\s*' +
+         'AxisSetPositionAsyncState\[15\]\$UDINT\s*\)\s*\)')) (
+        '(AxisSetPositionAsyncState[83]$UDINT = ' +
+        'AxisSetPositionAsyncState[15]$UDINT)')
+    & $addControlFixture 'MailboxLatchDuplicatedBeforeValidation' (
+        '(LMC_ADMIN_SET_POSITION_ASYNC_STATE_PREFLIGHT_PENDING\s*:.*?' +
+         'elsif\s+AxisSetPositionAsyncState\[29\]\s*<>\s*0\s+then.*?' +
+         'RETURN\s*;\s*end_if\s*;\s*)' +
+        '(adminPreflightState\s*:=)') (
+        ('${1}if AxisSetPositionAsyncState[15]$UDINT = 0 then' +
+         [Environment]::NewLine +
+         'AxisSetPositionAsyncState[15]$UDINT := ' +
+         'AxisSetPositionAsyncState[83]$UDINT;' + [Environment]::NewLine +
+         'end_if;' + [Environment]::NewLine + '${2}'))
+    & $addControlFixture 'RejectedTerminalCandidateChanged' (
+        '(AxisSetPositionAsyncState\[16\]\s*:=\s*' +
+         'adminPreflightDetail\s*;\s*' +
+         'AxisSetPositionAsyncState\[17\]\s*:=\s*)1') '${1}0'
+    & $addControlFixture 'TerminalDetailPointerCastChanged' (
+        '(LMC_ADMIN_SET_POSITION_ASYNC_STATE_TERMINAL_COMMIT_PENDING\s*:.*?' +
+         'pDetailCode\s*:=\s*\(#AxisSetPositionAsyncState\[22\]\)\$)' +
+         '\^UDINT') '${1}^DINT'
+    & $addControlFixture 'TerminalKeyCompareNarrowed' (
+        '(LMC_ADMIN_SET_POSITION_ASYNC_STATE_TERMINAL_COMMIT_PENDING\s*:.*?' +
+         'adminKeyCompareResult\s*:=\s*_memcmp\s*\(.*?' +
+         'ptr1\s*:=\s*#AxisSetPositionAsyncState\[57\].*?' +
+         'ptr2\s*:=\s*#AxisSetPositionAsyncState\[45\].*?' +
+         'cntr\s*:=\s*)44') '${1}40'
+    & $addControlFixture 'TerminalUncertaintyResultOneRemoved' (
+        '(LMC_ADMIN_SET_POSITION_ASYNC_STATE_TERMINAL_COMMIT_PENDING\s*:.*?' +
+         'elsif\s*\(AxisSetPositionAsyncState\[21\]\s*=\s*)1' +
+         '(\)\s*\|\s*\(AxisSetPositionAsyncState\[21\]\s*=\s*' +
+         'LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE\))') '${1}2${2}'
+    & $addControlFixture 'TerminalReadbackAppliedCandidateShifted' (
+        '(LMC_ADMIN_SET_POSITION_ASYNC_STATE_TERMINAL_COMMIT_PENDING\s*:.*?' +
+         'AxisSetPositionAsyncState\[68\]\s*=\s*' +
+         'AxisSetPositionAsyncState\[)19(\])') '${1}18${2}'
+    & $addTcpFixture 'ResponseSocketNotForwarded' (
+        '(ResponseSocket\s*:=\s*)ActiveRequest\.Socket') '${1}0'
+    & $addTcpFixture 'TakeoverValidPendingTailIgnored' (
+        '(FUNCTION(?:\s+(?:VIRTUAL|GLOBAL))*\s+' +
+         'TCPMotionInterface::ConnSocketInfo.*?' +
+         'LMC_ADMIN_SET_POSITION_PENDING_MAGIC_COPY_)OFFSET') (
+        '${1}BROKEN_OFFSET')
+    & $addTcpFixture 'TakeoverPartialPendingTailIgnored' (
+        '(FUNCTION(?:\s+(?:VIRTUAL|GLOBAL))*\s+' +
+         'TCPMotionInterface::ConnSocketInfo.*?' +
+         'while\s+setPositionPendingTailIndex\s*<=\s*)' +
+         'LMC_ADMIN_SET_POSITION_PENDING_CHECK_COPY_OFFSET') (
+        '${1}LMC_ADMIN_SET_POSITION_PENDING_CHECK_OFFSET')
+    & $addTcpFixture 'TakeoverSetPositionPreserveDropped' (
+        '(FUNCTION(?:\s+(?:VIRTUAL|GLOBAL))*\s+' +
+         'TCPMotionInterface::ConnSocketInfo.*?' +
+         'preservePendingActive\s*:=.*?' +
+         'setPositionPendingTail)Present') '${1}Missing'
+    & $addTcpFixture 'TakeoverPreserveGuardBypassed' (
+        '(FUNCTION(?:\s+(?:VIRTUAL|GLOBAL))*\s+' +
+         'TCPMotionInterface::ConnSocketInfo.*?' +
+         'if\s+)preservePendingActive\s*=\s*FALSE') '${1}TRUE'
+    & $addTcpFixture 'ClosedSessionControlNotifyRemoved' (
+        '(FUNCTION(?:\s+(?:VIRTUAL|GLOBAL))*\s+' +
+         'TCPMotionInterface::CyWork.*?' +
+         'ControlCommands\.)NotifyAxisOwnershipSessionClosed') (
+        '${1}NotifyAxisOwnershipSessionLost')
+    & $addTcpFixture 'ActiveRequestClearedBeforeControlNotify' (
+        '(FUNCTION(?:\s+(?:VIRTUAL|GLOBAL))*\s+' +
+        'TCPMotionInterface::CyWork.*?' +
+        'Diagnostics\.NotifySessionClosed\s*\(.*?\)\s*;)') (
+        '${1}' + [Environment]::NewLine +
+        '_memset(dest:=#ActiveRequest, usByte:=0, ' +
+        'cntr:=sizeof(ActiveRequest));')
+    & $addTcpFixture 'CyWorkPendingMagicScopeChanged' (
+        '(FUNCTION(?:\s+(?:VIRTUAL|GLOBAL))*\s+' +
+         'TCPMotionInterface::CyWork.*?' +
+         'setPositionPendingTailPresent\s*:=\s*FALSE\s*;.*?' +
+         'ActiveRequest\.CommandId\s*=\s*)0x7D12') '${1}0x7D13'
+    & $addTcpFixture 'CyWorkPendingReleaseScopeChanged' (
+        '(FUNCTION(?:\s+(?:VIRTUAL|GLOBAL))*\s+' +
+         'TCPMotionInterface::CyWork.*?' +
+         'ActiveRequest\.Reserved\s*=\s*0.*?' +
+         'ActiveRequest\.CommandId\s*<>\s*)0x7D12') '${1}0x7D13'
+    & $addTcpFixture 'HelperPendingMagicScopeChanged' (
+        '(FUNCTION\s+TCPMotionInterface::HandleAdminSetPositionPending.*?' +
+         'pendingTailPresent\s*:=\s*FALSE\s*;.*?' +
+         'ActiveRequest\.CommandId\s*=\s*)0x7D12') '${1}0x7D13'
+
+    & $addTcpFixture 'TcpPendingSentinelCollision' (
+        '(#define\s+LMC_ADMIN_SET_POSITION_PENDING\s+)-13') '${1}-12'
+    & $addTcpFixture 'TcpQuarantineSentinelCollision' (
+        '(#define\s+LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE\s+)-14') '${1}-13'
+    & $addTcpFixture 'PendingPrimaryTailShifted' (
+        '(#define\s+LMC_ADMIN_SET_POSITION_PENDING_MAGIC_OFFSET\s+)1152') (
+        '${1}1151')
+    & $addTcpFixture 'PendingCopyTailOverlapsPrimary' (
+        '(#define\s+LMC_ADMIN_SET_POSITION_PENDING_MAGIC_COPY_OFFSET\s+)1180') (
+        '${1}1176')
+    & $addTcpFixture 'PendingTailOverlapsSafety' (
+        '(#define\s+LMC_ADMIN_SET_POSITION_PENDING_CHECK_COPY_OFFSET\s+)1204') (
+        '${1}1252')
+    & $addTcpFixture 'PendingSendAdded' (
+        '(//\s*LMC_ADMIN_SET_POSITION_PENDING_BEGIN\s*)') (
+        '${1}' + [Environment]::NewLine + 'SendData();')
+    & $addTcpFixture 'PendingResponseWriteAdded' (
+        '(//\s*LMC_ADMIN_SET_POSITION_PENDING_BEGIN\s*)') (
+        '${1}' + [Environment]::NewLine + 'Sendbuf[0] := 0;')
+    & $addTcpFixture 'PendingActiveRequestReleased' (
+        '(//\s*LMC_ADMIN_SET_POSITION_PENDING_BEGIN\s*)') (
+        '${1}' + [Environment]::NewLine + 'ActiveRequest.Reserved := 0;')
+    & $addTcpFixture 'PendingQueueAdvanced' (
+        '(//\s*LMC_ADMIN_SET_POSITION_PENDING_BEGIN\s*)') (
+        '${1}' + [Environment]::NewLine + 'QueueReadIndex := 0;')
+    & $addTcpFixture 'PendingCallbackDisarmed' (
+        '(//\s*LMC_ADMIN_SET_POSITION_PENDING_BEGIN\s*)') (
+        '${1}' + [Environment]::NewLine + 'DisarmRpcCallbackEndpoint();')
+    & $addTcpFixture 'PendingEpochAdvanced' (
+        '(//\s*LMC_ADMIN_SET_POSITION_PENDING_BEGIN\s*)') (
+        '${1}' + [Environment]::NewLine + 'SessionEpoch += 1;')
+    & $addTcpFixture 'PendingMarkerChanged' (
+        '(//\s*LMC_ADMIN_SET_POSITION_PENDING_)BEGIN') '${1}START'
+    & $addTcpFixture 'QuarantineResponseWriteAdded' (
+        '(//\s*LMC_ADMIN_SET_POSITION_QUARANTINE_BEGIN\s*)') (
+        '${1}' + [Environment]::NewLine + 'Sendbuf[0] := 0;')
+    & $addTcpFixture 'QuarantineCloseRemoved' (
+        '(FUNCTION\s+TCPMotionInterface::HandleAdminSetPositionPending.*?' +
+         'LMC_ADMIN_SET_POSITION_PENDING_PHASE_QUARANTINE.*?' +
+         'IngressFaultCloseRequired\s*:=\s*)TRUE') '${1}FALSE'
+    & $addTcpFixture 'QuarantineSocketFenceRemoved' (
+        '(FUNCTION\s+TCPMotionInterface::HandleAdminSetPositionPending.*?' +
+         'pendingCloseSocket\s*:=\s*)ActiveRequest\.Socket') '${1}0'
+    & $addTcpFixture 'PrepareAbsentTailAccepted' (
+        '(FUNCTION\s+TCPMotionInterface::HandleAdminSetPositionPending.*?' +
+         'LMC_ADMIN_SET_POSITION_PENDING_PHASE_PREPARE\s*:\s*' +
+         'if\s+pendingTailPresent\s*=\s*FALSE\s+then\s*' +
+         'Result\s*:=\s*)0') '${1}1'
+    & $addTcpFixture 'PrepareValidTailRejected' (
+        '(FUNCTION\s+TCPMotionInterface::HandleAdminSetPositionPending.*?' +
+         'LMC_ADMIN_SET_POSITION_PENDING_PHASE_PREPARE\s*:.*?' +
+         'elsif\s+pendingContextValid\s+then\s*Result\s*:=\s*)1') '${1}0'
+    & $addTcpFixture 'PrepareInvalidTailAccepted' (
+        '(FUNCTION\s+TCPMotionInterface::HandleAdminSetPositionPending.*?' +
+         'LMC_ADMIN_SET_POSITION_PENDING_PHASE_PREPARE\s*:.*?' +
+         'else\s*pendingCloseRequired\s*:=\s*)TRUE') '${1}FALSE'
+    & $addTcpFixture 'QuarantineSessionCaptureLost' (
+        '(FUNCTION\s+TCPMotionInterface::HandleAdminSetPositionPending.*?' +
+         'if\s+pendingCloseRequired\s+then\s*' +
+         'pendingCloseSession\s*:=\s*)ActiveRequest\.SessionEpoch') '${1}0'
+    & $addTcpFixture 'QuarantineFirstWinsLost' (
+        '(FUNCTION\s+TCPMotionInterface::HandleAdminSetPositionPending.*?' +
+         'if\s+pendingCloseRequired\s+then.*?' +
+         'PendingClosedSessionEpoch\s*)=\s*0') '${1}<> 0'
+    & $addTcpFixture 'QuarantineEpochIncrementLost' (
+        '(FUNCTION\s+TCPMotionInterface::HandleAdminSetPositionPending.*?' +
+         'if\s+pendingCloseRequired\s+then.*?' +
+         'SessionEpoch\s*\+=\s*)1') '${1}0'
+    & $addTcpFixture 'QuarantineEpochWrapLost' (
+        '(FUNCTION\s+TCPMotionInterface::HandleAdminSetPositionPending.*?' +
+         'if\s+pendingCloseRequired\s+then.*?' +
+         'if\s+SessionEpoch\s*=\s*0\s+then\s*' +
+         'SessionEpoch\s*:=\s*)1') '${1}0'
+
+    $expectedFixtureErrors = [ordered]@{
+        ScratchMemsetNarrowed =
+            'transient invocation scratch 114..121 must be zeroed'
+        FullContextClearNarrowed =
+            'reserved async slot 122 must be zeroed'
+        AsyncArrayNarrowed = 'async context must be one exact DINT[0..127]'
+        AsyncMagicChanged = 'Control define LMC_ADMIN_SET_POSITION_ASYNC_MAGIC'
+        PendingSentinelCollision =
+            'Control define LMC_ADMIN_SET_POSITION_PENDING'
+        QuarantineSentinelCollision =
+            'Control define LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE'
+        LifecycleFreshArmedRenumbered =
+            'Control define LMC_ADMIN_SET_POSITION_ASYNC_STATE_FRESH_ARMED'
+        AsyncBeginMarkerChanged = 'Control async marker block'
+        EntryResponseCapacityNarrowed =
+            'private async entry must reject NIL frames and response capacity'
+        RequestDecodeGuardNarrowed =
+            'private async request decoding must retain every exact'
+        StoreKeySemanticModeChanged =
+            'P1 must build and freeze the exact normalized 48-byte Store key'
+        BeginZeroFailureDetailShifted =
+            'Begin=0 may clear only exact 20/21/23/24 outcomes'
+        BeginDuplicated = 'async Begin call must occur exactly'
+        ReserveOutsideFreshArmed = 'async Reserve call must occur exactly'
+        SubmitDuplicated = 'async Submit call must occur exactly'
+        CopyDuplicated = 'async Copy call must occur exactly'
+        ValidateDuplicated = 'async Validate call must occur exactly'
+        OwnershipCommitDuplicated =
+            'async CommitOwnership call must occur exactly'
+        TerminalCommitDuplicated =
+            'async CommitTerminal call must occur exactly'
+        ReleaseDuplicated = 'async Release call must occur exactly'
+        AdminNativeCallAdded =
+            'Admin async lifecycle must contain zero native SetPosition calls'
+        CopyDestinationShifted =
+            'PreflightPending must only poll the exact 128-byte RT result'
+        CopySizeNarrowed =
+            'PreflightPending must only poll the exact 128-byte RT result'
+        ResultClaimProofShifted = 'coherent RT result slot 102'
+        ResultNativeCountProofShifted = 'coherent RT result slot 103'
+        ResultNativeStateProofShifted = 'coherent RT result slot 104'
+        ReadyResponseAdded = 'READY activation must perform zero response'
+        ReadyReleaseAdded = 'async Release call must occur exactly'
+        OwnershipActiveExecutionAdvanced =
+            'P1 OwnershipActive must stop pending'
+        TerminalCommitNativeStateChanged =
+            'coherent REJECTED terminal commit ABI drifted'
+        TerminalReadbackGenerationShifted =
+            'terminal full 68-byte readback omitted guard'
+        TerminalResponseBeforeRelease =
+            'TerminalProven response must follow exact ownership release'
+        TerminalReleaseReasonChanged =
+            'TerminalProven release tuple must be exact'
+        QuarantinedResponseAdded =
+            'Quarantined state must not respond, resolve, or release'
+        ScratchResponseSocketLost =
+            'transient invocation scratch 114..121 must be frozen'
+        ScratchCleanupLost =
+            'transient invocation scratch 114..121 must be zeroed'
+        ReservedSlotPersists = 'reserved async slot 122 must never persist data'
+        IdentityCompareResultTypeChanged =
+            'private async request ABI local adminIdentityCompareResult drifted'
+        KeyCompareResultTypeChanged =
+            'private async request ABI local adminKeyCompareResult drifted'
+        ReservedValidationExpectedMaskMovedAfterPhase =
+            'READY must validate RESERVED, check Commit, validate ACTIVE'
+        SameInvocationFreshArmedFenceInverted =
+            'async lifecycle must use one exact same-invocation REPEAT continuation'
+        BeginGenerationPointerCastChanged =
+            'BeginPending Store Begin must use frozen key/snapshot/generation slots'
+        BeginDetailPointerCastChanged =
+            'BeginPending Store Begin must use frozen key/snapshot/generation slots'
+        ReserveAdmissionPointerCastChanged =
+            'FreshArmed must reserve the exact frozen ownership tuple once'
+        ReplayKeyCompareNarrowed =
+            'Begin replay must byte-prove the full 44-byte stored key'
+        MailboxFirstCopyOrNarrowed =
+            'adminPreflightValid omitted required coherent guard'
+        MailboxLatchDuplicatedBeforeValidation =
+            'PreflightPending must first-win latch the coherent mailbox sequence'
+        RejectedTerminalCandidateChanged =
+            'mailbox latch and READY/REJECTED candidate transition must be dominated'
+        TerminalDetailPointerCastChanged =
+            'coherent REJECTED terminal commit ABI drifted'
+        TerminalKeyCompareNarrowed =
+            'terminal commit must byte-prove the full 44-byte stored key'
+        TerminalUncertaintyResultOneRemoved =
+            'terminal proof must dominate state 9; result 1 with invalid'
+        TerminalReadbackAppliedCandidateShifted =
+            'terminal full 68-byte readback omitted guard'
+        ResponseSocketNotForwarded =
+            'TCP must pass the exact active response socket'
+        TakeoverValidPendingTailIgnored =
+            'takeover must recognize either published SetPosition pending magic'
+        TakeoverPartialPendingTailIgnored =
+            'takeover must preserve every partial nonzero DINT'
+        TakeoverSetPositionPreserveDropped =
+            'preservePendingActive must combine existing safety continuations'
+        TakeoverPreserveGuardBypassed =
+            'takeover must first-win latch the old session'
+        ClosedSessionControlNotifyRemoved =
+            'CyWork must complete Diagnostics and Control closed-session'
+        ActiveRequestClearedBeforeControlNotify =
+            'CyWork must complete Diagnostics and Control closed-session'
+        CyWorkPendingMagicScopeChanged =
+            'CyWork pending-magic recognition must be scoped to exact'
+        CyWorkPendingReleaseScopeChanged =
+            'CyWork may retain Reserved=0 only for an exact 0x7D12/48'
+        HelperPendingMagicScopeChanged =
+            'TCP pending helper must ignore pending magic outside exact'
+        TcpPendingSentinelCollision =
+            'TCP define LMC_ADMIN_SET_POSITION_PENDING'
+        TcpQuarantineSentinelCollision =
+            'TCP define LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE'
+        PendingPrimaryTailShifted =
+            'TCP tail define LMC_ADMIN_SET_POSITION_PENDING_MAGIC_OFFSET'
+        PendingCopyTailOverlapsPrimary =
+            'TCP tail define LMC_ADMIN_SET_POSITION_PENDING_MAGIC_COPY_OFFSET'
+        PendingTailOverlapsSafety =
+            'TCP tail define LMC_ADMIN_SET_POSITION_PENDING_CHECK_COPY_OFFSET'
+        PendingSendAdded = 'TCP -13 consumer must retain through the exact helper'
+        PendingResponseWriteAdded =
+            'TCP -13 consumer must retain through the exact helper'
+        PendingActiveRequestReleased =
+            'TCP -13 consumer must retain through the exact helper'
+        PendingQueueAdvanced =
+            'TCP -13 consumer must retain through the exact helper'
+        PendingCallbackDisarmed =
+            'TCP -13 consumer must retain through the exact helper'
+        PendingEpochAdvanced =
+            'TCP -13 consumer must retain through the exact helper'
+        PendingMarkerChanged = 'TCP pending marker block'
+        QuarantineResponseWriteAdded =
+            'TCP -14 consumer must route once through the quarantine helper'
+        QuarantineCloseRemoved =
+            'TCP quarantine helper must perform the exact no-response close'
+        QuarantineSocketFenceRemoved =
+            'TCP quarantine close must clear the full tail before disarm/close'
+        PrepareAbsentTailAccepted = 'TCP PREPARE must return 0 for no tail'
+        PrepareValidTailRejected = 'TCP PREPARE must return 0 for no tail'
+        PrepareInvalidTailAccepted = 'TCP PREPARE must return 0 for no tail'
+        QuarantineSessionCaptureLost =
+            'TCP quarantine close must first-win capture the old session'
+        QuarantineFirstWinsLost =
+            'TCP quarantine close must first-win capture the old session'
+        QuarantineEpochIncrementLost =
+            'TCP quarantine close must first-win capture the old session'
+        QuarantineEpochWrapLost =
+            'TCP quarantine close must first-win capture the old session'
+    }
+    if ($expectedFixtureErrors.Count -ne $fixtures.Count -or
+        ((@($expectedFixtureErrors.Keys) -join "`n") -cne
+         (@($fixtures.Keys) -join "`n"))) {
+        throw "$Owner P1 mutation expected-error inventory drifted."
+    }
+
+    $fixtureNameSha256 = [Security.Cryptography.SHA256]::Create()
+    try {
+        $fixtureNameHash = ([BitConverter]::ToString(
+                $fixtureNameSha256.ComputeHash(
+                    [Text.Encoding]::UTF8.GetBytes(
+                        (@($fixtures.Keys) -join "`n"))))).
+            Replace('-', '').ToLowerInvariant()
+    }
+    finally {
+        $fixtureNameSha256.Dispose()
+    }
+    if ($fixtureNameHash -cne
+            'd257fcc547f8f8f87beb5c1651c5c737cb36cbc07faf3d46ca5eb76de0a95491') {
+        throw "$Owner P1 async negative fixture ordered-name inventory drifted."
+    }
+
+    $rejectedCount = 0
+    foreach ($fixture in $fixtures.GetEnumerator()) {
+        if (($fixture.Value.Control -ceq $ControlServiceText) -and
+            ($fixture.Value.Tcp -ceq $TcpText)) {
+            throw "$Owner negative fixture did not mutate: $($fixture.Key)"
+        }
+        $rejected = $false
+        try {
+            Assert-LasalSetPositionAsyncControlContract `
+                -ControlServiceText $fixture.Value.Control `
+                -TcpText $fixture.Value.Tcp `
+                -Owner "$Owner negative fixture $($fixture.Key)"
+        }
+        catch {
+            $expectedError = $expectedFixtureErrors[$fixture.Key]
+            if ($_.Exception.Message.IndexOf(
+                    $expectedError,
+                    [StringComparison]::Ordinal) -lt 0) {
+                throw (
+                    "$Owner negative fixture $($fixture.Key) failed at the " +
+                    "wrong invariant. Expected message containing " +
+                    "'$expectedError'; actual='$($_.Exception.Message)'.")
+            }
+            $rejected = $true
+        }
+        if (-not $rejected) {
+            throw "$Owner verifier accepted negative fixture $($fixture.Key)."
+        }
+        $rejectedCount++
+    }
+    if ($rejectedCount -ne 84 -or $fixtures.Count -ne 84) {
+        throw (
+            "$Owner negative fixture count is $rejectedCount/" +
+            "$($fixtures.Count), expected 84/84.")
+    }
+
+    $positiveCommentControl = $ControlServiceText.Replace(
+        '// LMC_ADMIN_SET_POSITION_ASYNC_BEGIN',
+        ('// LMC_ADMIN_SET_POSITION_ASYNC_BEGIN' +
+         [Environment]::NewLine +
+         '// LMCAxis1.SetPosition and ReserveAxisOwnership are documentation only.'))
+    if ($positiveCommentControl -ceq $ControlServiceText) {
+        throw "$Owner positive comment fixture did not mutate."
+    }
+    Assert-LasalSetPositionAsyncControlContract `
+        -ControlServiceText $positiveCommentControl `
+        -TcpText $TcpText `
+        -Owner "$Owner positive comment fixture"
+
     return $rejectedCount
 }
 
@@ -19018,6 +23091,9 @@ function Assert-LasalSetPositionOutcomeStoreWiringContract {
                 Hash = (
                     'C86A8A8FAD571586D5C78841B5C37CB2375711E7680D7' +
                     '7AEFA128F9CAE530AF0')
+                P1Hash = (
+                    'C013CC7BF25FEA301892ACF1CF6964B3B47127699AC5B' +
+                    'B7A430EBAFFBC443ED1')
             })) {
         $normalizedRouteRouter = [regex]::Replace(
             $routeExecutable.Router,
@@ -19037,7 +23113,13 @@ function Assert-LasalSetPositionOutcomeStoreWiringContract {
         }
         $routeHash = & $getExecutableHash `
             $routeMatches[0].Groups['Body'].Value
-        if ($routeHash -cne $routeExecutable.Hash) {
+        $expectedRouteHash = $routeExecutable.Hash
+        if (($serviceScan -match
+                '(?im)^\s*AxisSetPositionAsyncState\s*:') -and
+            $routeExecutable.Contains('P1Hash')) {
+            $expectedRouteHash = $routeExecutable.P1Hash
+        }
+        if ($routeHash -cne $expectedRouteHash) {
             throw (
                 "$Owner $($routeExecutable.Name) executable fingerprint " +
                 "drifted: $routeHash")
@@ -19252,8 +23334,31 @@ function Invoke-LasalSetPositionAdminStoreWiringVerifierSelfTest {
     param(
         [string]$ControlServiceText,
         [string]$TcpText,
-        [string]$Owner
+        [string]$Owner,
+        [switch]$P1AsyncContractAlreadyVerified
     )
+
+    if ($ControlServiceText -match
+            '(?im)^\s*AxisSetPositionAsyncState\s*:\s*' +
+            'ARRAY\s*\[\s*0\.\.127\s*\]\s*OF\s*DINT\s*;') {
+        Assert-LasalSetPositionOutcomeStoreWiringContract `
+            -ControlServiceText $ControlServiceText `
+            -TcpText $TcpText `
+            -Owner "$Owner 0x7D14/0x7D1A P1 source"
+        Assert-LasalSetPositionCloseWithoutResponseContract `
+            -ControlServiceText $ControlServiceText `
+            -TcpText $TcpText `
+            -Owner "$Owner -12 P1 source"
+        if (-not $P1AsyncContractAlreadyVerified) {
+            Assert-LasalSetPositionAsyncControlContract `
+                -ControlServiceText $ControlServiceText `
+                -TcpText $TcpText `
+                -Owner "$Owner P1 async current source"
+            return Invoke-LasalSetPositionAsyncControlVerifierSelfTest `
+                -Owner "$Owner P1 async synthetic mutations"
+        }
+        return 0
+    }
 
     $coordinateOracleFixtureCount =
         Invoke-LasalSetPositionCoordinateGateOracleSelfTest `
@@ -21898,17 +26003,63 @@ function Assert-LasalAxisSetPositionPreflightRtContract {
             "$blocker preflight-only Submit/Copy/Process must have zero native, " +
             'Control, Store, recorder, or write wiring.')
     }
-    foreach ($foreignSource in @(
-            @{ Name = 'Control'; Text = $controlScan },
-            @{ Name = 'Store'; Text = $storeScan })) {
-        if ($foreignSource.Text -match
-                '(?i)AxisSetPositionPreflight|SubmitAxisSetPositionPreflight|' +
+    if ($storeScan -match
+            '(?i)AxisSetPositionPreflight|SubmitAxisSetPositionPreflight|' +
+            'CopyAxisSetPositionPreflightResult|' +
+            'ProcessAxisSetPositionPreflightRt') {
+        throw (
+            "$blocker Store must have zero preflight runtime wiring.")
+    }
+    $asyncControlEnabled = $controlScan -match
+        '(?im)^\s*AxisSetPositionAsyncState\s*:\s*' +
+        'ARRAY\s*\[\s*0\.\.127\s*\]\s*OF\s*DINT\s*;'
+    $controlSubmitCount = [regex]::Matches(
+        $controlScan,
+        '(?i)\bInputLatch\s*\.\s*SubmitAxisSetPositionPreflight\s*\(').Count
+    $controlCopyCount = [regex]::Matches(
+        $controlScan,
+        '(?i)\bInputLatch\s*\.\s*CopyAxisSetPositionPreflightResult\s*\(').Count
+    $controlProcessCount = [regex]::Matches(
+        $controlScan,
+        '(?i)\bProcessAxisSetPositionPreflightRt\s*\(').Count
+    if ($asyncControlEnabled) {
+        if ($controlSubmitCount -ne 1 -or
+            $controlCopyCount -ne 1 -or
+            $controlProcessCount -ne 0) {
+            throw (
+                "$blocker P1 Control preflight runtime wiring must contain " +
+                'exactly one InputLatch Submit, one InputLatch Copy, and zero ' +
+                'Process calls.')
+        }
+        $controlPreflightRemainder = [regex]::Replace(
+            $controlScan,
+            '(?i)\bInputLatch\s*\.\s*' +
+            'SubmitAxisSetPositionPreflight(?=\s*\()',
+            '')
+        $controlPreflightRemainder = [regex]::Replace(
+            $controlPreflightRemainder,
+            '(?i)\bInputLatch\s*\.\s*' +
+            'CopyAxisSetPositionPreflightResult(?=\s*\()',
+            '')
+        if ($controlPreflightRemainder -match
+                '(?i)AxisSetPositionPreflight|' +
+                'SubmitAxisSetPositionPreflight|' +
                 'CopyAxisSetPositionPreflightResult|' +
                 'ProcessAxisSetPositionPreflightRt') {
             throw (
-                "$blocker $($foreignSource.Name) must have zero preflight " +
-                'runtime wiring in this tranche.')
+                "$blocker P1 Control contains preflight wiring outside the " +
+                'one exact InputLatch Submit/Copy pair.')
         }
+    }
+    elseif ($controlSubmitCount -ne 0 -or
+        $controlCopyCount -ne 0 -or
+        $controlProcessCount -ne 0 -or
+        $controlScan -match
+            '(?i)AxisSetPositionPreflight|SubmitAxisSetPositionPreflight|' +
+            'CopyAxisSetPositionPreflightResult|' +
+            'ProcessAxisSetPositionPreflightRt') {
+        throw (
+            "$blocker pre-P1 Control must have zero preflight runtime wiring.")
     }
     foreach ($inactiveMacro in @(
             @{ Name = 'LMC_ADMIN_SET_POSITION_STORE_CONFIGURED'; Value = 'FALSE' },
@@ -22420,9 +26571,23 @@ function Assert-LasalDs402SafetyDrainRetryContract {
         Assert-Match $preserveAssignment ('(?is)' + $shapePattern) (
             "$blocker fresh-owner pending-tail safety-form inventory changed.")
     }
+    $setPositionPendingExpected = [regex]::Matches(
+        $tcpScan,
+        ('(?im)^\s*FUNCTION\s+' +
+         'TCPMotionInterface::HandleAdminSetPositionPending\s*$')).Count -eq 1
+    $expectedPreserveCommandCount = 5
+    if ($setPositionPendingExpected) {
+        Assert-Match $preserveAssignment (
+            '(?is)\(ActiveRequest\.CommandId\s*=\s*0x7D12\)\s*&\s*' +
+            '\(ActiveRequest\.PayloadLength\s*=\s*48\)\s*&\s*' +
+            'setPositionPendingTailPresent') (
+            "$blocker P1 SetPosition pending-tail preservation drifted.")
+        $expectedPreserveCommandCount = 6
+    }
     if ([regex]::Matches(
             $preserveAssignment,
-            '(?i)CommandId\s*=\s*0x[0-9A-F]{4}').Count -ne 5 -or
+            '(?i)CommandId\s*=\s*0x[0-9A-F]{4}').Count -ne
+            $expectedPreserveCommandCount -or
         $preserveAssignment -match '(?i)0x20E7') {
         throw "$blocker fresh-owner preservation accepts a non-safety form."
     }
@@ -22925,19 +27090,35 @@ function Assert-LasalAdminLmcHomeContract {
         "$Owner completed Home receipt does not fall through for a different " +
         'incoming owner, or incomplete/corrupt receipt replay is not fail closed.')
 
+    $homeDispatchSuffix =
+        'end_if\s*;\s*if\s+ownershipInvokeHandler\s+then\s*'
+    if ([regex]::Matches(
+            $serviceScan,
+            ('(?im)^\s*AxisSetPositionAsyncState\s*:\s*ARRAY\s*' +
+             '\[\s*0\.\.127\s*\]\s*OF\s*DINT\s*;\s*$')).Count -eq 1) {
+        $homeDispatchSuffix +=
+            ('AxisSetPositionAsyncState\[114\]\$UDINT\s*:=\s*' +
+             'CallerSessionEpoch\s*;.*?')
+    }
+    $homeDispatchSuffix +=
+        ('ResponseSize\s*:=\s*DispatchRequestCommand\s*\(\s*' +
+         'CommandId:=CommandId\s*,\s*Reference:=Reference\s*,\s*' +
+         'pRequestFrame:=pRequestFrame\s*,\s*' +
+         'RequestFrameSize:=RequestFrameSize\s*,\s*' +
+         'pResponseFrame:=pResponseFrame\s*,\s*' +
+         'ResponseCapacity:=ResponseCapacity\s*\)\s*;')
+    if ($homeDispatchSuffix -match 'AxisSetPositionAsyncState') {
+        $homeDispatchSuffix +=
+            ('\s*_memset\s*\(\s*dest:=#AxisSetPositionAsyncState\[114\]' +
+             '\s*,\s*usByte:=0\s*,\s*cntr:=32\s*\)\s*;')
+    }
+    $homeDispatchSuffix += '\s*end_if\s*;'
     $safetyPumpMatch = [regex]::Match(
         $handleRequestBlock,
         ('(?is)if\s+ownershipArmed\s*&\s*ownershipInvokeHandler\s*&\s*' +
          '\(ownershipValidationResult\s*=\s*0\)\s*&\s*' +
          '\(ownershipAdmissionMode\s*=\s*LMC_OWNER_ADMISSION_SAFETY\)\s*then' +
-         '(?<Body>.*?)' +
-         'end_if\s*;\s*if\s+ownershipInvokeHandler\s+then\s*' +
-         'ResponseSize\s*:=\s*DispatchRequestCommand\s*\(\s*' +
-         'CommandId:=CommandId\s*,\s*Reference:=Reference\s*,\s*' +
-         'pRequestFrame:=pRequestFrame\s*,\s*' +
-         'RequestFrameSize:=RequestFrameSize\s*,\s*' +
-         'pResponseFrame:=pResponseFrame\s*,\s*' +
-         'ResponseCapacity:=ResponseCapacity\s*\)\s*;\s*end_if\s*;'))
+         '(?<Body>.*?)' + $homeDispatchSuffix))
     if (-not $safetyPumpMatch.Success) {
         throw "$Owner exact Home safety-pump block was not found."
     }
@@ -31094,6 +35275,7 @@ function Assert-LasalSetPositionStoreReadOnlyScanContract {
     param(
         [Parameter(Mandatory = $true)][string]$StoreText,
         [Parameter(Mandatory = $true)][string]$GlobalText,
+        [Parameter(Mandatory = $true)][string]$HeaderText,
         [Parameter(Mandatory = $true)][string]$ControlServiceText,
         [Parameter(Mandatory = $true)][string]$Owner
     )
@@ -31110,12 +35292,21 @@ function Assert-LasalSetPositionStoreReadOnlyScanContract {
     }
     $globalToken = ConvertTo-LasalExactContractTokenStream $GlobalText
     $expectedGlobalToken =
-        'var_globalretaing_lmcsetpositionstorewords:' +
+        'var_globalg_lmcsetpositionstorewords:' +
         'array[0..335]ofudint;end_var'
     if ($globalToken -cne $expectedGlobalToken) {
         throw (
-            "$Owner global RETAIN layout must be exactly 336 UDINT / " +
-            '1344 bytes and contain no additional storage.')
+            "$Owner global volatile layout must be exactly one RETAIN-free " +
+            '336 UDINT / 1344-byte store and contain no additional storage.')
+    }
+    $headerToken = ConvertTo-LasalExactContractTokenStream $HeaderText
+    $expectedHeaderToken =
+        'var_externalg_lmcsetpositionstorewords:' +
+        'array[0..335]ofudint;end_var'
+    if ($headerToken -cne $expectedHeaderToken) {
+        throw (
+            "$Owner external header layout must be exactly one RETAIN-free " +
+            '336 UDINT / 1344-byte declaration and contain no additional storage.')
     }
 
     $classMatches = [regex]::Matches(
@@ -32820,6 +37011,7 @@ function Invoke-LasalSetPositionStoreReadOnlyScanVerifierSelfTest {
     param(
         [Parameter(Mandatory = $true)][string]$StoreText,
         [Parameter(Mandatory = $true)][string]$GlobalText,
+        [Parameter(Mandatory = $true)][string]$HeaderText,
         [Parameter(Mandatory = $true)][string]$ControlServiceText,
         [Parameter(Mandatory = $true)][string]$Owner
     )
@@ -32827,6 +37019,7 @@ function Invoke-LasalSetPositionStoreReadOnlyScanVerifierSelfTest {
     $currentParameters = @{
         StoreText = $StoreText
         GlobalText = $GlobalText
+        HeaderText = $HeaderText
         ControlServiceText = $ControlServiceText
         Owner = "$Owner current source"
     }
@@ -32928,7 +37121,8 @@ function Invoke-LasalSetPositionStoreReadOnlyScanVerifierSelfTest {
             [string]$MutatedStore,
             [string]$MutatedGlobal,
             [string]$Expected,
-            [string]$MutatedControl = $ControlServiceText
+            [string]$MutatedControl = $ControlServiceText,
+            [string]$MutatedHeader = $HeaderText
         )
         if ($fixtures.Contains($Name)) {
             throw "$Owner duplicate negative fixture name: $Name"
@@ -32936,17 +37130,22 @@ function Invoke-LasalSetPositionStoreReadOnlyScanVerifierSelfTest {
         $fixtures[$Name] = @{
             Store = $MutatedStore
             Global = $MutatedGlobal
+            Header = $MutatedHeader
             Control = $MutatedControl
             Expected = $Expected
         }
     }
 
-    & $addFixture 'GlobalRetainRemoved' $StoreText (
-        $GlobalText.Replace('VAR_GLOBAL RETAIN', 'VAR_GLOBAL')) (
-        'global RETAIN layout must be exactly 336 UDINT / 1344 bytes')
+    & $addFixture 'GlobalRetainAdded' $StoreText (
+        $GlobalText.Replace('VAR_GLOBAL', 'VAR_GLOBAL RETAIN')) (
+        'global volatile layout must be exactly one RETAIN-free 336 UDINT')
+    & $addFixture 'HeaderRetainAdded' $StoreText $GlobalText (
+        'external header layout must be exactly one RETAIN-free 336 UDINT') (
+        $ControlServiceText) (
+        $HeaderText.Replace('VAR_EXTERNAL', 'VAR_EXTERNAL RETAIN'))
     & $addFixture 'GlobalWordCountChanged' $StoreText (
         $GlobalText.Replace('[0..335]', '[0..334]')) (
-        'global RETAIN layout must be exactly 336 UDINT / 1344 bytes')
+        'global volatile layout must be exactly one RETAIN-free 336 UDINT')
     & $addFixture 'ControlStoreConfiguredTrue' $StoreText $GlobalText (
         'Control Store-configured macro must remain exactly one FALSE define') (
         $ControlServiceText.Replace(
@@ -34852,7 +39051,7 @@ function Invoke-LasalSetPositionStoreReadOnlyScanVerifierSelfTest {
         $fixtureNameSha256.Dispose()
     }
     if ($fixtureNameHash -cne
-            '647d5f0c743cdc9c20c43f81dadb494ea5de1fa4f7c52ef4ee87a8476fc3a25c') {
+            'd74247d057f49c20f12a521a59f33968d1a501883b8f931261b41d5b954a6f1c') {
         throw "$Owner negative fixture ordered-name inventory drifted."
     }
 
@@ -34860,6 +39059,7 @@ function Invoke-LasalSetPositionStoreReadOnlyScanVerifierSelfTest {
     foreach ($fixture in $fixtures.GetEnumerator()) {
         if (($fixture.Value.Store -ceq $StoreText) -and
             ($fixture.Value.Global -ceq $GlobalText) -and
+            ($fixture.Value.Header -ceq $HeaderText) -and
             ($fixture.Value.Control -ceq $ControlServiceText)) {
             throw "$Owner negative fixture did not mutate: $($fixture.Key)"
         }
@@ -34868,6 +39068,7 @@ function Invoke-LasalSetPositionStoreReadOnlyScanVerifierSelfTest {
             $fixtureParameters = @{
                 StoreText = $fixture.Value.Store
                 GlobalText = $fixture.Value.Global
+                HeaderText = $fixture.Value.Header
                 ControlServiceText = $fixture.Value.Control
                 Owner = "$Owner negative fixture $($fixture.Key)"
             }
@@ -34887,8 +39088,8 @@ function Invoke-LasalSetPositionStoreReadOnlyScanVerifierSelfTest {
         }
         $rejectedCount++
     }
-    if ($rejectedCount -ne 292) {
-        throw "$Owner negative fixture count is $rejectedCount, expected 292."
+    if ($rejectedCount -ne 293) {
+        throw "$Owner negative fixture count is $rejectedCount, expected 293."
     }
     return $rejectedCount
 }
@@ -38752,6 +42953,20 @@ function Assert-ConfiguredEtherCATTopologyNegativeFixture {
     }
 }
 
+if ($SetPositionAsyncControlVerifierSelfTestOnly) {
+    $setPositionAsyncNegativeFixtureCount =
+        Invoke-LasalSetPositionAsyncControlVerifierSelfTest `
+            -Owner 'SetPosition P1 async Control/TCP'
+    Write-Host (
+        'PASS LASAL.SetPositionAsyncControlVerifier.SelfTest (' +
+        "$setPositionAsyncNegativeFixtureCount/" +
+        "$setPositionAsyncNegativeFixtureCount targeted mutations rejected " +
+        'at their expected invariant; synthetic contract fixture, exact memset ' +
+        'alternatives, and comment-only fixture accepted; current PLC source ' +
+        'not assessed)')
+    return
+}
+
 if ($SetPositionAdminStoreWiringVerifierSelfTestOnly) {
     $setPositionAdminStoreRoot =
         (Resolve-Path -LiteralPath $RepositoryRoot).Path
@@ -38770,12 +42985,23 @@ if ($SetPositionAdminStoreWiringVerifierSelfTestOnly) {
             -ControlServiceText $setPositionAdminStoreControl `
             -TcpText $setPositionAdminStoreTcp `
             -Owner 'Dormant SetPosition Admin Store wiring'
-    Write-Host (
-        'PASS LASAL.SetPositionAdminStoreWiringVerifier.SelfTest (' +
-        "$setPositionAdminStoreNegativeFixtureCount/" +
-        "$setPositionAdminStoreNegativeFixtureCount negative fixtures rejected; " +
-        '15/15 pure coordinate edge fixtures passed; current ' +
-        '0x7D12/0x7D14/0x7D1A dormant Store wiring accepted)')
+    if ($setPositionAdminStoreControl -match
+            '(?im)^\s*AxisSetPositionAsyncState\s*:') {
+        Write-Host (
+            'PASS LASAL.SetPositionAdminStoreWiringVerifier.SelfTest (' +
+            "$setPositionAdminStoreNegativeFixtureCount/" +
+            "$setPositionAdminStoreNegativeFixtureCount P1 async fixtures " +
+            'rejected; current 0x7D12 async plus 0x7D14/0x7D1A Store ' +
+            'wiring accepted)')
+    }
+    else {
+        Write-Host (
+            'PASS LASAL.SetPositionAdminStoreWiringVerifier.SelfTest (' +
+            "$setPositionAdminStoreNegativeFixtureCount/" +
+            "$setPositionAdminStoreNegativeFixtureCount negative fixtures rejected; " +
+            '15/15 pure coordinate edge fixtures passed; current ' +
+            '0x7D12/0x7D14/0x7D1A dormant Store wiring accepted)')
+    }
     return
 }
 
@@ -38788,6 +43014,9 @@ if ($SetPositionStoreReadOnlyScanVerifierSelfTestOnly) {
     $setPositionStoreScanGlobalPath = Join-Path $setPositionStoreScanRoot (
         'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\' +
         'LMCSetPositionStore\global_LMCSetPositionStore.st')
+    $setPositionStoreScanHeaderPath = Join-Path $setPositionStoreScanRoot (
+        'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\' +
+        'LMCSetPositionStore\LMCSetPositionStore.h')
     $setPositionStoreScanControlPath = Join-Path $setPositionStoreScanRoot (
         'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\' +
         'LMCControlCommandService\LMCControlCommandService.st')
@@ -38813,6 +43042,8 @@ if ($SetPositionStoreReadOnlyScanVerifierSelfTestOnly) {
         Get-Content -Raw -LiteralPath $setPositionStoreScanPath
     $setPositionStoreScanGlobalText =
         Get-Content -Raw -LiteralPath $setPositionStoreScanGlobalPath
+    $setPositionStoreScanHeaderText =
+        Get-Content -Raw -LiteralPath $setPositionStoreScanHeaderPath
     $setPositionStoreScanControlText =
         Get-Content -Raw -LiteralPath $setPositionStoreScanControlPath
     $setPositionStoreScanNetworkText =
@@ -38828,6 +43059,7 @@ if ($SetPositionStoreReadOnlyScanVerifierSelfTestOnly) {
     $setPositionStoreScanParameters = @{
         StoreText = $setPositionStoreScanText
         GlobalText = $setPositionStoreScanGlobalText
+        HeaderText = $setPositionStoreScanHeaderText
         ControlServiceText = $setPositionStoreScanControlText
         Owner = 'SetPosition Store Begin/Commit/Read/Retire/Select/private CommitRecord'
     }
@@ -39271,6 +43503,7 @@ $sdoExecutorPath = Join-Path $root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMC
 $controlCommandServicePath = Join-Path $root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCControlCommandService\LMCControlCommandService.st'
 $setPositionStorePath = Join-Path $root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCSetPositionStore\LMCSetPositionStore.st'
 $setPositionStoreGlobalPath = Join-Path $root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCSetPositionStore\global_LMCSetPositionStore.st'
+$setPositionStoreHeaderPath = Join-Path $root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCSetPositionStore\LMCSetPositionStore.h'
 $projectPath = Join-Path $root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Elmo_EtherCAT_Test_4Axis.lcp'
 
 $st = Get-Content -Raw -LiteralPath $stPath
@@ -39378,7 +43611,13 @@ $sdoExecutor = Get-Content -Raw -LiteralPath $sdoExecutorPath
 $controlCommandService = Get-Content -Raw -LiteralPath $controlCommandServicePath
 $setPositionStore = Get-Content -Raw -LiteralPath $setPositionStorePath
 $setPositionStoreGlobal = Get-Content -Raw -LiteralPath $setPositionStoreGlobalPath
+$setPositionStoreHeader = Get-Content -Raw -LiteralPath $setPositionStoreHeaderPath
 $project = Get-Content -Raw -LiteralPath $projectPath
+
+Assert-LasalSetPositionAsyncControlContract `
+    -ControlServiceText $controlCommandService `
+    -TcpText $st `
+    -Owner 'Current LASAL SetPosition P1 async Control/TCP'
 
 Assert-LasalAxisSetPositionPreflightRtContract `
     -InputLatchText $diagnosticsLatch `
@@ -39832,13 +44071,16 @@ $controlServiceRequestInputs = @(
     @{ Name = 'RequestFrameSize'; Type = 'UDINT' },
     @{ Name = 'pResponseFrame'; Type = '^USINT' },
     @{ Name = 'ResponseCapacity'; Type = 'UDINT' })
-$controlServiceHandleRequestInputs = @(
+$controlServiceSafetyRepeatInputs = @(
     $controlServiceRequestInputs +
     @(
         @{ Name = 'CallerSessionEpoch'; Type = 'UDINT' },
         @{ Name = 'RequestSequence'; Type = 'UDINT' },
         @{ Name = 'AdmissionToken'; Type = 'UDINT' },
         @{ Name = 'OwnerGeneration'; Type = 'UDINT' }))
+$controlServiceHandleRequestInputs = @(
+    $controlServiceSafetyRepeatInputs +
+    @{ Name = 'ResponseSocket'; Type = 'DINT' })
 $controlServiceResponseOutput = @(
     @{ Name = 'ResponseSize'; Type = 'DINT' })
 
@@ -39986,6 +44228,10 @@ foreach ($ownershipAbi in $controlServiceOwnershipAbiContracts) {
         -Owner 'LMCControlCommandService'
 }
 
+$controlServiceP1AsyncStatePresent = [regex]::Matches(
+    $controlCommandService,
+    ('(?im)^\s*AxisSetPositionAsyncState\s*:\s*ARRAY\s*' +
+     '\[\s*0\.\.127\s*\]\s*OF\s*DINT\s*;\s*$')).Count -eq 1
 $controlServicePrivateMethods = @(
     'HandleAdminCommands',
     'HandleAxisZeroHomeCommands',
@@ -39996,6 +44242,9 @@ $controlServicePrivateMethods = @(
     'GroupReadStatus',
     'HandleAdminSetPosition',
     'DispatchRequestCommand')
+if ($controlServiceP1AsyncStatePresent) {
+    $controlServicePrivateMethods += 'ProcessAdminSetPositionAsync'
+}
 foreach ($methodName in $controlServicePrivateMethods[0..4]) {
     Assert-ExactLasalFunctionAbi `
         -ClassBlock $controlServiceClassBlock `
@@ -40017,6 +44266,14 @@ Assert-ExactLasalFunctionAbi `
     -IsGlobal $false `
     -Inputs $controlServiceSetPositionInputs `
     -Outputs $controlServiceResponseOutput
+if ($controlServiceP1AsyncStatePresent) {
+    Assert-ExactLasalFunctionAbi `
+        -ClassBlock $controlServiceClassBlock `
+        -FunctionName 'ProcessAdminSetPositionAsync' `
+        -IsGlobal $false `
+        -Inputs $controlServiceSetPositionInputs `
+        -Outputs $controlServiceResponseOutput
+}
 
 Assert-ExactLasalFunctionAbi `
     -ClassBlock $controlServiceClassBlock `
@@ -40087,7 +44344,7 @@ if ($controlSafetyRepeatDeclarations.Count -eq 1) {
         -ClassBlock $controlServiceClassBlock `
         -FunctionName $controlSafetyRepeatHelperName `
         -IsGlobal $false `
-        -Inputs $controlServiceHandleRequestInputs `
+        -Inputs $controlServiceSafetyRepeatInputs `
         -Outputs $ownershipResultOutput `
         -Owner 'LMCControlCommandService'
     if (-not $controlSafetyRepeatMetadataPresent) {
@@ -40510,15 +44767,17 @@ foreach ($methodEntry in $controlServiceMethodBlocks.GetEnumerator()) {
             "CRLF=$crlfMethodByteCount UTF-8 bytes; all must remain under 32768.")
     }
 }
-Assert-Match $controlServiceHandleRequestBlock (
-    '(?s)if\s+ownershipInvokeHandler\s+then\s*' +
-    'ResponseSize\s*:=\s*DispatchRequestCommand\s*\(\s*' +
-    'CommandId:=CommandId\s*,\s*Reference:=Reference\s*,\s*' +
-    'pRequestFrame:=pRequestFrame\s*,\s*' +
-    'RequestFrameSize:=RequestFrameSize\s*,\s*' +
-    'pResponseFrame:=pResponseFrame\s*,\s*' +
-    'ResponseCapacity:=ResponseCapacity\s*\)\s*;\s*end_if\s*;') (
-    'LMCControlCommandService.HandleRequest guarded dispatcher ABI drifted.')
+if (-not $controlServiceP1AsyncStatePresent) {
+    Assert-Match $controlServiceHandleRequestBlock (
+        '(?s)if\s+ownershipInvokeHandler\s+then\s*' +
+        'ResponseSize\s*:=\s*DispatchRequestCommand\s*\(\s*' +
+        'CommandId:=CommandId\s*,\s*Reference:=Reference\s*,\s*' +
+        'pRequestFrame:=pRequestFrame\s*,\s*' +
+        'RequestFrameSize:=RequestFrameSize\s*,\s*' +
+        'pResponseFrame:=pResponseFrame\s*,\s*' +
+        'ResponseCapacity:=ResponseCapacity\s*\)\s*;\s*end_if\s*;') (
+        'LMCControlCommandService.HandleRequest guarded dispatcher ABI drifted.')
+}
 if ([regex]::Matches(
         $controlServiceHandleRequestBlock,
         ('(?i)(?<![A-Za-z0-9_.])(?:HandleRegistryCommands|' +
@@ -42019,6 +46278,41 @@ if ($transportClean) {
         'SendData', 'Response', 'MsgPaser',
         'HandleControlSafetyDrainPending',
         'HandleRpcLifecycleCommands')
+    $setPositionPendingHelperName = 'HandleAdminSetPositionPending'
+    $setPositionPendingDeclarations = [regex]::Matches(
+        $classDeclarationBlock,
+        ('(?im)^\s*FUNCTION[^\r\n]*\b' +
+         $setPositionPendingHelperName + '\b[^\r\n]*\r?$'))
+    $setPositionPendingMetadataPresent = $tcpClassDbRecord -match (
+        '(?<![A-Za-z0-9_])' + $setPositionPendingHelperName +
+        '(?![A-Za-z0-9_])')
+    if ($setPositionPendingDeclarations.Count -gt 0) {
+        if ($setPositionPendingDeclarations.Count -ne 1) {
+            throw (
+                "TCPMotionInterface.$setPositionPendingHelperName " +
+                    'declaration must be one exact private ABI.')
+        }
+        Assert-ExactLasalFunctionAbi `
+            -ClassBlock $classDeclarationBlock `
+            -FunctionName $setPositionPendingHelperName `
+            -IsGlobal $false `
+            -Inputs @(@{ Name = 'Phase'; Type = 'UINT' }) `
+            -Outputs @(@{ Name = 'Result'; Type = 'DINT' }) `
+            -Owner 'TCPMotionInterface'
+        $phase5ExpectedDeclaredFunctions += $setPositionPendingHelperName
+        $phase5ExpectedImplementedFunctions += $setPositionPendingHelperName
+        if (-not $setPositionPendingMetadataPresent) {
+            throw (
+                'Classes.lcb metadata is missing ' +
+                    "$setPositionPendingHelperName. Save TCPMotionInterface " +
+                    'through LASAL IDE.')
+        }
+    }
+    elseif ($setPositionPendingMetadataPresent) {
+        throw (
+            "LASAL Classes.lcb contains $setPositionPendingHelperName but " +
+                'the generated class declaration is missing it.')
+    }
     if ($script:WrapperUdpCallbackWiringExpected) {
         $phase5ExpectedDeclaredFunctions += 'DisarmRpcCallbackEndpoint'
         $phase5ExpectedImplementedFunctions += 'DisarmRpcCallbackEndpoint'
@@ -42574,11 +46868,13 @@ if ($controlServiceGroupRouted) {
          'CallerSessionEpoch\s*:=\s*ActiveRequest\.SessionEpoch\s*,\s*' +
          'RequestSequence\s*:=\s*ActiveRequest\.Sequence\s*,\s*' +
          'AdmissionToken\s*:=\s*controlAdmissionToken\s*,\s*' +
-         'OwnerGeneration\s*:=\s*controlOwnerGeneration\s*\)'))
+         'OwnerGeneration\s*:=\s*controlOwnerGeneration\s*,\s*' +
+         'ResponseSocket\s*:=\s*ActiveRequest\.Socket\s*\)'))
     if (-not $controlServiceCallMatch.Success) {
         throw ("$ControlServiceCheckpoint must pass CommandID, AxisRef, the complete " +
             'request frame and size, the complete response buffer, and the ' +
-            'correlated owner tuple to ControlCommands.HandleRequest in ABI order.')
+            'correlated owner tuple and response socket to ' +
+            'ControlCommands.HandleRequest in ABI order.')
     }
     $controlResponseName = $controlServiceCallMatch.Groups['Result'].Value
     $escapedControlResponseName = [regex]::Escape($controlResponseName)
@@ -42683,21 +46979,25 @@ foreach ($handlerName in $localHandlerExpectedCallCounts.Keys) {
     }
 }
 if ($transportClean) {
+    $phase5ExpectedMsgParserDintScratch = @(
+        'controlResponseSize',
+        'setPositionCloseSocket',
+        'callbackDisarmResult',
+        'diagnosticsResponseSize',
+        'controlAdmissionResult',
+        'controlIdentityIndex',
+        'controlPendingResult',
+        'diagnosticsAdmissionResult',
+        'diagnosticsRollbackResult',
+        'diagnosticsPublishResult')
+    if ($controlServiceP1AsyncStatePresent) {
+        $phase5ExpectedMsgParserDintScratch += 'setPositionPendingResult'
+    }
     Assert-ExactRegexValueSet `
         -Text $msgParserVarBlock `
         -Pattern '(?m)^\s*(?<Value>[A-Za-z_][A-Za-z0-9_]*)\s*:\s*DINT\s*;\s*$' `
         -Owner 'Phase5TransportClean TCPMotionInterface.MsgPaser local scratch' `
-        -ExpectedValues @(
-            'controlResponseSize',
-            'setPositionCloseSocket',
-            'callbackDisarmResult',
-            'diagnosticsResponseSize',
-             'controlAdmissionResult',
-             'controlIdentityIndex',
-             'controlPendingResult',
-            'diagnosticsAdmissionResult',
-            'diagnosticsRollbackResult',
-            'diagnosticsPublishResult')
+        -ExpectedValues $phase5ExpectedMsgParserDintScratch
     Assert-ExactRegexValueSet `
         -Text $msgParserVarBlock `
         -Pattern '(?m)^\s*(?<Value>[A-Za-z_][A-Za-z0-9_]*)\s*:\s*UDINT\s*;\s*$' `
@@ -51937,8 +56237,17 @@ if ($ControlServiceCheckpoint -ne 'Phase2Skeleton') {
     $serviceAdminGroupParametersCaseBlock = [regex]::Match(
         $serviceAdminHandlerBlock,
         '(?s)0x7D20:.*?0x7D22:').Value
-    $serviceAdminSetPositionCaseBlock =
+    $serviceAdminSetPositionCaseBlock = if (
+        $controlServiceP1AsyncStatePresent) {
+        [regex]::Match(
+            $controlCommandService,
+            ('(?is)FUNCTION\s+' +
+             'LMCControlCommandService::ProcessAdminSetPositionAsync\b' +
+             '.*?END_FUNCTION')).Value
+    }
+    else {
         $serviceAdminSetPositionHandlerBlock
+    }
     $serviceAdminStartReferenceCaseBlock = [regex]::Match(
         $serviceZeroHomeHandlerBlock,
         '(?s)0x7D13:.*?0x7D18:').Value
@@ -52752,12 +57061,17 @@ if ($controlServiceAllControlRouted) {
     $serviceAdminSetPositionHandlerBlock =
         $controlServicePrivateBlocks['HandleAdminSetPosition']
 
-    foreach ($pointerHandler in @(
-            @{ Name = 'Registry'; Block = $serviceRegistryHandlerBlock },
-            @{ Name = 'Axis'; Block = $serviceAxisHandlerBlock },
-            @{ Name = 'Admin'; Block = $serviceAdminHandlerBlock },
-            @{ Name = 'Admin SetPosition';
-                Block = $serviceAdminSetPositionHandlerBlock })) {
+    $pointerHandlers = @(
+        @{ Name = 'Registry'; Block = $serviceRegistryHandlerBlock },
+        @{ Name = 'Axis'; Block = $serviceAxisHandlerBlock },
+        @{ Name = 'Admin'; Block = $serviceAdminHandlerBlock })
+    if (-not $controlServiceP1AsyncStatePresent) {
+        $pointerHandlers += @{
+            Name = 'Admin SetPosition'
+            Block = $serviceAdminSetPositionHandlerBlock
+        }
+    }
+    foreach ($pointerHandler in $pointerHandlers) {
         Assert-Match $pointerHandler.Block (
             '(?s)ResponseSize\s*:=\s*-1\s*;.*?' +
             'if\s+\(pRequestFrame\s*=\s*NIL\)\s*\|\s*' +
@@ -53085,6 +57399,7 @@ if (-not $script:WrapperUdpCallbackCandidateExpected) {
 Assert-LasalSetPositionStoreReadOnlyScanContract `
     -StoreText $setPositionStore `
     -GlobalText $setPositionStoreGlobal `
+    -HeaderText $setPositionStoreHeader `
     -ControlServiceText $controlCommandService `
     -Owner 'SetPosition Store Begin/Commit/Read/Retire/Select/private CommitRecord'
 
@@ -53097,11 +57412,16 @@ Assert-LasalSetPositionStoreGeneratedWiringContract `
     -CommNetworkTableText $takeoverCommNetworkTable `
     -Owner 'SetPosition Store generated CheckSum wiring'
 
+$setPositionAsyncControlNegativeFixtureCount =
+    Invoke-LasalSetPositionAsyncControlVerifierSelfTest `
+        -Owner 'SetPosition P1 async Control/TCP'
+
 $setPositionAdminStoreWiringNegativeFixtureCount =
     Invoke-LasalSetPositionAdminStoreWiringVerifierSelfTest `
-    -ControlServiceText $controlCommandService `
-    -TcpText $st `
-    -Owner 'Dormant SetPosition Admin Store wiring'
+        -ControlServiceText $controlCommandService `
+        -TcpText $st `
+        -Owner 'Dormant SetPosition Admin Store wiring' `
+        -P1AsyncContractAlreadyVerified
 
 $setPositionCloseWithoutResponseNegativeFixtureCount =
     Invoke-LasalSetPositionCloseWithoutResponseVerifierSelfTest `
@@ -54275,6 +58595,9 @@ if ($tcpRpcLifecycleNegativeFixtureCount -ne 7) {
 }
 }
 
+$setPositionNegativeFixtureCount = 0
+if ($controlCommandService -notmatch
+        '(?im)^\s*AxisSetPositionAsyncState\s*:') {
 $setPositionFixtureBlock = [regex]::Match(
     $controlCommandService,
     ('(?ims)^[ \t]*FUNCTION[ \t]+' +
@@ -54634,18 +58957,34 @@ if ($setPositionNegativeFixtureCount -ne 39) {
         'Dormant Admin SetAxisPosition negative fixture count is ' +
         "$setPositionNegativeFixtureCount, expected 39.")
 }
+}
 
 Assert-Match $st 'PendingClosedSessionEpoch\s*:\s*UDINT' 'TCPMotionInterface pending closed-session epoch storage is missing.'
 Assert-Match $motionCyWorkBlock '(?s)PendingClosedSessionEpoch <> 0.*?IsClientConnected\(#Diagnostics\).*?Diagnostics\.NotifySessionClosed\(\s*SessionEpoch:=PendingClosedSessionEpoch\).*?PendingClosedSessionEpoch := 0.*?currentEpoch := SessionEpoch' 'TCPMotionInterface.CyWork does not flush the pending closed epoch to LMCDiagnosticsService before processing requests.'
 if ($script:WrapperUdpCallbackCandidateExpected) {
     $callbackDisarmCallCount = [regex]::Matches(
         $st,
-        ('(?i)callbackDisarmResult\s*:=\s*' +
+        ('(?im)^\s*callbackDisarmResult\s*:=\s*' +
          'DisarmRpcCallbackEndpoint\s*\(\s*\)\s*;')).Count
     if ($callbackDisarmCallCount -ne 9) {
         throw (
             'TCPMotionInterface callback disarm call count is ' +
             "$callbackDisarmCallCount, expected nine Candidate lifecycle paths.")
+    }
+    if ($controlServiceP1AsyncStatePresent) {
+        foreach ($p1DisarmVariable in @(
+                'setPositionCallbackDisarmResult',
+                'pendingCallbackDisarmResult')) {
+            $p1DisarmCount = [regex]::Matches(
+                $st,
+                ('(?im)^\s*' + [regex]::Escape($p1DisarmVariable) +
+                 '\s*:=\s*DisarmRpcCallbackEndpoint\s*\(\s*\)\s*;')).Count
+            if ($p1DisarmCount -ne 1) {
+                throw (
+                    "TCPMotionInterface $p1DisarmVariable disarm count is " +
+                        "$p1DisarmCount, expected one P1 lifecycle path.")
+            }
+        }
     }
 }
 else {
@@ -54657,7 +58996,7 @@ else {
     }
 }
 Assert-Match $motionCyWorkBlock '(?s)RequestQueue\[QueueReadIndex\$DINT\]\.State\s*=\s*TCPMI_QUEUE_READY.*?State\s*:=\s*TCPMI_QUEUE_ACTIVE.*?MemCpy.*?State\s*:=\s*TCPMI_QUEUE_FREE' 'CyWork queue READY/ACTIVE/FREE transition is missing.'
-Assert-Match $motionCyWorkBlock '(?s)CommandID\s*:=\s*TO_DINT\(ActiveRequest\.CommandId\);.*?AxisRef\s*:=\s*TO_DINT\(ActiveRequest\.Reference\);.*?Payload\s*:=\s*TO_DINT\(ActiveRequest\.PayloadLength\);.*?MsgPaser\(\);.*?ActiveRequestValid\s*:=\s*FALSE' 'CyWork does not numerically widen, execute, and release one active request.'
+Assert-Match $motionCyWorkBlock '(?s)CommandID\s*:=\s*TO_DINT\(ActiveRequest\.CommandId\);.*?AxisRef\s*:=\s*TO_DINT\(ActiveRequest\.Reference\);.*?Payload\s*:=\s*TO_DINT\(ActiveRequest\.PayloadLength\);.*?MsgPaser\(\);.*?ActiveRequestValid\s*:=\s*FALSE' 'CyWork does not numerically widen, execute, and release one non-retained active request.'
 $cyWorkDiagnosticsProcessingPattern = if (
     $script:WrapperUdpTerminalWakeExpected) {
     ('(?s)ControlCommands\.ProcessAxisOwnership\(\);.*?' +
@@ -54849,12 +59188,19 @@ $binaryMetadataResult = if ($transportClean -and
 else {
     ''
 }
+$setPositionSourceSummary = if ($controlServiceP1AsyncStatePresent) {
+    'P1 async 0x7D12 preflight/ownership lifecycle with activation OFF, ' +
+        'source-active unavailable 0x7D14/1A'
+}
+else {
+    'dormant 0x7D12, source-active unavailable 0x7D14/1A'
+}
 if ($SourceOnly) {
     Write-Host (
         "PASS LASAL.StaticContract.SourceOnly ($ControlServiceCheckpoint; " +
         "TopologyIoCheckpoint=$TopologyIoCheckpoint; " +
-        'common axis ownership, Admin reads, dormant 0x7D12, source-active unavailable ' +
-        '0x7D14/1A, LMC_Home 0x7D13/18/19, ' +
+        'common axis ownership, Admin reads, ' + $setPositionSourceSummary +
+        ', LMC_Home 0x7D13/18/19, ' +
         'DS402 method-37 0x7D15/16/17, encoder maintenance 0x7E53/54/55, CyWork queue, ' +
         'control-service checkpoint, diagnostics D1-D5, recorder bank, ' +
         'and session-close wiring' + $binaryMetadataResult + ')')
@@ -54863,8 +59209,8 @@ else {
     Write-Host (
         "PASS LASAL.StaticContract ($ControlServiceCheckpoint; " +
         "TopologyIoCheckpoint=$TopologyIoCheckpoint; " +
-        'common axis ownership, Admin reads, dormant 0x7D12, source-active unavailable ' +
-        '0x7D14/1A, LMC_Home 0x7D13/18/19, ' +
+        'common axis ownership, Admin reads, ' + $setPositionSourceSummary +
+        ', LMC_Home 0x7D13/18/19, ' +
         'DS402 method-37 0x7D15/16/17, encoder maintenance 0x7E53/54/55, CyWork queue, ' +
         'control-service checkpoint, diagnostics D1-D5, nine-axis network, ' +
         'recorder wiring, and generated metadata/tables' +

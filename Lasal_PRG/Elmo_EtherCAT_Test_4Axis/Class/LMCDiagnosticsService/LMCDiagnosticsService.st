@@ -336,6 +336,50 @@ LMCDiagnosticsService : CLASS
 			ActualPosition 	: DINT;
 			PreemptionCleanup 	: BOOL;
 		END_VAR;
+	
+	FUNCTION HandleAxisSetOperationModeStart
+		VAR_INPUT
+			Reference 	: UINT;
+			pRequest 	: ^USINT;
+			pResponse 	: ^USINT;
+			ResponseCapacity 	: UDINT;
+			CallerSessionEpoch 	: UDINT;
+			RequestSequence 	: UDINT;
+			AdmissionToken 	: UDINT;
+			OwnerGeneration 	: UDINT;
+			RequestSize 	: UDINT;
+		END_VAR
+		VAR_OUTPUT
+			ResponseSize 	: DINT;
+		END_VAR;
+	
+	FUNCTION HandleAxisSetOperationModeOutcome
+		VAR_INPUT
+			Reference 	: UINT;
+			pRequest 	: ^USINT;
+			pResponse 	: ^USINT;
+			ResponseCapacity 	: UDINT;
+			CallerSessionEpoch 	: UDINT;
+			RequestSize 	: UDINT;
+		END_VAR
+		VAR_OUTPUT
+			ResponseSize 	: DINT;
+		END_VAR;
+	
+	FUNCTION HandleAxisSetOperationModeRetire
+		VAR_INPUT
+			Reference 	: UINT;
+			pRequest 	: ^USINT;
+			pResponse 	: ^USINT;
+			ResponseCapacity 	: UDINT;
+			CallerSessionEpoch 	: UDINT;
+			RequestSize 	: UDINT;
+		END_VAR
+		VAR_OUTPUT
+			ResponseSize 	: DINT;
+		END_VAR;
+	
+	FUNCTION ProcessAxisSetOperationMode;
   //Tables:
 	FUNCTION @STD
 		VAR_OUTPUT
@@ -1582,6 +1626,28 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 		RETURN;
 	elsif CommandId = 0x7D17 then
 		ResponseSize := HandleAxisDs402HomeRetire(
+			Reference:=Reference, pRequest:=pRequest, pResponse:=pResponse,
+			ResponseCapacity:=ResponseCapacity,
+			CallerSessionEpoch:=CallerSessionEpoch, RequestSize:=RequestSize);
+		RETURN;
+	elsif CommandId = 0x7D23 then
+		ResponseSize := HandleAxisSetOperationModeStart(
+			Reference:=Reference, pRequest:=pRequest, pResponse:=pResponse,
+			ResponseCapacity:=ResponseCapacity,
+			CallerSessionEpoch:=CallerSessionEpoch,
+			RequestSequence:=RequestSequence,
+			AdmissionToken:=AdmissionToken,
+			OwnerGeneration:=OwnerGeneration,
+			RequestSize:=RequestSize);
+		RETURN;
+	elsif CommandId = 0x7D24 then
+		ResponseSize := HandleAxisSetOperationModeOutcome(
+			Reference:=Reference, pRequest:=pRequest, pResponse:=pResponse,
+			ResponseCapacity:=ResponseCapacity,
+			CallerSessionEpoch:=CallerSessionEpoch, RequestSize:=RequestSize);
+		RETURN;
+	elsif CommandId = 0x7D25 then
+		ResponseSize := HandleAxisSetOperationModeRetire(
 			Reference:=Reference, pRequest:=pRequest, pResponse:=pResponse,
 			ResponseCapacity:=ResponseCapacity,
 			CallerSessionEpoch:=CallerSessionEpoch, RequestSize:=RequestSize);
@@ -7655,5 +7721,310 @@ FUNCTION GLOBAL LMCDiagnosticsService::TryTakeD5TerminalWake
 	pTicketBootId^$UDINT := TicketBootId;
 	pOwnerSessionEpoch^$UDINT := OwnerSessionEpoch;
 	Result := 1;
+
+END_FUNCTION
+
+
+FUNCTION LMCDiagnosticsService::HandleAxisSetOperationModeStart
+	VAR_INPUT
+		Reference 	: UINT;
+		pRequest 	: ^USINT;
+		pResponse 	: ^USINT;
+		ResponseCapacity 	: UDINT;
+		CallerSessionEpoch 	: UDINT;
+		RequestSequence 	: UDINT;
+		AdmissionToken 	: UDINT;
+		OwnerGeneration 	: UDINT;
+		RequestSize 	: UDINT;
+	END_VAR
+	VAR_OUTPUT
+		ResponseSize 	: DINT;
+	END_VAR
+	VAR
+		schemaVersion, requestFlags, keySchema, keyReserved : UINT;
+		requestId, diagnosticsBuild, bootId, mapRevision : UDINT;
+		originalRequestId, intent0, intent1, intent2, intent3 : UDINT;
+		timeoutMilliseconds, operationFlags, currentBootId, detailCode : UDINT;
+		requestedMode : SINT;
+		axisReference : UINT;
+		reservedByte : USINT;
+	END_VAR
+
+	ResponseSize := -1;
+	if (pResponse = NIL) | (ResponseCapacity < 16) then
+		RETURN;
+	end_if;
+	_memset(dest:=pResponse, usByte:=0, cntr:=24);
+	pResponse^$UINT := LMC_DIAG_SCHEMA_VERSION;
+	(pResponse + 4)^$UINT := 1;
+	(pResponse + 6)^$INT := LMC_DIAG_ADMIN_ERROR_ID;
+	detailCode := 5;
+	requestId := 0;
+	requestedMode := 0;
+	if (pRequest <> NIL) & (RequestSize >= 8) then
+		requestId := (pRequest + 4)^$UDINT;
+	end_if;
+	(pResponse + 8)^$UDINT := requestId;
+	(pResponse + 12)^$UDINT := detailCode;
+	ResponseSize := 16;
+
+	if (pRequest = NIL) | (RequestSize <> 56) then
+		RETURN;
+	end_if;
+	schemaVersion := pRequest^$UINT;
+	requestFlags := (pRequest + 2)^$UINT;
+	keySchema := (pRequest + 8)^$UINT;
+	keyReserved := (pRequest + 10)^$UINT;
+	diagnosticsBuild := (pRequest + 12)^$UDINT;
+	bootId := (pRequest + 16)^$UDINT;
+	mapRevision := (pRequest + 20)^$UDINT;
+	originalRequestId := (pRequest + 24)^$UDINT;
+	intent0 := (pRequest + 28)^$UDINT;
+	intent1 := (pRequest + 32)^$UDINT;
+	intent2 := (pRequest + 36)^$UDINT;
+	intent3 := (pRequest + 40)^$UDINT;
+	axisReference := (pRequest + 44)^$UINT;
+	requestedMode := (pRequest + 46)^$SINT;
+	reservedByte := (pRequest + 47)^$USINT;
+	timeoutMilliseconds := (pRequest + 48)^$UDINT;
+	operationFlags := (pRequest + 52)^$UDINT;
+	currentBootId := GetDiagnosticsBootId();
+
+	if (schemaVersion <> 1) | (keySchema <> 1) then
+		detailCode := 1;
+	elsif requestFlags <> 0 then
+		detailCode := 2;
+	elsif requestId = 0 then
+		detailCode := 3;
+	elsif (Reference < 1) | (Reference > 4) |
+	      (axisReference <> Reference) then
+		detailCode := 4;
+	elsif (keyReserved <> 0) | (reservedByte <> 0) |
+	      (originalRequestId = 0) | (originalRequestId <> requestId) |
+	      ((intent0 = 0) & (intent1 = 0) &
+	       (intent2 = 0) & (intent3 = 0)) |
+	      (timeoutMilliseconds = 0) | (operationFlags <> 0) then
+		detailCode := 5;
+	elsif diagnosticsBuild <> 1 then
+		detailCode := 16;
+	elsif (currentBootId = 0) | (bootId <> currentBootId) then
+		detailCode := 17;
+	elsif mapRevision <> LMC_DIAG_MAP_REVISION then
+		detailCode := 18;
+	elsif requestedMode <> 8 then
+		detailCode := 43;
+	else
+		detailCode := 49;
+	end_if;
+
+	if detailCode <= 5 then
+		(pResponse + 12)^$UDINT := detailCode;
+		RETURN;
+	end_if;
+	if ResponseCapacity < 24 then
+		ResponseSize := -1;
+		RETURN;
+	end_if;
+	_memset(dest:=pResponse, usByte:=0, cntr:=24);
+	pResponse^$UINT := LMC_DIAG_SCHEMA_VERSION;
+	(pResponse + 4)^$UINT := 1;
+	(pResponse + 6)^$INT := LMC_DIAG_ADMIN_ERROR_ID;
+	(pResponse + 8)^$UDINT := requestId;
+	(pResponse + 12)^$UDINT := detailCode;
+	(pResponse + 16)^$DINT := TO_DINT(requestedMode);
+	(pResponse + 20)^$UDINT := 0;
+	ResponseSize := 24;
+
+END_FUNCTION
+
+
+FUNCTION LMCDiagnosticsService::HandleAxisSetOperationModeOutcome
+	VAR_INPUT
+		Reference 	: UINT;
+		pRequest 	: ^USINT;
+		pResponse 	: ^USINT;
+		ResponseCapacity 	: UDINT;
+		CallerSessionEpoch 	: UDINT;
+		RequestSize 	: UDINT;
+	END_VAR
+	VAR_OUTPUT
+		ResponseSize 	: DINT;
+	END_VAR
+	VAR
+		schemaVersion, requestFlags, keySchema, keyReserved : UINT;
+		requestId, diagnosticsBuild, bootId, mapRevision : UDINT;
+		originalRequestId, intent0, intent1, intent2, intent3 : UDINT;
+		timeoutMilliseconds, operationFlags, currentBootId, detailCode : UDINT;
+		requestedMode : SINT;
+		axisReference : UINT;
+		reservedByte : USINT;
+	END_VAR
+
+	ResponseSize := -1;
+	if (pResponse = NIL) | (ResponseCapacity < 16) then
+		RETURN;
+	end_if;
+	_memset(dest:=pResponse, usByte:=0, cntr:=16);
+	pResponse^$UINT := LMC_DIAG_SCHEMA_VERSION;
+	(pResponse + 4)^$UINT := 1;
+	(pResponse + 6)^$INT := LMC_DIAG_ADMIN_ERROR_ID;
+	detailCode := 5;
+	requestId := 0;
+	if (pRequest <> NIL) & (RequestSize >= 8) then
+		requestId := (pRequest + 4)^$UDINT;
+	end_if;
+	(pResponse + 8)^$UDINT := requestId;
+	ResponseSize := 16;
+
+	if (pRequest = NIL) | (RequestSize <> 56) then
+		(pResponse + 12)^$UDINT := detailCode;
+		RETURN;
+	end_if;
+	schemaVersion := pRequest^$UINT;
+	requestFlags := (pRequest + 2)^$UINT;
+	keySchema := (pRequest + 8)^$UINT;
+	keyReserved := (pRequest + 10)^$UINT;
+	diagnosticsBuild := (pRequest + 12)^$UDINT;
+	bootId := (pRequest + 16)^$UDINT;
+	mapRevision := (pRequest + 20)^$UDINT;
+	originalRequestId := (pRequest + 24)^$UDINT;
+	intent0 := (pRequest + 28)^$UDINT;
+	intent1 := (pRequest + 32)^$UDINT;
+	intent2 := (pRequest + 36)^$UDINT;
+	intent3 := (pRequest + 40)^$UDINT;
+	axisReference := (pRequest + 44)^$UINT;
+	requestedMode := (pRequest + 46)^$SINT;
+	reservedByte := (pRequest + 47)^$USINT;
+	timeoutMilliseconds := (pRequest + 48)^$UDINT;
+	operationFlags := (pRequest + 52)^$UDINT;
+	currentBootId := GetDiagnosticsBootId();
+
+	if (schemaVersion <> 1) | (keySchema <> 1) then
+		detailCode := 1;
+	elsif requestFlags <> 0 then
+		detailCode := 2;
+	elsif requestId = 0 then
+		detailCode := 3;
+	elsif (Reference < 1) | (Reference > 4) |
+	      (axisReference <> Reference) then
+		detailCode := 4;
+	elsif (keyReserved <> 0) | (reservedByte <> 0) |
+	      (originalRequestId = 0) |
+	      ((intent0 = 0) & (intent1 = 0) &
+	       (intent2 = 0) & (intent3 = 0)) |
+	      (timeoutMilliseconds = 0) | (operationFlags <> 0) then
+		detailCode := 5;
+	elsif diagnosticsBuild <> 1 then
+		detailCode := 16;
+	elsif (currentBootId = 0) | (bootId <> currentBootId) then
+		detailCode := 17;
+	elsif mapRevision <> LMC_DIAG_MAP_REVISION then
+		detailCode := 18;
+	elsif requestedMode <> 8 then
+		detailCode := 45;
+	else
+		detailCode := 49;
+	end_if;
+	(pResponse + 12)^$UDINT := detailCode;
+
+END_FUNCTION
+
+
+FUNCTION LMCDiagnosticsService::HandleAxisSetOperationModeRetire
+	VAR_INPUT
+		Reference 	: UINT;
+		pRequest 	: ^USINT;
+		pResponse 	: ^USINT;
+		ResponseCapacity 	: UDINT;
+		CallerSessionEpoch 	: UDINT;
+		RequestSize 	: UDINT;
+	END_VAR
+	VAR_OUTPUT
+		ResponseSize 	: DINT;
+	END_VAR
+	VAR
+		schemaVersion, requestFlags, keySchema, keyReserved : UINT;
+		requestId, diagnosticsBuild, bootId, mapRevision : UDINT;
+		originalRequestId, intent0, intent1, intent2, intent3 : UDINT;
+		timeoutMilliseconds, operationFlags, recordGeneration : UDINT;
+		currentBootId, detailCode : UDINT;
+		requestedMode : SINT;
+		axisReference : UINT;
+		reservedByte : USINT;
+	END_VAR
+
+	ResponseSize := -1;
+	if (pResponse = NIL) | (ResponseCapacity < 16) then
+		RETURN;
+	end_if;
+	_memset(dest:=pResponse, usByte:=0, cntr:=16);
+	pResponse^$UINT := LMC_DIAG_SCHEMA_VERSION;
+	(pResponse + 4)^$UINT := 1;
+	(pResponse + 6)^$INT := LMC_DIAG_ADMIN_ERROR_ID;
+	detailCode := 5;
+	requestId := 0;
+	if (pRequest <> NIL) & (RequestSize >= 8) then
+		requestId := (pRequest + 4)^$UDINT;
+	end_if;
+	(pResponse + 8)^$UDINT := requestId;
+	ResponseSize := 16;
+
+	if (pRequest = NIL) | (RequestSize <> 60) then
+		(pResponse + 12)^$UDINT := detailCode;
+		RETURN;
+	end_if;
+	schemaVersion := pRequest^$UINT;
+	requestFlags := (pRequest + 2)^$UINT;
+	keySchema := (pRequest + 8)^$UINT;
+	keyReserved := (pRequest + 10)^$UINT;
+	diagnosticsBuild := (pRequest + 12)^$UDINT;
+	bootId := (pRequest + 16)^$UDINT;
+	mapRevision := (pRequest + 20)^$UDINT;
+	originalRequestId := (pRequest + 24)^$UDINT;
+	intent0 := (pRequest + 28)^$UDINT;
+	intent1 := (pRequest + 32)^$UDINT;
+	intent2 := (pRequest + 36)^$UDINT;
+	intent3 := (pRequest + 40)^$UDINT;
+	axisReference := (pRequest + 44)^$UINT;
+	requestedMode := (pRequest + 46)^$SINT;
+	reservedByte := (pRequest + 47)^$USINT;
+	timeoutMilliseconds := (pRequest + 48)^$UDINT;
+	operationFlags := (pRequest + 52)^$UDINT;
+	recordGeneration := (pRequest + 56)^$UDINT;
+	currentBootId := GetDiagnosticsBootId();
+
+	if (schemaVersion <> 1) | (keySchema <> 1) then
+		detailCode := 1;
+	elsif requestFlags <> 0 then
+		detailCode := 2;
+	elsif requestId = 0 then
+		detailCode := 3;
+	elsif (Reference < 1) | (Reference > 4) |
+	      (axisReference <> Reference) then
+		detailCode := 4;
+	elsif (keyReserved <> 0) | (reservedByte <> 0) |
+	      (originalRequestId = 0) |
+	      ((intent0 = 0) & (intent1 = 0) &
+	       (intent2 = 0) & (intent3 = 0)) |
+	      (timeoutMilliseconds = 0) | (operationFlags <> 0) |
+	      (recordGeneration = 0) then
+		detailCode := 5;
+	elsif diagnosticsBuild <> 1 then
+		detailCode := 16;
+	elsif (currentBootId = 0) | (bootId <> currentBootId) then
+		detailCode := 17;
+	elsif mapRevision <> LMC_DIAG_MAP_REVISION then
+		detailCode := 18;
+	elsif requestedMode <> 8 then
+		detailCode := 45;
+	else
+		detailCode := 49;
+	end_if;
+	(pResponse + 12)^$UDINT := detailCode;
+
+END_FUNCTION
+
+
+FUNCTION LMCDiagnosticsService::ProcessAxisSetOperationMode
 
 END_FUNCTION

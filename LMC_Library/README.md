@@ -3,6 +3,10 @@
 이 디렉터리는 LASAL Motion Control PC API의 개발, 예제와 배포 자료를 역할별로
 분리한다.
 
+Current 사람용 문서는 [API 설명서](../docs/api/API_MANUAL.md)와
+[API 개발 진척도](../docs/api/API_DEVELOPMENT_PROGRESS.md)에서만 관리한다.
+아래 장문의 시험 수치와 기능 설명은 과거 module snapshot이며 current 판정에 사용하지 않는다.
+
 | 폴더 | 용도 | 기준 |
 |---|---|---|
 | `LMC_API_Delivery` | API C# source, tests, 설계 기록 | 개발 source of truth |
@@ -10,9 +14,10 @@
 | `LMC_API` | packet 근거, 상세 개발 설명, source review, package build script | 내부 개발용 |
 | `LMC_API_Distribution` | API, 독립 WPF 예제, 단일 API 사용설명서 | 외부 전달 기준 |
 
-현재 버전은 `0.9.1-preview`다. current PC Debug/Release 테스트는 각각 1042/1042,
-개발 WPF Debug/Release build와 smoke는 각각 297/297 통과했다. LASAL
-SourceOnly와 Network static 계약도 PASS했다.
+## Historical module snapshot
+
+아래 내용은 기존 `0.9.1-preview` 개발 이력이다. 최신 수치, PLC download/load와 artifact
+gate는 canonical 진척도 문서를 따른다.
 send-priority 회귀는 Axis Reset, Admin `GroupMoveLinearRelative`, Group Enable
 wait, D5 `SubmitSdo`/`CancelOperation`과 Recorder Trigger/Stop의 지연 ACK를
 `ResultDiscarded`로 폐기하고, Recorder Release의 불확실한 결과는 `OutcomeUnverified`로

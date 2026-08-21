@@ -1,129 +1,29 @@
 LMC DINT packet map
-Status 2026-08-18: delivery C# and the tracked canonical TCPMotionInterface have
-request/public/handler paths for all 23 captured commands plus two project-local
-motion extensions, 0x204A and 0x204B. LASAL-local Admin v1 also defines
-0x7D22 GroupMoveLinearRelative. The 0x7D12 SetAxisPosition wire remains dormant.
-The project-specific Home name is LMC_Home. Its dedicated durable triad is
-0x7D13 StartLmcHome, 0x7D18 ReadLmcHomeOutcome and 0x7D19
-RetireLmcHomeOutcome. 0x7D13 is a 56-byte current-position-zero request. It
-contains no direction, search velocity, backoff, travel, Home-switch or
-limit-switch field and must not call MoveReference.
-The C# contract and tracked PLC source route and exact-parse read-only 0x7D14
-ReadAxisSetPositionOutcome and 0x7D1A RetireAxisSetPositionOutcome. As of
-2026-08-18, the tracked project has an IDE-created 1344-byte VAR_GLOBAL RETAIN
-ledger with one Intent plus terminal/tombstone A/B/C per axis. The Store
-Begin/Commit/Read/Retire/Scan/Select/CommitRecord source implementation and the
-Control wiring for 0x7D12/0x7D14/0x7D1A are complete. This is dormant source,
-not runtime activation: LMC_ADMIN_SET_POSITION_STORE_CONFIGURED is FALSE, the
-advertised mask is 0x00000017 with bits 3/5/7 clear, and the new Admin
-SetPosition Control/Store path has no native _LMCAxis.SetPosition call. Valid exact requests therefore return the
-16-byte common failure payload with detail 24 StorageUnavailable and perform no
-retained or native mutation. The actual PLC Autoexec.lsl and total SET
-SRAMRETAIN allocation have not been confirmed.
-The clean C78 reopen/rebuild compiled Control and Store, reached Linker Done
-with 0 errors and 78 warnings, and added no CInvalidArgException. SDK Debug and
-isolated Release each passed 1153/1153; focused service, close-fence and store
-verifiers passed 44/44, 38/38 and 292/292. The SetPosition verifier integration
-now pins exactly four usingLtd pragmas, 12 generated clients, and the exact
-Store/CheckSum/network contracts. The Store read-only verifier passes 292/292
-and the dedicated generated-wiring verifier passes 41/41. Full SourceOnly now
-reaches the UDP callback Gate D and fails closed because LASAL regeneration after
-adding LMCSetPositionStore intentionally renumbered protected/vendor Classes.lcb
-records and changed the ConfigObjects/network snapshot. This is registry
-renumbering, not source corruption, but it requires a separate evidence-backed
-full Gate D/candidate rebaseline. No full SourceOnly PASS, PLC download, runtime,
-or hardware E2E proof exists for this SetPosition ledger.
-The 0x7D15 StartAxisDs402Home, read-only 0x7D16
-ReadAxisDs402HomeOutcome, and idempotent 0x7D17
-RetireAxisDs402HomeOutcome contract accepts only DS402 method 37, Home offset 0,
-zero velocity/acceleration/distance/torque and Aborting mode. It performs no
-switch search and no intentional physical motion. Admin feature bits 4 and 6
-must track their dedicated source gates and complete triads atomically. Advertising
-them proves protocol availability, not PLC download or physical-axis validation.
-The 10:02:20 LASAL save regression that emptied three public RT InputLatch
-DS402 Home methods was recovered exactly from the 09:33 pre-save blob. Current
-SourceOnly passes the InputLatch owner-token mailbox assertion. A fresh LASAL
- F9 build, exact-method Implementation-tab/header smoke and PLC runtime proof are
- still required.
-LASAL-DINT Diagnostics v1 additionally reserves the dedicated encoder-maintenance
-triad 0x7E53 Start, 0x7E54 Outcome and 0x7E55 Retire. D0-D3, D4 single-bank Ring/Trigger,
-the D5 general-inline SDO Read ticket flow, fail-closed SDO Write infrastructure,
-and the dormant EtherCAT node-health/digital-I/O read owner are implemented.
-D4 Double bank, PI Write, digital-output Write, and extended SDO results remain
-off. Axis 1 exact 0x2F00:24 Int32/4 SDO Write is source/policy active, but Axis
-2..4 remain blocked and no current PLC Write has been proven.
-The dedicated Home and encoder-maintenance extensions are project-local and are
-not captured Elmo commands. Do not infer their availability from an older command
-inventory count; use the paired capability bits and exact command routes.
-The five previously
-blocked group commands 0x2049, 0x2085, 0x20A4, 0x2051 and 0x20E7 are active in
-source. Current C# Debug/Release forced Rebuild counts are recorded in
-AUTOMATED_TESTS_2026-07-10.md. The expansion
-covers actual fake-TCP output submission paths, twenty mutation-journal
-persistence/reopen/corruption/lock/process-termination/parent-EOF tests, a five-case CREVIS
-status-cause matrix, three deterministic topology/D5/recoverable-Recorder parser
-property tests, and the strict opt-in eight-family parser-stress CLI contract,
-and a listener-lifetime
-generation fence that prevents a late old callback-handler failure from leaking
-into a replacement RPC session. A fixed Release seed
-completed 100,000 bounded in-memory mutations without file, network, or PLC I/O.
-The current development WPF build and actual-control smoke suite pass their latest
-Debug/Release forced Rebuild baseline recorded in AUTOMATED_TESTS_2026-07-10.md.
-They include configured CREVIS auto-load, local
-SDO draft editing while an ordinary submission is in flight, a current-session/
-build/boot/map exact-target proof gate before manual SDO Write, and suppression of invalid PI/Bulk stale
-raw values. The process-level smoke observes SDO, digital-output, and active
-Double-bank journal recovery without 0x7E50/0x7E53/0x7E23/0x7E40..0x7E4F replay and
-preserves byte-identical journals across forced exit and restart. A locked
-Double-bank journal also fails new mutation admission closed. The live Double
-qualification/recovery gate remains closed. The current-position-zero Home,
-method-37 DS402 Home and dedicated encoder-maintenance changes require a fresh
- LASAL F9 build, exact-method Implementation-tab/header smoke, PLC download and
- runtime proof. Any
-earlier switch-search Home, DS402 method 35 or generic-0x7E50 TW20 result does not
-prove this contract. The Test2 capture proves
-the static topology wire path with
-capability 0x0000613F, topology revision 0x15867EEC, one 0x7E11 response, and seven
-0x7E12 responses for the exact configured inventory. That historical capture did
-not send 0x7E13/0x7E22/0x7E23 and does not prove dynamic node-health or digital-I/O.
-The current source now implements and routes 0x7E13/0x7E22 over a coherent
-464-byte snapshot with wired CREVIS coupler/input/output clients, but capability
-bits 15 and 16 remain zero. 0x7E23 remains absent and bit 17 remains zero.
-The PC-only same-value SDO Write qualification uses four distinct tickets for
-baseline Read, unchanged-value pre-Write guard Read followed by the final second safety check,
-one byte-identical Write, and guarded exact Readback. The current PLC/SDK source
-gate and SDK allowlist admit only Axis 1 exact 0x2F00:24 Int32/4; Axis 2..4 and
-every non-exact target remain zero-wire. Manual Write uses an identity-pinned SDK
-mutation gate. It reads fresh
-capabilities inside the serialized mutation path and requires the proof-bound session,
-DiagnosticsBuild, BootId, MapRevision, and exact target; a mismatch is NotAttempted and
-sends no 0x7E50 frame. Any observed identity mismatch or disconnect permanently revokes
-that process-local proof, including an A-to-B-to-A observation sequence.
-No current PLC/live SDO Write has been
-proven.
-The UI-independent D5 disconnect/orphan qualification core has twenty-eight
-deterministic PC regressions and a production WPF application-recovery adapter.
-The adapter performs a local TCP zero-linger close without RPC Close 0x405D,
-opens a distinct connection, binds fresh capability samples to that owner and
-session, and requires two exact 0x6061:0 Int8 recovery tickets plus a final stable
-capability sample. Stability includes BootId, MapRevision, DiagnosticsBuild,
-CapabilityBits, BaseCycleTimeUs, MaxSdoDataBytes, and request/response payload limits.
-An old executor ResourceBusy is retried every 25 ms only when the Submit is an exact
-Rejected/ResourceBusy result, within a monotonic retry-admission budget of the request
-timeout plus 5 seconds capped at 120 seconds. That budget does not claim to bound an
-already-started RPC. The PASS log commits before quarantine clear;
-then the GUI adopts the new connection and auto-loads CREVIS topology. Running and
-Queued observations both remain ApplicationRecoveryOnly with orphanQualified=false.
-A durable PLC MarkOrphan/executor-token/late-callback witness and live PLC/pcap are
-still required for orphan qualification.
-On 2026-07-23 the live PLC captures passed Admin 0x7D00/0x7D10/0x7D20, 0x7D22
-Aborting/Buffered acceptance and per-axis XYZU mapping, dynamic group monitoring,
-PowerOff final status, axis 1..4 drive reads, the four-entry PI/Bulk happy path, and
-D5 general-inline 1/2/4-byte Read plus same-BootId TypeMismatch recovery.
-Fault/stale/queue-race matrices, CPU core/priority placement and broader packet
-recapture are still pending. The untracked
-_Edit variant is not canonical. See API_DEVELOPMENT_BACKLOG_2026-07-10.md and
-../../../docs/architecture/LMC_DIAGNOSTICS_INTERNAL_PLC_TEST_GUIDE_2026-07-21.md.
+Current status 2026-08-20:
+- This file is the canonical project-local wire layout. Public usage is documented
+  in ../../../docs/api/API_MANUAL.md. Implementation progress, test counts and
+  artifact identities are owned only by ../../../docs/api/API_DEVELOPMENT_PROGRESS.md.
+- The C# protocol declares 74 unique command IDs and the current LASAL source routes
+  73. 0x7E23 SubmitDigitalOutputWrite is the only C# command without a LASAL route.
+- 0x7D12/0x7D14/0x7D1A SetPosition request, outcome and retirement frames are
+  implemented in the SDK and exact-parsed by the PLC source, but runtime activation
+  is intentionally disabled. The 1344-byte backing is ordinary volatile VAR_GLOBAL;
+  Store and ordinary ownership are FALSE, max-jump is zero, feature bits 3/5/7 are
+  clear, and the Admin SetPosition processor has no native SetPosition call. Exact
+  requests therefore fail closed with detail 24 StorageUnavailable.
+- Current C78 build/link and PLC link/download/project load have completed without the
+  former RETAIN allocation failure. This does not activate SetPosition or prove any
+  coordinate mutation, restart replay, durable query, retirement or hardware effect.
+- 0x7D13/0x7D18/0x7D19 is project-local LMC_Home CurrentPositionZero, not switch
+  search. 0x7D15/0x7D16/0x7D17 DS402 method 37 remains capability/gate OFF.
+- Diagnostics availability must be read from fresh 0x7E00 capabilities and bound to
+  the current BootId/MapRevision. Capability bits 15 and 16 remain zero. Bit 17
+  remains zero. PI Write remains disabled. D4 Double remains disabled and
+  Double-bank bit 6 remains zero. Extended SDO result, dynamic node/DI and
+  digital-output Write remain dormant or missing as described below.
+- D5 SDO Write scope is Axis 1 exact 0x2F00:24 Int32/4 only. Axis 2..4 remain
+  blocked. Manual submission is identity-pinned and requires four distinct tickets.
+- The untracked _Edit variant is not canonical.
 
 All numeric motion fields below are signed 32-bit little-endian LASAL internal DINT.
 The API writes caller-provided DINT values directly to the packet.
@@ -273,7 +173,7 @@ correlated response is malformed/outcome-uncertain and faults the exact session.
 The tracked PLC source writes FeatureBits 0x00000017, so bits 3, 5 and 7 are not
 advertised. The implemented Control/Store path remains intentionally dormant
 because LMC_ADMIN_SET_POSITION_STORE_CONFIGURED is FALSE. A valid exact request
-returns detail 24 StorageUnavailable before Store access, performs no retained
+returns detail 24 StorageUnavailable before Store access, performs no Store
 mutation, and calls no native SetPosition method.
 The service and TCP transport reserve the internal non-wire sentinel -12 for a
 future post-Armed terminal-store commit/readback uncertainty. This includes
@@ -285,18 +185,18 @@ SetPosition Control/Store path still has no native SetPosition call. If activate
 0x7D12, writes no response, records the first pending closed-session epoch,
 disarms the callback endpoint, rolls the session epoch, blocks ingress, clears
 RPC state, closes the active request socket, and returns without SendData.
-Runtime activation still requires proof of the actual target Autoexec.lsl and
-the total SET SRAMRETAIN allocation, an application-approved
-SetPositionMaxJump, verified same-core/equal-or-lower-priority task placement,
-runtime state/ownership guards, a reviewed native boundary, an activation build
-and download, and PLC/pcap proof. The completed 1344-byte Store source and dormant
-Control wiring do not satisfy those gates. LMCAXIS_PAR_RD_SWLIMWINDOW is the
+Runtime activation still requires a project-deployed durable backend with
+reboot/power-cut/tombstone proof, an application-approved SetPositionMaxJump,
+verified same-core/equal-or-lower-priority task placement, runtime state/ownership
+guards, a reviewed native boundary, an activation build and download, and PLC/pcap
+proof. The completed 1344-byte volatile Store scaffold and dormant Control wiring
+do not satisfy those gates. LMCAXIS_PAR_RD_SWLIMWINDOW is the
 software end-position standstill tolerance and must not be reused as the jump cap.
 
 0x7D14 ReadAxisSetPositionOutcome, request payload 52 bytes,
 Reference=original physical axis 1..4:
 P8  ExpectedDiagnosticsBuild U32, nonzero
-P12 OriginalDiagnosticsBootId U32, nonzero; retained exact-key identity
+P12 OriginalDiagnosticsBootId U32, nonzero; future durable exact-key identity
 P16 ExpectedMapRevision U32, nonzero
 P20 CurrentDiagnosticsBootId U32, nonzero; fresh current PLC identity
 P24 OriginalRequestId U32
@@ -311,7 +211,7 @@ The SDK requires ExpectedDiagnosticsBuild and ExpectedMapRevision to match the
 fresh current diagnostics capabilities, but does not require the stored original
 BootId to equal the current BootId. The PLC validates CurrentDiagnosticsBootId
 against its live authoritative BootId before exact-matching the original BootId
-as part of the retained record key. The total request frame is 60 bytes.
+as part of the outcome record key. The total request frame is 60 bytes.
 An exact terminal record returns exactly 84 payload bytes:
 P16 RecordState U16, 2 Succeeded / 3 Rejected
 P18 SemanticMode U16 = 1
@@ -344,8 +244,8 @@ AxisSetPositionOutcomeRetirement and implies bit 5. Strict clients require bit 3
 AxisSetPosition to imply both bit 5 and bit 7. Details 16..22 and 24 require
 ErrorCatalogVersion 2 in the paired activation. The tracked PLC source writes
 FeatureBits 0x00000017 and ErrorCatalogVersion 5. It routes and exact-parses
-0x7D14/0x7D1A and has the implemented 1344-byte ledger/Store source, but the
-FALSE configuration macro prevents Store access and returns detail 24
+0x7D14/0x7D1A and has the implemented 1344-byte volatile ledger/Store source, but
+the FALSE configuration macro prevents Store access and returns detail 24
 StorageUnavailable for a valid exact request. It does not advertise bit 3,
 bit 5, or bit 7. These are source/build facts, not proof of the image currently
 downloaded to a PLC.
@@ -366,8 +266,8 @@ detail 21, and a preserved original terminal without proved tombstone durability
 returns detail 24. None of these failures resolves the PC journal, and the exact
 retirement request remains safe to retry.
 Failures use the 16-byte common envelope and details 16..22 or 24. The current PLC
-source routes and exact-parses 0x7D1A and implements retained terminal/tombstone
-handling, but the FALSE Store configuration macro keeps that code dormant and
+source routes and exact-parses 0x7D1A and implements the terminal/tombstone
+algorithm over a volatile scaffold, but the FALSE Store configuration macro keeps it dormant and
 bit 7 clear. A valid exact request returns detail 24 StorageUnavailable, so this
 SDK contract remains public-API dormant and cannot clear the WPF recovery journal.
 
@@ -572,11 +472,14 @@ implementation must change bit 6 atomically with the method-37-only parser,
 fresh-latch watchdog and owner interlock. F9 build, download and live DS402/pcap
 proof remain separate qualification gates even when the source bit is enabled.
 Earlier method-35 or switch-search results are not evidence for this contract.
-The 2026-08-04 source gate remains FALSE. Admission and final-evidence hardening
-alone do not activate the command. Prepared-stage warm reconciliation and the
-one-second fail-closed bound for cleanup stages 90..99 are source-implemented.
-Durable owner-release/rollback-complete receipt, DS402 bit-4 safety
-drain/tombstone, C78 build, download and live-axis proof remain required.
+The current source gate remains FALSE. Admission and final-evidence hardening
+alone do not activate the command. Prepared-stage warm reconciliation, the
+one-second fail-closed bound for cleanup stages 90..99, the staged
+owner-release/rollback-complete warm receipt, and the exact DS402 bit-4 safety
+drain/tombstone are source-implemented. These are source/static-contract facts,
+not C78 build, download, live-axis or packet proof. The remaining qualification
+gates are the paired activation matrix, C78 Rebuild/Link and IDE smoke, PLC
+download, and the Axis1..4 hardware/packet test matrix.
 
 0x7D20 ReadGroupParameters, request payload 12 bytes, Reference=0x0100:
 P8 SelectionMask U32, nonzero subset of 0x07. Bits select path velocity limit,
@@ -602,6 +505,63 @@ The PLC requires Robot and Axis1..4 clients, GroupKinematicReady, Robot power,
 and profile lock before calling LMCRobot.MoveRelativeCoord. The response is the
 16-byte Admin common response. Success means the native profile command was
 accepted; completion and profile error are read through 0x2045 GroupReadStatus.
+
+0x7D23 StartAxisSetOperationMode, SDK-development request payload 56 bytes,
+Reference=physical axis 1..4. The complete request frame is 64 bytes:
+P8 SchemaVersion U16 = 1, P10 Reserved U16 = 0
+P12 ExpectedDiagnosticsBuild U32, nonzero
+P16 ExpectedDiagnosticsBootId U32, nonzero
+P20 ExpectedMapRevision U32, nonzero
+P24 DuplicatedRequestId U32, equal to common P4 and nonzero
+P28/P32/P36/P40 ClientIntentId0..3 U32, not all zero
+P44 AxisReference U16, equal to outer Reference
+P46 RequestedMode I8 = 8 (CSP), P47 Reserved U8 = 0
+P48 TimeoutMilliseconds U32, nonzero
+P52 Flags U32 = 0 (Immediate-only)
+The successful or well-shaped domain-failure ACK payload is exactly 24 bytes:
+P16 RequestedMode DINT = 8, P20 NativeCommandState U32 = 0. SetOperationMode uses
+the SDO executor and does not publish a native axis-command bitfield here. A malformed common-frame
+failure may use only the 16-byte common envelope. An ACK is acceptance only, not
+terminal completion. A prepared Start may cross the TCP write boundary at most
+once and must never be replayed after response loss.
+
+0x7D24 ReadAxisSetOperationModeOutcome uses the same 56-byte exact recovery-key
+payload and a new common P4 QueryRequestId. It never writes 0x6060 and never
+replays 0x7D23. 0x7D25 RetireAxisSetOperationModeOutcome appends
+P56 ExpectedRecordGeneration U32, nonzero, for a 60-byte payload and 68-byte
+complete frame. Only an exact terminal record and generation may retire.
+
+A successful 0x7D24 or 0x7D25 response payload is exactly 112 bytes:
+P16 RecordState U16: 1 Running, 2 Succeeded, 3 Failed, 4 Aborted
+P18 Reserved U16 = 0
+P20/P24/P28/P32 DiagnosticsBuild/BootId/MapRevision/OriginalRequestId U32
+P36/P40/P44/P48 ClientIntentId0..3 U32
+P52 AxisReference U16
+P54 RequestedMode I8 = 8, P55 ObservedMode I8
+P56 TimeoutMilliseconds U32, P60 Flags U32 = 0
+P64 OriginalCommandStatus U16, P66 OriginalErrorId I16
+P68 OriginalDetailCode U32, P72 SdoExecutorToken U32
+P76 EvidenceFlags U32, P80 StartCycle U32, P84 CompletionCycle U32
+P88 NativeCommandState U32 = 0, P92 RecordGeneration U32
+P96 PreviousMode I8, P97..P99 Reserved = 0
+P100 QuarantineReason U32 = 0
+P104 DS402StatusWord U16, P106 Reserved U16 = 0
+P108 ContextCheck U32
+Quarantined or indeterminate state is not a 112-byte success snapshot; query
+returns the 16-byte common failure with detail 46 and preserves recovery. Detail
+43 is unsupported mode, 44 unsafe state, 45 not found, 46 indeterminate,
+47 store corrupt, 48 key mismatch, 49 storage unavailable, 50 execution failed,
+and 51 outcome slot occupied. Owner conflict/quarantine keeps existing 41/42.
+
+Admin capability bits 8 Start, 9 OutcomeRead and 10 OutcomeRetire are an
+indivisible triad and require ErrorCatalogVersion >= 6. The current C# SDK has
+the immutable CSP-only contract, strict parser, sync/async facade and zero-wire
+capability preflight. Current LASAL source routes 0x7D23/0x7D24/0x7D25 through
+LMCDiagnosticsService and returns deterministic dormant failures: well-shaped
+Start returns a 24-byte detail 43 or 49 ACK with NativeCommandState=0; well-shaped
+Outcome/Retire return the 16-byte detail 49 envelope. Malformed common frames
+return only details 1..5. There is still no owner, store or 0x6061 -> 0x6060 ->
+0x6061 executor, bits 8..10 remain OFF, and this route is not runtime-supported.
 
 0x7E00 GetDiagnosticsCapabilities, request payload 8 bytes
 [8]  SchemaVersion UINT16 = 1

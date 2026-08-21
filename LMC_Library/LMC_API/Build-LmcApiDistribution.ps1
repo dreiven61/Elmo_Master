@@ -31,6 +31,17 @@ else {
     $RepositoryRoot = [System.IO.Path]::GetFullPath($RepositoryRoot)
 }
 
+$currentManualSource = Join-Path $RepositoryRoot 'docs\api\API_MANUAL.md'
+if (Test-Path -LiteralPath $currentManualSource -PathType Leaf) {
+    $currentManualText = Get-Content -LiteralPath $currentManualSource -Raw
+    if ($currentManualText -match '(?m)^.*2\.4-development.*$') {
+        throw ('Distribution release blocker: docs/api/API_MANUAL.md is ' +
+            '2.4-development, while DistributionSemanticPolicy and the canonical ' +
+            'DOCX/PDF remain 2.3-candidate. Regenerate and review both artifacts, ' +
+            'then update the semantic policy and its tests before packaging.')
+    }
+}
+
 $toolingPreflight = Invoke-LmcDistributionToolingHostParityPreflight `
     -RepositoryRoot $RepositoryRoot
 if ($toolingPreflight.Result -cne 'PASS' -or
@@ -570,7 +581,7 @@ function Get-LmcReleaseInputFiles {
         (Join-Path $PSScriptRoot `
             'Test-LmcDistributionToolchainProvenance.ps1'),
         (Join-Path $PSScriptRoot 'Test-LmcReleaseManifest.ps1'),
-        (Join-Path $PSScriptRoot 'API_USER_MANUAL_KO.md'),
+        $currentManualSource,
         (Join-Path $RepositoryRoot `
             'LMC_Library\LMC_API_Delivery\docs\DINT_PACKET_MAP.txt'))) {
         Add-InputFile -Path $path

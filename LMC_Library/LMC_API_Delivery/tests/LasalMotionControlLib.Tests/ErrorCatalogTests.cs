@@ -187,7 +187,7 @@ namespace LasalMotionControlLib.Tests
             AssertEx.False(
                 LMCErrorCatalog.TryDescribe(
                     LMCErrorDomain.AdminDetail,
-                    43,
+                    52,
                     out unknown));
             AssertEx.Equal<LMCErrorDescription>(null, unknown);
         }

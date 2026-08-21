@@ -1,5 +1,9 @@
 # Elmo Master API 개발 계획
 
+> **Historical plan:** current 구현률, active blocker와 다음 작업은
+> [API 개발 진척도](../api/API_DEVELOPMENT_PROGRESS.md)에서만 관리한다. 이 파일은
+> 2026-07-30/31 당시 계획과 이후 설계 흔적을 보존하며 current 계획을 override하지 않는다.
+
 > **2026-08-03 후속 설계 우선:** 이 문서는 2026-07-30/31 snapshot이다. 아래의
 > `ReferenceAxis`, physical switch, `MoveReference()` 계획과 당시 test 수치 및
 > SourceOnly PASS 판정은 현재 작업에 사용하지 않는다. 현재 Home/encoder 구현과 IDE 순서는
@@ -10,7 +14,7 @@
 - 작성 기준: 2026-07-30 계획, 2026-07-31 working-tree 검증 반영
 - 기준 branch/HEAD: `main@6537bcf1bf0fdb338a934b63891fc9ee110aecad`
 - 현재 릴리스 상태: `0.9.1-preview`, production **NO-GO**
-- 진행 현황: [API_DEVELOPMENT_PROGRESS_2026-07-30.md](API_DEVELOPMENT_PROGRESS_2026-07-30.md)
+- Current 진행 현황: [API_DEVELOPMENT_PROGRESS.md](../api/API_DEVELOPMENT_PROGRESS.md)
 - Group Reset stable 계약:
   [GROUP_RESET_STABLE_MEMBER_ERROR_CLEARANCE_2026-07-31.md](../architecture/GROUP_RESET_STABLE_MEMBER_ERROR_CLEARANCE_2026-07-31.md)
 - Axis SetPosition dormant 계약:

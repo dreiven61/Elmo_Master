@@ -201,6 +201,17 @@ def create_styles() -> dict[str, ParagraphStyle]:
             spaceBefore=2,
             spaceAfter=2,
         ),
+        "code_korean": ParagraphStyle(
+            "CodeKorean",
+            fontName="Malgun",
+            fontSize=6.65,
+            leading=9.1,
+            textColor=colors.HexColor("#17202A"),
+            leftIndent=0,
+            rightIndent=0,
+            spaceBefore=2,
+            spaceAfter=2,
+        ),
         "callout": ParagraphStyle(
             "Callout",
             fontName="Malgun",
@@ -233,6 +244,7 @@ def inline_markup(text: str) -> str:
                 + "</font>"
             )
         else:
+            chunk = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", chunk)
             value = html.escape(chunk)
             value = re.sub(r"\*\*([^*]+)\*\*", r"<b>\1</b>", value)
             rendered.append(value)
@@ -295,7 +307,12 @@ def code_blocks(code: str, styles: dict[str, ParagraphStyle]) -> list[Table]:
     blocks: list[Table] = []
     for start in range(0, len(lines), 27):
         chunk = "\n".join(lines[start : start + 27])
-        pre = Preformatted(chunk, styles["code"], maxLineLength=94)
+        code_style = (
+            styles["code_korean"]
+            if any(ord(char) > 127 for char in chunk)
+            else styles["code"]
+        )
+        pre = Preformatted(chunk, code_style, maxLineLength=94)
         block = Table([[pre]], colWidths=[CONTENT_WIDTH], hAlign="LEFT")
         block.setStyle(
             TableStyle(
@@ -355,7 +372,7 @@ def parse_list(lines: list[str], index: int, ordered: bool, styles: dict[str, Pa
     flowable = ListFlowable(
         items,
         bulletType="1" if ordered else "bullet",
-        start="1",
+        start="1" if ordered else None,
         leftIndent=18,
         bulletFontName="Malgun",
         bulletFontSize=8,
@@ -524,7 +541,13 @@ def build_cover(
         [paragraph("문서", styles["small"]), paragraph("API 기능 설명서", styles["cover_meta"])],
         [paragraph("적용 API", styles["small"]), paragraph(metadata.get("적용 API", "LasalMotionControlLib 0.9.1-preview"), styles["cover_meta"])],
         [paragraph("환경", styles["small"]), paragraph(metadata.get("대상 환경", "Windows, .NET Framework 4.8"), styles["cover_meta"])],
-        [paragraph("발행", styles["small"]), paragraph(metadata.get("발행일", "2026-07-16"), styles["cover_meta"])],
+        [
+            paragraph("발행", styles["small"]),
+            paragraph(
+                metadata.get("발행일", metadata.get("기준일", "2026-07-16")),
+                styles["cover_meta"],
+            ),
+        ],
         [paragraph("문서 버전", styles["small"]), paragraph(metadata.get("문서 버전", "1.0"), styles["cover_meta"])],
     ]
     meta = Table(meta_data, colWidths=[31 * mm, 92 * mm], hAlign="LEFT")
@@ -646,7 +669,8 @@ def main() -> int:
     parser.add_argument(
         "--source",
         type=Path,
-        default=Path(__file__).with_name("API_USER_MANUAL_KO.md"),
+        default=(Path(__file__).resolve().parents[2]
+                 / "docs" / "api" / "API_MANUAL.md"),
     )
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--distribution-copy", type=Path)

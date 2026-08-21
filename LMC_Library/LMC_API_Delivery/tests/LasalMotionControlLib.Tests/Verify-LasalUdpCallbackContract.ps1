@@ -289,9 +289,9 @@ $ExpectedTerminalWakeLayout = [ordered]@{
         Objectsize = '(778,120)'
     }
     Classes = [ordered]@{
-        Bytes = 8600084
+        Bytes = 8610206
         Sha256 =
-            'CC5B7FD831616551117DB8260257362069DB51880C53250DBF3CEC35458A48E4'
+            '33C1C2A68B97E852AD6646317CAE032A110D1F50C9615FA5B7EEF00410B649A8'
     }
     CommNetwork = [ordered]@{
         Bytes = 17686
@@ -343,9 +343,9 @@ $TerminalWakeLayoutSelfTestOracle = [ordered]@{
         Objectsize = '(778,120)'
     }
     Classes = [ordered]@{
-        Bytes = 8600084
+        Bytes = 8610206
         Sha256 =
-            'CC5B7FD831616551117DB8260257362069DB51880C53250DBF3CEC35458A48E4'
+            '33C1C2A68B97E852AD6646317CAE032A110D1F50C9615FA5B7EEF00410B649A8'
     }
     CommNetwork = [ordered]@{
         Bytes = 17686
@@ -474,24 +474,24 @@ $PreSetPositionGateD = [ordered]@{
 
 $SetPositionAugmentedGateD = [ordered]@{
     Classes = [ordered]@{
-        Bytes = 8600084
+        Bytes = 8610206
         Sha256 =
-            'CC5B7FD831616551117DB8260257362069DB51880C53250DBF3CEC35458A48E4'
+            '33C1C2A68B97E852AD6646317CAE032A110D1F50C9615FA5B7EEF00410B649A8'
         Delta = [ordered]@{
             PrefixBytes = 33
             HistoricalChangedBytes = 8533691
             HistoricalChangedSha256 =
                 '0F002B6EA439F8CAD229619FA3E93F98C12A69735EE7ED1B950195A8C5DC42F5'
-            CurrentChangedBytes = 8584002
+            CurrentChangedBytes = 8594124
             CurrentChangedSha256 =
-                'B752A4F988D31FDD3461978E17591BEEE5AB713F854E18A59E3EF255308E00BE'
+                '137B073078A13D0F7C7702D957A7AB51BE3D083ED27D83FB1A586F9F9673AAB7'
             SuffixBytes = 16049
         }
     }
     Project = [ordered]@{
         Bytes = 634865
         Sha256 =
-            'B3F299086252A9C50C7D03672508A9BFE3CC7060E04AB4E2417672CFAAD9F38A'
+            'FE640A0683466FC1C68537A1CF5E9B96EEFBBBC5EE4885A78F25AF2557193A0E'
         Delta = [ordered]@{
             PrefixBytes = 25
             HistoricalChangedBytes = 621604
@@ -499,7 +499,7 @@ $SetPositionAugmentedGateD = [ordered]@{
                 'A8C80BD192C9E2844ED96A4CC939E1ACECBDF611F41ECC2AF14DCF8F83884650'
             CurrentChangedBytes = 621955
             CurrentChangedSha256 =
-                '8BA55BC0592A48B4FF5F922538552F8C041DBFB0452F38D313B36868A3687E19'
+                '611E9988056CD723F516D80FCE7C2FDC914CEC97EB7189FA11C3C61BA93F67F7'
             SuffixBytes = 12885
         }
     }
@@ -3964,7 +3964,10 @@ function Assert-TcpOwnerLossRetirementContract {
 }
 
 function Assert-TcpGateCContract {
-    param([Parameter(Mandatory = $true)][string]$TcpSource)
+    param(
+        [Parameter(Mandatory = $true)][string]$TcpSource,
+        [switch]$LegacySyntheticSource
+    )
 
     $blocks = [ordered]@{}
     foreach ($name in $ExpectedGateCTcpFunctionNames) {
@@ -3997,6 +4000,17 @@ function Assert-TcpGateCContract {
             -TcpSource $expectedTcp -FunctionName $name
         $actualTokens = Get-CommentInsensitiveTokenStream -Text $blocks[$name]
         $expectedTokens = Get-CommentInsensitiveTokenStream -Text $expectedBlock
+        if (($name -ceq 'ConnSocketInfo') -and (-not $LegacySyntheticSource)) {
+            $actualTokenSha256 = Get-BytesSha256 `
+                -Bytes $Utf8.GetBytes($actualTokens)
+            if ($actualTokenSha256 -cne
+                '979E8F04015427425291FBBA5A0A0FAA0D2235DB47F6C389172A7F2905BEDFFE') {
+                Throw-UdpCallbackBlocker (
+                    'Gate C TCP ConnSocketInfo P1 complete function token ' +
+                        'stream drifted.')
+            }
+            continue
+        }
         if (-not [string]::Equals(
                 $actualTokens,
                 $expectedTokens,
@@ -4214,26 +4228,28 @@ function Assert-TcpDerivedClientContract {
         [switch]$LegacySyntheticSource
     )
 
+    $expectedTcpFunctions = @($ExpectedTcpFunctionNames)
+    if ($State -ceq 'TerminalWakeBrokerCandidate') {
+        $expectedTcpFunctions += $TerminalWakePublishSpec.Name
+    }
+    if (-not $LegacySyntheticSource) {
+        $expectedTcpFunctions += 'HandleAdminSetPositionPending'
+    }
+
     Assert-NoCustomSourceConditionalPreprocessor `
         -Text $TcpSource -ArtifactOwner 'TCPMotionInterface source'
     Assert-NoUnexpectedTopLevelResidue `
         -Text $TcpSource `
         -ArtifactOwner 'TCPMotionInterface source' `
-        -ExpectedDirectiveCount $(if ($LegacySyntheticSource) { 46 } else { 47 }) `
+        -ExpectedDirectiveCount $(if ($LegacySyntheticSource) { 46 } else { 70 }) `
         -ExpectedDirectiveSha256 $(if ($LegacySyntheticSource) {
                 'ECDB540F59D96F94B741BA69842D52F74F4BEF74E3B442F64F449C7F9F824BC2'
             } else {
-                '7ACAE3CC14818B83D2CE2C88EF4C27900CD3F0BD23CB215D88B32E968ACBC7F9'
+                'F57193B567DFA6E0C4F0C6F18E90F76E8C79B44245E720B3524A692F961DC2C7'
             })
     Assert-DeclaredSpanInventory `
         -Text $TcpSource `
-        -ExpectedFunctionNames $(if (
-            $State -ceq 'TerminalWakeBrokerCandidate') {
-                @($ExpectedTcpFunctionNames +
-                    $TerminalWakePublishSpec.Name)
-            } else {
-                $ExpectedTcpFunctionNames
-            }) `
+        -ExpectedFunctionNames $expectedTcpFunctions `
         -ExpectedTypeSpanCount 2 `
         -ExpectedClassName 'TCPMotionInterface' `
         -ArtifactOwner 'TCPMotionInterface source'
@@ -4346,7 +4362,9 @@ function Assert-TcpDerivedClientContract {
             Throw-UdpCallbackBlocker (
                 'DerivedCandidate TCP disarm helper remains empty.')
         }
-        Assert-TcpGateCContract -TcpSource $TcpSource
+        Assert-TcpGateCContract `
+            -TcpSource $TcpSource `
+            -LegacySyntheticSource:$LegacySyntheticSource
         if ($State -ceq 'TerminalWakeBrokerCandidate') {
             Assert-TerminalWakeTcpSourceContract -TcpSource $TcpSource
         }

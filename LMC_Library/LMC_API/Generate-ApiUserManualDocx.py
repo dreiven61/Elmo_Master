@@ -46,6 +46,12 @@ def set_repeat_table_header(row) -> None:
     tr_pr.append(header)
 
 
+def prevent_table_row_split(row) -> None:
+    tr_pr = row._tr.get_or_add_trPr()
+    if tr_pr.find(qn("w:cantSplit")) is None:
+        tr_pr.append(OxmlElement("w:cantSplit"))
+
+
 def set_cell_shading(cell, fill: str) -> None:
     tc_pr = cell._tc.get_or_add_tcPr()
     for child in tc_pr.findall(qn("w:shd")):
@@ -364,7 +370,9 @@ def add_cover(document: Document, title: str, metadata: dict[str, str]) -> None:
     note.add_run().add_break(WD_BREAK.PAGE)
 
 
-INLINE_PATTERN = re.compile(r"(`[^`]+`|\*\*[^*]+\*\*)")
+INLINE_PATTERN = re.compile(
+    r"(\[[^\]]+\]\([^)]+\)|`[^`]+`|\*\*[^*]+\*\*)"
+)
 
 
 def add_inline(paragraph, text: str, *, base_size: float | None = None,
@@ -373,9 +381,15 @@ def add_inline(paragraph, text: str, *, base_size: float | None = None,
     for part in parts:
         if not part:
             continue
+        link = re.fullmatch(r"\[([^\]]+)\]\([^)]+\)", part)
         is_code = part.startswith("`") and part.endswith("`")
         is_bold = part.startswith("**") and part.endswith("**")
-        value = part[1:-1] if is_code else part[2:-2] if is_bold else part
+        value = (
+            link.group(1) if link else
+            part[1:-1] if is_code else
+            part[2:-2] if is_bold else
+            part
+        )
         run = paragraph.add_run(value)
         set_east_asia(run, CODE_FONT if is_code else BODY_FONT)
         if base_size is not None:
@@ -410,6 +424,7 @@ def add_native_table(document: Document, rows: list[list[str]]) -> None:
     for index, factor in enumerate(factors):
         table.columns[index].width = Cm(content_width * factor)
     for row_index, row in enumerate(normalized):
+        prevent_table_row_split(table.rows[row_index])
         for column_index, value in enumerate(row):
             cell = table.cell(row_index, column_index)
             cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.TOP
@@ -622,7 +637,8 @@ def main() -> int:
     parser.add_argument(
         "--source",
         type=Path,
-        default=Path(__file__).with_name("API_USER_MANUAL_KO.md"),
+        default=(Path(__file__).resolve().parents[2]
+                 / "docs" / "api" / "API_MANUAL.md"),
     )
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--distribution-copy", type=Path)
@@ -641,7 +657,7 @@ def main() -> int:
     properties.title = "LASAL Motion Control API 기능 설명서"
     properties.author = "Elmo Motion Control / LASAL API Project"
     properties.subject = "LasalMotionControlLib API usage"
-    properties.comments = "Editable source generated from API_USER_MANUAL_KO.md"
+    properties.comments = "Editable source generated from docs/api/API_MANUAL.md"
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     document.save(args.output)

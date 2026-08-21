@@ -2,16 +2,26 @@
 
 작성일: 2026-07-31
 
+> **2026-08-20 13:06 artifact override:** 마지막 IDE build의 `Classes.lcb` SHA-256은
+> `568FE55148D734BE4DB0BB5ED9AF4D7800DB33672A5FCE21ECCFE15EE3CAC5A7`다. 이 문서 아래의
+> `33C1...49A8`/SourceOnly PASS는 historical checkpoint이며 current UDP artifact gate와 full
+> SourceOnly는 identity drift에서 STOP한다. current 판정은
+> [API 개발 진척도](../api/API_DEVELOPMENT_PROGRESS.md)를 따른다.
+
 ## 1. 결론
 
 `SetAxisPosition`은 LASAL-local Admin command `0x7D12`로 정의한다. public API는
 native `_LMCAXIS_SETPOSITION` enum을 받지 않고, application-unit actual position과
 destination을 함께 맞추는 semantic mode 한 개만 제공한다.
 
-2026-08-19 현재 PC SDK의 wire/parser/one-shot, durable intent, query/retirement
-계약뿐 아니라 PLC source의 fail-closed tranche도 구현됐다. tracked project에는 IDE-created 1344-byte
-`VAR_GLOBAL RETAIN` ledger가 있고, Store의 Begin/Commit/Read/Retire/Scan/Select/
-CommitRecord 구현과 Control의 `0x7D12/0x7D14/0x7D1A` dormant wiring이 존재한다. `0x7D12`는
+2026-08-20 current source에서 1344-byte backing은 layout을 유지한 ordinary
+`VAR_GLOBAL`이다. 출하 PLC별 `SET SRAMRETAIN` 설정 의존성은 제거됐지만 backing은 volatile이므로
+power-off/restart durability, stored replay, durable query/retirement 보장은 없다. 아래 retained
+ledger와 crash-ordering 절은 향후 durable Store target design이며 current runtime claim이 아니다.
+
+2026-08-19 historical checkpoint에는 IDE-created 1344-byte `VAR_GLOBAL RETAIN` ledger가
+있었고, Store의 Begin/Commit/Read/Retire/Scan/Select/CommitRecord 구현과 Control의
+`0x7D12/0x7D14/0x7D1A` dormant wiring이 존재했다. `0x7D12`는
 private `HandleAdminSetPosition`으로, top-level route는 private `DispatchRequestCommand`로 분리됐다.
 축별 coordinate max-jump gate와 new-Armed 전용 direct-axis ownership admission/rollback source도
 들어갔다. 2026-08-19 후속 P0에서 `LMCEcatInputLatch`의 frozen 16-DINT mailbox와
@@ -24,9 +34,8 @@ async exactly-once 경계와 crash/recovery 순서는
 bit 3/5/7은 OFF다. `LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED=FALSE`이고 축 1..4의
 `LMC_ADMIN_SET_POSITION_MAX_JUMP_AXIS*`도 모두 `0`이다. 신규 Admin SetPosition 경로의 native
 `_LMCAxis.SetPosition()` 호출은 0회다.
-실제 PLC target `Autoexec.lsl`과 전체 `SET SRAMRETAIN` allocation도 확인되지 않았다.
 따라서 아래 activation gate가 모두 확인될 때까지 유효 요청은 detail 24로 닫고
-retained/native mutation을 모두 0회로 유지한다.
+durable/native mutation을 모두 0회로 유지한다.
 
 가장 중요한 제한은 다음 두 가지다.
 
@@ -322,7 +331,7 @@ race를 허용하면 안 되므로, unified ownership coordinator 또는 고정�
 현재 source에 없기 때문이다. fresh actual position이 target과 같아도 요청 전부터 같은 값이었을
 수 있으므로 과거 SetPosition 성공으로 판정하거나 journal을 자동 resolve하면 안 된다.
 
-선택한 기본 경로는 PLC retained request/outcome ledger와 read-only `0x7D14` exact query다.
+향후 durable target의 기본 경로는 PLC request/outcome ledger와 read-only `0x7D14` exact query다.
 physical axis `1..4`마다 84-byte durable intent/Armed slot 한 개와 84-byte complete
 terminal/tombstone bank A/B/C 세 개를 둔다. 축당 4 records, 336 bytes이며 총 예약
 크기는 `4 records * 84 bytes * 4 axes = 1344 bytes`다. intent slot을 A/B/C
@@ -340,17 +349,22 @@ offset은 Intent `+0`, bank A `+84`, bank B `+168`, bank C `+252`다.
 | 3 | `672` | `756` | `840` | `924` | `672..1007` |
 | 4 | `1008` | `1092` | `1176` | `1260` | `1008..1343` |
 
-LASAL 공식 도움말의 SRAM retain 계약에 따라 SetPosition store는 `VAR_GLOBAL RETAIN`으로
-선언하고 PLC target의 `Autoexec.lsl`에는 전체 retained allocation 이상인
-`SET SRAMRETAIN`을 별도로 설정해야 한다. 둘 중 하나만 적용해서는 retained store가 아니다.
-SetPosition 전용 사용량은 1344 bytes다. 다른 retained consumer와 SRAM을 공유하면 그
-사용량에 1344 bytes를 더한 전체 allocation을 `SET SRAMRETAIN`이 수용해야 한다. 설정이
-없거나 실제 예약 영역이 전체 allocation보다 작거나 겹치면 store는 unavailable이며,
-store-aware handler는
-`SetPositionOutcomeStorageUnavailable/detail 24`를 반환하고 retained write와 native call을
-모두 0회로 유지해야 한다. 2026-08-18 현재 tracked project에는 LASAL EasyCase import로
-`g_LMCSetPositionStoreWords : ARRAY [0..335] OF UDINT`인 1344-byte
-`VAR_GLOBAL RETAIN` declaration과 `LMCSetPositionStore` class가 생성되어 있으며,
+LASAL CLASS 2 공식 도움말의 `Ram Image` topic은 `VAR_GLOBAL RETAIN`이 별도 SRAM 영역을
+사용하며 `SET SRAMRETAIN <size>` 설정이 필수라고 명시한다. 즉 선언을 유지하면서 PLC별
+설정만 없애는 방법은 없다. 2026-08-20 current source는
+`g_LMCSetPositionStoreWords : ARRAY [0..335] OF UDINT`를 ordinary `VAR_GLOBAL`로 바꿔
+이 배포 의존성을 제거했다. 1344-byte axis-major ABI와 source algorithm은 유지되지만 한
+application run 안의 volatile storage일 뿐 durable store가 아니다.
+
+향후 durability는 `System > Memory > RamEx` 도움말의 project-deployed file-backed
+`RamEx` object와 `UseFile=1` InitValue를 기반으로 별도 재설계한다. startup load/readiness,
+`SetData`/`SetDataAt` 또는 pointer 변경 뒤 `UpdateToFile`, completion barrier, CRC/marker ordering,
+torn-write와 cold power-cycle proof가 모두 필요하다. legacy `RamFile`은 tracked vendor revision
+1.9가 `_old` 이동과 `RamEx UseFile=1` 사용을 지시하므로 채택하지 않는다. 하나당 4-byte이고
+비동기 file write/flash wear 제약이 있는 `Retentive=File` server 여러 개도 multi-record
+transaction ordering을 증명하지 못하므로 이 journal의 대안으로 채택하지 않는다.
+
+tracked project에는 `LMCSetPositionStore` class,
 `LMCSetPositionStore1` object와
 `LMCControlCommandService1.SetPositionStore -> LMCSetPositionStore1.ClassSvr` connection도
 tracked Comm_Network에 저장돼 있다. external `_CheckSum` object
@@ -370,15 +384,23 @@ DINT 전체 범위의 jump를 검사한다. 현재 ordinary ownership은 `FALSE`
 `0`이므로 이 source slice도 fail-closed다. 따라서 현재 상태는 선언 또는 parser 골격 단계를
 지났지만 native mutation을 활성화하지 않는다.
 
-2026-08-19 current verified working-tree checkpoint의 RT preflight source SHA-256은
+2026-08-19 historical verified working-tree checkpoint의 RT preflight source SHA-256은
 `F7DC9857DB528D73481831D3D1F9DA3A63420DF653A2146C6E30397337855FA1`, semantic
 SHA-256은 `A5BDF88EFA2C1942B1CFF7AA7BAF512A2B5ECF3BFE852BFC33F68449258DB508`이다.
 focused RT preflight verifier는 `95/95 PASS`이고 negative fixture를 모두 거부했다.
 C78/ARM Rebuild All은 `Linker Done`, `0 errors / 79 compiler warnings`, rebuild 시작 이후
 새 `CInvalidArgException=0`으로 끝났다. 생성된 `Class/Classes.lcb`는 `8,600,084` bytes,
 SHA-256 `CC5B7FD831616551117DB8260257362069DB51880C53250DBF3CEC35458A48E4`다.
-이 증거는 source/IDE compile/link까지만 증명한다. 실제 PLC target의 `Autoexec.lsl`과 다른
-retained consumer를 포함한 전체 `SET SRAMRETAIN` allocation은 아직 확인되지 않았고,
+이 증거는 당시 source/IDE compile/link까지만 증명한다. 2026-08-20 11:34 volatile backing
+historical Rebuild도 `0 errors / 79 compiler warnings`, `Linker Done`, 새
+`CInvalidArgException=0`으로 끝났고 `Classes.lcb=8,610,206/33C1C2A6...0B649A8`, project
+`.lcb=634,865/FE640A06...193A0E`다. UDP self-test `336/336`, current artifact 검증과 main
+SourceOnly exit `0`도 당시 PASS했다. 이후 13:06 Rebuild는 같은 byte count의 `Classes.lcb`를
+`568FE551...E3CAC5A7`로 다시 생성했고, 이 artifact로 PLC link/download,
+`SystemInit: OK`, `Project successfully loaded`까지 확인했다. current UDP/full SourceOnly는
+이 identity drift에서 STOP한다. 뒤이은 disconnect는 IDE 종료의
+`go offline`이었으며 PLC fault가 아니다. fresh PLC system log와 hardware E2E는 아직 없다.
+current source의 backing은 volatile이고
 `LMC_ADMIN_SET_POSITION_STORE_CONFIGURED`는 `FALSE`다. 따라서 Store method가 runtime에
 호출되지 않고 capability bit 3/5/7은 모두 OFF이며, 유효한 `0x7D12/0x7D14/0x7D1A`도
 detail 24로 끝난다. 이 Admin SetPosition 경로의 native `_LMCAxis.SetPosition()` source
@@ -473,6 +495,9 @@ failure leaves the durable Armed record intact and the Control service applies t
 no-response policy. A restart loses only volatile transaction state, so an Armed record without a
 terminal remains Indeterminate and cannot be replayed.
 
+This restart behavior is a future durable-store contract. With the current ordinary `VAR_GLOBAL`
+backing, restart persistence of the Armed record itself is not available.
+
 The reference model and static verifier must exercise the four public stages separately, not only
 through one combined Start helper. Required negative coverage includes Commit without Begin,
 key/generation mismatch, reserved terminal slot/generation drift, double Commit, transaction
@@ -485,7 +510,11 @@ While `LMC_ADMIN_SET_POSITION_STORE_CONFIGURED` is `FALSE`, the Control service 
 these methods and returns detail 24. Method implementation and object/network wiring alone do not
 enable this macro or capability bits 3/5/7.
 
-### 5.2 retained record ABI freeze
+### 5.2 future durable record ABI freeze
+
+이 절의 84-byte record, generation, marker-last와 restart recovery 규칙은 향후 RamEx-based
+durable Store가 만족해야 하는 target contract다. current ordinary `VAR_GLOBAL` backing은 byte
+layout만 재사용하며 이 절의 durability를 충족하지 않는다.
 
 네 record는 모두 같은 84-byte little-endian layout을 사용한다. 구현은 compiler-dependent
 implicit packing에 의존하지 않고 아래 offset으로 byte serialization해야 하며, build/IDE
@@ -598,7 +627,7 @@ state graph가 요구하는 record를 제외한 older tombstone 또는 supersede
 
 각 record write는 `CommitMarker=0` write/readback, bytes `0..79` write/readback 및 CRC 확인,
 마지막 `CommitMarker=0x7D12C0DE` write/readback, 최종 84-byte reread와 full validation 순서다.
-각 readback은 실제 retained SRAM bytes와 staged bytes를 비교한다. 최종 validation이 끝난
+각 readback은 future durable store bytes와 staged bytes를 비교한다. 최종 validation이 끝난
 시점만 durable commit이다. 여러 retentive scalar를 순서대로 쓰고 marker/readback을 생략한
 것은 atomic record가 아니다.
 
@@ -711,12 +740,11 @@ Armed-only/Indeterminate는 boot, query, retirement 또는 다른 intent admissi
 일반 terminal record retirement는 별도 CAS 명령으로 분리한다. Armed 또는
 Indeterminate record는 일반 retirement로 지우면 안 된다. 이 retirement와 store lifecycle은
 current Store source에 구현됐지만 runtime gate는 계속 닫혀 있다. current source에는
-IDE-generated 1344-byte `VAR_GLOBAL RETAIN` ledger, Store class/object/client/network,
-`0x7D12/0x7D14/0x7D1A` Control wiring과 full ledger implementation이 있다. 실제 retained
-store로 활성화하려면 PLC target의 실제 `Autoexec.lsl`을 먼저 확보하여 다른 retained
-소비량을 포함한 전체 `SET SRAMRETAIN` 값을 계산·배포하고, 남은 safety/native/ownership
-gate를 검증한 뒤 macro를 명시적으로 전환해야 한다. `.lcp` XML에 임의 속성을 추가하거나
-source implementation만 완료하는 방식은 이 runtime 설정을 대신하지 않는다.
+1344-byte ordinary `VAR_GLOBAL` volatile ledger, Store class/object/client/network,
+`0x7D12/0x7D14/0x7D1A` Control wiring과 full ledger implementation이 있다. 현재는 restart 뒤
+replay/query/retire를 제공하지 않는다. 실제 durable store로 활성화하려면 RamEx `UseFile=1`
+object/network와 completion/recovery 경계를 먼저 구현하고, 남은 safety/native/ownership gate
+및 cold-cycle/fault matrix를 검증한 뒤 macro를 명시적으로 전환해야 한다.
 
 2026-08-12에 retirement의 PC wire/API 계약을 `0x7D1A
 RetireAxisSetPositionOutcome`으로 고정했다. 요청 payload는 `0x7D14`의 exact recovery key
@@ -791,10 +819,9 @@ evidence-free `Resolve` API는 제거됐다. 이 사실은 journal core의 안�
 - TCP consumer는 exact `0x7D12`+sentinel에서만 first-wins closed-session capture, callback disarm,
   session epoch roll, ingress/RPC fence, socket close를 수행하고 response write/`SendData`는 0회
 - invalid length/schema/flags/request/reference/token이 mutation 0회
-- retained runtime activation 시 existing `VAR_GLOBAL RETAIN` declaration과 PLC `Autoexec.lsl`의 전체
-  allocation 기준 `SET SRAMRETAIN >= other retained consumers + 1344`, SetPosition 전용
-  1344-byte 영역 확인
-- `SET SRAMRETAIN` unset/부족/overlap에서 detail 24, retained write/native call 0회
+- current ordinary `VAR_GLOBAL` backing에서 restart durability/replay/query/retire claim 0
+- future RamEx `UseFile=1` object/network/InitValue와 exact 1344-byte load/store boundary 확인
+- file operation incomplete/storage full/corrupt/restart에서 detail 24, durable write/native call 0회
 - axis-major `axisBase=(AxisReference-1)*336`, axis별 84-byte Intent + terminal/tombstone A/B/C
   exact offset과 총 1344-byte 경계
 - all-zero Blank, marker-zero Incomplete, committed Valid, Corrupt 분류와 boot 자동 clear 0회
@@ -848,14 +875,13 @@ evidence-free `Resolve` API는 제거됐다. 이 사실은 journal core의 안�
 
 ### 6.3 IDE/PLC 활성화 전후
 
-2026-08-19 current verified Rebuild All은 RT preflight source를 포함해 `Linker Done`,
+2026-08-19 historical verified Rebuild All은 RT preflight source를 포함해 `Linker Done`,
 `0 errors / 79 warnings`, ERROR-level 0, 신규 `CInvalidArgException` 0으로 완료됐다. 이 결과는 activation
 build/download가 아니며 PLC runtime도 증명하지 않는다. 활성화는 다음 증거가 모두 있어야 한다.
 
 - macro/config 전환 뒤 LASAL Reload/Rebuild/Link 성공
-- SetPosition store가 `VAR_GLOBAL RETAIN`으로 선언되고 PLC target `Autoexec.lsl`의
-  `SET SRAMRETAIN` allocation이 다른 retained consumer를 포함해 SetPosition 전용
-  1344-byte 영역을 실제로 수용한다는 memory map 증거
+- RamEx `UseFile=1` object/network/InitValue가 project download로 배포되고 1344-byte buffer의
+  startup load, completion barrier, torn-write와 cold power-cycle을 통과했다는 증거
 - Object Network Server/Client `Find in Implementation` smoke
 - 변경 function/method는 `Edit Method` 또는 `Enter`로 exact Implementation header 직접 open
 - smoke 시작 이후 `%TEMP%\Lasal2.log` 신규 `CInvalidArgException` 없음

@@ -323,6 +323,33 @@ namespace LasalMotionControlLib
             AddAdmin(entries, LMCAdminDetailCode.AxisOwnershipQuarantined,
                 "The selected axis ownership record is quarantined after an indeterminate operation.",
                 "Resolve the exact retained operation outcome and clear the quarantine through the documented recovery path.");
+            AddAdmin(entries, LMCAdminDetailCode.SetOperationModeUnsupportedMode,
+                "The requested DS402 operation mode is outside the activated SetOperationMode allowlist.",
+                "Use CSP mode 8 only; other modes require separate PDO, controller, and hardware qualification.");
+            AddAdmin(entries, LMCAdminDetailCode.SetOperationModeUnsafeState,
+                "The axis is moving, faulted, or owned by an incompatible mutation, so its operation mode cannot be changed safely.",
+                "Stop and make the axis safe, resolve active mutation ownership, then prepare a new intent.");
+            AddAdmin(entries, LMCAdminDetailCode.SetOperationModeOutcomeNotFound,
+                "No exact retained SetOperationMode outcome was found.",
+                "Keep recovery unresolved; absence is not proof that the mode write was not dispatched.");
+            AddAdmin(entries, LMCAdminDetailCode.SetOperationModeOutcomeIndeterminate,
+                "The retained SetOperationMode outcome is indeterminate or quarantined.",
+                "Do not replay the write; use read-only 0x6061 evidence and the operator recovery procedure.");
+            AddAdmin(entries, LMCAdminDetailCode.SetOperationModeOutcomeStoreCorrupt,
+                "The retained SetOperationMode outcome store failed its integrity checks.",
+                "Keep recovery unresolved and service the outcome store before another mode mutation.");
+            AddAdmin(entries, LMCAdminDetailCode.SetOperationModeOutcomeKeyMismatch,
+                "The retained SetOperationMode record does not exactly match the requested recovery key.",
+                "Verify every persisted identity, axis, mode, timeout, and flag field without replaying Start.");
+            AddAdmin(entries, LMCAdminDetailCode.SetOperationModeOutcomeStorageUnavailable,
+                "The SetOperationMode retained outcome storage is unavailable.",
+                "Do not submit SetOperationMode until storage is healthy and the complete capability triad is advertised.");
+            AddAdmin(entries, LMCAdminDetailCode.SetOperationModeExecutionFailed,
+                "The accepted SetOperationMode operation failed during the bounded 0x6061/0x6060/0x6061 lifecycle.",
+                "Inspect the retained evidence flags, observed mode, status word, and quarantine reason before recovery.");
+            AddAdmin(entries, LMCAdminDetailCode.SetOperationModeOutcomeSlotOccupied,
+                "The axis already has an unretired SetOperationMode outcome.",
+                "Read and retire the exact terminal generation before preparing another mode mutation.");
 
             return entries;
         }

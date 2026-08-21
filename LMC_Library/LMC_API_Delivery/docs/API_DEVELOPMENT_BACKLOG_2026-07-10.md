@@ -1,5 +1,9 @@
 # LASAL Motion Control Lib API Development Backlog
 
+> **Historical backlog:** current 구현률, blocker와 우선순위는
+> [API 개발 진척도](../../../docs/api/API_DEVELOPMENT_PROGRESS.md)에서만 관리한다. 이 파일은
+> 기존 requirement/audit 근거를 보존하며 current 진행 상태를 소유하지 않는다.
+
 Date: 2026-07-10
 
 Latest update: 2026-08-12

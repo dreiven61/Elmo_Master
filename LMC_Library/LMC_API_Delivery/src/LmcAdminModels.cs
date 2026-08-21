@@ -13,7 +13,10 @@ namespace LasalMotionControlLib
         AxisHome = 1u << 4,
         AxisSetPositionOutcomeRead = 1u << 5,
         AxisDs402Home = 1u << 6,
-        AxisSetPositionOutcomeRetirement = 1u << 7
+        AxisSetPositionOutcomeRetirement = 1u << 7,
+        AxisSetOperationModeStart = 1u << 8,
+        AxisSetOperationModeOutcomeRead = 1u << 9,
+        AxisSetOperationModeOutcomeRetire = 1u << 10
     }
 
     public enum LMCAxisParameterKey : ushort
@@ -101,7 +104,16 @@ namespace LasalMotionControlLib
         LmcHomeAborted = 39,
         LmcHomeOutcomeSlotOccupied = 40,
         AxisOwnershipConflict = 41,
-        AxisOwnershipQuarantined = 42
+        AxisOwnershipQuarantined = 42,
+        SetOperationModeUnsupportedMode = 43,
+        SetOperationModeUnsafeState = 44,
+        SetOperationModeOutcomeNotFound = 45,
+        SetOperationModeOutcomeIndeterminate = 46,
+        SetOperationModeOutcomeStoreCorrupt = 47,
+        SetOperationModeOutcomeKeyMismatch = 48,
+        SetOperationModeOutcomeStorageUnavailable = 49,
+        SetOperationModeExecutionFailed = 50,
+        SetOperationModeOutcomeSlotOccupied = 51
     }
 
     public sealed class LMCAdminResponse

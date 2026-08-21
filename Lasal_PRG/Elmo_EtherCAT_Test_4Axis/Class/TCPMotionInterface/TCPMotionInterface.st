@@ -224,6 +224,14 @@ TCPMotionInterface : CLASS
 		END_VAR;
 	
 	FUNCTION PublishD5TerminalWake;
+	
+	FUNCTION HandleAdminSetPositionPending
+		VAR_INPUT
+			Phase 	: UINT;
+		END_VAR
+		VAR_OUTPUT
+			Result 	: DINT;
+		END_VAR;
   //Tables:
 	FUNCTION @STD
 		VAR_OUTPUT
@@ -329,6 +337,29 @@ END_FUNCTION
 #define LMC_OWNER_ADAPTER_ERROR_CONFLICT -9
 #define LMC_OWNER_SAFETY_DRAIN_PENDING -10
 #define LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE -12
+#define LMC_ADMIN_SET_POSITION_PENDING -13
+#define LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE -14
+#define LMC_ADMIN_SET_POSITION_PENDING_MAGIC 0x5350504E
+#define LMC_ADMIN_SET_POSITION_PENDING_MAGIC_OFFSET 1152
+#define LMC_ADMIN_SET_POSITION_PENDING_SESSION_OFFSET 1156
+#define LMC_ADMIN_SET_POSITION_PENDING_SEQUENCE_OFFSET 1160
+#define LMC_ADMIN_SET_POSITION_PENDING_SOCKET_OFFSET 1164
+#define LMC_ADMIN_SET_POSITION_PENDING_COMMAND_OFFSET 1168
+#define LMC_ADMIN_SET_POSITION_PENDING_REFERENCE_OFFSET 1170
+#define LMC_ADMIN_SET_POSITION_PENDING_LENGTH_OFFSET 1172
+#define LMC_ADMIN_SET_POSITION_PENDING_CHECK_OFFSET 1176
+#define LMC_ADMIN_SET_POSITION_PENDING_MAGIC_COPY_OFFSET 1180
+#define LMC_ADMIN_SET_POSITION_PENDING_SESSION_COPY_OFFSET 1184
+#define LMC_ADMIN_SET_POSITION_PENDING_SEQUENCE_COPY_OFFSET 1188
+#define LMC_ADMIN_SET_POSITION_PENDING_SOCKET_COPY_OFFSET 1192
+#define LMC_ADMIN_SET_POSITION_PENDING_COMMAND_COPY_OFFSET 1196
+#define LMC_ADMIN_SET_POSITION_PENDING_REFERENCE_COPY_OFFSET 1198
+#define LMC_ADMIN_SET_POSITION_PENDING_LENGTH_COPY_OFFSET 1200
+#define LMC_ADMIN_SET_POSITION_PENDING_CHECK_COPY_OFFSET 1204
+#define LMC_ADMIN_SET_POSITION_PENDING_PHASE_PREPARE 1
+#define LMC_ADMIN_SET_POSITION_PENDING_PHASE_RETAIN 2
+#define LMC_ADMIN_SET_POSITION_PENDING_PHASE_TERMINAL 3
+#define LMC_ADMIN_SET_POSITION_PENDING_PHASE_QUARANTINE 4
 #define LMC_OWNER_SAFETY_PHASE_PREPARE 1
 #define LMC_OWNER_SAFETY_PHASE_RETAIN 2
 #define LMC_OWNER_SAFETY_PHASE_TERMINAL 3
@@ -372,6 +403,9 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::CyWork
 		cleanupPrimaryValid : BOOL;
 		cleanupCopyValid : BOOL;
 		cleanupPendingActive : BOOL;
+		setPositionPendingTailIndex : DINT;
+		setPositionPendingTailPresent : BOOL;
+		setPositionCallbackDisarmResult : DINT;
 	END_VAR
 
   if ActiveRequest.Reserved = 2 then
@@ -530,6 +564,31 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::CyWork
 
   currentEpoch := SessionEpoch;
 
+  setPositionPendingTailPresent := FALSE;
+  if (ActiveRequest.CommandId = 0x7D12) &
+     (ActiveRequest.PayloadLength = 48) &
+     ((ActiveRequest.PayloadData[
+        LMC_ADMIN_SET_POSITION_PENDING_MAGIC_OFFSET]$UDINT =
+       LMC_ADMIN_SET_POSITION_PENDING_MAGIC) |
+      (ActiveRequest.PayloadData[
+        LMC_ADMIN_SET_POSITION_PENDING_MAGIC_COPY_OFFSET]$UDINT =
+       LMC_ADMIN_SET_POSITION_PENDING_MAGIC)) then
+    setPositionPendingTailPresent := TRUE;
+  elsif (ActiveRequestValid = TRUE) &
+        (ActiveRequest.CommandId = 0x7D12) &
+        (ActiveRequest.PayloadLength = 48) then
+    setPositionPendingTailIndex :=
+      LMC_ADMIN_SET_POSITION_PENDING_MAGIC_OFFSET;
+    while setPositionPendingTailIndex <=
+          LMC_ADMIN_SET_POSITION_PENDING_CHECK_COPY_OFFSET do
+      if ActiveRequest.PayloadData[
+           setPositionPendingTailIndex]$UDINT <> 0 then
+        setPositionPendingTailPresent := TRUE;
+      end_if;
+      setPositionPendingTailIndex += 4;
+    end_while;
+  end_if;
+
   // Retained owner and Home watchdogs continue across TCP session loss.
   if IsClientConnected(#ControlCommands) then
     ControlCommands.ProcessAxisZeroHome();
@@ -554,7 +613,82 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::CyWork
   if (PendingClosedSessionEpoch = 0) &
      (ActiveRequestValid = TRUE) &
      (ActiveRequest.SessionEpoch <> currentEpoch) then
-    ActiveRequestValid := FALSE;
+    if setPositionPendingTailPresent then
+      cleanupPrimaryValid :=
+        (ActiveRequest.PayloadData[
+          LMC_ADMIN_SET_POSITION_PENDING_MAGIC_OFFSET]$UDINT =
+         LMC_ADMIN_SET_POSITION_PENDING_MAGIC) &
+        (ActiveRequest.PayloadData[
+          LMC_ADMIN_SET_POSITION_PENDING_CHECK_OFFSET]$UDINT =
+         (LMC_ADMIN_SET_POSITION_PENDING_MAGIC xor
+          ActiveRequest.PayloadData[
+            LMC_ADMIN_SET_POSITION_PENDING_SESSION_OFFSET]$UDINT xor
+          ActiveRequest.PayloadData[
+            LMC_ADMIN_SET_POSITION_PENDING_SEQUENCE_OFFSET]$UDINT xor
+          ActiveRequest.PayloadData[
+            LMC_ADMIN_SET_POSITION_PENDING_SOCKET_OFFSET]$UDINT xor
+          ActiveRequest.PayloadData[
+            LMC_ADMIN_SET_POSITION_PENDING_COMMAND_OFFSET]$UDINT xor
+          ActiveRequest.PayloadData[
+            LMC_ADMIN_SET_POSITION_PENDING_LENGTH_OFFSET]$UDINT));
+      cleanupCopyValid :=
+        (ActiveRequest.PayloadData[
+          LMC_ADMIN_SET_POSITION_PENDING_MAGIC_COPY_OFFSET]$UDINT =
+         LMC_ADMIN_SET_POSITION_PENDING_MAGIC) &
+        (ActiveRequest.PayloadData[
+          LMC_ADMIN_SET_POSITION_PENDING_CHECK_COPY_OFFSET]$UDINT =
+         (LMC_ADMIN_SET_POSITION_PENDING_MAGIC xor
+          ActiveRequest.PayloadData[
+            LMC_ADMIN_SET_POSITION_PENDING_SESSION_COPY_OFFSET]$UDINT xor
+          ActiveRequest.PayloadData[
+            LMC_ADMIN_SET_POSITION_PENDING_SEQUENCE_COPY_OFFSET]$UDINT xor
+          ActiveRequest.PayloadData[
+            LMC_ADMIN_SET_POSITION_PENDING_SOCKET_COPY_OFFSET]$UDINT xor
+          ActiveRequest.PayloadData[
+            LMC_ADMIN_SET_POSITION_PENDING_COMMAND_COPY_OFFSET]$UDINT xor
+          ActiveRequest.PayloadData[
+            LMC_ADMIN_SET_POSITION_PENDING_LENGTH_COPY_OFFSET]$UDINT));
+      cleanupSessionEpoch := ActiveRequest.SessionEpoch;
+      if cleanupPrimaryValid & cleanupCopyValid &
+         (ActiveRequest.PayloadData[
+           LMC_ADMIN_SET_POSITION_PENDING_SESSION_OFFSET]$UDINT <>
+          0) &
+         (ActiveRequest.PayloadData[
+           LMC_ADMIN_SET_POSITION_PENDING_SESSION_OFFSET]$UDINT =
+          ActiveRequest.PayloadData[
+           LMC_ADMIN_SET_POSITION_PENDING_SESSION_COPY_OFFSET]$UDINT) then
+        cleanupSessionEpoch := ActiveRequest.PayloadData[
+          LMC_ADMIN_SET_POSITION_PENDING_SESSION_OFFSET]$UDINT;
+      end_if;
+      if cleanupSessionEpoch = 0 then
+        cleanupSessionEpoch := currentEpoch;
+      end_if;
+      PendingClosedSessionEpoch := cleanupSessionEpoch;
+      setPositionCallbackDisarmResult := DisarmRpcCallbackEndpoint();
+      IngressBlocked := TRUE;
+      IngressFaultPending := FALSE;
+      IngressFaultCloseRequired := TRUE;
+      RpcSocket := 0;
+      RpcInitialized := FALSE;
+      publishFailureCloseSocket := ActiveRequest.Socket;
+      if publishFailureCloseSocket <> 0 then
+        LastOwnerDisconnectRequestRet :=
+          _TCPIPServerInterface::SetSocketParameter(
+            dSock:=publishFailureCloseSocket,
+            Cmd:=100,
+            SubCmd:=0,
+            ParaValue:=0
+          );
+      end_if;
+      _memset(
+        dest:=#ActiveRequest.PayloadData[
+         LMC_ADMIN_SET_POSITION_PENDING_MAGIC_OFFSET],
+        usByte:=0,
+        cntr:=56);
+      ActiveRequestValid := FALSE;
+    else
+      ActiveRequestValid := FALSE;
+    end_if;
   end_if;
 
   // The queue has one cyclic owner, so enum states use direct transitions.
@@ -594,7 +728,15 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::CyWork
 	  // waiting for the RT LOW/readback drain. MsgPaser clears it on terminal.
       MsgPaser();
     end_if;
-	if ActiveRequest.Reserved = 0 then
+	if (ActiveRequest.Reserved = 0) &
+	   (((ActiveRequest.CommandId <> 0x7D12) |
+	     (ActiveRequest.PayloadLength <> 48)) |
+	    ((ActiveRequest.PayloadData[
+	      LMC_ADMIN_SET_POSITION_PENDING_MAGIC_OFFSET]$UDINT <>
+	     LMC_ADMIN_SET_POSITION_PENDING_MAGIC) &
+	     (ActiveRequest.PayloadData[
+	      LMC_ADMIN_SET_POSITION_PENDING_MAGIC_COPY_OFFSET]$UDINT <>
+	     LMC_ADMIN_SET_POSITION_PENDING_MAGIC))) then
 	  ActiveRequestValid := FALSE;
 	end_if;
   end_if;
@@ -652,6 +794,8 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::ConnSocketInfo
 		takeover 	: BOOL;
 		candidatePeerValid 	: BOOL;
 		preservePendingActive : BOOL;
+		setPositionPendingTailIndex : DINT;
+		setPositionPendingTailPresent : BOOL;
 		candidatePeerIPv4 	: UDINT;
 		activePeerIPv4 	: UDINT;
 		callbackDisarmResult : DINT;
@@ -785,8 +929,30 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::ConnSocketInfo
         _memset(dest:=#RequestQueue[0], usByte:=0, cntr:=sizeof(RequestQueue));
         QueueWriteIndex := 0;
         QueueReadIndex := 0;
-        // Preserve only an authenticated safety-drain continuation long enough
-        // for CyWork to roll its exact RESERVED tuple back before close notify.
+        setPositionPendingTailPresent := FALSE;
+        if (ActiveRequest.CommandId = 0x7D12) &
+           (ActiveRequest.PayloadLength = 48) then
+          if (ActiveRequest.PayloadData[
+              LMC_ADMIN_SET_POSITION_PENDING_MAGIC_OFFSET]$UDINT =
+              LMC_ADMIN_SET_POSITION_PENDING_MAGIC) |
+             (ActiveRequest.PayloadData[
+              LMC_ADMIN_SET_POSITION_PENDING_MAGIC_COPY_OFFSET]$UDINT =
+              LMC_ADMIN_SET_POSITION_PENDING_MAGIC) then
+            setPositionPendingTailPresent := TRUE;
+          else
+            setPositionPendingTailIndex :=
+              LMC_ADMIN_SET_POSITION_PENDING_MAGIC_OFFSET;
+            while setPositionPendingTailIndex <=
+                  LMC_ADMIN_SET_POSITION_PENDING_CHECK_COPY_OFFSET do
+              if ActiveRequest.PayloadData[
+                 setPositionPendingTailIndex]$UDINT <> 0 then
+                setPositionPendingTailPresent := TRUE;
+              end_if;
+              setPositionPendingTailIndex += 4;
+            end_while;
+          end_if;
+        end_if;
+        // Preserve authenticated safety or SetPosition close evidence.
         preservePendingActive :=
           (ActiveRequest.Reserved = 1) |
           ((ActiveRequest.PayloadData[
@@ -801,7 +967,10 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::ConnSocketInfo
             ((ActiveRequest.CommandId = 0x204B) &
              (ActiveRequest.PayloadLength = 1)) |
             ((ActiveRequest.CommandId = 0x2085) &
-             (ActiveRequest.PayloadLength = 16))));
+             (ActiveRequest.PayloadLength = 16)))) |
+          ((ActiveRequest.CommandId = 0x7D12) &
+           (ActiveRequest.PayloadLength = 48) &
+           setPositionPendingTailPresent);
         if preservePendingActive = FALSE then
           _memset(dest:=#ActiveRequest, usByte:=0, cntr:=sizeof(ActiveRequest));
         end_if;
@@ -1694,6 +1863,316 @@ FUNCTION TCPMotionInterface::HandleControlSafetyDrainPending
 END_FUNCTION
 
 
+FUNCTION TCPMotionInterface::HandleAdminSetPositionPending
+	VAR_INPUT
+		Phase 	: UINT;
+	END_VAR
+	VAR_OUTPUT
+		Result 	: DINT;
+	END_VAR
+	VAR
+		pendingTailIndex : DINT;
+		pendingTailPresent : BOOL;
+		pendingPrimaryValid : BOOL;
+		pendingCopyValid : BOOL;
+		pendingContextValid : BOOL;
+		pendingCloseRequired : BOOL;
+		pendingCheck : UDINT;
+		pendingCloseSession : UDINT;
+		pendingCloseSocket : DINT;
+		pendingCallbackDisarmResult : DINT;
+	END_VAR
+
+	Result := -1;
+	pendingTailPresent := FALSE;
+	pendingPrimaryValid := FALSE;
+	pendingCopyValid := FALSE;
+	pendingContextValid := FALSE;
+	pendingCloseRequired := FALSE;
+	pendingCheck := 0;
+	pendingCloseSession := 0;
+	pendingCloseSocket := 0;
+
+	if (ActiveRequest.CommandId = 0x7D12) &
+	   (ActiveRequest.PayloadLength = 48) &
+	   ((ActiveRequest.PayloadData[
+	      LMC_ADMIN_SET_POSITION_PENDING_MAGIC_OFFSET]$UDINT =
+	     LMC_ADMIN_SET_POSITION_PENDING_MAGIC) |
+	    (ActiveRequest.PayloadData[
+	      LMC_ADMIN_SET_POSITION_PENDING_MAGIC_COPY_OFFSET]$UDINT =
+	     LMC_ADMIN_SET_POSITION_PENDING_MAGIC)) then
+		pendingTailPresent := TRUE;
+	elsif (CommandID = 0x7D12) & (Payload = 48) then
+		pendingTailIndex := LMC_ADMIN_SET_POSITION_PENDING_MAGIC_OFFSET;
+		while pendingTailIndex <=
+		      LMC_ADMIN_SET_POSITION_PENDING_CHECK_COPY_OFFSET do
+			if ActiveRequest.PayloadData[pendingTailIndex]$UDINT <> 0 then
+				pendingTailPresent := TRUE;
+			end_if;
+			pendingTailIndex += 4;
+		end_while;
+	end_if;
+
+	if pendingTailPresent then
+		pendingCheck := LMC_ADMIN_SET_POSITION_PENDING_MAGIC xor
+			ActiveRequest.PayloadData[
+			 LMC_ADMIN_SET_POSITION_PENDING_SESSION_OFFSET]$UDINT xor
+			ActiveRequest.PayloadData[
+			 LMC_ADMIN_SET_POSITION_PENDING_SEQUENCE_OFFSET]$UDINT xor
+			ActiveRequest.PayloadData[
+			 LMC_ADMIN_SET_POSITION_PENDING_SOCKET_OFFSET]$UDINT xor
+			ActiveRequest.PayloadData[
+			 LMC_ADMIN_SET_POSITION_PENDING_COMMAND_OFFSET]$UDINT xor
+			ActiveRequest.PayloadData[
+			 LMC_ADMIN_SET_POSITION_PENDING_LENGTH_OFFSET]$UDINT;
+		pendingPrimaryValid :=
+			(ActiveRequest.PayloadData[
+			 LMC_ADMIN_SET_POSITION_PENDING_MAGIC_OFFSET]$UDINT =
+			 LMC_ADMIN_SET_POSITION_PENDING_MAGIC) &
+			(ActiveRequest.PayloadData[
+			 LMC_ADMIN_SET_POSITION_PENDING_CHECK_OFFSET]$UDINT =
+			 pendingCheck);
+		pendingCheck := LMC_ADMIN_SET_POSITION_PENDING_MAGIC xor
+			ActiveRequest.PayloadData[
+			 LMC_ADMIN_SET_POSITION_PENDING_SESSION_COPY_OFFSET]$UDINT xor
+			ActiveRequest.PayloadData[
+			 LMC_ADMIN_SET_POSITION_PENDING_SEQUENCE_COPY_OFFSET]$UDINT xor
+			ActiveRequest.PayloadData[
+			 LMC_ADMIN_SET_POSITION_PENDING_SOCKET_COPY_OFFSET]$UDINT xor
+			ActiveRequest.PayloadData[
+			 LMC_ADMIN_SET_POSITION_PENDING_COMMAND_COPY_OFFSET]$UDINT xor
+			ActiveRequest.PayloadData[
+			 LMC_ADMIN_SET_POSITION_PENDING_LENGTH_COPY_OFFSET]$UDINT;
+		pendingCopyValid :=
+			(ActiveRequest.PayloadData[
+			 LMC_ADMIN_SET_POSITION_PENDING_MAGIC_COPY_OFFSET]$UDINT =
+			 LMC_ADMIN_SET_POSITION_PENDING_MAGIC) &
+			(ActiveRequest.PayloadData[
+			 LMC_ADMIN_SET_POSITION_PENDING_CHECK_COPY_OFFSET]$UDINT =
+			 pendingCheck);
+		pendingContextValid := pendingPrimaryValid & pendingCopyValid &
+			(ActiveRequestValid = TRUE) &
+			(ActiveRequest.State = TCPMI_QUEUE_ACTIVE) &
+			(ActiveRequest.Reserved = 0) &
+			(ActiveRequest.CommandId = 0x7D12) &
+			(ActiveRequest.PayloadLength = 48) &
+			(ActiveRequest.Reference >= 1) &
+			(ActiveRequest.Reference <= 4) &
+			(ActiveRequest.SessionEpoch <> 0) &
+			(ActiveRequest.Sequence <> 0) &
+			(ActiveRequest.Socket <> 0) &
+			(ActiveRequest.CommandId = CommandID$UINT) &
+			(ActiveRequest.Reference = AxisRef$UINT) &
+			(ActiveRequest.PayloadLength = Payload$UINT) &
+			(ActiveRequest.Socket = CurrentSock) &
+			(ActiveRequest.SessionEpoch = SessionEpoch) &
+			(PendingClosedSessionEpoch = 0) &
+			(RequestBuf[0]$UINT = ActiveRequest.CommandId) &
+			(RequestBuf[4]$UINT = ActiveRequest.PayloadLength) &
+			(RequestBuf[6]$UINT = ActiveRequest.Reference) &
+			(ActiveRequest.PayloadData[
+			 LMC_ADMIN_SET_POSITION_PENDING_SESSION_OFFSET]$UDINT =
+			 ActiveRequest.SessionEpoch) &
+			(ActiveRequest.PayloadData[
+			 LMC_ADMIN_SET_POSITION_PENDING_SEQUENCE_OFFSET]$UDINT =
+			 ActiveRequest.Sequence) &
+			(ActiveRequest.PayloadData[
+			 LMC_ADMIN_SET_POSITION_PENDING_SOCKET_OFFSET]$DINT =
+			 ActiveRequest.Socket) &
+			(ActiveRequest.PayloadData[
+			 LMC_ADMIN_SET_POSITION_PENDING_COMMAND_OFFSET]$UINT =
+			 ActiveRequest.CommandId) &
+			(ActiveRequest.PayloadData[
+			 LMC_ADMIN_SET_POSITION_PENDING_REFERENCE_OFFSET]$UINT =
+			 ActiveRequest.Reference) &
+			(ActiveRequest.PayloadData[
+			 LMC_ADMIN_SET_POSITION_PENDING_LENGTH_OFFSET]$UDINT = 48) &
+			(ActiveRequest.PayloadData[
+			 LMC_ADMIN_SET_POSITION_PENDING_SESSION_COPY_OFFSET]$UDINT =
+			 ActiveRequest.SessionEpoch) &
+			(ActiveRequest.PayloadData[
+			 LMC_ADMIN_SET_POSITION_PENDING_SEQUENCE_COPY_OFFSET]$UDINT =
+			 ActiveRequest.Sequence) &
+			(ActiveRequest.PayloadData[
+			 LMC_ADMIN_SET_POSITION_PENDING_SOCKET_COPY_OFFSET]$DINT =
+			 ActiveRequest.Socket) &
+			(ActiveRequest.PayloadData[
+			 LMC_ADMIN_SET_POSITION_PENDING_COMMAND_COPY_OFFSET]$UINT =
+			 ActiveRequest.CommandId) &
+			(ActiveRequest.PayloadData[
+			 LMC_ADMIN_SET_POSITION_PENDING_REFERENCE_COPY_OFFSET]$UINT =
+			 ActiveRequest.Reference) &
+			(ActiveRequest.PayloadData[
+			 LMC_ADMIN_SET_POSITION_PENDING_LENGTH_COPY_OFFSET]$UDINT = 48);
+		pendingContextValid := pendingContextValid &
+			(RpcInitialized = TRUE) &
+			(RpcCallbackRegistered = TRUE) &
+			(RpcSocket = CurrentSock) &
+			(IsClientConnected(#ControlCommands) = 1);
+	end_if;
+
+	case Phase of
+		LMC_ADMIN_SET_POSITION_PENDING_PHASE_PREPARE:
+			if pendingTailPresent = FALSE then
+				Result := 0;
+			elsif pendingContextValid then
+				Result := 1;
+			else
+				pendingCloseRequired := TRUE;
+			end_if;
+
+		LMC_ADMIN_SET_POSITION_PENDING_PHASE_RETAIN:
+			if pendingTailPresent then
+				if pendingContextValid &
+				   (RpcInitialized = TRUE) &
+				   (RpcCallbackRegistered = TRUE) &
+				   (RpcSocket = CurrentSock) then
+					Result := 1;
+				else
+					pendingCloseRequired := TRUE;
+				end_if;
+			else
+				pendingContextValid :=
+					(ActiveRequestValid = TRUE) &
+					(ActiveRequest.State = TCPMI_QUEUE_ACTIVE) &
+					(ActiveRequest.Reserved = 0) &
+					(ActiveRequest.CommandId = 0x7D12) &
+					(ActiveRequest.PayloadLength = 48) &
+					(ActiveRequest.Reference >= 1) &
+					(ActiveRequest.Reference <= 4) &
+					(ActiveRequest.SessionEpoch <> 0) &
+					(ActiveRequest.Sequence <> 0) &
+					(ActiveRequest.Socket <> 0) &
+					(ActiveRequest.SessionEpoch = SessionEpoch) &
+					(ActiveRequest.CommandId = CommandID$UINT) &
+					(ActiveRequest.Reference = AxisRef$UINT) &
+					(ActiveRequest.PayloadLength = Payload$UINT) &
+					(ActiveRequest.Socket = CurrentSock) &
+					(PendingClosedSessionEpoch = 0) &
+					(RpcInitialized = TRUE) &
+					(RpcCallbackRegistered = TRUE) &
+					(RpcSocket = CurrentSock) &
+					(RequestBuf[0]$UINT = ActiveRequest.CommandId) &
+					(RequestBuf[4]$UINT = ActiveRequest.PayloadLength) &
+					(RequestBuf[6]$UINT = ActiveRequest.Reference);
+				if pendingContextValid then
+					_memset(dest:=#ActiveRequest.PayloadData[
+					 LMC_ADMIN_SET_POSITION_PENDING_MAGIC_OFFSET],
+					 usByte:=0, cntr:=56);
+					ActiveRequest.PayloadData[
+					 LMC_ADMIN_SET_POSITION_PENDING_SESSION_OFFSET]$UDINT :=
+						ActiveRequest.SessionEpoch;
+					ActiveRequest.PayloadData[
+					 LMC_ADMIN_SET_POSITION_PENDING_SEQUENCE_OFFSET]$UDINT :=
+						ActiveRequest.Sequence;
+					ActiveRequest.PayloadData[
+					 LMC_ADMIN_SET_POSITION_PENDING_SOCKET_OFFSET]$DINT :=
+						ActiveRequest.Socket;
+					ActiveRequest.PayloadData[
+					 LMC_ADMIN_SET_POSITION_PENDING_COMMAND_OFFSET]$UINT :=
+						ActiveRequest.CommandId;
+					ActiveRequest.PayloadData[
+					 LMC_ADMIN_SET_POSITION_PENDING_REFERENCE_OFFSET]$UINT :=
+						ActiveRequest.Reference;
+					ActiveRequest.PayloadData[
+					 LMC_ADMIN_SET_POSITION_PENDING_LENGTH_OFFSET]$UDINT := 48;
+					ActiveRequest.PayloadData[
+					 LMC_ADMIN_SET_POSITION_PENDING_SESSION_COPY_OFFSET]$UDINT :=
+						ActiveRequest.SessionEpoch;
+					ActiveRequest.PayloadData[
+					 LMC_ADMIN_SET_POSITION_PENDING_SEQUENCE_COPY_OFFSET]$UDINT :=
+						ActiveRequest.Sequence;
+					ActiveRequest.PayloadData[
+					 LMC_ADMIN_SET_POSITION_PENDING_SOCKET_COPY_OFFSET]$DINT :=
+						ActiveRequest.Socket;
+					ActiveRequest.PayloadData[
+					 LMC_ADMIN_SET_POSITION_PENDING_COMMAND_COPY_OFFSET]$UINT :=
+						ActiveRequest.CommandId;
+					ActiveRequest.PayloadData[
+					 LMC_ADMIN_SET_POSITION_PENDING_REFERENCE_COPY_OFFSET]$UINT :=
+						ActiveRequest.Reference;
+					ActiveRequest.PayloadData[
+					 LMC_ADMIN_SET_POSITION_PENDING_LENGTH_COPY_OFFSET]$UDINT := 48;
+					pendingCheck := LMC_ADMIN_SET_POSITION_PENDING_MAGIC xor
+						ActiveRequest.SessionEpoch xor ActiveRequest.Sequence xor
+						TO_UDINT(ActiveRequest.Socket) xor
+						ActiveRequest.PayloadData[
+						 LMC_ADMIN_SET_POSITION_PENDING_COMMAND_OFFSET]$UDINT xor 48;
+					ActiveRequest.PayloadData[
+					 LMC_ADMIN_SET_POSITION_PENDING_CHECK_OFFSET]$UDINT :=
+						pendingCheck;
+					ActiveRequest.PayloadData[
+					 LMC_ADMIN_SET_POSITION_PENDING_CHECK_COPY_OFFSET]$UDINT :=
+						pendingCheck;
+					ActiveRequest.PayloadData[
+					 LMC_ADMIN_SET_POSITION_PENDING_MAGIC_COPY_OFFSET]$UDINT :=
+						LMC_ADMIN_SET_POSITION_PENDING_MAGIC;
+					ActiveRequest.PayloadData[
+					 LMC_ADMIN_SET_POSITION_PENDING_MAGIC_OFFSET]$UDINT :=
+						LMC_ADMIN_SET_POSITION_PENDING_MAGIC;
+					Result := 1;
+				else
+					pendingCloseRequired := TRUE;
+				end_if;
+			end_if;
+
+		LMC_ADMIN_SET_POSITION_PENDING_PHASE_TERMINAL:
+			_memset(dest:=#ActiveRequest.PayloadData[
+			 LMC_ADMIN_SET_POSITION_PENDING_MAGIC_OFFSET],
+			 usByte:=0, cntr:=56);
+			Result := 0;
+
+		LMC_ADMIN_SET_POSITION_PENDING_PHASE_QUARANTINE:
+			pendingCloseRequired := TRUE;
+	else
+		pendingCloseRequired := TRUE;
+	end_case;
+
+	if pendingCloseRequired then
+		pendingCloseSession := ActiveRequest.SessionEpoch;
+		pendingCloseSocket := ActiveRequest.Socket;
+		if pendingPrimaryValid & pendingCopyValid &
+		   (ActiveRequest.PayloadData[
+		    LMC_ADMIN_SET_POSITION_PENDING_SESSION_OFFSET]$UDINT <> 0) &
+		   (ActiveRequest.PayloadData[
+		    LMC_ADMIN_SET_POSITION_PENDING_SESSION_OFFSET]$UDINT =
+		    ActiveRequest.PayloadData[
+		    LMC_ADMIN_SET_POSITION_PENDING_SESSION_COPY_OFFSET]$UDINT) then
+			pendingCloseSession := ActiveRequest.PayloadData[
+				LMC_ADMIN_SET_POSITION_PENDING_SESSION_OFFSET]$UDINT;
+		end_if;
+		if pendingCloseSession = 0 then
+			pendingCloseSession := SessionEpoch;
+		end_if;
+		_memset(dest:=#ActiveRequest.PayloadData[
+		 LMC_ADMIN_SET_POSITION_PENDING_MAGIC_OFFSET],
+		 usByte:=0, cntr:=56);
+		if (pendingCloseSession <> 0) &
+		   (PendingClosedSessionEpoch = 0) then
+			PendingClosedSessionEpoch := pendingCloseSession;
+			pendingCallbackDisarmResult := DisarmRpcCallbackEndpoint();
+			SessionEpoch += 1;
+			if SessionEpoch = 0 then
+				SessionEpoch := 1;
+			end_if;
+		end_if;
+		IngressBlocked := TRUE;
+		IngressFaultPending := FALSE;
+		IngressFaultCloseRequired := TRUE;
+		RpcSocket := 0;
+		RpcInitialized := FALSE;
+		if pendingCloseSocket <> 0 then
+			LastOwnerDisconnectRequestRet :=
+				_TCPIPServerInterface::SetSocketParameter(
+				 dSock:=pendingCloseSocket, Cmd:=100,
+				 SubCmd:=0, ParaValue:=0);
+		end_if;
+		Result := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+	end_if;
+
+END_FUNCTION
+
+
 FUNCTION TCPMotionInterface::HandleRpcLifecycleCommands
 	VAR
 		callbackEventMask : UDINT;
@@ -1957,7 +2436,16 @@ FUNCTION TCPMotionInterface::MsgPaser
 		diagnosticsDs402PreflightAccepted : BOOL;
 		diagnosticsExactAccepted : BOOL;
 		diagnosticsExactFailure : BOOL;
+		setPositionPendingResult : DINT;
 	END_VAR
+
+// LMC_ADMIN_SET_POSITION_PENDING_GATE_BEGIN
+setPositionPendingResult := HandleAdminSetPositionPending(
+	Phase:=LMC_ADMIN_SET_POSITION_PENDING_PHASE_PREPARE);
+if setPositionPendingResult = LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE then
+	RETURN;
+end_if;
+// LMC_ADMIN_SET_POSITION_PENDING_GATE_END
 
 if (CommandID <> 0x8080) & (CommandID <> 0x405C) &
    (CommandID <> 0x405D) &
@@ -1982,6 +2470,7 @@ end_if;
 case CommandID of
 
   0x7D15, 0x7D16, 0x7D17,
+  0x7D23, 0x7D24, 0x7D25,
   0x7E00, 0x7E01, 0x7E02, 0x7E03, 0x7E04,
   0x7E10, 0x7E11, 0x7E12, 0x7E13, 0x7E20, 0x7E21, 0x7E22,
   0x7E30, 0x7E31, 0x7E32, 0x7E33,
@@ -2568,8 +3057,35 @@ case CommandID of
         CallerSessionEpoch:=ActiveRequest.SessionEpoch,
         RequestSequence:=ActiveRequest.Sequence,
         AdmissionToken:=controlAdmissionToken,
-        OwnerGeneration:=controlOwnerGeneration);
+        OwnerGeneration:=controlOwnerGeneration,
+        ResponseSocket:=ActiveRequest.Socket);
     end_if;
+
+    // LMC_ADMIN_SET_POSITION_PENDING_BEGIN
+    if (CommandID = 0x7D12) &
+       (controlResponseSize = LMC_ADMIN_SET_POSITION_PENDING) then
+      setPositionPendingResult := HandleAdminSetPositionPending(
+        Phase:=LMC_ADMIN_SET_POSITION_PENDING_PHASE_RETAIN);
+      if setPositionPendingResult = 1 then
+        ActiveRequestValid := TRUE;
+      end_if;
+      RETURN;
+    end_if;
+    if CommandID = 0x7D12 then
+      setPositionPendingResult := HandleAdminSetPositionPending(
+        Phase:=LMC_ADMIN_SET_POSITION_PENDING_PHASE_TERMINAL);
+    end_if;
+    // LMC_ADMIN_SET_POSITION_PENDING_END
+
+    // LMC_ADMIN_SET_POSITION_QUARANTINE_BEGIN
+    if (CommandID = 0x7D12) &
+       (controlResponseSize =
+        LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE) then
+      setPositionPendingResult := HandleAdminSetPositionPending(
+        Phase:=LMC_ADMIN_SET_POSITION_PENDING_PHASE_QUARANTINE);
+      RETURN;
+    end_if;
+    // LMC_ADMIN_SET_POSITION_QUARANTINE_END
 
     // LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE_BEGIN
     if (CommandID = 0x7D12) &

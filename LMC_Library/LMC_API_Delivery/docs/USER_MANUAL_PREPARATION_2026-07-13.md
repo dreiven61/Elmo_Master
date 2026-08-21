@@ -1,5 +1,9 @@
 # LASAL Motion Control Lib 사용자 매뉴얼 제작 준비서
 
+> **Historical preparation record:** current Markdown 정본은
+> [API_MANUAL.md](../../../docs/api/API_MANUAL.md), current 진척도는
+> [API_DEVELOPMENT_PROGRESS.md](../../../docs/api/API_DEVELOPMENT_PROGRESS.md)다.
+
 작성일: 2026-07-13
 
 최종 상태 갱신: 2026-07-23
@@ -19,7 +23,7 @@
 편집 원본:
 `LMC_Library/LMC_API_Distribution/03_API_User_Manual/LASAL_Motion_Control_API_User_Manual_KO.docx`
 
-초기 생성용 Markdown: `LMC_Library/LMC_API/API_USER_MANUAL_KO.md`
+Current 생성용 Markdown: `docs/api/API_MANUAL.md`
 
 최종 PDF:
 `LMC_Library/LMC_API_Distribution/03_API_User_Manual/LASAL_Motion_Control_API_User_Manual_KO.pdf`

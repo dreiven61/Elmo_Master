@@ -3,7 +3,15 @@
 이 폴더는 `LasalMotionControlLib`의 내부 설계, 패킷 근거, 소스 리뷰와 배포
 절차를 관리한다. 최종 사용자에게 전달하는 폴더가 아니다.
 
-## 현재 기준
+Current 사람용 문서는 한 곳에서 관리한다.
+
+- [API 설명서](../../docs/api/API_MANUAL.md)
+- [API 개발 진척도](../../docs/api/API_DEVELOPMENT_PROGRESS.md)
+
+아래의 시험 수치와 release candidate 설명은 기존 배포 baseline을 재현하기 위한 역사 기록이다.
+current 구현률, 시험 결과와 artifact identity를 판단할 때 사용하지 않는다.
+
+## Historical 2.3-candidate 기준
 
 - API 버전: `0.9.1-preview`
 - 대상: .NET Framework 4.8
@@ -213,7 +221,9 @@ WPF source set부터 다시 검증하는 조건은 그대로다.
   Pandoc HTML 재생성용 print style
 - [API_SOURCE_REVIEW_2026-07-15.md](API_SOURCE_REVIEW_2026-07-15.md): 이번
   배포 준비 전 소스/문서/바이너리 리뷰 결과
-- [API_USER_MANUAL_KO.md](API_USER_MANUAL_KO.md): 사용자 매뉴얼 초기 초안용 Markdown
+- [API_MANUAL.md](../../docs/api/API_MANUAL.md): current 사용자 매뉴얼 Markdown 정본
+- [API_DEVELOPMENT_PROGRESS.md](../../docs/api/API_DEVELOPMENT_PROGRESS.md): current 진척도 정본
+- [API_USER_MANUAL_KO.md](API_USER_MANUAL_KO.md): legacy 경로 이동 안내
 - `Build-LmcApiDistribution.ps1`: canonical 무변경 transactional candidate build
 - `DistributionPipeline.ps1`: staging/lock/seal/drift/success-only rename과 staged example
   solution의 exact one-project/GUID/Debug+Release `Any CPU` 계약 구현
@@ -289,16 +299,18 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
 
 ## 2.3-candidate canonical 외부 매뉴얼 baseline
 
-Current Markdown에서 편집용 DOCX를 생성하고, Microsoft Word에서 목차와 페이지 번호를
+Historical 2.3 Markdown에서 편집용 DOCX를 생성하고, Microsoft Word에서 목차와 페이지 번호를
 갱신해 저장한 **같은 DOCX**에서 PDF를 export했다. Initial 검토 완료 pair는 `bcc6a9c`에서
 tracked canonical release input으로 승격했고 `5d5aebe`가 Gate D 경계를 반영한 current pair를
-게시했다. Current pair는 reconnect V2 경계를 추가 반영했다. 아래 생성 명령은 초안 재생성용이며
-release build가 canonical 문서를 자동 생성하거나 덮어쓰지 않는다.
+게시했다. Current pair는 reconnect V2 경계를 추가 반영했다. 아래 명령은 current
+`2.4-development` Markdown의 검토용 초안을 생성하며 **2.3-candidate를 덮어쓰지 않는다**.
+2.4 DOCX/PDF 독립 검토와 semantic policy/test 승격 전에는 distribution build가 명시적으로
+차단된다.
 
 ```powershell
 python LMC_Library\LMC_API\Generate-ApiUserManualDocx.py `
-  --source LMC_Library\LMC_API\API_USER_MANUAL_KO.md `
-  --output output\doc\LASAL_Motion_Control_API_User_Manual_KO_2.3-candidate.docx
+  --source docs\api\API_MANUAL.md `
+  --output output\doc\LASAL_Motion_Control_API_User_Manual_KO_2.4-development.docx
 ```
 
 Current canonical 경로와 exact bytes는 다음과 같다.

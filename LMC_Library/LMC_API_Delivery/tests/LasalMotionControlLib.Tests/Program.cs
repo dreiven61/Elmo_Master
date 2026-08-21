@@ -57,6 +57,7 @@ namespace LasalMotionControlLib.Tests
             AdminSetAxisPositionContractTests.Register(tests);
             AdminSetAxisPositionOutcomeContractTests.Register(tests);
             AdminSetAxisPositionOutcomeRetirementContractTests.Register(tests);
+            AdminSetOperationModeContractTests.Register(tests);
             AdminLmcHomeContractTests.Register(tests);
             AdminDs402HomeCurrentPositionZeroContractTests.Register(tests);
             AxisDs402HomeExParameterContractTests.Register(tests);

@@ -6,7 +6,11 @@ LASAL 전용 DINT 패킷 API입니다. 기존 Elmo/Maestro용 legacy 패키지�
 [현재 아키텍처 및 릴리스 상태](../../docs/architecture/ELMO_MASTER_CURRENT_ARCHITECTURE_AND_RELEASE_STATUS_2026-07-16.md)를
 우선합니다.
 
-## 개발 상태
+사람용 current 문서는 [API 설명서](../../docs/api/API_MANUAL.md)와
+[API 개발 진척도](../../docs/api/API_DEVELOPMENT_PROGRESS.md) 두 파일에서만 관리합니다.
+아래 `개발 상태`는 historical 구현 기록이며 current 시험 수치나 release 판정의 정본이 아닙니다.
+
+## Historical 개발 상태
 
 2026-07-31 기준 C# request/typed response path와 재실행 가능한 자동 테스트가
 반영됐습니다. tracked `TCPMotionInterface`에는 RPC lifecycle, 실제 LASAL
@@ -596,10 +600,12 @@ Admin feature bit 6 OFF가 실행을 차단한다. source 존재나 WPF control 
 예약하고 `-2`를 detail 41, 그 밖의 admission 실패를 detail 42로 보존한다. malformed Start는
 zero-token으로 Diagnostics parser에 위임한다. terminal success는 RT owner release 뒤 fresh
 latch에서 ActualPosition 0, StatusWord fault/homing-error clear, 허용 DS402 base state와 모든
-pending/uncertainty slot clear를 다시 확인한다. timeout 경계는 inclusive `>=`다. 다만 durable
-DS402 owner-release/rollback-complete receipt와 bit-4 safety drain/tombstone이 남아 있으므로
-gate를 열 수 없다. prepared stage `89`의 RESERVED/ACTIVE warm reconcile, generation slot `109`를
-지우지 않는 split clear와 cleanup stage `90..99`의 1초 bounded quarantine는 source에 반영됐다.
+pending/uncertainty slot clear를 다시 확인한다. timeout 경계는 inclusive `>=`다. prepared
+stage `89`의 RESERVED/ACTIVE warm reconcile, generation slot `109`를 지우지 않는 split clear,
+cleanup stage `90..99`의 1초 bounded quarantine, staged owner-release/rollback-complete
+warm receipt와 exact bit-4 safety drain/tombstone은 current source와 정적 계약에 반영됐다.
+다만 이는 source/static 근거이며 paired activation, C78 Rebuild/Link와 IDE smoke, PLC
+download, Axis1..4 hardware/packet matrix를 통과하기 전에는 gate를 열 수 없다.
 
 Diagnostics `0x7E53/0x7E54/0x7E55` encoder-maintenance 경로는 TW[20]
 `0x20FC:0x02 <- UInt16 1`과 TW[19] `0x20FC:0x01 <- UInt16 1`만 허용하고 source

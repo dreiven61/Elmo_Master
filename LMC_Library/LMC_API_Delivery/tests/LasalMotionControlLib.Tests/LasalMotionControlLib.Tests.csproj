@@ -44,6 +44,7 @@
     <Compile Include="AdminSetAxisPositionContractTests.cs" />
     <Compile Include="AdminSetAxisPositionOutcomeContractTests.cs" />
     <Compile Include="AdminSetAxisPositionOutcomeRetirementContractTests.cs" />
+    <Compile Include="AdminSetOperationModeContractTests.cs" />
     <Compile Include="AdminLmcHomeContractTests.cs" />
     <Compile Include="AdminDs402HomeCurrentPositionZeroContractTests.cs" />
     <Compile Include="AxisDs402HomeExParameterContractTests.cs" />

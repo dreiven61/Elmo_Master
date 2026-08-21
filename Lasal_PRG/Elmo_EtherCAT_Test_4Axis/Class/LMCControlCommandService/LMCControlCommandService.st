@@ -73,6 +73,8 @@ LMCControlCommandService : CLASS
 
 		OwnershipPreemptedIdentityState : ARRAY [0..431] OF DINT;
 
+		AxisSetPositionAsyncState : ARRAY [0..127] OF DINT;
+
   //Functions:
 	
 	FUNCTION GLOBAL HandleRequest
@@ -87,6 +89,7 @@ LMCControlCommandService : CLASS
 			RequestSequence 	: UDINT;
 			AdmissionToken 	: UDINT;
 			OwnerGeneration 	: UDINT;
+			ResponseSocket 	: DINT;
 		END_VAR
 		VAR_OUTPUT
 			ResponseSize 	: DINT;
@@ -462,6 +465,18 @@ LMCControlCommandService : CLASS
 		VAR_OUTPUT
 			ResponseSize 	: DINT;
 		END_VAR;
+	
+	FUNCTION ProcessAdminSetPositionAsync
+		VAR_INPUT
+			Reference 	: UINT;
+			pRequestFrame 	: ^USINT;
+			RequestFrameSize 	: UDINT;
+			pResponseFrame 	: ^USINT;
+			ResponseCapacity 	: UDINT;
+		END_VAR
+		VAR_OUTPUT
+			ResponseSize 	: DINT;
+		END_VAR;
   //Tables:
 	FUNCTION @STD
 		VAR_OUTPUT
@@ -550,10 +565,37 @@ END_FUNCTION
 #define LMC_ADMIN_MAP_REVISION 0x957F101E
 #define LMC_ADMIN_SET_POSITION_STORE_CONFIGURED FALSE
 #define LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE -12
+#define LMC_ADMIN_SET_POSITION_PENDING -13
+#define LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE -14
 #define LMC_ADMIN_SET_POSITION_MAX_JUMP_AXIS1 0
 #define LMC_ADMIN_SET_POSITION_MAX_JUMP_AXIS2 0
 #define LMC_ADMIN_SET_POSITION_MAX_JUMP_AXIS3 0
 #define LMC_ADMIN_SET_POSITION_MAX_JUMP_AXIS4 0
+#define LMC_ADMIN_SET_POSITION_ASYNC_MAGIC 0x53504131
+#define LMC_ADMIN_SET_POSITION_ASYNC_STATE_IDLE 0
+#define LMC_ADMIN_SET_POSITION_ASYNC_STATE_BEGIN_PENDING 1
+#define LMC_ADMIN_SET_POSITION_ASYNC_STATE_FRESH_ARMED 2
+#define LMC_ADMIN_SET_POSITION_ASYNC_STATE_OWNERSHIP_RESERVED 3
+#define LMC_ADMIN_SET_POSITION_ASYNC_STATE_PREFLIGHT_PENDING 4
+#define LMC_ADMIN_SET_POSITION_ASYNC_STATE_PREFLIGHT_READY 5
+#define LMC_ADMIN_SET_POSITION_ASYNC_STATE_OWNERSHIP_ACTIVE 6
+#define LMC_ADMIN_SET_POSITION_ASYNC_STATE_EXECUTION_PENDING 7
+#define LMC_ADMIN_SET_POSITION_ASYNC_STATE_TERMINAL_COMMIT_PENDING 8
+#define LMC_ADMIN_SET_POSITION_ASYNC_STATE_TERMINAL_PROVEN 9
+#define LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED 10
+#define LMC_SET_POSITION_PREFLIGHT_READY 1
+#define LMC_SET_POSITION_PREFLIGHT_REJECTED 2
+#define LMC_SET_POSITION_PREFLIGHT_CORRUPT 3
+#define LMC_SET_POSITION_PREFLIGHT_CLIENT -4
+#define LMC_SET_POSITION_PREFLIGHT_STATE -5
+#define LMC_SET_POSITION_PREFLIGHT_CONFIG -6
+#define LMC_SET_POSITION_PREFLIGHT_VELOCITY -7
+#define LMC_SET_POSITION_PREFLIGHT_AXIS_ERROR -8
+#define LMC_SET_POSITION_PREFLIGHT_COORDINATE -9
+#define LMC_SET_POSITION_EVIDENCE_IDENTITY 0x00000001
+#define LMC_SET_POSITION_EVIDENCE_AXIS_MASK 0x00000002
+#define LMC_SET_POSITION_EVIDENCE_READY_MASK 0x800003FF
+#define LMC_SET_POSITION_EVIDENCE_REJECT_MASK 0x80000003
 #define LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED FALSE
 #define LMC_OWNER_ADAPTER_ERROR_CONFLICT -9
 #define LMC_OWNER_SAFETY_DRAIN_PENDING -10
@@ -1669,6 +1711,7 @@ FUNCTION GLOBAL LMCControlCommandService::HandleRequest
 		RequestSequence 	: UDINT;
 		AdmissionToken 	: UDINT;
 		OwnerGeneration 	: UDINT;
+		ResponseSocket 	: DINT;
 	END_VAR
 	VAR_OUTPUT
 		ResponseSize 	: DINT;
@@ -1732,6 +1775,13 @@ FUNCTION GLOBAL LMCControlCommandService::HandleRequest
 	ownershipCommitResult := 0; ownershipRollbackResult := 0; ownershipPublishResult := 0;
 	ownershipDs402DrainResult := 0; ownershipArmed := FALSE; ownershipFound := FALSE;
 	ownershipTupleValid := TRUE; ownershipInvokeHandler := TRUE; ownershipAccepted := FALSE;
+	if CommandId = 0x7D12 then
+		ownershipTupleValid :=
+			(AdmissionToken = 0) & (OwnerGeneration = 0);
+		if ownershipTupleValid = FALSE then
+			RETURN;
+		end_if;
+	end_if;
 	ownershipPrewireFailure := FALSE; ownershipInternalFailure := FALSE;
 	ownershipRequestShapeValid := FALSE; ownershipManagedCommand := FALSE;
 	ownershipDispatchEntered := FALSE; ownershipSafetyPumpRejected := FALSE;
@@ -2250,11 +2300,24 @@ FUNCTION GLOBAL LMCControlCommandService::HandleRequest
 		end_if;
 	end_if;
 	if ownershipInvokeHandler then
+		AxisSetPositionAsyncState[114]$UDINT := CallerSessionEpoch;
+		AxisSetPositionAsyncState[115]$UDINT := RequestSequence;
+		AxisSetPositionAsyncState[116] := ResponseSocket;
+		AxisSetPositionAsyncState[117] := TO_DINT(CommandId);
+		AxisSetPositionAsyncState[118] := TO_DINT(Reference);
+		AxisSetPositionAsyncState[119]$UDINT := AdmissionToken;
+		AxisSetPositionAsyncState[120]$UDINT := OwnerGeneration;
+		AxisSetPositionAsyncState[121]$UDINT :=
+			CallerSessionEpoch xor RequestSequence xor
+			TO_UDINT(ResponseSocket) xor TO_UDINT(CommandId) xor
+			TO_UDINT(Reference) xor AdmissionToken xor OwnerGeneration;
 		ResponseSize := DispatchRequestCommand(
 			CommandId:=CommandId, Reference:=Reference,
 			pRequestFrame:=pRequestFrame, RequestFrameSize:=RequestFrameSize,
 			pResponseFrame:=pResponseFrame,
 			ResponseCapacity:=ResponseCapacity);
+		_memset(dest:=#AxisSetPositionAsyncState[114],
+			usByte:=0, cntr:=32);
 	end_if;
 	if ownershipArmed & (ownershipSafetyPumpRejected = FALSE) then
 		ownershipDispatchEntered :=
@@ -6958,19 +7021,66 @@ FUNCTION GLOBAL LMCControlCommandService::NotifyAxisOwnershipSessionClosed
 	END_VAR
 	VAR
 		axisIndex : DINT;
+		axisBit : UDINT;
 		recordBase : DINT;
 	END_VAR
 
 	if SessionEpoch = 0 then
 		RETURN;
 	end_if;
+	if (SessionEpoch <> 0) &
+	   (AxisSetPositionAsyncState[3]$UDINT = SessionEpoch) &
+	   ((AxisSetPositionAsyncState[1] =
+	     LMC_ADMIN_SET_POSITION_ASYNC_STATE_OWNERSHIP_RESERVED) |
+	    (AxisSetPositionAsyncState[1] =
+	     LMC_ADMIN_SET_POSITION_ASYNC_STATE_PREFLIGHT_PENDING) |
+	    (AxisSetPositionAsyncState[1] =
+	     LMC_ADMIN_SET_POSITION_ASYNC_STATE_PREFLIGHT_READY) |
+	    (AxisSetPositionAsyncState[1] =
+	     LMC_ADMIN_SET_POSITION_ASYNC_STATE_OWNERSHIP_ACTIVE)) then
+		AxisSetPositionAsyncState[1] :=
+			LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+		AxisSetPositionAsyncState[31] := 2;
+	end_if;
 	OwnershipState[22]$UDINT := SessionEpoch;
 	axisIndex := 1;
 	while axisIndex <= LMC_OWNER_AXIS_COUNT do
+		case axisIndex of
+			1: axisBit := 0x00000001;
+			2: axisBit := 0x00000002;
+			3: axisBit := 0x00000004;
+			4: axisBit := 0x00000008;
+			5: axisBit := 0x00000010;
+			6: axisBit := 0x00000020;
+			7: axisBit := 0x00000040;
+			8: axisBit := 0x00000080;
+			9: axisBit := 0x00000100;
+		else
+			axisBit := 0;
+		end_case;
 		recordBase := LMC_OWNER_GLOBAL_SLOTS +
 			((axisIndex - 1) * LMC_OWNER_AXIS_STRIDE);
 		if (OwnershipState[recordBase + 6]$UDINT = SessionEpoch) &
-		   (OwnershipState[recordBase + 1] = LMC_OWNER_STATE_RESERVED) then
+		   ((OwnershipState[recordBase + 1] = LMC_OWNER_STATE_RESERVED) |
+		    ((OwnershipState[recordBase + 1] =
+		      LMC_OWNER_STATE_DIRECT_ACTIVE) &
+		     (AxisSetPositionAsyncState[0]$UDINT =
+		      LMC_ADMIN_SET_POSITION_ASYNC_MAGIC) &
+		     (AxisSetPositionAsyncState[1] =
+		      LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED) &
+		     (OwnershipState[recordBase + 2] = LMC_OWNER_KIND_DIRECT) &
+		     (OwnershipState[recordBase + 3] = 0x7D12) &
+		     (OwnershipState[recordBase + 4]$UDINT =
+		      AxisSetPositionAsyncState[5]$UDINT) &
+		     (OwnershipState[recordBase + 5]$UDINT =
+		      AxisSetPositionAsyncState[6]$UDINT) &
+		     (OwnershipState[recordBase + 7]$UDINT =
+		      AxisSetPositionAsyncState[4]$UDINT) &
+		     (OwnershipState[recordBase + 11]$UDINT = axisBit) &
+		     (OwnershipState[recordBase + 11]$UDINT =
+		      AxisSetPositionAsyncState[7]$UDINT) &
+		     (OwnershipState[recordBase + 12] =
+		      AxisSetPositionAsyncState[11]))) then
 			OwnershipState[recordBase + 1] := LMC_OWNER_STATE_QUARANTINED;
 			OwnershipState[recordBase + 32] :=
 				LMC_OWNER_REPORT_QUARANTINE;
@@ -7111,7 +7221,8 @@ FUNCTION GLOBAL LMCControlCommandService::ProcessAxisOwnership
 		    (ownerKind = LMC_OWNER_KIND_GROUP)) &
 		   ((ownerState = LMC_OWNER_STATE_DIRECT_ACTIVE) |
 		    (ownerState = LMC_OWNER_STATE_GROUP_ACTIVE) |
-		    (ownerState = LMC_OWNER_STATE_SAFETY_PREEMPTING)) then
+		    (ownerState = LMC_OWNER_STATE_SAFETY_PREEMPTING)) &
+		   (OwnershipState[recordBase + 3] <> 0x7D12) then
 			axisMask := OwnershipState[recordBase + 11]$UDINT;
 			admissionToken := OwnershipState[recordBase + 4]$UDINT;
 			ownerGeneration := OwnershipState[recordBase + 5]$UDINT;
@@ -9619,7 +9730,7 @@ FUNCTION LMCControlCommandService::HandleAdminCommands
 			(pResponseFrame + 38)^$UINT := 1;
 			(pResponseFrame + 40)^$UINT := 0x0100;
 			(pResponseFrame + 42)^$UINT := 3;
-			(pResponseFrame + 44)^$UINT := 5;
+			(pResponseFrame + 44)^$UINT := 6;
 			(pResponseFrame + 46)^$UINT := 0;
 			ResponseSize := 48;
 
@@ -17109,489 +17220,15 @@ FUNCTION LMCControlCommandService::HandleAdminSetPosition
 		ResponseCapacity 	: UDINT;
 	END_VAR
 	VAR_OUTPUT
-
 		ResponseSize 	: DINT;
 	END_VAR
-	VAR
-		adminSchemaVersion : UINT;
-		adminRequestFlags : UINT;
-		adminRequestId : UDINT;
-		adminDiagnosticsBuild : UDINT;
-		adminBootId : UDINT;
-		adminMapRevision : UDINT;
-		adminClientIntentId0 : UDINT;
-		adminClientIntentId1 : UDINT;
-		adminClientIntentId2 : UDINT;
-		adminClientIntentId3 : UDINT;
-		adminDetailCode : UDINT;
-		adminAxisPosition : DINT;
-		adminExpectedActualPosition : DINT;
-		adminExecuteToken : UDINT;
-		adminAppliedPosition : DINT;
-		adminErrorId : INT;
-		adminSetPositionKey : ARRAY [0..47] OF USINT;
-		adminSetPositionSnapshot : ARRAY [0..67] OF USINT;
-		adminStoreResult : DINT;
-		adminStoreRecordGeneration : UDINT;
-		adminStoreDetailCode : UDINT;
-		adminSetPositionCommandStatus : UINT;
-		adminSetPositionNativeCommandState : UDINT;
-		adminStoreSnapshotValid : BOOL;
-		adminSetPositionMaxJump : UDINT;
-		adminActualPosition : DINT;
-		adminSoftwareLimitMin : DINT;
-		adminSoftwareLimitMax : DINT;
-		adminTargetOrder : UDINT;
-		adminActualOrder : UDINT;
-		adminPositionJump : UDINT;
-		adminOwnerAxisMask : UDINT;
-		adminOwnerEffectiveAxisMask : UDINT;
-		adminOwnerAdmissionToken : UDINT;
-		adminOwnerGeneration : UDINT;
-		adminOwnerSession : UDINT;
-		adminOwnerSequence : UDINT;
-		adminOwnerReserveResult : DINT;
-		adminOwnerRollbackResult : DINT;
-		adminAxisClientConnected : BOOL;
-		adminOwnerAcquired : BOOL;
-	END_VAR
 
-	ResponseSize := -1;
-	if (pRequestFrame = NIL) | (pResponseFrame = NIL) |
-	   (RequestFrameSize < 8) then
-		RETURN;
-	end_if;
-
-	// Dormant v1 parser. Native coordinate mutation is not activated.
-	if ResponseCapacity < 36 then
-		RETURN;
-	end_if;
-	adminSchemaVersion := 0;
-	adminRequestFlags := 0;
-	adminRequestId := 0;
-	adminDiagnosticsBuild := 0;
-	adminBootId := 0;
-	adminMapRevision := 0;
-	adminClientIntentId0 := 0;
-	adminClientIntentId1 := 0;
-	adminClientIntentId2 := 0;
-	adminClientIntentId3 := 0;
-	adminDetailCode := 0;
-	adminAxisPosition := 0;
-	adminExpectedActualPosition := 0;
-	adminExecuteToken := 0;
-	adminAppliedPosition := 0;
-	adminErrorId := -31000;
-	adminStoreResult := -1;
-	adminStoreRecordGeneration := 0;
-	adminStoreDetailCode := 0;
-	adminSetPositionCommandStatus := 1;
-	adminSetPositionNativeCommandState := 0;
-	adminStoreSnapshotValid := FALSE;
-	adminSetPositionMaxJump := 0;
-	adminActualPosition := 0;
-	adminSoftwareLimitMin := 0;
-	adminSoftwareLimitMax := 0;
-	adminTargetOrder := 0;
-	adminActualOrder := 0;
-	adminPositionJump := 0;
-	adminOwnerAxisMask := 0;
-	adminOwnerEffectiveAxisMask := 0;
-	adminOwnerAdmissionToken := 0;
-	adminOwnerGeneration := 0;
-	adminOwnerSession := 0;
-	adminOwnerSequence := 0;
-	adminOwnerReserveResult := -1;
-	adminOwnerRollbackResult := -1;
-	adminAxisClientConnected := FALSE;
-	adminOwnerAcquired := FALSE;
-	_memset(dest:=#adminSetPositionKey[0], usByte:=0, cntr:=48);
-	_memset(dest:=#adminSetPositionSnapshot[0], usByte:=0, cntr:=68);
-
-	if RequestFrameSize >= 16 then
-		adminSchemaVersion := (pRequestFrame + 8)^$UINT;
-		adminRequestFlags := (pRequestFrame + 10)^$UINT;
-		adminRequestId := (pRequestFrame + 12)^$UDINT;
-	end_if;
-	if RequestFrameSize >= 56 then
-		adminDiagnosticsBuild := (pRequestFrame + 16)^$UDINT;
-		adminBootId := (pRequestFrame + 20)^$UDINT;
-		adminMapRevision := (pRequestFrame + 24)^$UDINT;
-		adminClientIntentId0 := (pRequestFrame + 28)^$UDINT;
-		adminClientIntentId1 := (pRequestFrame + 32)^$UDINT;
-		adminClientIntentId2 := (pRequestFrame + 36)^$UDINT;
-		adminClientIntentId3 := (pRequestFrame + 40)^$UDINT;
-		adminAxisPosition := (pRequestFrame + 44)^$DINT;
-		adminExpectedActualPosition := (pRequestFrame + 48)^$DINT;
-		adminExecuteToken := (pRequestFrame + 52)^$UDINT;
-	end_if;
-
-	if RequestFrameSize <> 56 then
-		adminDetailCode := 5;
-	elsif (Reference < 1) | (Reference > 4) then
-		adminDetailCode := 4;
-	elsif adminSchemaVersion <> 1 then
-		adminDetailCode := 1;
-	elsif adminRequestFlags <> 0 then
-		adminDetailCode := 2;
-	elsif adminRequestId = 0 then
-		adminDetailCode := 3;
-	elsif adminDiagnosticsBuild = 0 then
-		adminDetailCode := 16;
-	elsif adminBootId = 0 then
-		adminDetailCode := 17;
-	elsif adminMapRevision = 0 then
-		adminDetailCode := 18;
-	elsif adminDiagnosticsBuild <> LMC_ADMIN_DIAGNOSTICS_BUILD then
-		adminDetailCode := 16;
-	elsif (OwnershipState[0]$UDINT = LMC_OWNER_TABLE_MAGIC) &
-	      (OwnershipState[3]$UDINT <> 0) &
-	      (adminBootId <> OwnershipState[3]$UDINT) then
-		adminDetailCode := 17;
-	elsif adminMapRevision <> LMC_ADMIN_MAP_REVISION then
-		adminDetailCode := 18;
-	elsif (adminClientIntentId0 = 0) &
-	      (adminClientIntentId1 = 0) &
-	      (adminClientIntentId2 = 0) &
-	      (adminClientIntentId3 = 0) then
-		adminDetailCode := 9;
-	elsif adminExecuteToken <> 0x50544553 then
-		adminDetailCode := 9;
-	elsif (OwnershipState[0]$UDINT <> LMC_OWNER_TABLE_MAGIC) |
-	      (OwnershipState[3]$UDINT = 0) then
-		adminDetailCode := 24;
-	elsif LMC_ADMIN_SET_POSITION_STORE_CONFIGURED = FALSE then
-		adminDetailCode := 24;
-	elsif IsClientConnected(#SetPositionStore) <> 1 then
-		adminDetailCode := 24;
-	else
-		// Normalize the durable key. Native SetPosition remains disabled.
-		adminSetPositionKey[0]$UINT := 1;
-		adminSetPositionKey[2]$UINT := 1;
-		adminSetPositionKey[4]$UDINT := adminDiagnosticsBuild;
-		adminSetPositionKey[8]$UDINT := adminBootId;
-		adminSetPositionKey[12]$UDINT := adminMapRevision;
-		adminSetPositionKey[16]$UDINT := adminRequestId;
-		adminSetPositionKey[20]$UDINT := adminClientIntentId0;
-		adminSetPositionKey[24]$UDINT := adminClientIntentId1;
-		adminSetPositionKey[28]$UDINT := adminClientIntentId2;
-		adminSetPositionKey[32]$UDINT := adminClientIntentId3;
-		adminSetPositionKey[36]$UINT := Reference;
-		adminSetPositionKey[38]$UINT := 0;
-		adminSetPositionKey[40]$DINT := adminAxisPosition;
-		adminSetPositionKey[44]$DINT :=
-			adminExpectedActualPosition;
-
-		adminStoreResult := SetPositionStore.BeginSetPosition(
-			pKey:=#adminSetPositionKey[0], KeySize:=48,
-			pSnapshot:=#adminSetPositionSnapshot[0],
-			SnapshotCapacity:=68,
-			pRecordGeneration:=#adminStoreRecordGeneration,
-			pDetailCode:=#adminStoreDetailCode);
-		if adminStoreResult = 2 then
-			adminStoreSnapshotValid :=
-				(adminStoreDetailCode = 0) &
-				(adminStoreRecordGeneration <> 0) &
-				(adminSetPositionSnapshot[2]$UINT = 1) &
-				(adminSetPositionSnapshot[4]$UDINT =
-				 adminDiagnosticsBuild) &
-				(adminSetPositionSnapshot[8]$UDINT = adminBootId) &
-				(adminSetPositionSnapshot[12]$UDINT =
-				 adminMapRevision) &
-				(adminSetPositionSnapshot[16]$UDINT =
-				 adminRequestId) &
-				(adminSetPositionSnapshot[20]$UDINT =
-				 adminClientIntentId0) &
-				(adminSetPositionSnapshot[24]$UDINT =
-				 adminClientIntentId1) &
-				(adminSetPositionSnapshot[28]$UDINT =
-				 adminClientIntentId2) &
-				(adminSetPositionSnapshot[32]$UDINT =
-				 adminClientIntentId3) &
-				(adminSetPositionSnapshot[36]$UINT = Reference) &
-				(adminSetPositionSnapshot[38]$UINT = 0) &
-				(adminSetPositionSnapshot[40]$DINT =
-				 adminAxisPosition) &
-				(adminSetPositionSnapshot[44]$DINT =
-				 adminExpectedActualPosition) &
-				(adminSetPositionSnapshot[64]$UDINT =
-				 adminStoreRecordGeneration) &
-				(((adminSetPositionSnapshot[0]$UINT = 2) &
-				  (adminSetPositionSnapshot[48]$DINT =
-				   adminAxisPosition) &
-				  (adminSetPositionSnapshot[52]$UINT = 0) &
-				  (adminSetPositionSnapshot[54]$INT = 0) &
-				  (adminSetPositionSnapshot[56]$UDINT = 0) &
-				  (adminSetPositionSnapshot[60]$UDINT = 0)) |
-				 ((adminSetPositionSnapshot[0]$UINT = 3) &
-				  (adminSetPositionSnapshot[48]$DINT = 0) &
-				  (adminSetPositionSnapshot[52]$UINT = 1) &
-				  (((adminSetPositionSnapshot[56]$UDINT = 11) &
-				    (adminSetPositionSnapshot[54]$INT = -6) &
-				    (adminSetPositionSnapshot[60]$UDINT <> 0)) |
-				   ((((adminSetPositionSnapshot[56]$UDINT = 10) |
-				      ((adminSetPositionSnapshot[56]$UDINT >= 12) &
-				       (adminSetPositionSnapshot[56]$UDINT <= 15))) &
-				     (adminSetPositionSnapshot[54]$INT = -31000) &
-				     (adminSetPositionSnapshot[60]$UDINT = 0))))));
-			if adminStoreSnapshotValid = FALSE then
-				RETURN;
-			end_if;
-			adminSetPositionCommandStatus :=
-				adminSetPositionSnapshot[52]$UINT;
-			adminErrorId := adminSetPositionSnapshot[54]$INT;
-			adminDetailCode := adminSetPositionSnapshot[56]$UDINT;
-			adminAppliedPosition :=
-				adminSetPositionSnapshot[48]$DINT;
-			adminSetPositionNativeCommandState :=
-				adminSetPositionSnapshot[60]$UDINT;
-		elsif adminStoreResult = 1 then
-			if (adminStoreDetailCode <> 0) |
-			   (adminStoreRecordGeneration = 0) then
-				RETURN;
-			end_if;
-			adminDetailCode := 10;
-			case Reference of
-				1: adminOwnerAxisMask := 0x00000001;
-				2: adminOwnerAxisMask := 0x00000002;
-				3: adminOwnerAxisMask := 0x00000004;
-				4: adminOwnerAxisMask := 0x00000008;
-			else
-				adminOwnerAxisMask := 0;
-			end_case;
-			if (adminOwnerAxisMask <> 0) &
-			   (OwnershipState[16]$UDINT <> 0) &
-			   (OwnershipState[17]$UDINT <> 0) &
-			   (OwnershipState[18]$UDINT = 0) &
-			   (OwnershipState[19]$UDINT = 0) &
-			   (OwnershipState[20] = 0x7D12) &
-			   (OwnershipState[21] = TO_DINT(Reference)) then
-				adminOwnerSession := OwnershipState[16]$UDINT;
-				adminOwnerSequence := OwnershipState[17]$UDINT;
-				adminOwnerReserveResult := ReserveAxisOwnership(
-					CommandId:=0x7D12, Reference:=Reference,
-					RequestedAxisMask:=adminOwnerAxisMask,
-					OwnerKind:=LMC_OWNER_KIND_DIRECT,
-					ResourceKind:=LMC_OWNER_RESOURCE_AXIS,
-					AdmissionMode:=LMC_OWNER_ADMISSION_ORDINARY,
-					CallerSessionEpoch:=adminOwnerSession,
-					RequestSequence:=adminOwnerSequence,
-					pIdentity:=(pRequestFrame + 8)$^void,
-					IdentitySize:=48,
-					pEffectiveAxisMask:=#adminOwnerEffectiveAxisMask,
-					pAdmissionToken:=#adminOwnerAdmissionToken,
-					pOwnerGeneration:=#adminOwnerGeneration);
-				adminOwnerAcquired :=
-					(adminOwnerReserveResult = 0) &
-					(adminOwnerEffectiveAxisMask = adminOwnerAxisMask) &
-					(adminOwnerAdmissionToken <> 0) &
-					(adminOwnerGeneration <> 0);
-				if (adminOwnerAcquired = FALSE) &
-				   (adminOwnerReserveResult <> -2) then
-					OwnershipState[24] := 1;
-				end_if;
-			else
-				OwnershipState[24] := 1;
-			end_if;
-			if adminOwnerAcquired then
-			case Reference of
-				1:
-					adminSetPositionMaxJump :=
-						LMC_ADMIN_SET_POSITION_MAX_JUMP_AXIS1;
-				2:
-					adminSetPositionMaxJump :=
-						LMC_ADMIN_SET_POSITION_MAX_JUMP_AXIS2;
-				3:
-					adminSetPositionMaxJump :=
-						LMC_ADMIN_SET_POSITION_MAX_JUMP_AXIS3;
-				4:
-					adminSetPositionMaxJump :=
-						LMC_ADMIN_SET_POSITION_MAX_JUMP_AXIS4;
-			else
-				adminSetPositionMaxJump := 0;
-			end_case;
-
-			// Default zero is fail closed and performs no axis access.
-			if adminSetPositionMaxJump = 0 then
-				adminDetailCode := 14;
-			else
-				adminAxisClientConnected := FALSE;
-				case Reference of
-					1:
-						if IsClientConnected(#LMCAxis1) = 1 then
-							adminAxisClientConnected := TRUE;
-							adminActualPosition := LMCAxis1.ReadPosition(
-								Mode:=LMCAXIS_ACTPOS_APPUNIT);
-							adminSoftwareLimitMin := LMCAxis1.ReadSWEndPos(
-								Mode:=LMCAXIS_RD_SWMIN_APPUNIT);
-							adminSoftwareLimitMax := LMCAxis1.ReadSWEndPos(
-								Mode:=LMCAXIS_RD_SWMAX_APPUNIT);
-						end_if;
-					2:
-						if IsClientConnected(#LMCAxis2) = 1 then
-							adminAxisClientConnected := TRUE;
-							adminActualPosition := LMCAxis2.ReadPosition(
-								Mode:=LMCAXIS_ACTPOS_APPUNIT);
-							adminSoftwareLimitMin := LMCAxis2.ReadSWEndPos(
-								Mode:=LMCAXIS_RD_SWMIN_APPUNIT);
-							adminSoftwareLimitMax := LMCAxis2.ReadSWEndPos(
-								Mode:=LMCAXIS_RD_SWMAX_APPUNIT);
-						end_if;
-					3:
-						if IsClientConnected(#LMCAxis3) = 1 then
-							adminAxisClientConnected := TRUE;
-							adminActualPosition := LMCAxis3.ReadPosition(
-								Mode:=LMCAXIS_ACTPOS_APPUNIT);
-							adminSoftwareLimitMin := LMCAxis3.ReadSWEndPos(
-								Mode:=LMCAXIS_RD_SWMIN_APPUNIT);
-							adminSoftwareLimitMax := LMCAxis3.ReadSWEndPos(
-								Mode:=LMCAXIS_RD_SWMAX_APPUNIT);
-						end_if;
-					4:
-						if IsClientConnected(#LMCAxis4) = 1 then
-							adminAxisClientConnected := TRUE;
-							adminActualPosition := LMCAxis4.ReadPosition(
-								Mode:=LMCAXIS_ACTPOS_APPUNIT);
-							adminSoftwareLimitMin := LMCAxis4.ReadSWEndPos(
-								Mode:=LMCAXIS_RD_SWMIN_APPUNIT);
-							adminSoftwareLimitMax := LMCAxis4.ReadSWEndPos(
-								Mode:=LMCAXIS_RD_SWMAX_APPUNIT);
-						end_if;
-				else
-				end_case;
-
-				if adminAxisClientConnected = FALSE then
-					adminDetailCode := 14;
-				elsif adminSoftwareLimitMin >= adminSoftwareLimitMax then
-					adminDetailCode := 14;
-				elsif (adminActualPosition < adminSoftwareLimitMin) |
-				      (adminActualPosition > adminSoftwareLimitMax) |
-				      (adminAxisPosition < adminSoftwareLimitMin) |
-				      (adminAxisPosition > adminSoftwareLimitMax) then
-					adminDetailCode := 14;
-				elsif adminActualPosition <>
-				      adminExpectedActualPosition then
-					adminDetailCode := 15;
-				else
-					// Bias signed coordinates into monotonic unsigned order.
-					adminTargetOrder :=
-						adminAxisPosition$UDINT xor 0x80000000;
-					adminActualOrder :=
-						adminActualPosition$UDINT xor 0x80000000;
-					if adminTargetOrder >= adminActualOrder then
-						adminPositionJump :=
-							adminTargetOrder - adminActualOrder;
-					else
-						adminPositionJump :=
-							adminActualOrder - adminTargetOrder;
-					end_if;
-					if adminPositionJump > adminSetPositionMaxJump then
-						adminDetailCode := 15;
-					end_if;
-				end_if;
-			end_if;
-			end_if;
-			adminStoreDetailCode := 0;
-			adminStoreResult :=
-				SetPositionStore.CommitSetPositionTerminal(
-					pKey:=#adminSetPositionKey[0], KeySize:=48,
-					RecordGeneration:=adminStoreRecordGeneration,
-					RecordState:=3, AppliedPosition:=0,
-					OriginalCommandStatus:=1,
-					OriginalErrorId:=-31000,
-					OriginalDetailCode:=adminDetailCode,
-					NativeCommandState:=0,
-					pSnapshot:=#adminSetPositionSnapshot[0],
-					SnapshotCapacity:=68,
-					pDetailCode:=#adminStoreDetailCode);
-			if adminStoreResult = 1 then
-				adminStoreSnapshotValid :=
-					(adminStoreDetailCode = 0) &
-					(adminStoreRecordGeneration <> 0) &
-					(adminSetPositionSnapshot[0]$UINT = 3) &
-					(adminSetPositionSnapshot[2]$UINT = 1) &
-					(adminSetPositionSnapshot[4]$UDINT =
-					 adminDiagnosticsBuild) &
-					(adminSetPositionSnapshot[8]$UDINT = adminBootId) &
-					(adminSetPositionSnapshot[12]$UDINT =
-					 adminMapRevision) &
-					(adminSetPositionSnapshot[16]$UDINT =
-					 adminRequestId) &
-					(adminSetPositionSnapshot[20]$UDINT =
-					 adminClientIntentId0) &
-					(adminSetPositionSnapshot[24]$UDINT =
-					 adminClientIntentId1) &
-					(adminSetPositionSnapshot[28]$UDINT =
-					 adminClientIntentId2) &
-					(adminSetPositionSnapshot[32]$UDINT =
-					 adminClientIntentId3) &
-					(adminSetPositionSnapshot[36]$UINT = Reference) &
-					(adminSetPositionSnapshot[38]$UINT = 0) &
-					(adminSetPositionSnapshot[40]$DINT =
-					 adminAxisPosition) &
-					(adminSetPositionSnapshot[44]$DINT =
-					 adminExpectedActualPosition) &
-					(adminSetPositionSnapshot[48]$DINT = 0) &
-					(adminSetPositionSnapshot[52]$UINT = 1) &
-					(adminSetPositionSnapshot[54]$INT = -31000) &
-					(adminSetPositionSnapshot[56]$UDINT =
-					 adminDetailCode) &
-					(adminSetPositionSnapshot[60]$UDINT = 0) &
-					(adminSetPositionSnapshot[64]$UDINT =
-					 adminStoreRecordGeneration);
-			end_if;
-			if (adminStoreResult <> 1) |
-			   (adminStoreSnapshotValid = FALSE) then
-				ResponseSize :=
-					LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE;
-				RETURN;
-			end_if;
-			if adminOwnerAcquired then
-				adminOwnerRollbackResult := RollbackAxisOwnership(
-					AdmissionToken:=adminOwnerAdmissionToken,
-					OwnerGeneration:=adminOwnerGeneration,
-					CallerSessionEpoch:=adminOwnerSession,
-					RequestSequence:=adminOwnerSequence,
-					Reason:=0);
-				if adminOwnerRollbackResult <> 0 then
-					OwnershipState[24] := 1;
-				end_if;
-			end_if;
-			adminSetPositionCommandStatus := 1;
-			adminErrorId := -31000;
-			adminAppliedPosition := 0;
-			adminSetPositionNativeCommandState := 0;
-		elsif adminStoreResult = 0 then
-			if (adminStoreDetailCode = 20) |
-			   (adminStoreDetailCode = 21) |
-			   (adminStoreDetailCode = 23) |
-			   (adminStoreDetailCode = 24) then
-				adminDetailCode := adminStoreDetailCode;
-			else
-				RETURN;
-			end_if;
-		else
-			RETURN;
-		end_if;
-	end_if;
-
-	_memset(dest:=pResponseFrame, usByte:=0, cntr:=36);
-	pResponseFrame^$UINT := 0;
-	(pResponseFrame + 2)^$UINT := 28;
-	(pResponseFrame + 4)^$UDINT := 0;
-	(pResponseFrame + 8)^$UINT := 1;
-	(pResponseFrame + 10)^$UINT := 0;
-	(pResponseFrame + 12)^$UINT :=
-		adminSetPositionCommandStatus;
-	(pResponseFrame + 14)^$INT := adminErrorId;
-	(pResponseFrame + 16)^$UDINT := adminRequestId;
-	(pResponseFrame + 20)^$UDINT := adminDetailCode;
-	(pResponseFrame + 24)^$DINT := adminAppliedPosition;
-	(pResponseFrame + 28)^$UINT := 1;
-	(pResponseFrame + 30)^$UINT := 0;
-	(pResponseFrame + 32)^$UDINT :=
-		adminSetPositionNativeCommandState;
-	ResponseSize := 36;
+	ResponseSize := ProcessAdminSetPositionAsync(
+		Reference:=Reference,
+		pRequestFrame:=pRequestFrame,
+		RequestFrameSize:=RequestFrameSize,
+		pResponseFrame:=pResponseFrame,
+		ResponseCapacity:=ResponseCapacity);
 
 END_FUNCTION
 
@@ -17653,4 +17290,844 @@ FUNCTION LMCControlCommandService::DispatchRequestCommand
 		ResponseSize := -1;
 	end_case;
 
+END_FUNCTION
+
+
+FUNCTION LMCControlCommandService::ProcessAdminSetPositionAsync
+	VAR_INPUT
+	Reference 	: UINT;
+	pRequestFrame 	: ^USINT;
+	RequestFrameSize 	: UDINT;
+	pResponseFrame 	: ^USINT;
+	ResponseCapacity 	: UDINT;
+	END_VAR
+	VAR_OUTPUT
+	ResponseSize 	: DINT;
+	END_VAR
+	VAR
+	adminSetPositionKey : ARRAY [0..47] OF USINT;
+	adminFrozenResponse : ARRAY [0..35] OF USINT;
+	adminSchemaVersion : UINT;
+	adminRequestFlags : UINT;
+	adminRequestId : UDINT;
+	adminDiagnosticsBuild : UDINT;
+	adminBootId : UDINT;
+	adminMapRevision : UDINT;
+	adminClientIntentId0 : UDINT;
+	adminClientIntentId1 : UDINT;
+	adminClientIntentId2 : UDINT;
+	adminClientIntentId3 : UDINT;
+	adminAxisPosition : DINT;
+	adminExpectedActualPosition : DINT;
+	adminExecuteToken : UDINT;
+	adminDetailCode : UDINT;
+	adminOwnerSession : UDINT;
+	adminOwnerSequence : UDINT;
+	adminResponseSocket : DINT;
+	adminContextCheck : UDINT;
+	adminInvokeCheck : UDINT;
+	adminIdentityCompareResult : UDINT;
+	adminKeyCompareResult : UDINT;
+	adminPreflightState : DINT;
+	adminPreflightFailure : DINT;
+	adminPreflightDetail : DINT;
+	adminPreflightEvidence : UDINT;
+	adminInvocationValid : BOOL;
+	adminPreflightValid : BOOL;
+	adminPreflightRejected : BOOL;
+	adminTerminalValid : BOOL;
+	END_VAR
+ResponseSize := -1;
+adminContextCheck := 0;
+adminInvokeCheck := 0;
+adminIdentityCompareResult := 0;
+adminKeyCompareResult := 0;
+adminPreflightState := 0;
+adminPreflightFailure := 0;
+adminPreflightDetail := 0;
+adminPreflightEvidence := 0;
+adminInvocationValid := FALSE;
+adminPreflightValid := FALSE;
+adminPreflightRejected := FALSE;
+adminTerminalValid := FALSE;
+adminDetailCode := 0;
+adminRequestId := 0;
+_memset(dest:=#adminSetPositionKey[0], usByte:=0, cntr:=48);
+_memset(dest:=#adminFrozenResponse[0], usByte:=0, cntr:=36);
+if (pRequestFrame = NIL) | (pResponseFrame = NIL) |
+   (ResponseCapacity < 36) then
+RETURN;
+end_if;
+adminInvokeCheck :=
+AxisSetPositionAsyncState[114]$UDINT xor
+AxisSetPositionAsyncState[115]$UDINT xor
+AxisSetPositionAsyncState[116]$UDINT xor
+AxisSetPositionAsyncState[117]$UDINT xor
+AxisSetPositionAsyncState[118]$UDINT xor
+AxisSetPositionAsyncState[119]$UDINT xor
+AxisSetPositionAsyncState[120]$UDINT;
+adminInvocationValid :=
+(AxisSetPositionAsyncState[114]$UDINT <> 0) &
+(AxisSetPositionAsyncState[115]$UDINT <> 0) &
+(AxisSetPositionAsyncState[116] <> 0) &
+(AxisSetPositionAsyncState[117] = 0x7D12) &
+(AxisSetPositionAsyncState[118] = TO_DINT(Reference)) &
+(AxisSetPositionAsyncState[119]$UDINT = 0) &
+(AxisSetPositionAsyncState[120]$UDINT = 0) &
+(AxisSetPositionAsyncState[121]$UDINT = adminInvokeCheck);
+if adminInvocationValid = FALSE then
+AxisSetPositionAsyncState[1] :=
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+AxisSetPositionAsyncState[31] := 2;
+ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+RETURN;
+end_if;
+if RequestFrameSize >= 56 then
+adminSchemaVersion := (pRequestFrame + 8)^$UINT;
+adminRequestFlags := (pRequestFrame + 10)^$UINT;
+adminRequestId := (pRequestFrame + 12)^$UDINT;
+adminDiagnosticsBuild := (pRequestFrame + 16)^$UDINT;
+adminBootId := (pRequestFrame + 20)^$UDINT;
+adminMapRevision := (pRequestFrame + 24)^$UDINT;
+adminClientIntentId0 := (pRequestFrame + 28)^$UDINT;
+adminClientIntentId1 := (pRequestFrame + 32)^$UDINT;
+adminClientIntentId2 := (pRequestFrame + 36)^$UDINT;
+adminClientIntentId3 := (pRequestFrame + 40)^$UDINT;
+adminAxisPosition := (pRequestFrame + 44)^$DINT;
+adminExpectedActualPosition := (pRequestFrame + 48)^$DINT;
+adminExecuteToken := (pRequestFrame + 52)^$UDINT;
+end_if;
+if RequestFrameSize <> 56 then
+adminDetailCode := 5;
+elsif (Reference < 1) | (Reference > 4) then
+adminDetailCode := 4;
+elsif adminSchemaVersion <> 1 then
+adminDetailCode := 1;
+elsif adminRequestFlags <> 0 then
+adminDetailCode := 2;
+elsif adminRequestId = 0 then
+adminDetailCode := 3;
+elsif adminDiagnosticsBuild = 0 then
+adminDetailCode := 16;
+elsif adminBootId = 0 then
+adminDetailCode := 17;
+elsif adminMapRevision = 0 then
+adminDetailCode := 18;
+elsif adminDiagnosticsBuild <> LMC_ADMIN_DIAGNOSTICS_BUILD then
+adminDetailCode := 16;
+elsif (OwnershipState[0]$UDINT = LMC_OWNER_TABLE_MAGIC) &
+      (OwnershipState[3]$UDINT <> 0) &
+      (adminBootId <> OwnershipState[3]$UDINT) then
+adminDetailCode := 17;
+elsif adminMapRevision <> LMC_ADMIN_MAP_REVISION then
+adminDetailCode := 18;
+elsif (adminClientIntentId0 = 0) &
+      (adminClientIntentId1 = 0) &
+      (adminClientIntentId2 = 0) &
+      (adminClientIntentId3 = 0) then
+adminDetailCode := 9;
+elsif adminExecuteToken <> 0x50544553 then
+adminDetailCode := 9;
+elsif (OwnershipState[0]$UDINT <> LMC_OWNER_TABLE_MAGIC) |
+      (OwnershipState[3]$UDINT = 0) then
+adminDetailCode := 24;
+elsif LMC_ADMIN_SET_POSITION_STORE_CONFIGURED = FALSE then
+adminDetailCode := 24;
+elsif IsClientConnected(#SetPositionStore) <> 1 then
+adminDetailCode := 24;
+end_if;
+if AxisSetPositionAsyncState[1] =
+   LMC_ADMIN_SET_POSITION_ASYNC_STATE_IDLE then
+while adminPreflightDetail <= 127 do
+if ((adminPreflightDetail < 114) |
+    (adminPreflightDetail > 121)) &
+   (AxisSetPositionAsyncState[adminPreflightDetail] <> 0) then
+adminIdentityCompareResult := 1;
+end_if;
+adminPreflightDetail += 1;
+end_while;
+if adminIdentityCompareResult <> 0 then
+AxisSetPositionAsyncState[1] :=
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+AxisSetPositionAsyncState[31] := 1;
+ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+RETURN;
+end_if;
+end_if;
+if adminDetailCode <> 0 then
+if AxisSetPositionAsyncState[1] <>
+   LMC_ADMIN_SET_POSITION_ASYNC_STATE_IDLE then
+AxisSetPositionAsyncState[1] :=
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+AxisSetPositionAsyncState[31] := 2;
+if adminDetailCode = 24 then
+AxisSetPositionAsyncState[31] := 7;
+end_if;
+ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+RETURN;
+end_if;
+_memset(dest:=pResponseFrame, usByte:=0, cntr:=36);
+pResponseFrame^$UINT := 0;
+(pResponseFrame + 2)^$UINT := 28;
+(pResponseFrame + 8)^$UINT := 1;
+(pResponseFrame + 12)^$UINT := 1;
+(pResponseFrame + 14)^$INT := -31000;
+(pResponseFrame + 16)^$UDINT := adminRequestId;
+(pResponseFrame + 20)^$UDINT := adminDetailCode;
+(pResponseFrame + 28)^$UINT := 1;
+ResponseSize := 36;
+RETURN;
+end_if;
+adminSetPositionKey[0]$UINT := 1;
+adminSetPositionKey[2]$UINT := 1;
+adminSetPositionKey[4]$UDINT := adminDiagnosticsBuild;
+adminSetPositionKey[8]$UDINT := adminBootId;
+adminSetPositionKey[12]$UDINT := adminMapRevision;
+adminSetPositionKey[16]$UDINT := adminRequestId;
+adminSetPositionKey[20]$UDINT := adminClientIntentId0;
+adminSetPositionKey[24]$UDINT := adminClientIntentId1;
+adminSetPositionKey[28]$UDINT := adminClientIntentId2;
+adminSetPositionKey[32]$UDINT := adminClientIntentId3;
+adminSetPositionKey[36]$UINT := Reference;
+adminSetPositionKey[38]$UINT := 0;
+adminSetPositionKey[40]$DINT := adminAxisPosition;
+adminSetPositionKey[44]$DINT := adminExpectedActualPosition;
+if (AxisSetPositionAsyncState[1] >=
+    LMC_ADMIN_SET_POSITION_ASYNC_STATE_BEGIN_PENDING) &
+   (AxisSetPositionAsyncState[1] <=
+    LMC_ADMIN_SET_POSITION_ASYNC_STATE_FRESH_ARMED) &
+   ((AxisSetPositionAsyncState[0]$UDINT <>
+     LMC_ADMIN_SET_POSITION_ASYNC_MAGIC) |
+    (AxisSetPositionAsyncState[122] <> 0) |
+    (AxisSetPositionAsyncState[123] <> 0) |
+    (AxisSetPositionAsyncState[124] <> 0) |
+    (AxisSetPositionAsyncState[125] <> 0) |
+    (AxisSetPositionAsyncState[126] <> 0) |
+    (AxisSetPositionAsyncState[127] <> 0)) then
+AxisSetPositionAsyncState[1] :=
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+AxisSetPositionAsyncState[31] := 1;
+ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+RETURN;
+end_if;
+if AxisSetPositionAsyncState[1] <>
+   LMC_ADMIN_SET_POSITION_ASYNC_STATE_IDLE then
+adminIdentityCompareResult := _memcmp(
+ptr1:=#AxisSetPositionAsyncState[32],
+ptr2:=(pRequestFrame + 8), cntr:=48);
+adminKeyCompareResult := _memcmp(
+ptr1:=#AxisSetPositionAsyncState[44],
+ptr2:=#adminSetPositionKey[0], cntr:=48);
+if (adminIdentityCompareResult <> 0) |
+   (adminKeyCompareResult <> 0) then
+AxisSetPositionAsyncState[1] :=
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+AxisSetPositionAsyncState[31] := 1;
+ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+RETURN;
+end_if;
+end_if;
+if (AxisSetPositionAsyncState[1] >=
+    LMC_ADMIN_SET_POSITION_ASYNC_STATE_OWNERSHIP_RESERVED) &
+   (AxisSetPositionAsyncState[1] <=
+    LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED) then
+adminContextCheck :=
+LMC_ADMIN_SET_POSITION_ASYNC_MAGIC xor
+AxisSetPositionAsyncState[2]$UDINT xor
+AxisSetPositionAsyncState[3]$UDINT xor
+AxisSetPositionAsyncState[4]$UDINT xor
+AxisSetPositionAsyncState[5]$UDINT xor
+AxisSetPositionAsyncState[6]$UDINT xor
+AxisSetPositionAsyncState[7]$UDINT xor
+AxisSetPositionAsyncState[8]$UDINT xor
+AxisSetPositionAsyncState[9]$UDINT xor
+AxisSetPositionAsyncState[10]$UDINT xor
+AxisSetPositionAsyncState[11]$UDINT xor
+AxisSetPositionAsyncState[12]$UDINT xor
+AxisSetPositionAsyncState[13]$UDINT xor
+AxisSetPositionAsyncState[14]$UDINT;
+if (AxisSetPositionAsyncState[0]$UDINT <>
+    LMC_ADMIN_SET_POSITION_ASYNC_MAGIC) |
+   (AxisSetPositionAsyncState[30]$UDINT <> adminContextCheck) |
+   (AxisSetPositionAsyncState[122] <> 0) |
+   (AxisSetPositionAsyncState[123] <> 0) |
+   (AxisSetPositionAsyncState[124] <> 0) |
+   (AxisSetPositionAsyncState[125] <> 0) |
+   (AxisSetPositionAsyncState[126] <> 0) |
+   (AxisSetPositionAsyncState[127] <> 0) then
+AxisSetPositionAsyncState[1] :=
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+AxisSetPositionAsyncState[31] := 1;
+ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+RETURN;
+end_if;
+end_if;
+if (AxisSetPositionAsyncState[1] <>
+    LMC_ADMIN_SET_POSITION_ASYNC_STATE_IDLE) &
+   ((AxisSetPositionAsyncState[3]$UDINT <>
+     AxisSetPositionAsyncState[114]$UDINT) |
+    (AxisSetPositionAsyncState[4]$UDINT <>
+     AxisSetPositionAsyncState[115]$UDINT) |
+    (AxisSetPositionAsyncState[8] <>
+     AxisSetPositionAsyncState[116]) |
+    (AxisSetPositionAsyncState[11] <> TO_DINT(Reference))) then
+AxisSetPositionAsyncState[1] :=
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+AxisSetPositionAsyncState[31] := 2;
+ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+RETURN;
+end_if;
+if ((AxisSetPositionAsyncState[1] =
+     LMC_ADMIN_SET_POSITION_ASYNC_STATE_OWNERSHIP_RESERVED) |
+    (AxisSetPositionAsyncState[1] =
+     LMC_ADMIN_SET_POSITION_ASYNC_STATE_PREFLIGHT_PENDING)) &
+   (IsClientConnected(#InputLatch) <> 1) then
+AxisSetPositionAsyncState[1] :=
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+AxisSetPositionAsyncState[31] := 4;
+ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+RETURN;
+end_if;
+if (AxisSetPositionAsyncState[1] >=
+    LMC_ADMIN_SET_POSITION_ASYNC_STATE_OWNERSHIP_RESERVED) &
+   (AxisSetPositionAsyncState[1] <=
+    LMC_ADMIN_SET_POSITION_ASYNC_STATE_OWNERSHIP_ACTIVE) &
+   ((ops.tAbsolute - AxisSetPositionAsyncState[9]$UDINT)$UDINT >=
+    AxisSetPositionAsyncState[10]$UDINT) then
+AxisSetPositionAsyncState[1] :=
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+AxisSetPositionAsyncState[31] := 3;
+ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+RETURN;
+end_if;
+if AxisSetPositionAsyncState[1] =
+   LMC_ADMIN_SET_POSITION_ASYNC_STATE_EXECUTION_PENDING then
+AxisSetPositionAsyncState[1] :=
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+AxisSetPositionAsyncState[31] := 1;
+ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+RETURN;
+end_if;
+// LMC_ADMIN_SET_POSITION_ASYNC_BEGIN
+repeat
+case AxisSetPositionAsyncState[1] of
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_IDLE:
+adminOwnerSession := AxisSetPositionAsyncState[114]$UDINT;
+adminOwnerSequence := AxisSetPositionAsyncState[115]$UDINT;
+adminResponseSocket := AxisSetPositionAsyncState[116];
+_memset(dest:=#AxisSetPositionAsyncState[0],
+usByte:=0, cntr:=512);
+AxisSetPositionAsyncState[0]$UDINT :=
+LMC_ADMIN_SET_POSITION_ASYNC_MAGIC;
+AxisSetPositionAsyncState[3]$UDINT := adminOwnerSession;
+AxisSetPositionAsyncState[4]$UDINT := adminOwnerSequence;
+AxisSetPositionAsyncState[7]$UDINT :=
+TO_UDINT(1) shl TO_UDINT(Reference - 1);
+AxisSetPositionAsyncState[8] := adminResponseSocket;
+AxisSetPositionAsyncState[10]$UDINT := 1000;
+AxisSetPositionAsyncState[11] := TO_DINT(Reference);
+AxisSetPositionAsyncState[12] := adminAxisPosition;
+AxisSetPositionAsyncState[13] := adminExpectedActualPosition;
+AxisSetPositionAsyncState[14]$UDINT := 0;
+_memcpy(ptr1:=#AxisSetPositionAsyncState[32],
+ptr2:=(pRequestFrame + 8), cntr:=48);
+_memcpy(ptr1:=#AxisSetPositionAsyncState[44],
+ptr2:=#adminSetPositionKey[0], cntr:=48);
+AxisSetPositionAsyncState[1] :=
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_BEGIN_PENDING;
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_BEGIN_PENDING:
+AxisSetPositionAsyncState[21] :=
+SetPositionStore.BeginSetPosition(
+pKey:=#AxisSetPositionAsyncState[44], KeySize:=48,
+pSnapshot:=#AxisSetPositionAsyncState[56],
+SnapshotCapacity:=68,
+pRecordGeneration:=(#AxisSetPositionAsyncState[2])$^UDINT,
+pDetailCode:=(#AxisSetPositionAsyncState[22])$^UDINT);
+if AxisSetPositionAsyncState[21] = 2 then
+adminKeyCompareResult := _memcmp(
+ptr1:=#AxisSetPositionAsyncState[57],
+ptr2:=#AxisSetPositionAsyncState[45], cntr:=44);
+adminTerminalValid :=
+(AxisSetPositionAsyncState[22] = 0) &
+(adminKeyCompareResult = 0) &
+((AxisSetPositionAsyncState[56]$UDINT = 0x00010002) |
+ (AxisSetPositionAsyncState[56]$UDINT = 0x00010003)) &
+ (AxisSetPositionAsyncState[72]$UDINT =
+  AxisSetPositionAsyncState[2]$UDINT) &
+ (AxisSetPositionAsyncState[72]$UDINT <> 0) &
+ (((AxisSetPositionAsyncState[56]$UDINT = 0x00010002) &
+   (AxisSetPositionAsyncState[68] =
+    AxisSetPositionAsyncState[12]) &
+   (AxisSetPositionAsyncState[69] = 0) &
+   (AxisSetPositionAsyncState[70] = 0) &
+   (AxisSetPositionAsyncState[71] = 0)) |
+  ((AxisSetPositionAsyncState[56]$UDINT = 0x00010003) &
+   (AxisSetPositionAsyncState[68] = 0) &
+   (((AxisSetPositionAsyncState[70]$UDINT = 11) &
+     (AxisSetPositionAsyncState[69]$UDINT = 0xFFFA0001) &
+     (AxisSetPositionAsyncState[71]$UDINT <> 0)) |
+    ((((AxisSetPositionAsyncState[70]$UDINT = 10) |
+       ((AxisSetPositionAsyncState[70]$UDINT >= 12) &
+        (AxisSetPositionAsyncState[70]$UDINT <= 15))) &
+      (AxisSetPositionAsyncState[69]$UDINT = 0x86E80001) &
+      (AxisSetPositionAsyncState[71]$UDINT = 0))))));
+if adminTerminalValid = FALSE then
+AxisSetPositionAsyncState[1] :=
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+AxisSetPositionAsyncState[31] := 7;
+ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+RETURN;
+end_if;
+adminFrozenResponse[0]$UINT := 0;
+adminFrozenResponse[2]$UINT := 28;
+adminFrozenResponse[4]$UDINT := 0;
+adminFrozenResponse[8]$UINT := 1;
+adminFrozenResponse[10]$UINT := 0;
+adminFrozenResponse[12]$UINT :=
+AxisSetPositionAsyncState[69]$UINT;
+adminFrozenResponse[14]$INT := TO_INT(
+AxisSetPositionAsyncState[69]$UDINT / 65536);
+adminFrozenResponse[16]$UDINT :=
+AxisSetPositionAsyncState[60]$UDINT;
+adminFrozenResponse[20]$UDINT :=
+AxisSetPositionAsyncState[70]$UDINT;
+adminFrozenResponse[24]$DINT :=
+AxisSetPositionAsyncState[68];
+adminFrozenResponse[28]$UINT := 1;
+adminFrozenResponse[30]$UINT := 0;
+adminFrozenResponse[32]$UDINT :=
+AxisSetPositionAsyncState[71]$UDINT;
+_memcpy(ptr1:=#AxisSetPositionAsyncState[105],
+ptr2:=#adminFrozenResponse[0], cntr:=36);
+_memcpy(ptr1:=pResponseFrame,
+ptr2:=#AxisSetPositionAsyncState[105], cntr:=36);
+_memset(dest:=#AxisSetPositionAsyncState[0],
+usByte:=0, cntr:=512);
+ResponseSize := 36;
+RETURN;
+elsif AxisSetPositionAsyncState[21] = 1 then
+if (AxisSetPositionAsyncState[22] = 0) &
+   (AxisSetPositionAsyncState[2]$UDINT <> 0) then
+AxisSetPositionAsyncState[9]$UDINT := ops.tAbsolute;
+AxisSetPositionAsyncState[1] :=
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_FRESH_ARMED;
+else
+AxisSetPositionAsyncState[1] :=
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+AxisSetPositionAsyncState[31] := 7;
+ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+RETURN;
+end_if;
+elsif AxisSetPositionAsyncState[21] = 0 then
+if (AxisSetPositionAsyncState[22] = 20) |
+   (AxisSetPositionAsyncState[22] = 21) |
+   (AxisSetPositionAsyncState[22] = 23) |
+   (AxisSetPositionAsyncState[22] = 24) then
+_memset(dest:=pResponseFrame, usByte:=0, cntr:=36);
+pResponseFrame^$UINT := 0;
+(pResponseFrame + 2)^$UINT := 28;
+(pResponseFrame + 8)^$UINT := 1;
+(pResponseFrame + 12)^$UINT := 1;
+(pResponseFrame + 14)^$INT := -31000;
+(pResponseFrame + 16)^$UDINT :=
+AxisSetPositionAsyncState[48]$UDINT;
+(pResponseFrame + 20)^$UDINT :=
+AxisSetPositionAsyncState[22]$UDINT;
+(pResponseFrame + 28)^$UINT := 1;
+_memset(dest:=#AxisSetPositionAsyncState[0],
+usByte:=0, cntr:=512);
+ResponseSize := 36;
+RETURN;
+else
+AxisSetPositionAsyncState[1] :=
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+AxisSetPositionAsyncState[31] := 7;
+ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+RETURN;
+end_if;
+else
+AxisSetPositionAsyncState[1] :=
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+AxisSetPositionAsyncState[31] := 7;
+ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+RETURN;
+end_if;
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_FRESH_ARMED:
+AxisSetPositionAsyncState[24] := ReserveAxisOwnership(
+CommandId:=0x7D12, Reference:=Reference,
+RequestedAxisMask:=AxisSetPositionAsyncState[7]$UDINT,
+OwnerKind:=LMC_OWNER_KIND_DIRECT,
+ResourceKind:=LMC_OWNER_RESOURCE_AXIS,
+AdmissionMode:=LMC_OWNER_ADMISSION_ORDINARY,
+CallerSessionEpoch:=AxisSetPositionAsyncState[3]$UDINT,
+RequestSequence:=AxisSetPositionAsyncState[4]$UDINT,
+pIdentity:=(#AxisSetPositionAsyncState[32])$^void,
+IdentitySize:=48,
+pEffectiveAxisMask:=(#AxisSetPositionAsyncState[23])$^UDINT,
+pAdmissionToken:=(#AxisSetPositionAsyncState[5])$^UDINT,
+pOwnerGeneration:=(#AxisSetPositionAsyncState[6])$^UDINT);
+if (AxisSetPositionAsyncState[24] = 0) &
+   (AxisSetPositionAsyncState[23]$UDINT =
+    AxisSetPositionAsyncState[7]$UDINT) &
+   (AxisSetPositionAsyncState[5]$UDINT <> 0) &
+   (AxisSetPositionAsyncState[6]$UDINT <> 0) then
+AxisSetPositionAsyncState[1] :=
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_OWNERSHIP_RESERVED;
+else
+AxisSetPositionAsyncState[1] :=
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+AxisSetPositionAsyncState[31] := 5;
+ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+RETURN;
+end_if;
+adminContextCheck :=
+LMC_ADMIN_SET_POSITION_ASYNC_MAGIC xor
+AxisSetPositionAsyncState[2]$UDINT xor
+AxisSetPositionAsyncState[3]$UDINT xor
+AxisSetPositionAsyncState[4]$UDINT xor
+AxisSetPositionAsyncState[5]$UDINT xor
+AxisSetPositionAsyncState[6]$UDINT xor
+AxisSetPositionAsyncState[7]$UDINT xor
+AxisSetPositionAsyncState[8]$UDINT xor
+AxisSetPositionAsyncState[9]$UDINT xor
+AxisSetPositionAsyncState[10]$UDINT xor
+AxisSetPositionAsyncState[11]$UDINT xor
+AxisSetPositionAsyncState[12]$UDINT xor
+AxisSetPositionAsyncState[13]$UDINT xor
+AxisSetPositionAsyncState[14]$UDINT;
+AxisSetPositionAsyncState[30]$UDINT := adminContextCheck;
+adminContextCheck :=
+LMC_ADMIN_SET_POSITION_ASYNC_MAGIC xor
+AxisSetPositionAsyncState[2]$UDINT xor
+AxisSetPositionAsyncState[3]$UDINT xor
+AxisSetPositionAsyncState[4]$UDINT xor
+AxisSetPositionAsyncState[5]$UDINT xor
+AxisSetPositionAsyncState[6]$UDINT xor
+AxisSetPositionAsyncState[7]$UDINT xor
+AxisSetPositionAsyncState[8]$UDINT xor
+AxisSetPositionAsyncState[9]$UDINT xor
+AxisSetPositionAsyncState[10]$UDINT xor
+AxisSetPositionAsyncState[11]$UDINT xor
+AxisSetPositionAsyncState[12]$UDINT xor
+AxisSetPositionAsyncState[13]$UDINT xor
+AxisSetPositionAsyncState[14]$UDINT;
+if (AxisSetPositionAsyncState[30]$UDINT = adminContextCheck) then
+ResponseSize := LMC_ADMIN_SET_POSITION_PENDING;
+RETURN;
+else
+AxisSetPositionAsyncState[1] :=
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+AxisSetPositionAsyncState[31] := 1;
+ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+RETURN;
+end_if;
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_OWNERSHIP_RESERVED:
+AxisSetPositionAsyncState[28] :=
+InputLatch.SubmitAxisSetPositionPreflight(
+OperationToken:=AxisSetPositionAsyncState[5]$UDINT,
+OwnerGeneration:=AxisSetPositionAsyncState[6]$UDINT,
+StoreRecordGeneration:=AxisSetPositionAsyncState[2]$UDINT,
+CallerSessionEpoch:=AxisSetPositionAsyncState[3]$UDINT,
+RequestSequence:=AxisSetPositionAsyncState[4]$UDINT,
+AxisReference:=AxisSetPositionAsyncState[11],
+TargetPosition:=AxisSetPositionAsyncState[12],
+ExpectedActualPosition:=AxisSetPositionAsyncState[13],
+MaxJump:=AxisSetPositionAsyncState[14]$UDINT,
+ExpectedAxisMask:=AxisSetPositionAsyncState[7]$UDINT);
+if (AxisSetPositionAsyncState[28] = 0) |
+   (AxisSetPositionAsyncState[28] = 1) then
+AxisSetPositionAsyncState[1] :=
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_PREFLIGHT_PENDING;
+ResponseSize := LMC_ADMIN_SET_POSITION_PENDING;
+else
+AxisSetPositionAsyncState[1] :=
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+AxisSetPositionAsyncState[31] := 4;
+ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+RETURN;
+end_if;
+RETURN;
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_PREFLIGHT_PENDING:
+AxisSetPositionAsyncState[29] :=
+InputLatch.CopyAxisSetPositionPreflightResult(
+OperationToken:=AxisSetPositionAsyncState[5]$UDINT,
+OwnerGeneration:=AxisSetPositionAsyncState[6]$UDINT,
+StoreRecordGeneration:=AxisSetPositionAsyncState[2]$UDINT,
+pDest:=#AxisSetPositionAsyncState[73], DestSize:=128);
+if AxisSetPositionAsyncState[29] = 1 then
+ResponseSize := LMC_ADMIN_SET_POSITION_PENDING;
+RETURN;
+elsif AxisSetPositionAsyncState[29] <> 0 then
+AxisSetPositionAsyncState[1] :=
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+AxisSetPositionAsyncState[31] := 4;
+ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+RETURN;
+end_if;
+adminPreflightState := AxisSetPositionAsyncState[84];
+adminPreflightFailure := AxisSetPositionAsyncState[85];
+adminPreflightDetail := AxisSetPositionAsyncState[86];
+adminPreflightEvidence := AxisSetPositionAsyncState[101]$UDINT;
+adminPreflightRejected :=
+(adminPreflightState = LMC_SET_POSITION_PREFLIGHT_REJECTED) &
+(((adminPreflightFailure = LMC_SET_POSITION_PREFLIGHT_CLIENT) &
+  (adminPreflightDetail = 10)) |
+ ((adminPreflightFailure = LMC_SET_POSITION_PREFLIGHT_STATE) &
+  (adminPreflightDetail = 10)) |
+ ((adminPreflightFailure = LMC_SET_POSITION_PREFLIGHT_CONFIG) &
+  (adminPreflightDetail = 14)) |
+ ((adminPreflightFailure = LMC_SET_POSITION_PREFLIGHT_VELOCITY) &
+  (adminPreflightDetail = 12)) |
+ ((adminPreflightFailure = LMC_SET_POSITION_PREFLIGHT_AXIS_ERROR) &
+  (adminPreflightDetail = 13)) |
+ ((adminPreflightFailure = LMC_SET_POSITION_PREFLIGHT_COORDINATE) &
+  (adminPreflightDetail = 15))) &
+((adminPreflightEvidence and
+  LMC_SET_POSITION_EVIDENCE_REJECT_MASK) =
+ LMC_SET_POSITION_EVIDENCE_REJECT_MASK);
+adminPreflightValid :=
+(AxisSetPositionAsyncState[73]$UDINT =
+ AxisSetPositionAsyncState[5]$UDINT) &
+(AxisSetPositionAsyncState[74]$UDINT =
+ AxisSetPositionAsyncState[6]$UDINT) &
+(AxisSetPositionAsyncState[75]$UDINT =
+ AxisSetPositionAsyncState[2]$UDINT) &
+(AxisSetPositionAsyncState[76]$UDINT =
+ AxisSetPositionAsyncState[3]$UDINT) &
+(AxisSetPositionAsyncState[77]$UDINT =
+ AxisSetPositionAsyncState[4]$UDINT) &
+(AxisSetPositionAsyncState[78]$UDINT =
+ AxisSetPositionAsyncState[11]$UDINT) &
+(AxisSetPositionAsyncState[79]$UDINT =
+ AxisSetPositionAsyncState[12]$UDINT) &
+(AxisSetPositionAsyncState[80]$UDINT =
+ AxisSetPositionAsyncState[13]$UDINT) &
+(AxisSetPositionAsyncState[81]$UDINT =
+ AxisSetPositionAsyncState[14]$UDINT) &
+(AxisSetPositionAsyncState[82]$UDINT =
+ AxisSetPositionAsyncState[7]$UDINT) &
+(AxisSetPositionAsyncState[83]$UDINT <> 0) &
+((AxisSetPositionAsyncState[15]$UDINT = 0) |
+ (AxisSetPositionAsyncState[83]$UDINT =
+  AxisSetPositionAsyncState[15]$UDINT)) &
+(AxisSetPositionAsyncState[102] = 0) &
+(AxisSetPositionAsyncState[103] = 0) &
+(AxisSetPositionAsyncState[104] = 0) &
+(((adminPreflightState = LMC_SET_POSITION_PREFLIGHT_READY) &
+  (adminPreflightFailure = 0) &
+  (adminPreflightDetail = 0) &
+  (adminPreflightEvidence =
+   LMC_SET_POSITION_EVIDENCE_READY_MASK)) |
+ adminPreflightRejected);
+if adminPreflightValid = FALSE then
+AxisSetPositionAsyncState[1] :=
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+AxisSetPositionAsyncState[31] := 4;
+ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+RETURN;
+end_if;
+if AxisSetPositionAsyncState[15]$UDINT = 0 then
+AxisSetPositionAsyncState[15]$UDINT :=
+AxisSetPositionAsyncState[83]$UDINT;
+end_if;
+if adminPreflightState = LMC_SET_POSITION_PREFLIGHT_READY then
+AxisSetPositionAsyncState[1] :=
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_PREFLIGHT_READY;
+else
+AxisSetPositionAsyncState[16] := adminPreflightDetail;
+AxisSetPositionAsyncState[17] := 1;
+AxisSetPositionAsyncState[18] := -31000;
+AxisSetPositionAsyncState[19] := 0;
+AxisSetPositionAsyncState[20] := 0;
+AxisSetPositionAsyncState[1] :=
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_TERMINAL_COMMIT_PENDING;
+end_if;
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_PREFLIGHT_READY:
+adminPreflightValid :=
+(AxisSetPositionAsyncState[102] = 0) &
+(AxisSetPositionAsyncState[103] = 0) &
+(AxisSetPositionAsyncState[104] = 0);
+if adminPreflightValid = FALSE then
+AxisSetPositionAsyncState[1] :=
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+AxisSetPositionAsyncState[31] := 4;
+ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+RETURN;
+end_if;
+AxisSetPositionAsyncState[25] := ValidateAxisOwnershipIdentity(
+CommandId:=0x7D12,
+Reference:=AxisSetPositionAsyncState[11]$UINT,
+ExpectedAxisMask:=AxisSetPositionAsyncState[7]$UDINT,
+OwnerKind:=LMC_OWNER_KIND_DIRECT,
+ResourceKind:=LMC_OWNER_RESOURCE_AXIS,
+AdmissionMode:=LMC_OWNER_ADMISSION_ORDINARY,
+CallerSessionEpoch:=AxisSetPositionAsyncState[3]$UDINT,
+RequestSequence:=AxisSetPositionAsyncState[4]$UDINT,
+AdmissionToken:=AxisSetPositionAsyncState[5]$UDINT,
+OwnerGeneration:=AxisSetPositionAsyncState[6]$UDINT,
+RequiredPhase:=LMC_OWNER_PHASE_RESERVED,
+pIdentity:=#AxisSetPositionAsyncState[32],
+IdentitySize:=48);
+if AxisSetPositionAsyncState[25] <> 0 then
+AxisSetPositionAsyncState[1] :=
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+AxisSetPositionAsyncState[31] := 5;
+ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+RETURN;
+end_if;
+AxisSetPositionAsyncState[26] := CommitAxisOwnership(
+CommandId:=0x7D12,
+Reference:=AxisSetPositionAsyncState[11]$UINT,
+ExpectedAxisMask:=AxisSetPositionAsyncState[7]$UDINT,
+CallerSessionEpoch:=AxisSetPositionAsyncState[3]$UDINT,
+RequestSequence:=AxisSetPositionAsyncState[4]$UDINT,
+AdmissionToken:=AxisSetPositionAsyncState[5]$UDINT,
+OwnerGeneration:=AxisSetPositionAsyncState[6]$UDINT);
+if AxisSetPositionAsyncState[26] <> 0 then
+AxisSetPositionAsyncState[1] :=
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+AxisSetPositionAsyncState[31] := 5;
+ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+RETURN;
+end_if;
+AxisSetPositionAsyncState[25] := ValidateAxisOwnershipIdentity(
+CommandId:=0x7D12,
+Reference:=AxisSetPositionAsyncState[11]$UINT,
+ExpectedAxisMask:=AxisSetPositionAsyncState[7]$UDINT,
+OwnerKind:=LMC_OWNER_KIND_DIRECT,
+ResourceKind:=LMC_OWNER_RESOURCE_AXIS,
+AdmissionMode:=LMC_OWNER_ADMISSION_ORDINARY,
+CallerSessionEpoch:=AxisSetPositionAsyncState[3]$UDINT,
+RequestSequence:=AxisSetPositionAsyncState[4]$UDINT,
+AdmissionToken:=AxisSetPositionAsyncState[5]$UDINT,
+OwnerGeneration:=AxisSetPositionAsyncState[6]$UDINT,
+RequiredPhase:=LMC_OWNER_PHASE_ACTIVE,
+pIdentity:=#AxisSetPositionAsyncState[32],
+IdentitySize:=48);
+if AxisSetPositionAsyncState[25] <> 0 then
+AxisSetPositionAsyncState[1] :=
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+AxisSetPositionAsyncState[31] := 5;
+ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+RETURN;
+end_if;
+AxisSetPositionAsyncState[1] :=
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_OWNERSHIP_ACTIVE;
+ResponseSize := LMC_ADMIN_SET_POSITION_PENDING;
+RETURN;
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_OWNERSHIP_ACTIVE:
+ResponseSize := LMC_ADMIN_SET_POSITION_PENDING;
+RETURN;
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_EXECUTION_PENDING:
+// P2 only.
+RETURN;
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_TERMINAL_COMMIT_PENDING:
+AxisSetPositionAsyncState[21] :=
+SetPositionStore.CommitSetPositionTerminal(
+pKey:=#AxisSetPositionAsyncState[44], KeySize:=48,
+RecordGeneration:=AxisSetPositionAsyncState[2]$UDINT,
+RecordState:=3,
+AppliedPosition:=AxisSetPositionAsyncState[19],
+OriginalCommandStatus:=AxisSetPositionAsyncState[17]$UINT,
+OriginalErrorId:=AxisSetPositionAsyncState[18]$INT,
+OriginalDetailCode:=AxisSetPositionAsyncState[16]$UDINT,
+NativeCommandState:=AxisSetPositionAsyncState[20]$UDINT,
+pSnapshot:=#AxisSetPositionAsyncState[56],
+SnapshotCapacity:=68,
+pDetailCode:=(#AxisSetPositionAsyncState[22])$^UDINT);
+adminKeyCompareResult := _memcmp(
+ptr1:=#AxisSetPositionAsyncState[57],
+ptr2:=#AxisSetPositionAsyncState[45], cntr:=44);
+adminTerminalValid :=
+(AxisSetPositionAsyncState[21] = 1) &
+(AxisSetPositionAsyncState[22] = 0) &
+(AxisSetPositionAsyncState[56]$UDINT = 0x00010003) &
+(adminKeyCompareResult = 0) &
+(AxisSetPositionAsyncState[68] =
+ AxisSetPositionAsyncState[19]) &
+(AxisSetPositionAsyncState[69]$UDINT = 0x86E80001) &
+(AxisSetPositionAsyncState[70]$UDINT =
+ AxisSetPositionAsyncState[16]$UDINT) &
+(AxisSetPositionAsyncState[71]$UDINT =
+ AxisSetPositionAsyncState[20]$UDINT) &
+(AxisSetPositionAsyncState[72]$UDINT =
+ AxisSetPositionAsyncState[2]$UDINT);
+if adminTerminalValid then
+AxisSetPositionAsyncState[1] :=
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_TERMINAL_PROVEN;
+elsif (AxisSetPositionAsyncState[21] = 1) |
+      (AxisSetPositionAsyncState[21] =
+       LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE) then
+ResponseSize :=
+LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE;
+RETURN;
+else
+AxisSetPositionAsyncState[1] :=
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+AxisSetPositionAsyncState[31] := 7;
+ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+RETURN;
+end_if;
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_TERMINAL_PROVEN:
+AxisSetPositionAsyncState[27] := RollbackAxisOwnership(
+AdmissionToken:=AxisSetPositionAsyncState[5]$UDINT,
+OwnerGeneration:=AxisSetPositionAsyncState[6]$UDINT,
+CallerSessionEpoch:=AxisSetPositionAsyncState[3]$UDINT,
+RequestSequence:=AxisSetPositionAsyncState[4]$UDINT,
+Reason:=0);
+if AxisSetPositionAsyncState[27] <> 0 then
+AxisSetPositionAsyncState[1] :=
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+AxisSetPositionAsyncState[31] := 6;
+ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+RETURN;
+end_if;
+adminFrozenResponse[0]$UINT := 0;
+adminFrozenResponse[2]$UINT := 28;
+adminFrozenResponse[4]$UDINT := 0;
+adminFrozenResponse[8]$UINT := 1;
+adminFrozenResponse[10]$UINT := 0;
+adminFrozenResponse[12]$UINT :=
+AxisSetPositionAsyncState[69]$UINT;
+adminFrozenResponse[14]$INT := TO_INT(
+AxisSetPositionAsyncState[69]$UDINT / 65536);
+adminFrozenResponse[16]$UDINT :=
+AxisSetPositionAsyncState[60]$UDINT;
+adminFrozenResponse[20]$UDINT :=
+AxisSetPositionAsyncState[70]$UDINT;
+adminFrozenResponse[24]$DINT := AxisSetPositionAsyncState[68];
+adminFrozenResponse[28]$UINT := 1;
+adminFrozenResponse[30]$UINT := 0;
+adminFrozenResponse[32]$UDINT :=
+AxisSetPositionAsyncState[71]$UDINT;
+_memcpy(ptr1:=#AxisSetPositionAsyncState[105],
+ptr2:=#adminFrozenResponse[0], cntr:=36);
+_memcpy(ptr1:=pResponseFrame,
+ptr2:=#AxisSetPositionAsyncState[105], cntr:=36);
+_memset(dest:=#AxisSetPositionAsyncState[0],
+usByte:=0, cntr:=512);
+ResponseSize := 36;
+RETURN;
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED:
+ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+RETURN;
+else
+AxisSetPositionAsyncState[1] :=
+LMC_ADMIN_SET_POSITION_ASYNC_STATE_QUARANTINED;
+AxisSetPositionAsyncState[31] := 1;
+ResponseSize := LMC_ADMIN_SET_POSITION_QUARANTINE_CLOSE;
+RETURN;
+end_case;
+until (AxisSetPositionAsyncState[1] <>
+       LMC_ADMIN_SET_POSITION_ASYNC_STATE_BEGIN_PENDING) &
+      (AxisSetPositionAsyncState[1] <>
+       LMC_ADMIN_SET_POSITION_ASYNC_STATE_FRESH_ARMED) &
+      (AxisSetPositionAsyncState[1] <>
+       LMC_ADMIN_SET_POSITION_ASYNC_STATE_PREFLIGHT_READY) &
+      (AxisSetPositionAsyncState[1] <>
+       LMC_ADMIN_SET_POSITION_ASYNC_STATE_TERMINAL_COMMIT_PENDING) &
+      (AxisSetPositionAsyncState[1] <>
+       LMC_ADMIN_SET_POSITION_ASYNC_STATE_TERMINAL_PROVEN)
+end_repeat;
+// LMC_ADMIN_SET_POSITION_ASYNC_END
 END_FUNCTION
