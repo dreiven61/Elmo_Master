@@ -2650,6 +2650,7 @@ FUNCTION GLOBAL LMCControlCommandService::ReserveAxisOwnership
 		repeatRootForce : BOOL;
 		repeatPreemptedSeen : BOOL;
 		rebaseAdmissionAllowed : BOOL;
+    diagnosticsSdoTupleValid : BOOL;
 	END_VAR
 
 	Result := -1;
@@ -2917,16 +2918,24 @@ FUNCTION GLOBAL LMCControlCommandService::ReserveAxisOwnership
 		   (RequestedAxisMask <> referenceAxisMask) then
 			RETURN;
 		end_if;
-	elsif ResourceKind = LMC_OWNER_RESOURCE_DIAGNOSTICS_SDO_ENGINE then
-		if (((OwnerKind = LMC_OWNER_KIND_ENCODER) & (CommandId = 0x7E53)) |
-		    ((OwnerKind = LMC_OWNER_KIND_AXIS_OPERATION_MODE) &
-		     (CommandId = 0x7D23))) = FALSE |
-		   (AdmissionMode <> LMC_OWNER_ADMISSION_LIFECYCLE) |
-		   (referenceAxisMask = 0) |
-		   (referenceAxisMask > 0x00000008) |
-		   (RequestedAxisMask <> referenceAxisMask) then
-			RETURN;
-		end_if;
+  elsif ResourceKind = LMC_OWNER_RESOURCE_DIAGNOSTICS_SDO_ENGINE then
+    diagnosticsSdoTupleValid := FALSE;
+
+    if (OwnerKind = LMC_OWNER_KIND_ENCODER) &
+       (CommandId = 0x7E53) then
+        diagnosticsSdoTupleValid := TRUE;
+    elsif (OwnerKind = LMC_OWNER_KIND_AXIS_OPERATION_MODE) &
+          (CommandId = 0x7D23) then
+        diagnosticsSdoTupleValid := TRUE;
+    end_if;
+
+    if (diagnosticsSdoTupleValid = FALSE) |
+       (AdmissionMode <> LMC_OWNER_ADMISSION_LIFECYCLE) |
+       (referenceAxisMask = 0) |
+       (referenceAxisMask > 0x00000008) |
+       (RequestedAxisMask <> referenceAxisMask) then
+        RETURN;
+    end_if;
 	else
 		RETURN;
 	end_if;
