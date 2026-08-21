@@ -1,0 +1,86 @@
+name: MODE-08 CASE ordering fix
+
+on:
+  pull_request:
+    branches: [dev]
+    types: [synchronize]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.head_ref == 'codex/mode-08-owner-conflicts'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/mode-08-owner-conflicts
+          fetch-depth: 0
+
+      - name: Move inserted CASE arms before ELSE
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st')
+          src = path.read_text(encoding='utf-8')
+          decl = src.split('//{{LSL_IMPLEMENTATION', 1)[0]
+          lines = src.splitlines(keepends=True)
+          out = []
+          moved = 0
+          i = 0
+          targets = {'0x7D23:', 'LMC_OWNER_KIND_AXIS_OPERATION_MODE:'}
+          while i < len(lines):
+              if (lines[i].strip() == 'else' and i + 1 < len(lines)
+                      and lines[i + 1].strip() in targets):
+                  else_line = lines[i]
+                  j = i + 1
+                  arm = []
+                  while j < len(lines) and lines[j].strip() != 'end_case;':
+                      arm.append(lines[j])
+                      j += 1
+                  if j >= len(lines):
+                      raise SystemExit('unterminated CASE while fixing MODE-08 arm')
+                  out.extend(arm)
+                  out.append(else_line)
+                  out.append(lines[j])
+                  moved += 1
+                  i = j + 1
+                  continue
+              out.append(lines[i])
+              i += 1
+          src = ''.join(out)
+          if moved != 7:
+              raise SystemExit(f'expected 7 misplaced MODE-08 CASE arms, moved={moved}')
+          if src.split('//{{LSL_IMPLEMENTATION', 1)[0] != decl:
+              raise SystemExit('LASAL declaration region changed')
+          bad = ('\telse\n\t\t0x7D23:', '\telse\n\t\tLMC_OWNER_KIND_AXIS_OPERATION_MODE:',
+                 '\t\telse\n\t\t\tLMC_OWNER_KIND_AXIS_OPERATION_MODE:',
+                 '\t\t\telse\n\t\t\t\tLMC_OWNER_KIND_AXIS_OPERATION_MODE:')
+          if any(x in src for x in bad):
+              raise SystemExit('misplaced MODE-08 CASE arm remains')
+          path.write_text(src, encoding='utf-8')
+          print('moved CASE arms:', moved)
+          PY
+
+      - name: Validate diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          grep -q '0x7D23:' Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st
+          grep -q 'LMC_OWNER_KIND_AXIS_OPERATION_MODE:' Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st
+          grep -q '#define LMC_DIAG_SET_OPERATION_MODE_ENABLED FALSE' Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st
+
+      - name: Commit fix and remove workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/mode08-syntax-fix.yml
+          git add Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st
+          git commit -m 'fix(mode): order MODE-08 preemption CASE arms'
+          git push origin HEAD:codex/mode-08-owner-conflicts
