@@ -55,6 +55,7 @@
     <Compile Include="SdoWriteActivationQualificationProofTests.cs" />
     <Compile Include="WpfMotionRecoveryIntegrationTests.cs" />
     <Compile Include="WpfAxisPowerOnRecoveryIntegrationTests.cs" />
+    <Compile Include="WpfAxisSetOperationModeRecoveryIntegrationTests.cs" />
     <Compile Include="WpfRecoveryRecordRetirementIntegrationTests.cs" />
     <Compile Include="WpfAxisCommandRecoveryIntegrationTests.cs" />
     <Compile Include="WpfAxisQualificationIntegrationTests.cs" />
