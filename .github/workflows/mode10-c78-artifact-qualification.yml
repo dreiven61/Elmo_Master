@@ -1,0 +1,50 @@
+name: MODE-10 C78 artifact qualification
+
+on:
+  pull_request:
+    branches:
+      - dev
+    paths:
+      - '.github/workflows/mode10-c78-artifact-qualification.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  identity:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout qualification branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/mode-10-c78-artifact-qualification
+          fetch-depth: 0
+
+      - name: Print fresh C78 artifact identities
+        shell: powershell
+        run: |
+          $classes = '.\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\Classes.lcb'
+          $project = '.\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Elmo_EtherCAT_Test_4Axis.lcb'
+          $classesItem = Get-Item -LiteralPath $classes
+          $projectItem = Get-Item -LiteralPath $project
+          $classesHash = (Get-FileHash -LiteralPath $classes -Algorithm SHA256).Hash
+          $projectHash = (Get-FileHash -LiteralPath $project -Algorithm SHA256).Hash
+          Write-Host "CLASSES_BYTES=$($classesItem.Length)"
+          Write-Host "CLASSES_SHA256=$classesHash"
+          Write-Host "PROJECT_BYTES=$($projectItem.Length)"
+          Write-Host "PROJECT_SHA256=$projectHash"
+          Write-Host 'OLD_CLASSES_BYTES=8610206'
+          Write-Host 'OLD_CLASSES_SHA256=33C1C2A68B97E852AD6646317CAE032A110D1F50C9615FA5B7EEF00410B649A8'
+
+      - name: Confirm rebuild commit contains generated binaries only
+        shell: powershell
+        run: |
+          $files = @(git diff --name-only ca86903da82e815c1f6afa46bd7a66241ef0fed2..95f18563640504eee56bc726df4275c20f708310)
+          $expected = @(
+            'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/Classes.lcb',
+            'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Elmo_EtherCAT_Test_4Axis.lcb'
+          )
+          if (($files.Count -ne $expected.Count) -or (@(Compare-Object $files $expected).Count -ne 0)) {
+            throw "Unexpected rebuild commit file set: $($files -join ', ')"
+          }
+          Write-Host 'Fresh rebuild commit file set is binary-only and exact.'
