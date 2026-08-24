@@ -136,19 +136,62 @@ foreach ($functionName in @(
     'LMCDiagnosticsService::HandleAxisSetOperationModeOutcome',
     'LMCDiagnosticsService::HandleAxisSetOperationModeRetire',
     'LMCDiagnosticsService::ProcessAxisSetOperationMode',
+    'LMCDiagnosticsService::ProcessAxisSetOperationModeMutationStages',
+    'LMCDiagnosticsService::ProcessAxisSetOperationModeRecoveryStages',
     'LMCDiagnosticsService::GetSdoWritePolicyDetail'
 )) {
     Assert-LasalMethodBudget -Text $diagnostics -QualifiedName $functionName
 }
 
-# MODE-07 no-replay: after 0x6060 dispatch, only the read-only recovery path is legal.
 $processMode = Get-LasalFunctionBody -Text $diagnostics -QualifiedName 'LMCDiagnosticsService::ProcessAxisSetOperationMode'
+$mutationMode = Get-LasalFunctionBody -Text $diagnostics -QualifiedName 'LMCDiagnosticsService::ProcessAxisSetOperationModeMutationStages'
+$recoveryMode = Get-LasalFunctionBody -Text $diagnostics -QualifiedName 'LMCDiagnosticsService::ProcessAxisSetOperationModeRecoveryStages'
+
+# MODE-07/MODE-08 orchestration remains in the main processor. It performs
+# safety preemption and no-replay normalization before delegating a stage.
 if ($null -ne $processMode) {
-    Assert-Regex $processMode 'LMC_DIAG_MODE_EVIDENCE_WRITE_DISPATCHED' 'irreversible 0x6060 dispatch evidence is tracked' -MinimumCount 2
-    Assert-Regex $processMode 'LMC_DIAG_MODE_STAGE_RECOVERY_START' 'post-dispatch uncertainty has a read-only recovery stage' -MinimumCount 2
-    Assert-Regex $processMode 'TryStartWrite\([^;\r\n]*ObjectIndex:=0x6060' 'one logical 0x6060 write site fans out to exactly four physical axes' -ExpectedCount 4
+    Assert-Regex $processMode 'LMC_DIAG_MODE_EVIDENCE_WRITE_DISPATCHED' 'main processor retains irreversible-dispatch no-replay normalization' -MinimumCount 2
+    Assert-Regex $processMode 'LMC_DIAG_MODE_STAGE_RECOVERY_START' 'main processor can normalize uncertainty to read-only recovery' -MinimumCount 2
     Assert-Regex $processMode 'CopyAxisOwnershipPreemption' 'MODE-08 processor observes ownership preemption' -MinimumCount 1
     Assert-Regex $processMode 'PublishAxisOwnershipPreemptionCleanup' 'MODE-08 processor publishes cleanup evidence' -MinimumCount 1
+    Assert-Regex $processMode 'ProcessAxisSetOperationModeMutationStages\(\);' 'main processor delegates mutation stages' -ExpectedCount 1
+    Assert-Regex $processMode 'ProcessAxisSetOperationModeRecoveryStages\(\);' 'main processor delegates recovery stages' -ExpectedCount 1
+    Assert-Regex $processMode 'TryStartWrite\([^;\r\n]*ObjectIndex:=0x6060' 'main processor owns no 0x6060 write site after split' -ExpectedCount 0
+}
+
+# MODE-06 mutation stages contain the sole logical 0x6060 mutation site,
+# fanned out over physical axes 1..4, followed by 0x6061 verification.
+if ($null -ne $mutationMode) {
+    foreach ($stageName in @(
+        'LMC_DIAG_MODE_STAGE_PREFLIGHT_START',
+        'LMC_DIAG_MODE_STAGE_PREFLIGHT_WAIT',
+        'LMC_DIAG_MODE_STAGE_WRITE_START',
+        'LMC_DIAG_MODE_STAGE_WRITE_WAIT',
+        'LMC_DIAG_MODE_STAGE_VERIFY_START',
+        'LMC_DIAG_MODE_STAGE_VERIFY_WAIT'
+    )) {
+        Assert-Regex $mutationMode $stageName "mutation helper contains $stageName" -MinimumCount 1
+    }
+    Assert-Regex $mutationMode 'TryStartWrite\([^;\r\n]*ObjectIndex:=0x6060' 'one logical 0x6060 write site fans out to exactly four physical axes' -ExpectedCount 4
+    Assert-Regex $mutationMode 'LMC_DIAG_MODE_EVIDENCE_WRITE_DISPATCHED' 'mutation helper persists irreversible 0x6060 dispatch evidence' -MinimumCount 1
+}
+
+# MODE-07 recovery/terminal/quarantine stages are permanently read-only with
+# respect to 0x6060. They may only drain/read/verify the already-dispatched
+# intent and publish terminal/quarantine evidence.
+if ($null -ne $recoveryMode) {
+    foreach ($stageName in @(
+        'LMC_DIAG_MODE_STAGE_RECOVERY_START',
+        'LMC_DIAG_MODE_STAGE_RECOVERY_WAIT',
+        'LMC_DIAG_MODE_STAGE_TERMINAL_SUCCESS',
+        'LMC_DIAG_MODE_STAGE_TERMINAL_FAILURE',
+        'LMC_DIAG_MODE_STAGE_QUARANTINE',
+        'LMC_DIAG_MODE_STAGE_QUARANTINE_HOLD'
+    )) {
+        Assert-Regex $recoveryMode $stageName "recovery helper contains $stageName" -MinimumCount 1
+    }
+    Assert-Regex $recoveryMode 'TryStartWrite\([^;\r\n]*ObjectIndex:=0x6060' 'recovery helper never replays a 0x6060 write' -ExpectedCount 0
+    Assert-Regex $recoveryMode 'never fall back to WRITE_START' 'recovery helper retains explicit read-only no-replay invariant' -ExpectedCount 1
 }
 
 # MODE-08 preemption constants and exact SetOperationMode identity recognition.
