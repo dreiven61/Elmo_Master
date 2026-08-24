@@ -23,7 +23,7 @@ jobs:
           ref: codex/mode-10-sourceonly-cleanup
           fetch-depth: 0
 
-      - name: Patch known MODE-08 ratchets
+      - name: Patch known MODE-08 ratchets and expose publish split
         shell: python
         run: |
           from pathlib import Path
@@ -44,6 +44,11 @@ jobs:
               if count != 1:
                   raise SystemExit(f'ratchet token count={count}, expected=1: {old}')
               text = text.replace(old, new, 1)
+          lines = text.splitlines()
+          print('--- VERIFIER_LINES_4540_4620_BEGIN ---')
+          for number in range(4540, min(4621, len(lines) + 1)):
+              print(f'{number}: {lines[number - 1]}')
+          print('--- VERIFIER_LINES_4540_4620_END ---')
           src.write_text(text, encoding='utf-8', newline='')
 
       - name: Run repository SourceOnly contract
