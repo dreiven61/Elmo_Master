@@ -13,13 +13,14 @@ byte offset은 `LMC_Library/LMC_API_Delivery/docs/DINT_PACKET_MAP.txt`가 정본
 | 순서 | API | 현재 진행도 | 개발 성격 | 설계 |
 |---:|---|---:|---|---|
 | 1 | `HomeDS402` | 50% | 기존 `0x7D15/16/17` 경로의 활성화·실축 적격화 | [HOME_DS402_DESIGN.md](HOME_DS402_DESIGN.md) |
-| 2 | `SetOpMode` | 25% | PC/SDK contract와 dormant LASAL failure route 완료; mode owner/SDO executor 미구현 | [SET_OPERATION_MODE_DESIGN.md](SET_OPERATION_MODE_DESIGN.md) |
+| 2 | `SetOpMode` | 25% | PC/SDK+dormant route 완료; `AxisOperationMode` owner ABI는 동결, Control/SDO lifecycle source 미구현 | [SET_OPERATION_MODE_DESIGN.md](SET_OPERATION_MODE_DESIGN.md) |
 | 3 | `HomeDS402Ex` | 0% | 기존 Home과 분리된 확장 Homing 신규 구현 | [HOME_DS402_EX_DESIGN.md](HOME_DS402_EX_DESIGN.md) |
 | 4 | `SetPosition` | 25% | P1 async lifecycle/volatile Store까지 완료; durable backend와 RT exactly-once 후속 구현 | [SET_POSITION_DESIGN.md](SET_POSITION_DESIGN.md) |
 
 순서는 단순한 중요도 순위가 아니라 의존성 순서다. `HomeDS402`는 이미 존재하는 가장 짧은
-실축 완료 경로다. `SetOpMode`의 mode owner가 확정돼야 `HomeDS402Ex`가 DS402 mode와 SDO
-executor를 안전하게 공유할 수 있다. `SetPosition`은 별도 작업 흐름으로 즉시 시작하되,
+실축 완료 경로다. `SetOpMode`의 owner/resource numeric ABI는 고정됐고, 이 ABI를 실제
+Control/Diagnostics source에 반영해야 `HomeDS402Ex`가 DS402 mode와 SDO executor 공유 규칙을
+안전하게 재사용할 수 있다. `SetPosition`은 별도 작업 흐름으로 즉시 시작하되,
 내구 저장소와 RT task 증거가 필요하므로 activation은 가장 마지막에 수행한다.
 
 ## 2. command ID 예약
@@ -47,8 +48,9 @@ packet map과 golden-byte test를 한 변경 단위로 반영한다.
 ### Wave 1 - 즉시 병렬 착수
 
 - HomeDS402: 기존 5개 activation switch의 정합 verifier와 axis 1 bench runner를 준비한다.
-- SetOpMode: PC/SDK와 dormant fail-closed route는 완료했다. 다음 단계는 `AxisOperationMode`
-  owner/resource ABI를 freeze하고 `6061 -> 6060 -> 6061` executor의 dormant lifecycle을 구현한다.
+- SetOpMode: PC/SDK, dormant fail-closed route와 owner/resource numeric ABI freeze까지 완료했다.
+  다음 단계는 Control/Diagnostics의 owner kind 6 + shared Diagnostics SDO resource 4 계약을
+  source에 반영하고 `6061 -> 6060 -> 6061` executor의 dormant lifecycle을 구현하는 것이다.
 - SetPosition: `_FileSys` dual-file A/B backend와 축 1~4 task/core/priority 증거를 준비한다.
 
 ### Wave 2 - source 완성
