@@ -72,43 +72,49 @@ jobs:
           for old, new in replacements:
               replace_once(old, new, old)
 
-          old_state_guard = """    if ($disjointBlock -match '(?i)LMC_OWNER_STATE_RESERVED|LMC_OWNER_STATE_QUARANTINED') {
-        throw \"$blocker disjoint proof accepts a non-active Reserved/Quarantined state.\"
-    }
-"""
-          new_state_guard = """    if ($disjointBlock -match '(?i)LMC_OWNER_STATE_QUARANTINED') {
-        throw \"$blocker disjoint proof accepts a Quarantined state.\"
-    }
-    $reservedDisjointStates = @(
-        [regex]::Matches($disjointBlock, '(?i)LMC_OWNER_STATE_RESERVED'))
-    if ($reservedDisjointStates.Count -ne 1) {
-        throw \"$blocker disjoint proof Reserved state must appear exactly once for SetOperationMode.\"
-    }
-"""
+          old_state_guard = '\n'.join((
+              "    if ($disjointBlock -match '(?i)LMC_OWNER_STATE_RESERVED|LMC_OWNER_STATE_QUARANTINED') {",
+              '        throw "$blocker disjoint proof accepts a non-active Reserved/Quarantined state."',
+              '    }',
+              ''))
+          new_state_guard = '\n'.join((
+              "    if ($disjointBlock -match '(?i)LMC_OWNER_STATE_QUARANTINED') {",
+              '        throw "$blocker disjoint proof accepts a Quarantined state."',
+              '    }',
+              '    $reservedDisjointStates = @(',
+              "        [regex]::Matches($disjointBlock, '(?i)LMC_OWNER_STATE_RESERVED'))",
+              '    if ($reservedDisjointStates.Count -ne 1) {',
+              '        throw "$blocker disjoint proof Reserved state must appear exactly once for SetOperationMode."',
+              '    }',
+              ''))
           replace_once(old_state_guard, new_state_guard, 'disjoint state guard')
 
-          old_classifier_tail = """        'LMC_OWNER_KIND_ENCODER\\s*:\\s*currentStateValid\\s*:=.*?' +
-        'LMC_OWNER_STATE_TW20_QUEUED.*?LMC_OWNER_STATE_TW20_RUNNING.*?' +
-        'LMC_OWNER_STATE_TW20_DRAINING') (
-        \"$blocker disjoint proof active-state classifier drifted.\")
-"""
-          new_classifier_tail = """        'LMC_OWNER_KIND_ENCODER\\s*:\\s*currentStateValid\\s*:=.*?' +
-        'LMC_OWNER_STATE_TW20_QUEUED.*?LMC_OWNER_STATE_TW20_RUNNING.*?' +
-        'LMC_OWNER_STATE_TW20_DRAINING.*?' +
-        'LMC_OWNER_KIND_AXIS_OPERATION_MODE\\s*:\\s*currentStateValid\\s*:=.*?' +
-        'LMC_OWNER_STATE_RESERVED.*?' +
-        'LMC_OWNER_STATE_AXIS_OPERATION_MODE_ACTIVE') (
-        \"$blocker disjoint proof active-state classifier drifted.\")
-"""
+          old_classifier_tail = '\n'.join((
+              "        'LMC_OWNER_KIND_ENCODER\\s*:\\s*currentStateValid\\s*:=.*?' +",
+              "        'LMC_OWNER_STATE_TW20_QUEUED.*?LMC_OWNER_STATE_TW20_RUNNING.*?' +",
+              "        'LMC_OWNER_STATE_TW20_DRAINING') (",
+              '        "$blocker disjoint proof active-state classifier drifted.")',
+              ''))
+          new_classifier_tail = '\n'.join((
+              "        'LMC_OWNER_KIND_ENCODER\\s*:\\s*currentStateValid\\s*:=.*?' +",
+              "        'LMC_OWNER_STATE_TW20_QUEUED.*?LMC_OWNER_STATE_TW20_RUNNING.*?' +",
+              "        'LMC_OWNER_STATE_TW20_DRAINING.*?' +",
+              "        'LMC_OWNER_KIND_AXIS_OPERATION_MODE\\s*:\\s*currentStateValid\\s*:=.*?' +",
+              "        'LMC_OWNER_STATE_RESERVED.*?' +",
+              "        'LMC_OWNER_STATE_AXIS_OPERATION_MODE_ACTIVE') (",
+              '        "$blocker disjoint proof active-state classifier drifted.")',
+              ''))
           replace_once(old_classifier_tail, new_classifier_tail, 'disjoint classifier tail')
 
-          old_shape = """        @{ Label = '0x7D15'; Pattern = '0x7D15\\s*:\\s*identityExpectedSize\\s*:=\\s*72\\s*;' },
-        @{ Label = '0x7E53'; Pattern = '0x7E53\\s*:\\s*identityExpectedSize\\s*:=\\s*72\\s*;' })
-"""
-          new_shape = """        @{ Label = '0x7D15'; Pattern = '0x7D15\\s*:\\s*identityExpectedSize\\s*:=\\s*72\\s*;' },
-        @{ Label = '0x7D23'; Pattern = '0x7D23\\s*:\\s*identityExpectedSize\\s*:=\\s*56\\s*;' },
-        @{ Label = '0x7E53'; Pattern = '0x7E53\\s*:\\s*identityExpectedSize\\s*:=\\s*72\\s*;' })
-"""
+          old_shape = '\n'.join((
+              "        @{ Label = '0x7D15'; Pattern = '0x7D15\\s*:\\s*identityExpectedSize\\s*:=\\s*72\\s*;' },",
+              "        @{ Label = '0x7E53'; Pattern = '0x7E53\\s*:\\s*identityExpectedSize\\s*:=\\s*72\\s*;' })",
+              ''))
+          new_shape = '\n'.join((
+              "        @{ Label = '0x7D15'; Pattern = '0x7D15\\s*:\\s*identityExpectedSize\\s*:=\\s*72\\s*;' },",
+              "        @{ Label = '0x7D23'; Pattern = '0x7D23\\s*:\\s*identityExpectedSize\\s*:=\\s*56\\s*;' },",
+              "        @{ Label = '0x7E53'; Pattern = '0x7E53\\s*:\\s*identityExpectedSize\\s*:=\\s*72\\s*;' })",
+              ''))
           replace_once(old_shape, new_shape, '0x7D23 identity shape')
 
           src.write_text(text, encoding='utf-8', newline='')
