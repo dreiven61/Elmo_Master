@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 jobs:
-  config-provenance:
+  gate-inventory:
     runs-on: windows-latest
     steps:
       - name: Checkout qualification branch
@@ -20,26 +20,13 @@ jobs:
           ref: codex/mode-10-c78-artifact-qualification
           fetch-depth: 0
 
-      - name: Trace ConfigObjects current identity and Git provenance
+      - name: Inventory SetPosition-augmented current artifact contracts
         shell: python
         run: |
           from pathlib import Path
-          import hashlib
           import re
-          import subprocess
 
-          verifier_path = Path('LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalUdpCallbackContract.ps1')
-          config_path = Path('Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/ConfigObjects.st')
-          verifier = verifier_path.read_text(encoding='utf-8')
-          rel = config_path.as_posix()
-
-          def sha(data):
-              return hashlib.sha256(data).hexdigest().upper()
-
-          def canonical(data):
-              text = data.decode('latin-1')
-              text = text.replace('\r\n', '\n').replace('\r', '\n')
-              return text.encode('utf-8')
+          verifier = Path('LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalUdpCallbackContract.ps1').read_text(encoding='utf-8')
 
           def balanced_block(text, marker):
               start = text.index(marker)
@@ -68,65 +55,80 @@ jobs:
                   i += 1
               raise RuntimeError(f'unterminated block: {marker}')
 
-          def int_field(block, name):
-              m = re.search(rf'(?m)^\s*{re.escape(name)}\s*=\s*(\d+)\s*$', block)
-              if not m:
-                  raise RuntimeError(f'{name} missing')
-              return int(m.group(1))
+          gate = balanced_block(verifier, '$SetPositionAugmentedGateD = [ordered]@{')
+          lines = gate.splitlines()
+          print('CURRENT_GATE_TOP_LEVEL_BEGIN')
+          for line in lines:
+              if re.match(r'^    [A-Za-z][A-Za-z0-9_]*\s*=\s*\[ordered\]@\{', line):
+                  print(line.strip())
+          print('CURRENT_GATE_TOP_LEVEL_END')
 
-          def sha_field(block, name):
-              m = re.search(rf"(?ms)^\s*{re.escape(name)}\s*=\s*\r?\n\s*'([0-9A-Fa-f]+)'", block)
-              if not m:
-                  m = re.search(rf"(?m)^\s*{re.escape(name)}\s*=\s*'([0-9A-Fa-f]+)'\s*$", block)
-              if not m:
-                  raise RuntimeError(f'{name} missing')
-              return m.group(1).upper()
-
-          current_gate = balanced_block(verifier, '$SetPositionAugmentedGateD = [ordered]@{')
-          expected = balanced_block(current_gate, 'ConfigObjects = [ordered]@{')
-          expected_raw_bytes = int_field(expected, 'RawBytes')
-          expected_raw_sha = sha_field(expected, 'RawSha256')
-          expected_canon_bytes = int_field(expected, 'CanonicalLfBytes')
-          expected_canon_sha = sha_field(expected, 'CanonicalLfSha256')
-
-          actual = config_path.read_bytes()
-          actual_canon = canonical(actual)
-          print(f'EXPECTED_CONFIG_RAW_BYTES={expected_raw_bytes}')
-          print(f'EXPECTED_CONFIG_RAW_SHA256={expected_raw_sha}')
-          print(f'EXPECTED_CONFIG_CANON_BYTES={expected_canon_bytes}')
-          print(f'EXPECTED_CONFIG_CANON_SHA256={expected_canon_sha}')
-          print(f'ACTUAL_CONFIG_RAW_BYTES={len(actual)}')
-          print(f'ACTUAL_CONFIG_RAW_SHA256={sha(actual)}')
-          print(f'ACTUAL_CONFIG_CANON_BYTES={len(actual_canon)}')
-          print(f'ACTUAL_CONFIG_CANON_SHA256={sha(actual_canon)}')
-          print('ACTUAL_GIT_BLOB=' + subprocess.check_output(['git','rev-parse',f'HEAD:{rel}'], text=True).strip())
-
-          commits = subprocess.check_output(['git','rev-list','--all','--',rel], text=True).splitlines()
-          seen = set()
-          expected_matches = []
-          actual_matches = []
-          print('CONFIG_HISTORY_BEGIN')
-          for commit in commits:
-              try:
-                  raw = subprocess.check_output(['git','show',f'{commit}:{rel}'])
-              except subprocess.CalledProcessError:
+          print('CURRENT_GATE_IDENTITY_FIELDS_BEGIN')
+          active = None
+          depth = 0
+          for line in lines[1:]:
+              top = re.match(r'^    ([A-Za-z][A-Za-z0-9_]*)\s*=\s*\[ordered\]@\{', line)
+              if top:
+                  active = top.group(1)
+                  depth = 1
+                  print(f'[{active}]')
                   continue
-              raw_sha = sha(raw)
-              key = (len(raw), raw_sha)
-              subject = subprocess.check_output(['git','show','-s','--format=%cs|%s',commit], text=True).strip()
-              if raw_sha == expected_raw_sha and len(raw) == expected_raw_bytes:
-                  expected_matches.append((commit, subject))
-              if raw_sha == sha(actual) and len(raw) == len(actual):
-                  actual_matches.append((commit, subject))
-              if key not in seen and len(seen) < 20:
-                  seen.add(key)
-                  can = canonical(raw)
-                  print(f'{commit}|{subject}|RAW={len(raw)}/{raw_sha}|CANON={len(can)}/{sha(can)}')
-          print('CONFIG_HISTORY_END')
-          for commit, subject in expected_matches[:10]:
-              print(f'EXPECTED_IDENTITY_MATCH={commit}|{subject}')
-          for commit, subject in actual_matches[:10]:
-              print(f'ACTUAL_IDENTITY_MATCH={commit}|{subject}')
+              if active is None:
+                  continue
+              opens = line.count('@{') + max(0, line.count('{') - line.count('@{'))
+              closes = line.count('}')
+              depth += opens - closes
+              if re.search(r'\b(Bytes|RawBytes|RawSha256|CanonicalLfBytes|CanonicalLfSha256|Sha256|ObjectId)\s*=', line):
+                  print(line.strip())
+              elif re.fullmatch(r"\s*'[0-9A-Fa-f]{40,64}'\s*", line):
+                  print(line.strip())
+              if depth <= 0:
+                  active = None
+          print('CURRENT_GATE_IDENTITY_FIELDS_END')
+
+      - name: Print actual current text artifact identities
+        shell: python
+        run: |
+          from pathlib import Path
+          import hashlib
+
+          root = Path('Lasal_PRG/Elmo_EtherCAT_Test_4Axis')
+          paths = [
+              root / 'Network' / 'ConfigObjects.st',
+              root / 'Include' / 'C_channels.h',
+              root / 'Include' / 'C_functions.h',
+              root / 'Include' / 'C_variables.h',
+              root / 'Network' / 'Comm_Network' / 'Comm_Network.lcn',
+              root / 'Network' / 'Comm_Network' / 'ONE_Comm_Network_Table.st',
+          ]
+          def sha(data): return hashlib.sha256(data).hexdigest().upper()
+          def canon(data):
+              text = data.decode('latin-1').replace('\r\n','\n').replace('\r','\n')
+              return text.encode('utf-8')
+          for path in paths:
+              if not path.exists():
+                  print(f'MISSING={path.as_posix()}')
+                  continue
+              raw = path.read_bytes()
+              can = canon(raw)
+              print(f'ACTUAL={path.as_posix()}|RAW={len(raw)}/{sha(raw)}|CANON={len(can)}/{sha(can)}')
+
+      - name: Preserve ConfigObjects provenance evidence
+        shell: python
+        run: |
+          from pathlib import Path
+          import hashlib
+          import subprocess
+          rel = 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/ConfigObjects.st'
+          actual = Path(rel).read_bytes()
+          actual_sha = hashlib.sha256(actual).hexdigest().upper()
+          print(f'CONFIG_CURRENT={len(actual)}/{actual_sha}')
+          for commit in subprocess.check_output(['git','rev-list','--all','--',rel], text=True).splitlines():
+              raw = subprocess.check_output(['git','show',f'{commit}:{rel}'])
+              if len(raw) == len(actual) and hashlib.sha256(raw).hexdigest().upper() == actual_sha:
+                  meta = subprocess.check_output(['git','show','-s','--format=%H|%cs|%s',commit], text=True).strip()
+                  print(f'CONFIG_CURRENT_FIRST_HISTORY_MATCH={meta}')
+                  break
 
       - name: Confirm fresh rebuild commit still contains only generated binaries
         shell: powershell
