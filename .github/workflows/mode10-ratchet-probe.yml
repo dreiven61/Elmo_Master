@@ -1,24 +1,24 @@
 name: MODE-10 SourceOnly ratchet probe
 
 on:
-  push:
+  pull_request:
     branches:
-      - codex/mode-10-sourceonly-cleanup
+      - dev
     paths:
+      - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
       - '.github/workflows/mode10-ratchet-probe.yml'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   probe:
-    if: github.actor != 'github-actions[bot]'
     runs-on: windows-latest
     steps:
-      - name: Checkout cleanup branch
+      - name: Checkout PR head
         uses: actions/checkout@v4
         with:
-          ref: codex/mode-10-sourceonly-cleanup
           fetch-depth: 0
 
       - name: Capture exact ratchet context
@@ -27,27 +27,11 @@ jobs:
           from pathlib import Path
 
           src = Path('LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1')
-          out = Path('.mode10_ratchet_context.txt')
           text = src.read_text(encoding='utf-8')
           needle = 'replacement helper persistent read inventory'
           pos = text.find(needle)
           if pos < 0:
-              out.write_text('NOT_FOUND\n', encoding='utf-8')
               raise SystemExit('ratchet message not found')
           start = max(0, pos - 1200)
           end = min(len(text), pos + len(needle) + 1200)
-          context = text[start:end]
-          out.write_text(context, encoding='utf-8')
-          print(context)
-
-      - name: Commit probe report
-        shell: powershell
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add '.mode10_ratchet_context.txt'
-          git diff --cached --check
-          if (-not (git diff --cached --quiet)) {
-            git commit -m 'test(mode): capture SourceOnly ratchet context'
-            git push origin HEAD:codex/mode-10-sourceonly-cleanup
-          }
+          print(text[start:end])
