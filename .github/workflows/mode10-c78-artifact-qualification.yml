@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 jobs:
-  network-eol-evidence:
+  synthetic-selection-source:
     runs-on: windows-latest
     steps:
       - name: Checkout finalize branch
@@ -20,97 +20,29 @@ jobs:
           ref: codex/mode-10-c78-finalize
           fetch-depth: 0
 
-      - name: Reproduce Network aggregates from worktree and Git blobs
+      - name: Print exact synthetic aggregate selection block
         shell: python
         run: |
-          import hashlib
-          import pathlib
-          import subprocess
-
-          root = 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network'
-          tracked = subprocess.check_output(
-              ['git', 'ls-files', '--', root + '/**'],
-              text=True,
-              encoding='utf-8'
-          ).splitlines()
-          tracked = sorted({p.strip().replace('\\', '/') for p in tracked if p.strip()})
-
-          def sha(data: bytes) -> str:
-              return hashlib.sha256(data).hexdigest().upper()
-
-          def aggregate(file_bytes, full=False):
-              rows = []
-              for path in tracked:
-                  data = file_bytes[path]
-                  digest = sha(data)
-                  if full:
-                      rows.append(f'{path}|1|1|{len(data)}|{digest}')
-                  else:
-                      rows.append(f'{path}|{len(data)}|{digest}')
-              return sha('\n'.join(rows).encode('utf-8'))
-
-          worktree = {p: pathlib.Path(p).read_bytes() for p in tracked}
-          head_blobs = {
-              p: subprocess.check_output(['git', 'show', f'HEAD:{p}'])
-              for p in tracked
-          }
-          base_blobs = {
-              p: subprocess.check_output([
-                  'git', 'show',
-                  f'e03352b30da9096a3ec2b477dbfbdacc2a7c663b:{p}'
-              ])
-              for p in tracked
-          }
-
-          def force_lf(data: bytes) -> bytes:
-              return data.replace(b'\r\n', b'\n')
-
-          def force_crlf_if_text(data: bytes) -> bytes:
-              if b'\x00' in data:
-                  return data
-              canonical = data.replace(b'\r\n', b'\n')
-              return canonical.replace(b'\n', b'\r\n')
-
-          head_lf = {p: force_lf(b) for p, b in head_blobs.items()}
-          head_crlf = {p: force_crlf_if_text(b) for p, b in head_blobs.items()}
-
-          print('TRACKED_COUNT=', len(tracked))
-          print('WORKTREE_TRACKED_AGG=', aggregate(worktree))
-          print('WORKTREE_FULL_AGG=', aggregate(worktree, full=True))
-          print('HEAD_BLOB_TRACKED_AGG=', aggregate(head_blobs))
-          print('HEAD_BLOB_FULL_AGG=', aggregate(head_blobs, full=True))
-          print('E033_BLOB_TRACKED_AGG=', aggregate(base_blobs))
-          print('E033_BLOB_FULL_AGG=', aggregate(base_blobs, full=True))
-          print('HEAD_FORCE_LF_TRACKED_AGG=', aggregate(head_lf))
-          print('HEAD_FORCE_LF_FULL_AGG=', aggregate(head_lf, full=True))
-          print('HEAD_FORCE_CRLF_TRACKED_AGG=', aggregate(head_crlf))
-          print('HEAD_FORCE_CRLF_FULL_AGG=', aggregate(head_crlf, full=True))
-
-          print('===== PER FILE RAW EVIDENCE =====')
-          for p in tracked:
-              w = worktree[p]
-              g = head_blobs[p]
-              print(
-                  f'{p}|WORK={len(w)}/{sha(w)}/{w.count(bytes([13,10]))}CRLF/'
-                  f'{w.count(bytes([10]))}LF|GIT={len(g)}/{sha(g)}/'
-                  f'{g.count(bytes([13,10]))}CRLF/{g.count(bytes([10]))}LF|'
-                  f'SAME={w == g}'
-              )
-
-          if aggregate(worktree) != '1F82198AA56B2D25D353AB88BC3A3DA3DF494EA065B9C572528E0DF6C7A956FD':
-              raise SystemExit('worktree tracked aggregate did not reproduce measured SourceOnly value')
-          if aggregate(worktree, full=True) != 'C8953FC1F486F320A6EBC673E09A430BF82D442715C3B8CFCD50A17F0BEBF0BB':
-              raise SystemExit('worktree full aggregate did not reproduce measured SourceOnly value')
-          if aggregate(head_blobs) != aggregate(base_blobs):
-              raise SystemExit('tracked Network Git blob aggregate changed since e03352b')
-
-      - name: Show Git EOL policy
-        shell: powershell
-        run: |
-          $value = git config --get core.autocrlf
-          if ($LASTEXITCODE -ne 0) { $value = '<unset>' }
-          Write-Host "core.autocrlf=$value"
-          git check-attr text eol -- `
-            'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/ConfigObjects.st' `
-            'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/Comm_Network/ONE_Comm_Network_Table.st' `
-            'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/Comm_Network/Comm_Network.lcn'
+          from pathlib import Path
+          p = Path('LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalUdpCallbackContract.ps1')
+          text = p.read_text(encoding='utf-8')
+          needles = (
+              '$networkAggregateExact =',
+              '$expectedFullNetworkCount =',
+              "$state -ceq 'TerminalWakeBrokerCandidate'",
+          )
+          printed = set()
+          for needle in needles:
+              start = 0
+              while True:
+                  idx = text.find(needle, start)
+                  if idx < 0:
+                      break
+                  lo = max(0, idx - 2600)
+                  hi = min(len(text), idx + 3800)
+                  key = (lo, hi)
+                  if key not in printed:
+                      print(f'===== {needle} @ {idx} =====')
+                      print(text[lo:hi])
+                      printed.add(key)
+                  start = idx + len(needle)
