@@ -20,14 +20,22 @@ jobs:
           ref: codex/mode-10-c78-finalize
           fetch-depth: 0
 
-      - name: Inspect TerminalWakeBrokerCandidate aggregate contract
+      - name: Print exact scenario aggregate implementation context
         shell: powershell
         run: |
           $path = '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\Verify-LasalUdpCallbackContract.ps1'
-          Select-String -Path $path -Pattern 'TerminalWakeBrokerCandidate' -Context 8,24
-          Select-String -Path $path -Pattern 'canonical Network aggregate drifted' -Context 30,30
-          Select-String -Path $path -Pattern 'CanonicalNetwork' -Context 8,16
-          Select-String -Path $path -Pattern 'Network aggregate' -Context 12,20
+          $lines = Get-Content -LiteralPath $path
+          foreach ($needle in @('function Assert-ScenarioEvidence', 'canonical Network aggregate drifted', "Name = 'TerminalWakeBrokerCandidate'")) {
+            $matches = @(Select-String -LiteralPath $path -SimpleMatch $needle)
+            foreach ($match in $matches) {
+              $start = [Math]::Max(1, $match.LineNumber - 50)
+              $end = [Math]::Min($lines.Count, $match.LineNumber + 100)
+              Write-Host "===== $needle @ $($match.LineNumber) : $start..$end ====="
+              for ($i = $start; $i -le $end; $i++) {
+                Write-Host ('{0:D6}: {1}' -f $i, $lines[$i - 1])
+              }
+            }
+          }
 
       - name: Confirm branch and dev relationship
         shell: powershell
