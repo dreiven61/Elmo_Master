@@ -1,6 +1,6 @@
 # 최우선 API 개발 설계
 
-- 기준일: 2026-08-24
+- 기준일: 2026-08-25
 - 범위: 개발 진행표의 우선순위 `상`이면서 진행도 75% 미만인 4개 API
 - 상태: source 구현과 qualification을 병행하되 production 활성화는 각 문서의 최종 gate 통과 전까지 금지
 - active development branch: `dev`
@@ -14,15 +14,15 @@ byte offset은 `LMC_Library/LMC_API_Delivery/docs/DINT_PACKET_MAP.txt`가 정본
 | 순서 | API | 현재 진행도 | 개발 성격 | 설계 |
 |---:|---|---:|---|---|
 | 1 | `HomeDS402` | 50% | 기존 `0x7D15/16/17` 경로의 activation·실축 적격화 | [HOME_DS402_DESIGN.md](HOME_DS402_DESIGN.md) |
-| 2 | `SetOpMode` | 60% | owner/SDO/no-replay/preemption/D5 deny source와 MODE-10 static qualification 완료; fresh C78/PLC/hardware + WPF recovery 남음 | [SET_OPERATION_MODE_DESIGN.md](SET_OPERATION_MODE_DESIGN.md) |
+| 2 | `SetOpMode` | 60% | owner/SDO/no-replay/preemption/D5 deny source와 MODE-10 static, MODE-13 PC/WPF recovery PASS; fresh C78/PLC/hardware 남음 | [SET_OPERATION_MODE_DESIGN.md](SET_OPERATION_MODE_DESIGN.md) |
 | 3 | `HomeDS402Ex` | 0% | 기존 Home과 분리된 확장 Homing 신규 구현 | [HOME_DS402_EX_DESIGN.md](HOME_DS402_EX_DESIGN.md) |
 | 4 | `SetPosition` | 25% | P1 async lifecycle/volatile Store까지 완료; durable backend와 RT exactly-once 후속 구현 | [SET_POSITION_DESIGN.md](SET_POSITION_DESIGN.md) |
 
 순서는 단순한 중요도 순위가 아니라 의존성 순서다. `HomeDS402`는 이미 존재하는 가장 짧은
-실축 완료 경로다. `SetOpMode`의 owner/resource와 SDO lifecycle source가 `dev`에 들어왔으므로
-`HomeDS402Ex`는 이 공유 규칙을 후속 설계 입력으로 사용할 수 있다. 다만 SetOpMode activation은
-latest source의 C78/PLC/hardware proof 전까지 닫아 둔다. `SetPosition`은 별도 작업 흐름으로
-내구 저장소와 RT task 증거를 준비한다.
+실축 완료 경로다. `SetOpMode`의 owner/resource와 SDO lifecycle source가 `dev`에 들어왔고
+MODE-13 PC/WPF durable recovery도 PASS했으므로 `HomeDS402Ex`는 이 공유 규칙을 후속 설계
+입력으로 사용할 수 있다. 다만 SetOpMode activation은 latest source의 C78/PLC/hardware proof
+전까지 닫아 둔다. `SetPosition`은 별도 작업 흐름으로 내구 저장소와 RT task 증거를 준비한다.
 
 ## 2. command ID 예약
 
@@ -30,7 +30,7 @@ latest source의 C78/PLC/hardware proof 전까지 닫아 둔다. `SetPosition`�
 |---|---:|---:|---:|---|
 | HomeDS402 | `0x7D15` | `0x7D16` | `0x7D17` | current source/wire에 존재 |
 | HomeDS402Ex | `0x7D1B` | `0x7D1C` | `0x7D1D` | 설계 예약, 아직 source 미반영 |
-| SetOpMode | `0x7D23` | `0x7D24` | `0x7D25` | C#/LASAL lifecycle source 구현; compile gate/capability OFF |
+| SetOpMode | `0x7D23` | `0x7D24` | `0x7D25` | C#/LASAL lifecycle + WPF durable recovery 구현; compile gate/capability OFF |
 | SetPosition | `0x7D12` | `0x7D14` | `0x7D1A` | current source/wire에 존재, runtime fail-closed |
 
 `0x7D21`은 향후 Group parameter write 후보이고 `0x7D22`는 이미 Group relative move가
@@ -50,7 +50,7 @@ packet map과 golden-byte test를 한 변경 단위로 반영한다.
 
 - HomeDS402: 기존 activation switch 정합 verifier와 axis 1 bench runner를 준비한다.
 - SetOpMode source: MODE-02/06/07/08/09와 MODE-10 method split/static qualification까지 `dev`에 반영됐다.
-- SetOpMode PC/WPF: MODE-13 pre-dispatch journal과 startup/reconnect no-replay recovery를 구현한다.
+- SetOpMode PC/WPF: MODE-13 pre-dispatch journal, startup/reconnect no-replay recovery와 definitive-reject durable archive가 PASS했다.
 - SetOpMode IDE/hardware: latest source를 fresh C78/ARM Rebuild/Link하고 artifact identity를 검토한 뒤
   MODE-11/12 packet/hardware matrix로 진행한다.
 - SetPosition: `_FileSys` dual-file A/B backend와 축 1~4 task/core/priority 증거를 준비한다.
@@ -58,7 +58,7 @@ packet map과 golden-byte test를 한 변경 단위로 반영한다.
 ### Wave 2 - source/PC 완성
 
 - HomeDS402: C78 candidate와 method 37 normal/fault/recovery matrix를 닫는다.
-- SetOpMode: MODE-13 WPF journal/recovery unit/smoke를 닫는다. compile gate와 capability는 OFF 유지한다.
+- SetOpMode: MODE-13 PC/WPF gate는 닫혔다. compile gate와 capability는 OFF 유지하고 MODE-11/12 장비 증거를 준비한다.
 - HomeDS402Ex: 승인된 axis profile과 method allowlist를 입력으로 dormant source를 구현한다.
 - SetPosition: durable A/B journal과 RT claim/native/stable-3 observer를 구현한다.
 
@@ -70,7 +70,7 @@ capability를 켠다. 한 API의 PASS를 다른 API의 activation 근거로 사�
 
 ## 4. SetOpMode current qualification boundary
 
-현재 `dev` source에는 아래가 존재한다.
+현재 `dev` source/PC에는 아래가 존재한다.
 
 - `AxisOperationMode OwnerKind=6`, Diagnostics SDO `ResourceKind=4`, lifecycle admission 4
 - active owner state 12, exact Start identity 56 bytes
@@ -80,10 +80,14 @@ capability를 켠다. 한 API의 PASS를 다른 API의 activation 근거로 사�
 - generic D5 `0x6060` permanent deny
 - processor 3-way method split
 - static verifier/workflow
+- WPF pre-dispatch exact durable journal과 startup/reconnect no-replay recovery
+- definitive `0x7D23` rejection의 checksum-protected evidence archive와 exact-identity fail-closed 해제
 
 최종 qualification branch의 source/static checkpoint는 `57 checks PASS`, 세 processor 모두
-32 KiB 미만, `0x6060` write site main 0 / mutation 4 / recovery 0이다. full SourceOnly는 source
-gate 이후 기존 `Classes.lcb` physical identity ratchet에서 STOP했다.
+32 KiB 미만, `0x6060` write site main 0 / mutation 4 / recovery 0이다. MODE-13 Windows
+qualification은 Debug/Release 각각 `12/12 PASS`, build `0 warnings / 0 errors`, diff hygiene PASS다.
+상세 증거는 [MODE-13 WPF recovery evidence](evidence/SET_OPERATION_MODE_MODE13_WPF_RECOVERY_20260825.md)에 기록했다.
+full SourceOnly는 source gate 이후 기존 `Classes.lcb` physical identity ratchet에서 STOP했다.
 
 이 증거로 fresh C78/PLC/hardware PASS를 주장하지 않는다. current final source에 대해 다음은
 아직 별도 수행해야 한다.
@@ -93,8 +97,7 @@ gate 이후 기존 `Classes.lcb` physical identity ratchet에서 STOP했다.
 3. same image BootId/MapRevision/build tuple
 4. MODE-11 same-mode/no-write 및 exact one-write/readback packet
 5. MODE-12 timeout/disconnect/mismatch/quarantine/retire 축 1..4 matrix
-6. MODE-13 WPF recovery
-7. MODE-14 paired capability activation
+6. MODE-14 paired capability activation
 
 ## 5. 공통 안전 계약
 
