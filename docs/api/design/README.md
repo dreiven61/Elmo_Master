@@ -3,6 +3,7 @@
 - 기준일: 2026-08-24
 - 범위: 개발 진행표의 우선순위 `상`이면서 진행도 75% 미만인 4개 API
 - 상태: 구현 착수 가능, production 활성화는 각 문서의 최종 gate 통과 전까지 금지
+- active development branch: `dev`
 
 이 폴더는 아래 4개 API의 current 설계와 실행 순서를 한곳에서 관리한다. 실제 구현된
 byte offset은 `LMC_Library/LMC_API_Delivery/docs/DINT_PACKET_MAP.txt`가 정본이며, 이 폴더의
@@ -95,6 +96,12 @@ capability를 켠다. 한 API의 PASS를 다른 API의 activation 근거로 사�
 
 ## 6. 진행 관리 규칙
 
+- current 개발 기준은 `dev` branch다. 기능 구현과 문서 업데이트는 원칙적으로 `dev`에 모은다.
+- `codex/*` 작업 branch는 구현·시험용 임시 branch로 보고 current 상태 판정이나 정본 링크에
+  사용하지 않는다.
+- 개발 중인 임시 branch는 unique diff와 시험 흔적을 보존하기 위해 유지한다. 개발 완료 후
+  해당 변경이 `dev`에 반영되었거나 폐기되었고 필요한 증거가 보존된 것을 확인한 뒤 stale
+  branch를 일괄 정리한다.
 - 작업 ID는 각 설계문서의 체크리스트 ID를 그대로 issue/commit 제목에 사용한다.
 - 한 commit에는 한 작업 ID의 source, verifier와 문서만 넣는 것을 원칙으로 한다.
 - capability와 compile-time gate 변경은 별도 activation commit으로 분리한다.
