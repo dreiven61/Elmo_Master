@@ -1,0 +1,175 @@
+name: MODE-10 C78 define-order fix
+
+on:
+  pull_request:
+    branches:
+      - dev
+    paths:
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
+      - 'tools/Verify-SetOperationModeStatic.ps1'
+      - '.github/workflows/mode10-c78-define-order-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-verify-commit:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: windows-latest
+    steps:
+      - name: Checkout fix branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/mode-10-c78-define-order-fix
+          fetch-depth: 0
+
+      - name: Move SetOperationMode defines before first use and harden static verifier
+        shell: python
+        run: |
+          from pathlib import Path
+
+          source_path = Path('Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st')
+          raw = source_path.read_bytes()
+          text = raw.decode('utf-8')
+          nl = '\r\n' if '\r\n' in text else '\n'
+
+          block_start_token = '#define LMC_DIAG_MODE_RECORD_STRIDE 32'
+          block_end_token = '#define LMC_DIAG_MODE_QUARANTINE_SAFETY_PREEMPT 7'
+          activation_token = '#define LMC_DIAG_SET_OPERATION_MODE_ENABLED FALSE'
+          first_use_token = 'AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE]'
+
+          if text.count(block_start_token) != 1:
+              raise SystemExit(f'mode block start count={text.count(block_start_token)}, expected=1')
+          if text.count(block_end_token) != 1:
+              raise SystemExit(f'mode block end count={text.count(block_end_token)}, expected=1')
+          if text.count(activation_token) != 1:
+              raise SystemExit(f'activation gate count={text.count(activation_token)}, expected=1')
+
+          block_start = text.index(block_start_token)
+          block_end_marker = text.index(block_end_token, block_start) + len(block_end_token)
+          line_end = text.find(nl, block_end_marker)
+          block_end = len(text) if line_end < 0 else line_end + len(nl)
+          first_use = text.index(first_use_token)
+          if not first_use < block_start:
+              raise SystemExit('expected pre-fix state not found: define block already precedes first runtime-stage use')
+
+          block = text[block_start:block_end]
+          required_lines = (
+              '#define LMC_DIAG_MODE_RECORD_STRIDE 32',
+              '#define LMC_DIAG_MODE_RUNTIME_BASE 128',
+              '#define LMC_DIAG_MODE_RUNTIME_STAGE 128',
+              '#define LMC_DIAG_MODE_RUNTIME_AXIS 129',
+              '#define LMC_DIAG_MODE_RUNTIME_RECORD_BASE 130',
+              '#define LMC_DIAG_MODE_RUNTIME_SDO_TOKEN 131',
+              '#define LMC_DIAG_MODE_RUNTIME_ADMISSION_TOKEN 132',
+              '#define LMC_DIAG_MODE_RUNTIME_OWNER_GENERATION 133',
+              '#define LMC_DIAG_MODE_RUNTIME_SESSION 134',
+              '#define LMC_DIAG_MODE_RUNTIME_SEQUENCE 135',
+              '#define LMC_DIAG_MODE_RUNTIME_START_MS 136',
+              '#define LMC_DIAG_MODE_RUNTIME_TIMEOUT_MS 137',
+              '#define LMC_DIAG_MODE_RUNTIME_WRITE_DATA 138',
+              '#define LMC_DIAG_MODE_RUNTIME_FAILURE_DETAIL 139',
+              '#define LMC_DIAG_MODE_RUNTIME_QUARANTINE_REASON 140',
+              '#define LMC_DIAG_MODE_RUNTIME_PREEMPT_START_MS 141',
+              '#define LMC_DIAG_MODE_META_RECORD_GENERATION 160',
+              '#define LMC_DIAG_MODE_META_OPERATION_TOKEN 161',
+              '#define LMC_DIAG_MODE_QUARANTINE_SAFETY_PREEMPT 7',
+          )
+          for line in required_lines:
+              if block.count(line) != 1:
+                  raise SystemExit(f'mode define block contract missing/duplicated: {line}')
+
+          without_block = text[:block_start] + text[block_end:]
+          activation_line = activation_token + nl
+          activation_end = without_block.index(activation_line) + len(activation_line)
+          moved = without_block[:activation_end] + block + nl + without_block[activation_end:]
+
+          new_block_start = moved.index(block_start_token)
+          new_block_end = moved.index(block_end_token, new_block_start) + len(block_end_token)
+          new_first_use = moved.index(first_use_token)
+          if not (new_block_start < new_block_end < new_first_use):
+              raise SystemExit('post-fix define ordering invariant failed')
+          for line in required_lines:
+              if moved.count(line) != 1:
+                  raise SystemExit(f'post-fix mode define count drifted: {line}')
+          if moved.count(activation_token) != 1:
+              raise SystemExit('activation gate changed while moving mode defines')
+
+          source_path.write_bytes(moved.encode('utf-8'))
+
+          verifier_path = Path('tools/Verify-SetOperationModeStatic.ps1')
+          verifier_raw = verifier_path.read_bytes()
+          verifier = verifier_raw.decode('utf-8')
+          verifier_nl = '\r\n' if '\r\n' in verifier else '\n'
+          anchor = (
+              "Assert-Regex $diagnostics 'LMC_DIAG_SET_OPERATION_MODE_ENABLED[\\t ]*=[\\t ]*FALSE' "
+              "'runtime paths explicitly honor the OFF gate' -MinimumCount 3" + verifier_nl
+          )
+          if verifier.count(anchor) != 1:
+              raise SystemExit(f'verifier insertion anchor count={verifier.count(anchor)}, expected=1')
+          addition = verifier_nl.join((
+              '',
+              '# C78 preprocesses #define directives in source order. Keep the complete',
+              '# SetOperationMode define block ahead of the earliest generic-SDO/runtime use.',
+              "$modeDefineBlockStart = $diagnostics.IndexOf('#define LMC_DIAG_MODE_RECORD_STRIDE 32')",
+              "$modeRuntimeStageDefine = $diagnostics.IndexOf('#define LMC_DIAG_MODE_RUNTIME_STAGE 128')",
+              "$modeDefineBlockEnd = $diagnostics.IndexOf('#define LMC_DIAG_MODE_QUARANTINE_SAFETY_PREEMPT 7')",
+              "$modeRuntimeStageFirstUse = $diagnostics.IndexOf('AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE]')",
+              "Assert-True (($modeDefineBlockStart -ge 0) -and ($modeRuntimeStageDefine -gt $modeDefineBlockStart) -and ($modeDefineBlockEnd -gt $modeRuntimeStageDefine) -and ($modeRuntimeStageFirstUse -gt $modeDefineBlockEnd)) 'SetOperationMode define block precedes first C78 runtime-stage use'",
+              "Assert-Regex $diagnostics '(?m)^#define[\\t ]+LMC_DIAG_MODE_RUNTIME_STAGE[\\t ]+128[\\t ]*$' 'runtime stage slot is defined exactly once at 128' -ExpectedCount 1",
+              '',
+          ))
+          verifier = verifier.replace(anchor, anchor + addition, 1)
+          verifier_path.write_bytes(verifier.encode('utf-8'))
+
+      - name: Run SetOperationMode static qualification
+        shell: powershell
+        run: |
+          git diff --check
+          & '.\tools\Verify-SetOperationModeStatic.ps1' -ExpectedSdoWriteAxis 1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Confirm full SourceOnly reaches only the known artifact boundary
+        shell: powershell
+        run: |
+          $repoRoot = (Get-Location).Path
+          $sourceOutput = ''
+          $sourceExit = 0
+          try {
+            $sourceOutput = (& '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\Verify-LasalContract.ps1' `
+              -RepositoryRoot $repoRoot `
+              -SourceOnly `
+              -ExpectedSdoWriteAxis 1 2>&1 | Out-String)
+            $sourceExit = $LASTEXITCODE
+          }
+          catch {
+            $sourceOutput = ($sourceOutput + "`n" + ($_ | Out-String))
+            $sourceExit = 1
+          }
+          Write-Host $sourceOutput
+          if ($sourceExit -eq 0) {
+            Write-Host 'SourceOnly fully passed.'
+            exit 0
+          }
+          $expectedArtifactStop = 'LASAL\.UdpCallbackContract blocker: SetPosition-augmented Classes\.lcb physical identity drifted\.'
+          if ($sourceOutput -notmatch $expectedArtifactStop) {
+            throw "Unexpected SourceOnly failure after define-order fix. Exit=$sourceExit"
+          }
+          Write-Host 'Expected Classes.lcb physical-identity STOP observed after source/static qualification.'
+
+      - name: Commit qualified source/verifier fix and remove temporary workflow
+        shell: powershell
+        run: |
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
+          git add 'tools/Verify-SetOperationModeStatic.ps1'
+          git rm '.github/workflows/mode10-c78-define-order-fix.yml'
+          git diff --cached --check
+          git diff --cached --name-status
+          if (git diff --cached --quiet) {
+            throw 'No qualified define-order fix diff was produced.'
+          }
+          git commit -m 'fix(mode): move SetOperationMode defines before C78 use'
+          git push origin 'HEAD:codex/mode-10-c78-define-order-fix'
