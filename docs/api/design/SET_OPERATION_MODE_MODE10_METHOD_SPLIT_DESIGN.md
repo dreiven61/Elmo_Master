@@ -316,3 +316,59 @@ ratchet을 자동 갱신하거나 capability를 켜서 MODE-10을 억지로 완�
 
 단, C78/PLC/hardware proof와 artifact ratchet 승인이 없으면 `MODE-10` 전체 체크박스를 완료로 올리지 않는다.
 이번 문서는 **Codex가 source refactor를 수행하기 위한 handoff**이며, production activation 승인 문서가 아니다.
+
+## 13. 구현 결과 (2026-08-24)
+
+### 13.1 적용 결과
+
+- 작업 branch는 `dev`, 작업 시작 HEAD는 `ef77cc208a76e1ed3e27387cdcf68e5274044a91`이다.
+- HEAD가 기준 commit `ba775c652ffb810c9fa65262b5a733117f369d7d`를 포함함을 확인했다.
+- IDE가 생성한 세 private method declaration은 수정하지 않았다.
+- main processor에는 warm-start, identity, MODE-08 preemption, activation-OFF, timeout/no-replay 정규화를 유지했다.
+- mutation helper에는 PREFLIGHT/WRITE/VERIFY stage만 이동했다.
+- recovery helper에는 RECOVERY/TERMINAL/QUARANTINE stage와 기존 fail-closed `else`를 이동했다.
+- 변환기가 recovery helper에 빈 `else`를 중복 생성하지 않도록 자체 검증을 추가했다.
+- `LMC_DIAG_SET_OPERATION_MODE_ENABLED`는 `FALSE` 그대로다.
+
+### 13.2 source/static 결과
+
+| 검증 항목 | 결과 |
+|---|---|
+| generated declaration 변경 | PASS, 변경 없음 |
+| main -> mutation/recovery dispatch | PASS, 각각 1개 |
+| `0x6060` write site | PASS, main 0 / mutation 4 / recovery 0 |
+| main LF/CRLF method size | PASS, 19,895 / 20,309 bytes |
+| mutation LF/CRLF method size | PASS, 19,731 / 20,150 bytes |
+| recovery LF/CRLF method size | PASS, 14,251 / 14,559 bytes |
+| MODE-10 static verifier | PASS, 57 checks |
+| focused diagnostics method-split source contract | PASS |
+| LASAL source 7-bit ASCII scan | PASS, 비ASCII 문자 0개 |
+| `git diff --check` | PASS |
+
+설계서에 기록된 `tools/Verify-CodexLasalAscii.ps1`은 현재 repository에 존재하지 않는다.
+따라서 이번 검증은 변경한 LASAL source 전체를 대상으로 동일한 7-bit ASCII 조건을 직접 검사했다.
+
+### 13.3 full SourceOnly 결과
+
+full SourceOnly는 이번 method split과 무관한 기존 ownership preemption self-test baseline에서 STOP됐다.
+
+```text
+replacement helper persistent read inventory is 44/12, expected 41/12.
+```
+
+현재 `dev`와 기준 commit의 `LMCControlCommandService::ValidateAxisOwnershipPreemptionReplacement`에는
+SetOperationMode owner 상태 검증용 `OwnershipState` read 3개가 이미 포함돼 있지만 self-test 기대값은
+과거 41에 머물러 있다. 이번 변경 파일에는 `LMCControlCommandService.st`가 포함되지 않으며,
+해당 전역 ratchet을 부분 갱신하지 않았다.
+
+따라서 현재 판정은 다음과 같다.
+
+- MODE-10 method split source/static semantics: PASS
+- focused diagnostics source contract: PASS
+- full SourceOnly: STOP, pre-existing ownership self-test baseline drift
+- C78/IDE Rebuild/Link: 미수행
+- PLC download/runtime/hardware: 미수행
+- production activation/capability: OFF
+
+C78/PLC/hardware proof와 full SourceOnly blocker 해소 전까지 상위 `SET_OPERATION_MODE_DESIGN.md`의
+`MODE-10` 체크박스는 완료로 올리지 않는다.

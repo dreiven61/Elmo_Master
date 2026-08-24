@@ -98,6 +98,12 @@ function Assert-LasalMethodBudget {
     Assert-True ($bytes -lt $LimitBytes) "$QualifiedName method budget $bytes < $LimitBytes bytes"
 }
 
+function ConvertTo-LfText {
+    param([Parameter(Mandatory = $true)][string]$Text)
+
+    return $Text.Replace("`r`n", "`n").Replace("`r", "`n")
+}
+
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $controlPath = Join-Path $repoRoot 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCControlCommandService\LMCControlCommandService.st'
 $diagnosticsPath = Join-Path $repoRoot 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st'
@@ -111,9 +117,9 @@ if ($script:Failures.Count -gt 0) {
     throw 'Required source files are missing.'
 }
 
-$control = [System.IO.File]::ReadAllText($controlPath)
-$diagnostics = [System.IO.File]::ReadAllText($diagnosticsPath)
-$tcp = [System.IO.File]::ReadAllText($tcpPath)
+$control = ConvertTo-LfText ([System.IO.File]::ReadAllText($controlPath))
+$diagnostics = ConvertTo-LfText ([System.IO.File]::ReadAllText($diagnosticsPath))
+$tcp = ConvertTo-LfText ([System.IO.File]::ReadAllText($tcpPath))
 
 Write-Host 'MODE-10 SetOperationMode source/static qualification'
 Write-Host "Repository: $repoRoot"

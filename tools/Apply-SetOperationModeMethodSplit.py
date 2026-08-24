@@ -142,7 +142,6 @@ END_FUNCTION"""
         + recovery_cases
         + n(
             """
-\telse
 \tend_case;
 
 END_FUNCTION"""
@@ -270,6 +269,10 @@ def validate_split(text: str, normalize) -> None:
     require(
         "never fall back to WRITE_START" in recovery_body,
         "read-only recovery invariant comment/anchor missing",
+    )
+    require(
+        normalize("\n\telse\n\tend_case;") not in recovery_body,
+        "recovery helper contains a duplicate empty ELSE arm",
     )
 
     for qualified_name, body in (

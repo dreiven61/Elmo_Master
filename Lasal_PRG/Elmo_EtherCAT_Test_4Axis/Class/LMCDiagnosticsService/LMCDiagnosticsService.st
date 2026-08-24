@@ -8910,6 +8910,58 @@ FUNCTION LMCDiagnosticsService::ProcessAxisSetOperationMode
 		RETURN;
 	end_if;
 
+	case stage of
+		LMC_DIAG_MODE_STAGE_PREFLIGHT_START,
+		LMC_DIAG_MODE_STAGE_PREFLIGHT_WAIT,
+		LMC_DIAG_MODE_STAGE_WRITE_START,
+		LMC_DIAG_MODE_STAGE_WRITE_WAIT,
+		LMC_DIAG_MODE_STAGE_VERIFY_START,
+		LMC_DIAG_MODE_STAGE_VERIFY_WAIT:
+			ProcessAxisSetOperationModeMutationStages();
+		LMC_DIAG_MODE_STAGE_RECOVERY_START,
+		LMC_DIAG_MODE_STAGE_RECOVERY_WAIT,
+		LMC_DIAG_MODE_STAGE_TERMINAL_SUCCESS,
+		LMC_DIAG_MODE_STAGE_TERMINAL_FAILURE,
+		LMC_DIAG_MODE_STAGE_QUARANTINE,
+		LMC_DIAG_MODE_STAGE_QUARANTINE_HOLD:
+			ProcessAxisSetOperationModeRecoveryStages();
+	else
+		AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_QUARANTINE_REASON] :=
+			LMC_DIAG_MODE_QUARANTINE_CALLBACK;
+		AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
+			LMC_DIAG_MODE_STAGE_QUARANTINE;
+	end_case;
+
+END_FUNCTION
+
+
+FUNCTION LMCDiagnosticsService::ProcessAxisSetOperationModeMutationStages
+	VAR
+		completion : LMCSdoExecutor::LMCSdoExecutorResult;
+		startupSnapshot : ARRAY [0..11] OF UDINT;
+		stage, recordBase, finalRecordState : DINT;
+		axisReference : UINT;
+		axisMask, currentToken, evidenceFlags, serviceNow : UDINT;
+		startMs, timeoutMs, elapsedMs, remainingMs : UDINT;
+		currentCycle, selectedAxisStatus, selectedStatusWord : UDINT;
+		contextCheck, failureDetail, quarantineReason, nextToken : UDINT;
+		copyResult, completionResult, orphanResult, ownerResult : DINT;
+		startResult : iprStates;
+		observedMode : SINT;
+		executorConnected, executorReusable, safetyReady, expired : BOOL;
+	END_VAR
+
+	stage := AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE];
+	axisReference := AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_AXIS]$UINT;
+	recordBase := AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_RECORD_BASE];
+	if (axisReference < 1) | (axisReference > 4) |
+	   (recordBase < 0) | (recordBase > 96) |
+	   (recordBase <> TO_DINT(axisReference - 1) * LMC_DIAG_MODE_RECORD_STRIDE) then
+		RETURN;
+	end_if;
+	axisMask := TO_UDINT(1) shl TO_UDINT(axisReference - 1);
+	currentToken := AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_SDO_TOKEN]$UDINT;
+	evidenceFlags := AxisOperationModeState[recordBase + 18]$UDINT;
 	serviceNow := ops.tAbsolute;
 	startMs := AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_START_MS]$UDINT;
 	timeoutMs := AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_TIMEOUT_MS]$UDINT;
@@ -9299,7 +9351,74 @@ FUNCTION LMCDiagnosticsService::ProcessAxisSetOperationMode
 				AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
 					LMC_DIAG_MODE_STAGE_RECOVERY_START;
 			end_if;
+	else
+	end_case;
 
+END_FUNCTION
+
+
+FUNCTION LMCDiagnosticsService::ProcessAxisSetOperationModeRecoveryStages
+	VAR
+		completion : LMCSdoExecutor::LMCSdoExecutorResult;
+		startupSnapshot : ARRAY [0..11] OF UDINT;
+		stage, recordBase, finalRecordState : DINT;
+		axisReference : UINT;
+		axisMask, currentToken, evidenceFlags, serviceNow : UDINT;
+		startMs, timeoutMs, elapsedMs, remainingMs : UDINT;
+		currentCycle, selectedAxisStatus, selectedStatusWord : UDINT;
+		contextCheck, failureDetail, quarantineReason, nextToken : UDINT;
+		copyResult, completionResult, orphanResult, ownerResult : DINT;
+		startResult : iprStates;
+		observedMode : SINT;
+		executorConnected, executorReusable, safetyReady, expired : BOOL;
+	END_VAR
+
+	stage := AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE];
+	axisReference := AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_AXIS]$UINT;
+	recordBase := AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_RECORD_BASE];
+	if (axisReference < 1) | (axisReference > 4) |
+	   (recordBase < 0) | (recordBase > 96) |
+	   (recordBase <> TO_DINT(axisReference - 1) * LMC_DIAG_MODE_RECORD_STRIDE) then
+		RETURN;
+	end_if;
+	axisMask := TO_UDINT(1) shl TO_UDINT(axisReference - 1);
+	currentToken := AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_SDO_TOKEN]$UDINT;
+	evidenceFlags := AxisOperationModeState[recordBase + 18]$UDINT;
+	serviceNow := ops.tAbsolute;
+	startMs := AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_START_MS]$UDINT;
+	timeoutMs := AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_TIMEOUT_MS]$UDINT;
+	elapsedMs := serviceNow - startMs;
+	expired := elapsedMs >= timeoutMs;
+	if expired then
+		remainingMs := 1;
+	else
+		remainingMs := timeoutMs - elapsedMs;
+		if remainingMs > 60000 then
+			remainingMs := 60000;
+		end_if;
+		if remainingMs = 0 then
+			remainingMs := 1;
+		end_if;
+	end_if;
+
+	executorConnected := FALSE;
+	executorReusable := FALSE;
+	case axisReference of
+		1:
+			executorConnected := IsClientConnected(#SdoAxis1) <> 0;
+			if executorConnected then executorReusable := SdoAxis1.IsReusable(); end_if;
+		2:
+			executorConnected := IsClientConnected(#SdoAxis2) <> 0;
+			if executorConnected then executorReusable := SdoAxis2.IsReusable(); end_if;
+		3:
+			executorConnected := IsClientConnected(#SdoAxis3) <> 0;
+			if executorConnected then executorReusable := SdoAxis3.IsReusable(); end_if;
+		4:
+			executorConnected := IsClientConnected(#SdoAxis4) <> 0;
+			if executorConnected then executorReusable := SdoAxis4.IsReusable(); end_if;
+	end_case;
+
+	case stage of
 		LMC_DIAG_MODE_STAGE_RECOVERY_START:
 			// Recovery after a dispatched mutation is read-only. Wait for the
 			// executor to reconnect and drain; never fall back to WRITE_START.
@@ -9545,15 +9664,5 @@ FUNCTION LMCDiagnosticsService::ProcessAxisSetOperationMode
 		AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
 			LMC_DIAG_MODE_STAGE_QUARANTINE;
 	end_case;
-
-END_FUNCTION
-
-
-FUNCTION LMCDiagnosticsService::ProcessAxisSetOperationModeMutationStages
-
-END_FUNCTION
-
-
-FUNCTION LMCDiagnosticsService::ProcessAxisSetOperationModeRecoveryStages
 
 END_FUNCTION
