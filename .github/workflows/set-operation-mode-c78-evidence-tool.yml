@@ -5,13 +5,17 @@ on:
     branches:
       - dev
     paths:
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
       - 'tools/Capture-SetOperationModeC78Evidence.ps1'
+      - 'tools/Verify-SetOperationModeDefineOrder.ps1'
       - '.github/workflows/set-operation-mode-c78-evidence-tool.yml'
   push:
     branches:
       - dev
     paths:
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
       - 'tools/Capture-SetOperationModeC78Evidence.ps1'
+      - 'tools/Verify-SetOperationModeDefineOrder.ps1'
       - '.github/workflows/set-operation-mode-c78-evidence-tool.yml'
   workflow_dispatch:
 
@@ -27,6 +31,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Verify SetOperationMode define order
+        shell: powershell
+        run: |
+          & '.\tools\Verify-SetOperationModeDefineOrder.ps1'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Self-test fresh C78 evidence collector
         shell: powershell
