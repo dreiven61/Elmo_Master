@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 jobs:
-  synthetic-selection-source:
+  physical-approval-source:
     runs-on: windows-latest
     steps:
       - name: Checkout finalize branch
@@ -20,29 +20,24 @@ jobs:
           ref: codex/mode-10-c78-finalize
           fetch-depth: 0
 
-      - name: Print exact synthetic aggregate selection block
+      - name: Print physical approval and layout aggregate source
         shell: python
         run: |
           from pathlib import Path
           p = Path('LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalUdpCallbackContract.ps1')
           text = p.read_text(encoding='utf-8')
-          needles = (
-              '$networkAggregateExact =',
-              '$expectedFullNetworkCount =',
-              "$state -ceq 'TerminalWakeBrokerCandidate'",
-          )
-          printed = set()
-          for needle in needles:
+          for needle, before, after in (
+              ('TerminalWakeBrokerExactPhysicalSnapshotApproved', 1800, 2600),
+              ('function Assert-TerminalWakeLayoutContract', 200, 9000),
+          ):
+              print(f'===== {needle} =====')
               start = 0
+              matches = 0
               while True:
                   idx = text.find(needle, start)
                   if idx < 0:
                       break
-                  lo = max(0, idx - 2600)
-                  hi = min(len(text), idx + 3800)
-                  key = (lo, hi)
-                  if key not in printed:
-                      print(f'===== {needle} @ {idx} =====')
-                      print(text[lo:hi])
-                      printed.add(key)
+                  matches += 1
+                  print(text[max(0, idx-before):min(len(text), idx+after)])
                   start = idx + len(needle)
+              print('MATCH_COUNT=', matches)
