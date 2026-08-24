@@ -8,10 +8,10 @@ on:
       - '.github/workflows/mode10-c78-artifact-qualification.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  identity:
+  qualify-commit:
     runs-on: windows-latest
     steps:
       - name: Checkout qualification branch
@@ -20,132 +20,122 @@ jobs:
           ref: codex/mode-10-c78-artifact-qualification
           fetch-depth: 0
 
-      - name: Print fresh C78 artifact identities
-        shell: powershell
-        run: |
-          $classes = '.\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\Classes.lcb'
-          $project = '.\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Elmo_EtherCAT_Test_4Axis.lcb'
-          $classesItem = Get-Item -LiteralPath $classes
-          $projectItem = Get-Item -LiteralPath $project
-          $classesHash = (Get-FileHash -LiteralPath $classes -Algorithm SHA256).Hash
-          $projectHash = (Get-FileHash -LiteralPath $project -Algorithm SHA256).Hash
-          Write-Host "CLASSES_BYTES=$($classesItem.Length)"
-          Write-Host "CLASSES_SHA256=$classesHash"
-          Write-Host "PROJECT_BYTES=$($projectItem.Length)"
-          Write-Host "PROJECT_SHA256=$projectHash"
-
-      - name: Derive current Gate D binary delta contracts
+      - name: Patch current Gate D fresh C78 identities only
         shell: python
         run: |
           from pathlib import Path
-          import hashlib
-          import re
-          import subprocess
 
-          verifier = Path('LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalUdpCallbackContract.ps1').read_text(encoding='utf-8')
-
-          def balanced_block(text, marker):
-              start = text.index(marker)
-              brace = text.index('{', start)
-              depth = 0
-              quote = None
-              i = brace
-              while i < len(text):
-                  c = text[i]
-                  if quote:
-                      if c == quote:
-                          if i + 1 < len(text) and text[i + 1] == quote:
-                              i += 2
-                              continue
-                          quote = None
-                      i += 1
-                      continue
-                  if c in "'\"":
-                      quote = c
-                  elif c == '{':
-                      depth += 1
-                  elif c == '}':
-                      depth -= 1
-                      if depth == 0:
-                          return text[start:i + 1]
+          path = Path('LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalUdpCallbackContract.ps1')
+          text = path.read_text(encoding='utf-8')
+          marker = '$SetPositionAugmentedGateD = [ordered]@{'
+          start = text.index(marker)
+          brace = text.index('{', start)
+          depth = 0
+          quote = None
+          end = None
+          i = brace
+          while i < len(text):
+              c = text[i]
+              if quote:
+                  if c == quote:
+                      if i + 1 < len(text) and text[i + 1] == quote:
+                          i += 2
+                          continue
+                      quote = None
                   i += 1
-              raise RuntimeError(f'unterminated block: {marker}')
+                  continue
+              if c in "'\"":
+                  quote = c
+              elif c == '{':
+                  depth += 1
+              elif c == '}':
+                  depth -= 1
+                  if depth == 0:
+                      end = i + 1
+                      break
+              i += 1
+          if end is None:
+              raise SystemExit('SetPositionAugmentedGateD block is unterminated')
 
-          def field(block, name, kind='int'):
-              if kind == 'int':
-                  m = re.search(rf'(?m)^\s*{re.escape(name)}\s*=\s*(\d+)\s*$', block)
-                  return int(m.group(1)) if m else None
-              m = re.search(rf"(?ms)^\s*{re.escape(name)}\s*=\s*\r?\n\s*'([0-9A-Fa-f]+)'", block)
-              if not m:
-                  m = re.search(rf"(?m)^\s*{re.escape(name)}\s*=\s*'([0-9A-Fa-f]+)'\s*$", block)
-              return m.group(1).upper() if m else None
+          block = text[start:end]
+          contracts = {
+              'classes old bytes': ('Bytes = 8610206', 'Bytes = 8635284', 1),
+              'classes old sha': (
+                  "'33C1C2A68B97E852AD6646317CAE032A110D1F50C9615FA5B7EEF00410B649A8'",
+                  "'E5F86F542B0FA45065D2197054EE52493A29D57DB091FB32BF20151937736D2D'", 1),
+              'classes old changed bytes': ('CurrentChangedBytes = 8594124', 'CurrentChangedBytes = 8619202', 1),
+              'classes old changed sha': (
+                  "'137B073078A13D0F7C7702D957A7AB51BE3D083ED27D83FB1A586F9F9673AAB7'",
+                  "'A0FD24EA008742655644A8DB844E0BA899DEEA8F64CC091FF0BD12109410FAB9'", 1),
+              'project old sha': (
+                  "'FE640A0683466FC1C68537A1CF5E9B96EEFBBBC5EE4885A78F25AF2557193A0E'",
+                  "'9887CD1BE02A4143FF67E8AC0D394123441C99C801F23C1DEDA8D93834732CF6'", 1),
+              'project old changed sha': (
+                  "'611E9988056CD723F516D80FCE7C2FDC914CEC97EB7189FA11C3C61BA93F67F7'",
+                  "'4C7122E4BBDEF861E75C9CFB87E5171F28F4C1943A90EEFDD3910FEAD02CB572'", 1),
+          }
+          for name, (old, new, expected) in contracts.items():
+              count = block.count(old)
+              if count != expected:
+                  raise SystemExit(f'{name} count={count}, expected={expected}')
+              block = block.replace(old, new, 1)
 
-          pre = balanced_block(verifier, '$PreSetPositionGateD = [ordered]@{')
-          cur = balanced_block(verifier, '$SetPositionAugmentedGateD = [ordered]@{')
-          pre_classes = balanced_block(pre, 'Classes = [ordered]@{')
-          pre_project = balanced_block(pre, 'Project = [ordered]@{')
-          cur_classes = balanced_block(cur, 'Classes = [ordered]@{')
-          cur_project = balanced_block(cur, 'Project = [ordered]@{')
+          required_unchanged = (
+              'PrefixBytes = 33',
+              'HistoricalChangedBytes = 8533691',
+              "'0F002B6EA439F8CAD229619FA3E93F98C12A69735EE7ED1B950195A8C5DC42F5'",
+              'SuffixBytes = 16049',
+              'Bytes = 634865',
+              'PrefixBytes = 25',
+              'HistoricalChangedBytes = 621604',
+              "'A8C80BD192C9E2844ED96A4CC939E1ACECBDF611F41ECC2AF14DCF8F83884650'",
+              'CurrentChangedBytes = 621955',
+              'SuffixBytes = 12885',
+          )
+          for token in required_unchanged:
+              if block.count(token) != 1:
+                  raise SystemExit(f'current Gate D invariant missing/duplicated: {token}')
 
-          def object_id(block):
-              m = re.search(r"(?m)^\s*ObjectId\s*=\s*'([0-9a-fA-F]{40,64})'\s*$", block)
-              if not m:
-                  raise RuntimeError('ObjectId missing')
-              return m.group(1)
+          patched = text[:start] + block + text[end:]
+          # Historical snapshot must remain intact elsewhere in the file.
+          if patched.count("'33C1C2A68B97E852AD6646317CAE032A110D1F50C9615FA5B7EEF00410B649A8'") < 1:
+              raise SystemExit('historical Classes identity was accidentally removed')
+          if patched.count("'FE640A0683466FC1C68537A1CF5E9B96EEFBBBC5EE4885A78F25AF2557193A0E'") < 1:
+              raise SystemExit('historical project identity was accidentally removed')
+          path.write_text(patched, encoding='utf-8', newline='')
 
-          def blob(oid):
-              return subprocess.check_output(['git', 'cat-file', 'blob', oid])
-
-          def sha(data):
-              return hashlib.sha256(data).hexdigest().upper()
-
-          def delta(label, historical, current):
-              prefix = 0
-              lim = min(len(historical), len(current))
-              while prefix < lim and historical[prefix] == current[prefix]:
-                  prefix += 1
-              suffix = 0
-              while suffix < (lim - prefix) and historical[-1 - suffix] == current[-1 - suffix]:
-                  suffix += 1
-              hist_window = historical[prefix:len(historical)-suffix if suffix else len(historical)]
-              cur_window = current[prefix:len(current)-suffix if suffix else len(current)]
-              print(f'{label}_PREFIX_BYTES={prefix}')
-              print(f'{label}_HIST_CHANGED_BYTES={len(hist_window)}')
-              print(f'{label}_HIST_CHANGED_SHA256={sha(hist_window)}')
-              print(f'{label}_CURRENT_CHANGED_BYTES={len(cur_window)}')
-              print(f'{label}_CURRENT_CHANGED_SHA256={sha(cur_window)}')
-              print(f'{label}_SUFFIX_BYTES={suffix}')
-
-          historical_classes = blob(object_id(pre_classes))
-          historical_project = blob(object_id(pre_project))
-          current_classes = Path('Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/Classes.lcb').read_bytes()
-          current_project = Path('Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Elmo_EtherCAT_Test_4Axis.lcb').read_bytes()
-
-          for label, block in [('OLD_CURRENT_CLASSES', cur_classes), ('OLD_CURRENT_PROJECT', cur_project)]:
-              print(f'{label}_BYTES={field(block, "Bytes")}')
-              print(f'{label}_SHA256={field(block, "Sha256", "sha")}')
-
-          expected_pre_classes_bytes = field(pre_classes, 'Bytes')
-          expected_pre_classes_sha = field(pre_classes, 'Sha256', 'sha')
-          expected_pre_project_bytes = field(pre_project, 'Bytes')
-          expected_pre_project_sha = field(pre_project, 'Sha256', 'sha')
-          if len(historical_classes) != expected_pre_classes_bytes or sha(historical_classes) != expected_pre_classes_sha:
-              raise SystemExit('historical Classes Gate D identity mismatch')
-          if len(historical_project) != expected_pre_project_bytes or sha(historical_project) != expected_pre_project_sha:
-              raise SystemExit('historical project Gate D identity mismatch')
-
-          delta('CLASSES', historical_classes, current_classes)
-          delta('PROJECT', historical_project, current_project)
-
-      - name: Confirm rebuild commit contains generated binaries only
+      - name: Run focused SetOperationMode static qualification
         shell: powershell
         run: |
-          $files = @(git diff --name-only ca86903da82e815c1f6afa46bd7a66241ef0fed2..95f18563640504eee56bc726df4275c20f708310)
-          $expected = @(
-            'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/Classes.lcb',
-            'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Elmo_EtherCAT_Test_4Axis.lcb'
-          )
-          if (($files.Count -ne $expected.Count) -or (@(Compare-Object $files $expected).Count -ne 0)) {
-            throw "Unexpected rebuild commit file set: $($files -join ', ')"
+          git diff --check
+          & '.\tools\Verify-SetOperationModeStatic.ps1' -ExpectedSdoWriteAxis 1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Require full SourceOnly PASS
+        shell: powershell
+        run: |
+          $repoRoot = (Get-Location).Path
+          & '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\Verify-LasalContract.ps1' `
+            -RepositoryRoot $repoRoot `
+            -SourceOnly `
+            -ExpectedSdoWriteAxis 1
+          if ($LASTEXITCODE -ne 0) {
+            throw "Full SourceOnly did not pass after fresh C78 artifact ratchet. Exit=$LASTEXITCODE"
           }
-          Write-Host 'Fresh rebuild commit file set is binary-only and exact.'
+          Write-Host 'FULL_SOURCEONLY_PASS=TRUE'
+
+      - name: Commit qualified artifact ratchet and remove temporary workflow
+        shell: powershell
+        run: |
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalUdpCallbackContract.ps1'
+          git rm '.github/workflows/mode10-c78-artifact-qualification.yml'
+          git diff --cached --check
+          git diff --cached --name-status
+          if (git diff --cached --quiet) {
+            throw 'No qualified artifact-ratchet diff was produced.'
+          }
+          git commit -m 'test(mode): ratchet fresh C78 artifact identities'
+          git push origin 'HEAD:codex/mode-10-c78-artifact-qualification'
