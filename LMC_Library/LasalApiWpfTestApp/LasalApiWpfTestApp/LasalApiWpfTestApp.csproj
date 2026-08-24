@@ -152,53 +152,151 @@
       <DependentUpon>MainWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="TransportQualificationAnalysis.cs"><SubType>Code</SubType></Compile>
-    <Compile Include="RecorderReconnectQualificationPolicy.cs"><SubType>Code</SubType></Compile>
-    <Compile Include="GroupStopQualificationOrchestrator.cs"><SubType>Code</SubType></Compile>
-    <Compile Include="BulkQualificationCleanupOrchestrator.cs"><SubType>Code</SubType></Compile>
-    <Compile Include="BulkPartialQualificationAnalysis.cs"><SubType>Code</SubType></Compile>
-    <Compile Include="D5SdoQualificationAnalysis.cs"><SubType>Code</SubType></Compile>
-    <Compile Include="D5ExternalReadFailureOrchestrator.cs"><SubType>Code</SubType></Compile>
-    <Compile Include="D5SdoRecoveryScopePolicy.cs"><SubType>Code</SubType></Compile>
-    <Compile Include="D5SdoPendingCleanupOrchestrator.cs"><SubType>Code</SubType></Compile>
-    <Compile Include="D5SdoContentionQualificationOrchestrator.cs"><SubType>Code</SubType></Compile>
-    <Compile Include="D5SdoTimeoutQualificationOrchestrator.cs"><SubType>Code</SubType></Compile>
-    <Compile Include="D5SdoQueuedCancelQualificationOrchestrator.cs"><SubType>Code</SubType></Compile>
-    <Compile Include="D5SdoDisconnectOrphanQualificationOrchestrator.cs"><SubType>Code</SubType></Compile>
-    <Compile Include="D5SdoWriteSameValueQualificationOrchestrator.cs"><SubType>Code</SubType></Compile>
-    <Compile Include="DiagnosticsMutationJournal.cs"><SubType>Code</SubType></Compile>
-    <Compile Include="GroupProfileLockRecoveryJournal.cs"><SubType>Code</SubType></Compile>
-    <Compile Include="MotionUncertaintyJournal.cs"><SubType>Code</SubType></Compile>
-    <Compile Include="AxisPowerOnRecoveryJournal.cs"><SubType>Code</SubType></Compile>
-    <Compile Include="AxisSetPositionRecoveryJournal.cs"><SubType>Code</SubType></Compile>
-    <Compile Include="AxisSetOperationModeRecoveryJournal.cs"><SubType>Code</SubType></Compile>
-    <Compile Include="MaintenanceActionRecoveryJournal.cs"><SubType>Code</SubType></Compile>
-    <Compile Include="AxisCommandRecoveryJournal.cs"><SubType>Code</SubType></Compile>
-    <Compile Include="AxisQualificationRecoveryJournal.cs"><SubType>Code</SubType></Compile>
-    <Compile Include="GroupPowerRecoveryJournal.cs"><SubType>Code</SubType></Compile>
-    <Compile Include="GroupResetRecoveryJournal.cs"><SubType>Code</SubType></Compile>
-    <Compile Include="RecoveryRecordRetirementLedger.cs"><SubType>Code</SubType></Compile>
-    <Compile Include="DigitalOutputUncertainAcknowledgementPolicy.cs"><SubType>Code</SubType></Compile>
-    <Compile Include="DiagnosticsOperationAdmissionPolicy.cs"><SubType>Code</SubType></Compile>
-    <Compile Include="SdoEditorAvailabilityPolicy.cs"><SubType>Code</SubType></Compile>
-    <Compile Include="SdoWriteConfirmationState.cs"><SubType>Code</SubType></Compile>
-    <Compile Include="SdoWriteActivationQualificationProof.cs"><SubType>Code</SubType></Compile>
-    <Compile Include="TopologyIoLiveMonitorPolicy.cs"><SubType>Code</SubType></Compile>
-    <Compile Include="TopologyIoLiveEvidence.cs"><SubType>Code</SubType></Compile>
-    <Compile Include="ConfiguredTopologyEvidence.cs"><SubType>Code</SubType></Compile>
-    <Compile Include="StaleSdoWriteReadbackRecoveryPolicy.cs"><SubType>Code</SubType></Compile>
-    <Compile Include="RecorderQualificationCleanupOrchestrator.cs"><SubType>Code</SubType></Compile>
-    <Compile Include="RecorderDoubleBankQualificationOrchestrator.cs"><SubType>Code</SubType></Compile>
-    <Compile Include="RecorderHeaderSemanticCanonicalizer.cs"><SubType>Code</SubType></Compile>
-    <Compile Include="RecorderDoubleRecoveryJournal.cs"><SubType>Code</SubType></Compile>
-    <Compile Include="RecorderDoubleRecoveryPlanner.cs"><SubType>Code</SubType></Compile>
-    <Compile Include="RecorderDoubleRecoveryOrchestrator.cs"><SubType>Code</SubType></Compile>
-    <Compile Include="RecorderDoubleQualificationJournalBridge.cs"><SubType>Code</SubType></Compile>
-    <Compile Include="RecorderDoubleDurableReleaseCoordinator.cs"><SubType>Code</SubType></Compile>
-    <Compile Include="MainWindow.Qualification.Bulk.cs"><DependentUpon>MainWindow.xaml</DependentUpon><SubType>Code</SubType></Compile>
-    <Compile Include="MainWindow.Qualification.Recorder.cs"><DependentUpon>MainWindow.xaml</DependentUpon><SubType>Code</SubType></Compile>
-    <Compile Include="MainWindow.Qualification.RecorderDouble.cs"><DependentUpon>MainWindow.xaml</DependentUpon><SubType>Code</SubType></Compile>
-    <Compile Include="MainWindow.Qualification.D5Disconnect.cs"><DependentUpon>MainWindow.xaml</DependentUpon><SubType>Code</SubType></Compile>
+    <Compile Include="TransportQualificationAnalysis.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="RecorderReconnectQualificationPolicy.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="GroupStopQualificationOrchestrator.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="BulkQualificationCleanupOrchestrator.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="BulkPartialQualificationAnalysis.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="D5SdoQualificationAnalysis.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="D5ExternalReadFailureOrchestrator.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="D5SdoRecoveryScopePolicy.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="D5SdoPendingCleanupOrchestrator.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="D5SdoContentionQualificationOrchestrator.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="D5SdoTimeoutQualificationOrchestrator.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="D5SdoQueuedCancelQualificationOrchestrator.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="D5SdoDisconnectOrphanQualificationOrchestrator.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="D5SdoWriteSameValueQualificationOrchestrator.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="DiagnosticsMutationJournal.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="GroupProfileLockRecoveryJournal.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="MotionUncertaintyJournal.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="AxisPowerOnRecoveryJournal.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="AxisSetPositionRecoveryJournal.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="AxisSetOperationModeRecoveryJournal.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="MaintenanceActionRecoveryJournal.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="AxisCommandRecoveryJournal.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="AxisQualificationRecoveryJournal.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="GroupPowerRecoveryJournal.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="GroupResetRecoveryJournal.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="RecoveryRecordRetirementLedger.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="DigitalOutputUncertainAcknowledgementPolicy.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="DiagnosticsOperationAdmissionPolicy.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="SdoEditorAvailabilityPolicy.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="SdoWriteConfirmationState.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="SdoWriteActivationQualificationProof.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="TopologyIoLiveMonitorPolicy.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="TopologyIoLiveEvidence.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="ConfiguredTopologyEvidence.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="StaleSdoWriteReadbackRecoveryPolicy.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="RecorderQualificationCleanupOrchestrator.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="RecorderDoubleBankQualificationOrchestrator.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="RecorderHeaderSemanticCanonicalizer.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="RecorderDoubleRecoveryJournal.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="RecorderDoubleRecoveryPlanner.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="RecorderDoubleRecoveryOrchestrator.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="RecorderDoubleQualificationJournalBridge.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="RecorderDoubleDurableReleaseCoordinator.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="MainWindow.Qualification.Bulk.cs">
+      <DependentUpon>MainWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="MainWindow.Qualification.Recorder.cs">
+      <DependentUpon>MainWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="MainWindow.Qualification.RecorderDouble.cs">
+      <DependentUpon>MainWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="MainWindow.Qualification.D5Disconnect.cs">
+      <DependentUpon>MainWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
@@ -208,9 +306,15 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\API_MAPPING.md"><Link>API_MAPPING.md</Link></None>
-    <None Include="..\DESIGN.md"><Link>DESIGN.md</Link></None>
-    <None Include="..\README.md"><Link>README.md</Link></None>
+    <None Include="..\API_MAPPING.md">
+      <Link>API_MAPPING.md</Link>
+    </None>
+    <None Include="..\DESIGN.md">
+      <Link>DESIGN.md</Link>
+    </None>
+    <None Include="..\README.md">
+      <Link>README.md</Link>
+    </None>
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\WPF\Microsoft.WinFX.targets" Condition="Exists('$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\WPF\Microsoft.WinFX.targets')" />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
