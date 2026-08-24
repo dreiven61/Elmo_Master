@@ -913,8 +913,11 @@ FUNCTION LMCDiagnosticsService::GetSdoWritePolicyDetail
 	END_VAR
 
 	DetailCode := 0;
-	if (ObjectIndex = 0x6040) | (ObjectIndex = 0x607A) |
-		(ObjectIndex = 0x60FF) | (ObjectIndex = 0x6071) then
+	// 0x6060 is owned exclusively by the SetOperationMode lifecycle.
+	// Generic D5 must never bypass its owner/outcome/no-replay contract.
+	if (ObjectIndex = 0x6040) | (ObjectIndex = 0x6060) |
+		(ObjectIndex = 0x607A) | (ObjectIndex = 0x60FF) |
+		(ObjectIndex = 0x6071) then
 		DetailCode := 8;
 		RETURN;
 	end_if;
