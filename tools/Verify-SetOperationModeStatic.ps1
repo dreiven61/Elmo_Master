@@ -129,6 +129,15 @@ Write-Host "ExpectedSdoWriteAxis compatibility parameter: $ExpectedSdoWriteAxis"
 Assert-Regex $diagnostics '(?m)^#define[\t ]+LMC_DIAG_SET_OPERATION_MODE_ENABLED[\t ]+FALSE[\t ]*$' 'SetOperationMode compile-time activation gate is FALSE' -ExpectedCount 1
 Assert-Regex $diagnostics 'LMC_DIAG_SET_OPERATION_MODE_ENABLED[\t ]*=[\t ]*FALSE' 'runtime paths explicitly honor the OFF gate' -MinimumCount 3
 
+# C78 preprocesses #define directives in source order. Keep the complete
+# SetOperationMode define block ahead of the earliest generic-SDO/runtime use.
+$modeDefineBlockStart = $diagnostics.IndexOf('#define LMC_DIAG_MODE_RECORD_STRIDE 32')
+$modeRuntimeStageDefine = $diagnostics.IndexOf('#define LMC_DIAG_MODE_RUNTIME_STAGE 128')
+$modeDefineBlockEnd = $diagnostics.IndexOf('#define LMC_DIAG_MODE_QUARANTINE_SAFETY_PREEMPT 7')
+$modeRuntimeStageFirstUse = $diagnostics.IndexOf('AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE]')
+Assert-True (($modeDefineBlockStart -ge 0) -and ($modeRuntimeStageDefine -gt $modeDefineBlockStart) -and ($modeDefineBlockEnd -gt $modeRuntimeStageDefine) -and ($modeRuntimeStageFirstUse -gt $modeDefineBlockEnd)) 'SetOperationMode define block precedes first C78 runtime-stage use'
+Assert-Regex $diagnostics '(?m)^#define[\t ]+LMC_DIAG_MODE_RUNTIME_STAGE[\t ]+128[\t ]*$' 'runtime stage slot is defined exactly once at 128' -ExpectedCount 1
+
 # Frozen MODE-06 owner ABI and TCP routing.
 Assert-Regex $control '(?m)^#define[\t ]+LMC_OWNER_STATE_AXIS_OPERATION_MODE_ACTIVE[\t ]+12[\t ]*$' 'operation-mode active owner state is 12' -ExpectedCount 1
 Assert-Regex $control '(?m)^#define[\t ]+LMC_OWNER_KIND_AXIS_OPERATION_MODE[\t ]+6[\t ]*$' 'operation-mode owner kind is 6' -ExpectedCount 1
