@@ -19,6 +19,12 @@ namespace LasalApiWpfTestApp.SmokeTests
             tests.Add(
                 "Wpf.SetOperationModeRecovery.DynamicUiRequiresExplicitConfirmation",
                 SetOperationModeDynamicUiRequiresExplicitConfirmation);
+            tests.Add(
+                "Wpf.SetOperationModeRecovery.DefinitiveRejectArchivesAndClearsInterlock",
+                SetOperationModeDefinitiveRejectArchivesAndClearsInterlock);
+            tests.Add(
+                "Wpf.SetOperationModeRecovery.RejectIdentityMismatchRetainsInterlock",
+                SetOperationModeRejectIdentityMismatchRetainsInterlock);
         }
 
         private static void SetOperationModeStartupArmedPromotesAndLocksEndpoint()
@@ -111,6 +117,142 @@ namespace LasalApiWpfTestApp.SmokeTests
                 AssertEx.False(window.TextRemotePort.IsEnabled);
                 AssertEx.False(
                     window.AxisSetOperationModeStartButtonForTests.IsEnabled);
+            }
+            finally
+            {
+                if (window != null)
+                {
+                    window.Close();
+                }
+                DeleteSetOperationModeTemporaryDirectory(root);
+            }
+        }
+
+        private static void
+            SetOperationModeDefinitiveRejectArchivesAndClearsInterlock()
+        {
+            var root = CreateSetOperationModeTemporaryDirectory();
+            MainWindow window = null;
+            try
+            {
+                window = new MainWindow(root);
+                var journal =
+                    window.AxisSetOperationModeRecoveryJournalForTests;
+                var key = CreateSetOperationModeRecoveryKey();
+                var armed = journal.ArmBeforeDispatch(
+                    Guid.NewGuid(),
+                    "127.0.0.1",
+                    4000,
+                    "_LMCAxis1",
+                    key,
+                    FixedSetOperationModeUtc());
+                var recoveryRequired = journal.PromoteToRecoveryRequired(
+                    armed,
+                    FixedSetOperationModeUtc().AddSeconds(1));
+                window.RefreshAxisSetOperationModeRecoveryUiForTests();
+                AssertEx.True(
+                    window.AxisSetOperationModeRecoveryInterlockForTests);
+
+                var evidencePath =
+                    window.ResolveAxisSetOperationModeDefinitiveRejectionForTests(
+                        recoveryRequired,
+                        key,
+                        1,
+                        1,
+                        -31000,
+                        key.OriginalRequestId,
+                        44,
+                        false);
+                window.RefreshAxisSetOperationModeRecoveryUiForTests();
+
+                AssertEx.False(
+                    window.AxisSetOperationModeRecoveryInterlockForTests);
+                AssertEx.False(
+                    window.AxisSetOperationModeRecoveryJournalForTests
+                        .HasActiveRecord);
+                AssertEx.True(File.Exists(evidencePath));
+                var evidence = File.ReadAllText(evidencePath);
+                AssertEx.Contains("ELMOASOMREJECT1", evidence);
+                AssertEx.Contains(
+                    "OriginalRequestId="
+                        + key.OriginalRequestId.ToString(
+                            CultureInfo.InvariantCulture),
+                    evidence);
+                AssertEx.Contains("ResponseDetailCode=44", evidence);
+                AssertEx.Contains("RejectedKeyExact=True", evidence);
+                AssertEx.Contains("OriginalJournalSha256=", evidence);
+                AssertEx.Contains("OriginalJournalBase64=", evidence);
+                AssertEx.Contains("SHA256=", evidence);
+            }
+            finally
+            {
+                if (window != null)
+                {
+                    window.Close();
+                }
+                DeleteSetOperationModeTemporaryDirectory(root);
+            }
+        }
+
+        private static void
+            SetOperationModeRejectIdentityMismatchRetainsInterlock()
+        {
+            var root = CreateSetOperationModeTemporaryDirectory();
+            MainWindow window = null;
+            try
+            {
+                window = new MainWindow(root);
+                var journal =
+                    window.AxisSetOperationModeRecoveryJournalForTests;
+                var key = CreateSetOperationModeRecoveryKey();
+                var armed = journal.ArmBeforeDispatch(
+                    Guid.NewGuid(),
+                    "127.0.0.1",
+                    4000,
+                    "_LMCAxis1",
+                    key,
+                    FixedSetOperationModeUtc());
+                var recoveryRequired = journal.PromoteToRecoveryRequired(
+                    armed,
+                    FixedSetOperationModeUtc().AddSeconds(1));
+                var mismatchedKey = new LMCAxisSetOperationModeRecoveryKey(
+                    1,
+                    key.OriginalRequestId + 1,
+                    key.DiagnosticsBuild,
+                    key.DiagnosticsBootId,
+                    key.MapRevision,
+                    key.ClientIntentId0,
+                    key.ClientIntentId1,
+                    key.ClientIntentId2,
+                    key.ClientIntentId3,
+                    key.AxisReference,
+                    LMCDriveOperationMode.CyclicSynchronousPosition,
+                    key.TimeoutMilliseconds);
+
+                AssertEx.Throws<InvalidOperationException>(
+                    () => window
+                        .ResolveAxisSetOperationModeDefinitiveRejectionForTests(
+                            recoveryRequired,
+                            mismatchedKey,
+                            1,
+                            1,
+                            -31000,
+                            key.OriginalRequestId,
+                            44,
+                            false));
+
+                AssertEx.True(
+                    window.AxisSetOperationModeRecoveryJournalForTests
+                        .HasActiveRecord);
+                AssertEx.Equal(
+                    AxisSetOperationModeRecoveryState.RecoveryRequired,
+                    window.AxisSetOperationModeRecoveryJournalForTests
+                        .CurrentRecord.State);
+                AssertEx.Equal(
+                    0,
+                    Directory.GetFiles(
+                        Path.Combine(root, "AxisSetOperationModeRecovery"),
+                        "*.evidence").Length);
             }
             finally
             {
