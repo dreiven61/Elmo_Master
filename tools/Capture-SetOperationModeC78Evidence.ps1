@@ -26,7 +26,7 @@ function Get-GitText {
     $output = & git -C $Root @Arguments 2>&1
     $exitCode = $LASTEXITCODE
     if ($exitCode -ne 0 -and -not $AllowFailure) {
-        throw "git $($Arguments -join ' ') failed with exit code $exitCode: $($output -join [Environment]::NewLine)"
+        throw "git $($Arguments -join ' ') failed with exit code ${exitCode}: $($output -join [Environment]::NewLine)"
     }
 
     if ($exitCode -ne 0) {
@@ -42,8 +42,9 @@ function Get-RelativeRepoPath {
         [Parameter(Mandatory = $true)][string]$Path
     )
 
-    $rootUri = New-Object System.Uri(($Root.TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar))
-    $pathUri = New-Object System.Uri($Path)
+    $rootWithSeparator = $Root.TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
+    $rootUri = [System.Uri]$rootWithSeparator
+    $pathUri = [System.Uri]$Path
     return [System.Uri]::UnescapeDataString(
         $rootUri.MakeRelativeUri($pathUri).ToString()).Replace('/', '\')
 }
@@ -68,6 +69,8 @@ function Invoke-SetOperationModeC78EvidenceCapture {
         [switch]$SkipGitRequirements
     )
 
+    Assert-EvidenceCondition ($BuildStartUtc -ne [datetime]::MinValue) 'BuildStartedUtc must be supplied explicitly.'
+
     $rootFull = [System.IO.Path]::GetFullPath($Root)
     $logFull = [System.IO.Path]::GetFullPath($LogPath)
     $evidenceFull = [System.IO.Path]::GetFullPath($EvidencePath)
@@ -86,8 +89,6 @@ function Invoke-SetOperationModeC78EvidenceCapture {
     foreach ($required in @($classesPath, $projectLcbPath, $logFull) + $criticalPaths) {
         Assert-EvidenceCondition (Test-Path -LiteralPath $required -PathType Leaf) "Required evidence input is missing: $required"
     }
-
-    Assert-EvidenceCondition ($buildStart -gt [datetime]::MinValue.ToUniversalTime()) 'BuildStartedUtc must be supplied explicitly.'
 
     $classesInfo = Get-Item -LiteralPath $classesPath
     $projectInfo = Get-Item -LiteralPath $projectLcbPath
@@ -121,9 +122,13 @@ function Invoke-SetOperationModeC78EvidenceCapture {
         $classesRelative = (Get-RelativeRepoPath -Root $rootFull -Path $classesPath).Replace('\', '/')
         $projectRelative = (Get-RelativeRepoPath -Root $rootFull -Path $projectLcbPath).Replace('\', '/')
         $headClassesBlob = Get-GitText -Root $rootFull -Arguments @('rev-parse', "HEAD:$classesRelative") -AllowFailure
-        if ([string]::IsNullOrWhiteSpace($headClassesBlob)) { $headClassesBlob = '<untracked-at-head>' }
+        if ([string]::IsNullOrWhiteSpace($headClassesBlob)) {
+            $headClassesBlob = '<untracked-at-head>'
+        }
         $headProjectBlob = Get-GitText -Root $rootFull -Arguments @('rev-parse', "HEAD:$projectRelative") -AllowFailure
-        if ([string]::IsNullOrWhiteSpace($headProjectBlob)) { $headProjectBlob = '<untracked-at-head>' }
+        if ([string]::IsNullOrWhiteSpace($headProjectBlob)) {
+            $headProjectBlob = '<untracked-at-head>'
+        }
         $workingClassesBlob = Get-GitText -Root $rootFull -Arguments @('hash-object', '--', $classesPath)
         $workingProjectBlob = Get-GitText -Root $rootFull -Arguments @('hash-object', '--', $projectLcbPath)
     }
@@ -138,12 +143,6 @@ function Invoke-SetOperationModeC78EvidenceCapture {
     $classesSha = Get-Sha256Hex -Path $classesPath
     $projectSha = Get-Sha256Hex -Path $projectLcbPath
     $logSha = Get-Sha256Hex -Path $logFull
-    $statusBlock = if ($gitStatus -eq '<clean>' -or $gitStatus -eq '<self-test-no-git>') {
-        $gitStatus
-    }
-    else {
-        $gitStatus
-    }
 
     $markdown = @"
 # SetOperationMode Fresh C78 Artifact Capture
@@ -178,9 +177,7 @@ $($sourceRows -join "`n")
 
 ## Working tree at capture
 
-```text
-$statusBlock
-```
+    $($gitStatus.Replace("`n", "`n    "))
 
 ## Mandatory next review
 
