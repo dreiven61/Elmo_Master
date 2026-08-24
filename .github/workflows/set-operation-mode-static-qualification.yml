@@ -40,7 +40,9 @@ jobs:
       - name: Run repository SourceOnly contract
         shell: powershell
         run: |
+          $repoRoot = (Get-Location).Path
           & '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\Verify-LasalContract.ps1' `
+            -RepositoryRoot $repoRoot `
             -SourceOnly `
             -ExpectedSdoWriteAxis 1
 
