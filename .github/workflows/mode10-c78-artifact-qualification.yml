@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 jobs:
-  sourceonly-clean-git-proof:
+  gate-d-file-identity-diagnostic:
     runs-on: windows-latest
     steps:
       - name: Checkout finalize branch
@@ -20,203 +20,35 @@ jobs:
           ref: codex/mode-10-c78-finalize
           fetch-depth: 0
 
-      - name: Patch justified current Gate D identities in working tree
+      - name: Measure clean Git Gate D file identities
         shell: python
         run: |
           from pathlib import Path
+          import hashlib
 
-          path = Path('LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalUdpCallbackContract.ps1')
-          text = path.read_text(encoding='utf-8')
-          marker = '$SetPositionAugmentedGateD = [ordered]@{'
-          start = text.index(marker)
-          brace = text.index('{', start)
-          depth = 0
-          quote = None
-          end = None
-          i = brace
-          while i < len(text):
-              c = text[i]
-              if quote:
-                  if c == quote:
-                      if i + 1 < len(text) and text[i + 1] == quote:
-                          i += 2
-                          continue
-                      quote = None
-                  i += 1
-                  continue
-              if c in "'\"":
-                  quote = c
-              elif c == '{':
-                  depth += 1
-              elif c == '}':
-                  depth -= 1
-                  if depth == 0:
-                      end = i + 1
-                      break
-              i += 1
-          if end is None:
-              raise SystemExit('SetPositionAugmentedGateD block is unterminated')
-          block = text[start:end]
-          replacements = [
-              ('Bytes = 8610206', 'Bytes = 8635284'),
-              ("'33C1C2A68B97E852AD6646317CAE032A110D1F50C9615FA5B7EEF00410B649A8'", "'E5F86F542B0FA45065D2197054EE52493A29D57DB091FB32BF20151937736D2D'"),
-              ('CurrentChangedBytes = 8594124', 'CurrentChangedBytes = 8619202'),
-              ("'137B073078A13D0F7C7702D957A7AB51BE3D083ED27D83FB1A586F9F9673AAB7'", "'A0FD24EA008742655644A8DB844E0BA899DEEA8F64CC091FF0BD12109410FAB9'"),
-              ("'FE640A0683466FC1C68537A1CF5E9B96EEFBBBC5EE4885A78F25AF2557193A0E'", "'9887CD1BE02A4143FF67E8AC0D394123441C99C801F23C1DEDA8D93834732CF6'"),
-              ("'611E9988056CD723F516D80FCE7C2FDC914CEC97EB7189FA11C3C61BA93F67F7'", "'4C7122E4BBDEF861E75C9CFB87E5171F28F4C1943A90EEFDD3910FEAD02CB572'"),
-              ('RawBytes = 8830', 'RawBytes = 8585'),
-              ("'4976C5C46F5647F55BAA54AF99D80A761A5C0648C74484939872AD277C13AC3F'", "'F9DCC4C7A3F174E908539E038AE19BF8A56B94175F99BDB708D653AB442B6163'"),
-              ('RawBytes = 25455', 'RawBytes = 24305'),
-              ("'D827E526A997A6595BDF2B8CFDF8539DCFBD836CD6802DBC5B2705DA3BBF5FAF'", "'8DB54FBE3B59135960562E80EF59F9C54DE2A9136C5553C117B75AEEAA7A10BD'"),
-              ('RawBytes = 21521', 'RawBytes = 20697'),
-              ("'F849B0E5F898C4C2D6269E3DF33B8F9EA93107AF0DD24A8933F75F9AB92B067F'", "'A734FEBD1FE60AAB3B530AF56E738F9D77FFC952411B1A6DCAC035D161844B1D'"),
-              ('RawBytes = 64423', 'RawBytes = 61906'),
-              ("'EDD3F17794126577E17A841AD1D562F1CB6D41D03D7C7A7E3690146918E029AD'", "'4DDCD07636E534D3B1A41B3FCCA55F76CC68EACAA413A24F9BBC14CC76820B24'"),
-              ('RawBytes = 12136', 'RawBytes = 11843'),
-              ("'E17E1EBF0C3171C8D52B7F70FB124078931FAB8D6089C1DE83257502186E7ECE'", "'BDF3134A791F480915A8864B59193690B2881C1A5D7F5529822088FC60678AA1'"),
+          files = [
+              'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/Classes.lcb',
+              'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/Comm_Network/Comm_Network.lcn',
+              'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/Networks.lcb',
           ]
-          for old, new in replacements:
-              count = block.count(old)
-              if count != 1:
-                  raise SystemExit(f'Gate D replacement count for {old!r}: {count}')
-              block = block.replace(old, new, 1)
-          path.write_text(text[:start] + block + text[end:], encoding='utf-8', newline='')
+          expected_physical = {
+              files[0]: (8610206, '33C1C2A68B97E852AD6646317CAE032A110D1F50C9615FA5B7EEF00410B649A8'),
+              files[1]: (17686, '478D53FB082491FC47EF102044FDA2529D4ABA70D6838850DC317EAC7FE1C132'),
+              files[2]: (243125, '8A115291E96D25E00D0507B68F9DAD3CFB735CE26646C0155E4533FCC2D6EFA8'),
+          }
+          for path in files:
+              data = Path(path).read_bytes()
+              digest = hashlib.sha256(data).hexdigest().upper()
+              exp_bytes, exp_sha = expected_physical[path]
+              print(f'{path}|ACTUAL={len(data)}/{digest}|PHYSICAL={exp_bytes}/{exp_sha}|MATCH={len(data)==exp_bytes and digest==exp_sha}')
 
-      - name: Patch clean Git Network alternate without widening production approval
+      - name: Show SetPosition current Gate D structure
         shell: python
         run: |
           from pathlib import Path
-
-          path = Path('LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalUdpCallbackContract.ps1')
-          text = path.read_text(encoding='utf-8')
-
-          layout_marker = '$ExpectedTerminalWakeLayout = [ordered]@{'
-          if text.count(layout_marker) != 1:
-              raise SystemExit(f'TerminalWake layout marker count={text.count(layout_marker)}')
-          clean_git_expectation = '''$ExpectedTerminalWakeCleanGitNetwork = [ordered]@{
-              FullNetwork = [ordered]@{
-                  Count = 15
-                  Sha256 =
-                      'C8953FC1F486F320A6EBC673E09A430BF82D442715C3B8CFCD50A17F0BEBF0BB'
-              }
-              TrackedNetwork = [ordered]@{
-                  Count = 15
-                  Sha256 =
-                      '1F82198AA56B2D25D353AB88BC3A3DA3DF494EA065B9C572528E0DF6C7A956FD'
-              }
-          }
-          '''
-          text = text.replace(layout_marker, clean_git_expectation + layout_marker, 1)
-
-          main_start_marker = '                    $networkAggregateExact = if ($state -ceq'
-          main_start = text.index(main_start_marker)
-          terminal_marker = "'TerminalWakeBrokerCandidate') {"
-          if text.index(terminal_marker, main_start) > main_start + 300:
-              raise SystemExit('TerminalWake aggregate branch was not adjacent to the unique main marker')
-          main_else = text.index('                    else {', main_start)
-          main_terminal = '''                    $networkAggregateExact = if ($state -ceq
-                              'TerminalWakeBrokerCandidate') {
-                              $terminalWakePhysicalAggregateExact =
-                                  (Test-TerminalWakeNetworkAggregateIdentity `
-                                      -ActualCount $Snapshot.FullNetworkCount `
-                                      -ActualSha256 $Snapshot.FullNetworkSha256 `
-                                      -Expected $ExpectedTerminalWakeLayout.FullNetwork) -and
-                                  (Test-TerminalWakeNetworkAggregateIdentity `
-                                      -ActualCount $Snapshot.TrackedNetworkCount `
-                                      -ActualSha256 $Snapshot.TrackedNetworkSha256 `
-                                      -Expected $ExpectedTerminalWakeLayout.TrackedNetwork)
-                              $terminalWakeCleanGitAggregateExact =
-                                  (Test-TerminalWakeNetworkAggregateIdentity `
-                                      -ActualCount $Snapshot.FullNetworkCount `
-                                      -ActualSha256 $Snapshot.FullNetworkSha256 `
-                                      -Expected $ExpectedTerminalWakeCleanGitNetwork.FullNetwork) -and
-                                  (Test-TerminalWakeNetworkAggregateIdentity `
-                                      -ActualCount $Snapshot.TrackedNetworkCount `
-                                      -ActualSha256 $Snapshot.TrackedNetworkSha256 `
-                                      -Expected $ExpectedTerminalWakeCleanGitNetwork.TrackedNetwork)
-                              $terminalWakePhysicalAggregateExact -or
-                                  $terminalWakeCleanGitAggregateExact
-                          }
-          '''
-          text = text[:main_start] + main_terminal + text[main_else:]
-
-          function_start = text.index('function Assert-TerminalWakeLayoutContract')
-          aggregate_loop_start = text.index('    foreach ($aggregate in @(', function_start)
-          next_function_marker = '\nfunction ConvertTo-NormalizedGeneratedBlock'
-          next_function = text.index(next_function_marker, aggregate_loop_start)
-          function_close = text.rfind('\n}', aggregate_loop_start, next_function)
-          if function_close < aggregate_loop_start:
-              raise SystemExit('Assert-TerminalWakeLayoutContract closing brace not found')
-          layout_aggregate = '''    $physicalNetworkAggregateExact =
-              (Test-TerminalWakeNetworkAggregateIdentity `
-                  -ActualCount $Snapshot.FullNetworkCount `
-                  -ActualSha256 $Snapshot.FullNetworkSha256 `
-                  -Expected $ExpectedTerminalWakeLayout.FullNetwork) -and
-              (Test-TerminalWakeNetworkAggregateIdentity `
-                  -ActualCount $Snapshot.TrackedNetworkCount `
-                  -ActualSha256 $Snapshot.TrackedNetworkSha256 `
-                  -Expected $ExpectedTerminalWakeLayout.TrackedNetwork)
-          $cleanGitNetworkAggregateExact =
-              (Test-TerminalWakeNetworkAggregateIdentity `
-                  -ActualCount $Snapshot.FullNetworkCount `
-                  -ActualSha256 $Snapshot.FullNetworkSha256 `
-                  -Expected $ExpectedTerminalWakeCleanGitNetwork.FullNetwork) -and
-              (Test-TerminalWakeNetworkAggregateIdentity `
-                  -ActualCount $Snapshot.TrackedNetworkCount `
-                  -ActualSha256 $Snapshot.TrackedNetworkSha256 `
-                  -Expected $ExpectedTerminalWakeCleanGitNetwork.TrackedNetwork)
-          if (-not ($physicalNetworkAggregateExact -or $cleanGitNetworkAggregateExact)) {
-              Throw-UdpCallbackBlocker (
-                  'TerminalWake Network aggregate matches neither the sanctioned ' +
-                  'physical LASAL snapshot nor the exact clean-Git snapshot.')
-          }
-          '''
-          text = text[:aggregate_loop_start] + layout_aggregate + text[function_close:]
-
-          verify_function_start = text.index('function Assert-UdpCallbackContract') if 'function Assert-UdpCallbackContract' in text else 0
-          approval_start = text.index('    $productionApproved =', verify_function_start)
-          approval_end = text.index('    return [pscustomobject]@{', approval_start)
-          approval = '''    $terminalWakePhysicalSnapshotExact =
-              ($state -ceq 'TerminalWakeBrokerCandidate') -and
-              (-not $syntheticFixture) -and
-              (Test-TerminalWakeNetworkAggregateIdentity `
-                  -ActualCount $Snapshot.FullNetworkCount `
-                  -ActualSha256 $Snapshot.FullNetworkSha256 `
-                  -Expected $ExpectedTerminalWakeLayout.FullNetwork) -and
-              (Test-TerminalWakeNetworkAggregateIdentity `
-                  -ActualCount $Snapshot.TrackedNetworkCount `
-                  -ActualSha256 $Snapshot.TrackedNetworkSha256 `
-                  -Expected $ExpectedTerminalWakeLayout.TrackedNetwork)
-          $productionApproved =
-              ($state -in @('Absent', 'VendorImported')) -or
-              (($state -ceq 'TerminalWakeBrokerCandidate') -and
-                  $TerminalWakeBrokerExactPhysicalSnapshotApproved -and
-                  $terminalWakePhysicalSnapshotExact)
-          '''
-          text = text[:approval_start] + approval + text[approval_end:]
-
-          for required in (
-              '$ExpectedTerminalWakeCleanGitNetwork',
-              '$terminalWakeCleanGitAggregateExact',
-              '$cleanGitNetworkAggregateExact',
-              '$terminalWakePhysicalSnapshotExact',
-          ):
-              if required not in text:
-                  raise SystemExit(f'missing patched token: {required}')
-          path.write_text(text, encoding='utf-8', newline='')
-
-      - name: Run full SourceOnly qualification
-        shell: powershell
-        run: |
-          & '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\Verify-LasalContract.ps1' `
-            -RepositoryRoot (Get-Location).Path `
-            -SourceOnly `
-            -ExpectedSdoWriteAxis 1
-
-      - name: Show verifier-only working tree delta
-        if: always()
-        shell: powershell
-        run: |
-          git status --short
-          git diff --check
-          git diff --stat
+          text = Path('LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalUdpCallbackContract.ps1').read_text(encoding='utf-8')
+          marker = '$SetPositionAugmentedGateD = [ordered]@{'
+          idx = text.find(marker)
+          print('MARKER_INDEX=', idx)
+          if idx >= 0:
+              print(text[idx:idx+7000])
