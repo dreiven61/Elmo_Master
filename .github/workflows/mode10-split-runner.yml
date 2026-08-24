@@ -1,64 +1,63 @@
-name: MODE-10 split runner
+name: MODE-10 method split runner
 
 on:
   push:
     branches:
-      - codex/mode-10-static-qualification-v2
+      - codex/mode-10-method-split
     paths:
       - 'tools/Apply-SetOperationModeMethodSplit.py'
+      - 'tools/Verify-SetOperationModeStatic.ps1'
       - '.github/workflows/mode10-split-runner.yml'
 
 permissions:
   contents: write
 
 jobs:
-  run:
+  split-and-verify:
     if: github.actor != 'github-actions[bot]'
     runs-on: windows-latest
     steps:
-      - name: Checkout feature branch
+      - name: Checkout method-split branch
         uses: actions/checkout@v4
         with:
-          ref: codex/mode-10-static-qualification-v2
+          ref: codex/mode-10-method-split
           fetch-depth: 0
 
-      - name: Apply split and capture patch result
+      - name: Apply behavior-preserving method split
         shell: powershell
         run: |
-          $report = '.mode10_split_report.txt'
-          "MODE-10 split runner" | Set-Content -Encoding ascii $report
-          "UTC=$([DateTime]::UtcNow.ToString('o'))" | Add-Content -Encoding ascii $report
-          python '.\tools\Apply-SetOperationModeMethodSplit.py' *>> $report
-          "PATCH_EXIT=$LASTEXITCODE" | Add-Content -Encoding ascii $report
-          if ($LASTEXITCODE -ne 0) {
-            exit 0
-          }
+          python '.\tools\Apply-SetOperationModeMethodSplit.py'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git diff --check
 
-          git diff --check *>> $report
-          "DIFF_CHECK_EXIT=$LASTEXITCODE" | Add-Content -Encoding ascii $report
-
+      - name: Validate LASAL ASCII contract
+        shell: powershell
+        run: |
           git add 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
-          powershell.exe -ExecutionPolicy Bypass -File '.\tools\Verify-CodexLasalAscii.ps1' -Staged *>> $report
-          "ASCII_EXIT=$LASTEXITCODE" | Add-Content -Encoding ascii $report
+          powershell.exe -ExecutionPolicy Bypass -File '.\tools\Verify-CodexLasalAscii.ps1' -Staged
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      - name: Run repository SourceOnly contract
+        shell: powershell
+        run: |
           & '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\Verify-LasalContract.ps1' `
             -RepositoryRoot (Get-Location).Path `
             -SourceOnly `
-            -ExpectedSdoWriteAxis 1 *>> $report
-          "SOURCE_ONLY_EXIT=$LASTEXITCODE" | Add-Content -Encoding ascii $report
-          exit 0
+            -ExpectedSdoWriteAxis 1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Commit source and report
+      - name: Run SetOperationMode split invariants
+        shell: powershell
+        run: |
+          & '.\tools\Verify-SetOperationModeStatic.ps1' -ExpectedSdoWriteAxis 1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Commit verified source split
         shell: powershell
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          if (Test-Path 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st') {
-            git add 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
-          }
-          git add '.mode10_split_report.txt'
+          git add 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
           git diff --cached --check
-          if (-not (git diff --cached --quiet)) {
-            git commit -m 'test(mode): capture MODE-10 method split result'
-            git push origin HEAD:codex/mode-10-static-qualification-v2
-          }
+          git commit -m 'refactor(mode): split SetOperationMode processor methods'
+          git push origin HEAD:codex/mode-10-method-split
