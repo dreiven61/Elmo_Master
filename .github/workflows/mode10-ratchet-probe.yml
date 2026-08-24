@@ -43,16 +43,13 @@ jobs:
               ("'064544E3EC5498E4ECAFC0C4C1E77FEBF1C0E59BDA7440C9A73867A343D6C2AF'", "'367C87E07AF2C33D60F32F3E94AECF73BA052C6F3155DA909DB9EAD1BB9EAB85'"),
               ('$($macroInventory.Count)/68, ', '$($macroInventory.Count)/70, '),
               ('$($joinedMacros.Length)/2387, ', '$($joinedMacros.Length)/2470, '),
-              ('throw "$blocker $($fragmentContract.Name) lexical token inventory drifted."',
-               'throw "$blocker $($fragmentContract.Name) lexical token inventory drifted ($($metrics.LexicalCount)/$($metrics.LexicalLength)/$($metrics.LexicalSha256))."'),
-              ('throw "$blocker $($fragmentContract.Name) local inventory drifted or is empty."',
-               'throw "$blocker $($fragmentContract.Name) local inventory drifted or is empty ($($metrics.LocalCount)/$($metrics.LocalLength)/$($metrics.LocalSha256))."'),
-              ('throw "$blocker $($fragmentContract.Name) call inventory drifted."',
-               'throw "$blocker $($fragmentContract.Name) call inventory drifted ($($metrics.CallInventory))."'),
-              ('throw "$blocker $($fragmentContract.Name) persistent mutation inventory drifted."',
-               'throw "$blocker $($fragmentContract.Name) persistent mutation inventory drifted ($($metrics.MutationCount)/$($metrics.MutationLength)/$($metrics.MutationSha256))."'),
-              ('throw "$blocker $($fragmentContract.Name) Result/RETURN inventory drifted."',
-               'throw "$blocker $($fragmentContract.Name) Result/RETURN inventory drifted ($($metrics.ControlFlowCount)/$($metrics.ControlFlowLength)/$($metrics.ControlFlowSha256))."'),
+              ('Lexical = @(4170, 25319,', 'Lexical = @(4181, 25399,'),
+              ("'3C1049ED8E8B05BA66B4E356865B6580DAE5FA69FE413A11E60322F62FC17000'", "'19E0C93B5538A8E9C361401CFAE85E23CDFFE0831422EF8174B735C57471FD50'"),
+              ('throw "$blocker $($fragmentContract.Name) lexical token inventory drifted."', 'throw "$blocker $($fragmentContract.Name) lexical token inventory drifted ($($metrics.LexicalCount)/$($metrics.LexicalLength)/$($metrics.LexicalSha256))."'),
+              ('throw "$blocker $($fragmentContract.Name) local inventory drifted or is empty."', 'throw "$blocker $($fragmentContract.Name) local inventory drifted or is empty ($($metrics.LocalCount)/$($metrics.LocalLength)/$($metrics.LocalSha256))."'),
+              ('throw "$blocker $($fragmentContract.Name) call inventory drifted."', 'throw "$blocker $($fragmentContract.Name) call inventory drifted ($($metrics.CallInventory))."'),
+              ('throw "$blocker $($fragmentContract.Name) persistent mutation inventory drifted."', 'throw "$blocker $($fragmentContract.Name) persistent mutation inventory drifted ($($metrics.MutationCount)/$($metrics.MutationLength)/$($metrics.MutationSha256))."'),
+              ('throw "$blocker $($fragmentContract.Name) Result/RETURN inventory drifted."', 'throw "$blocker $($fragmentContract.Name) Result/RETURN inventory drifted ($($metrics.ControlFlowCount)/$($metrics.ControlFlowLength)/$($metrics.ControlFlowSha256))."'),
           )
           for old, new in replacements:
               count = text.count(old)
