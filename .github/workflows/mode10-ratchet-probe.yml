@@ -23,7 +23,7 @@ jobs:
           ref: codex/mode-10-sourceonly-cleanup
           fetch-depth: 0
 
-      - name: Patch known MODE-08 ratchets and diagnostic messages
+      - name: Patch proven MODE-08 ratchets and expose reserve context
         shell: python
         run: |
           from pathlib import Path
@@ -47,17 +47,17 @@ jobs:
               ("'3C1049ED8E8B05BA66B4E356865B6580DAE5FA69FE413A11E60322F62FC17000'", "'19E0C93B5538A8E9C361401CFAE85E23CDFFE0831422EF8174B735C57471FD50'"),
               ('Lexical = @(3372, 22104,', 'Lexical = @(3451, 22781,'),
               ("'C1035138B3C7020306E8243C8F613D817680A06F83A8A578AA85CF487543FA10'", "'C047EEB0042EEC4CEB2D3840E5226C1FAD420560EC90A058DAFE361546CC51F2'"),
-              ('throw "$blocker $($fragmentContract.Name) lexical token inventory drifted."', 'throw "$blocker $($fragmentContract.Name) lexical token inventory drifted ($($metrics.LexicalCount)/$($metrics.LexicalLength)/$($metrics.LexicalSha256))."'),
-              ('throw "$blocker $($fragmentContract.Name) local inventory drifted or is empty."', 'throw "$blocker $($fragmentContract.Name) local inventory drifted or is empty ($($metrics.LocalCount)/$($metrics.LocalLength)/$($metrics.LocalSha256))."'),
-              ('throw "$blocker $($fragmentContract.Name) call inventory drifted."', 'throw "$blocker $($fragmentContract.Name) call inventory drifted ($($metrics.CallInventory))."'),
-              ('throw "$blocker $($fragmentContract.Name) persistent mutation inventory drifted."', 'throw "$blocker $($fragmentContract.Name) persistent mutation inventory drifted ($($metrics.MutationCount)/$($metrics.MutationLength)/$($metrics.MutationSha256))."'),
-              ('throw "$blocker $($fragmentContract.Name) Result/RETURN inventory drifted."', 'throw "$blocker $($fragmentContract.Name) Result/RETURN inventory drifted ($($metrics.ControlFlowCount)/$($metrics.ControlFlowLength)/$($metrics.ControlFlowSha256))."'),
           )
           for old, new in replacements:
               count = text.count(old)
               if count != 1:
-                  raise SystemExit(f'probe token count={count}, expected=1: {old}')
+                  raise SystemExit(f'ratchet token count={count}, expected=1: {old}')
               text = text.replace(old, new, 1)
+          lines = text.splitlines()
+          print('--- VERIFIER_LINES_8260_8360_BEGIN ---')
+          for number in range(8260, min(8361, len(lines) + 1)):
+              print(f'{number}: {lines[number - 1]}')
+          print('--- VERIFIER_LINES_8260_8360_END ---')
           src.write_text(text, encoding='utf-8', newline='')
 
       - name: Run repository SourceOnly contract
