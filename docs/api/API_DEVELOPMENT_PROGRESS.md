@@ -1,9 +1,9 @@
 # LASAL Motion Control API 개발 진척도
 
 - 문서 버전: 1.0-current
-- 기준일: 2026-08-24
+- 기준일: 2026-08-25
 - API: `LasalMotionControlLib 0.9.1-preview`
-- 기준 branch/HEAD: `dev@09e1347deb71` + 본 current-progress 동기화
+- 기준 branch/HEAD: `dev@925dd8258feb` + 본 current-progress 동기화
 - 릴리스 판정: **production NO-GO**
 
 이 문서는 API 구현률, 최신 검증 결과, artifact identity, 제한과 다음 작업의 단일 current
@@ -55,6 +55,10 @@ branch를 일괄 정리한다.
   57 checks PASS했고 common ownership/source gate도 통과했다. 해당 canonical source/verifier를
   `dev`에 복구했다. 그러나 이 최종 source의 fresh C78/ARM Rebuild/Link, PLC download/runtime,
   hardware/packet proof는 아직 없다.
+- SetOperationMode MODE-13 PC/WPF recovery는 current Windows PR qualification에서
+  Debug/Release 각각 `12/12 PASS`, build `0 warnings / 0 errors`, diff hygiene PASS다.
+  Start 전 durable exact identity, startup/reconnect no-replay, terminal generation 저장 후
+  exact `0x7D25` retire와 definitive Start rejection durable archive를 검증했다.
 - full SourceOnly의 잔존 blocker는 source semantics가 아니라 기존 `Classes.lcb` physical
   identity ratchet mismatch다. artifact identity는 fresh C78 build와 의미 검토 전 자동 갱신하지 않는다.
 - RETAIN 할당 실패를 없애기 위해 SetPosition backing은 1,344-byte ordinary volatile
@@ -89,7 +93,7 @@ branch를 일괄 정리한다.
 | LMC Home | `0x7D13/7D18/7D19` | Active/Limited | Admin bit 4 ON; no-motion CurrentPositionZero이며 switch-search Home이 아님 |
 | SetPosition | `0x7D12/7D14/7D1A` | Dormant | Store/ownership FALSE, max-jump 0, bits 3/5/7 OFF, volatile backing, native call 0, detail 24 |
 | DS402 Home | `0x7D15/7D16/7D17` | Dormant | method 37 source, gate FALSE, Admin bit 6 OFF; `HomeDS402Ex` 실행은 없음 |
-| SetOperationMode | `0x7D23/7D24/7D25` | Dormant | owner kind 6/resource 4, SDO lifecycle, no-replay recovery, preemption, outcome와 D5 `0x6060` deny source 구현; compile gate/bits 8/9/10 OFF; fresh C78/PLC/hardware 미검증 |
+| SetOperationMode | `0x7D23/7D24/7D25` | Dormant | owner kind 6/resource 4, SDO lifecycle, no-replay recovery, preemption, outcome, D5 `0x6060` deny와 MODE-13 WPF durable recovery 구현; compile gate/bits 8/9/10 OFF; fresh C78/PLC/hardware 미검증 |
 | Diagnostics capability | `0x7E00` | Active | 매 connection에서 fresh `BootId`, `MapRevision`, mask를 읽어야 함 |
 | D1/D2 | `0x7E01/02/10/20`, `0x7E30-33` | Active/Limited | typed catalog/PI/Bulk 경로; fault/partial/soak 확대 필요 |
 | D3 Recorder | `0x7E40-49` | Active/Limited | Single/Ring/Trigger, single recorder owner; capture 적격성 확대 필요 |
@@ -104,9 +108,9 @@ branch를 일괄 정리한다.
 | Extended SDO result | `0x7E51` | Dormant | bit 12 OFF |
 | Distribution | SDK/WPF candidate | Blocked | 새 2.4-development manual과 기존 2.3 semantic policy/DOCX/PDF가 달라 build가 fail-fast |
 
-추가 미구현/제한 항목은 SetOperationMode WPF recovery/실축 activation, generic Axis
-`SetParameter`, Group parameter write, Axis override, typed emergency callback producer,
-profile conditioning pair와 SDO Real64/8-byte다.
+추가 미구현/제한 항목은 SetOperationMode 실축 activation, generic Axis `SetParameter`, Group
+parameter write, Axis override, typed emergency callback producer, profile conditioning pair와
+SDO Real64/8-byte다.
 
 ## 5. 이번 개발 내용
 
@@ -169,8 +173,26 @@ qualification checkpoint:
 | full SourceOnly | STOP at existing `Classes.lcb` physical identity ratchet | Source/artifact boundary |
 
 위 결과는 최종 qualification branch에서 검증된 canonical source semantics이고, 해당 source와
-verifier/workflow를 `dev`에 복구했다. 현재 `dev` commit에 대한 새 GitHub Actions status는 아직
-별도 PASS 증거로 기록하지 않는다.
+verifier/workflow를 `dev`에 복구했다. source/static PASS를 current C78/PLC/hardware PASS로
+확대하지 않는다.
+
+### 5.5 SetOperationMode MODE-13 WPF durable/no-replay recovery
+
+PR #15 / squash commit `01bc9ed80b77a901b57afc8ee32a7b446a1f7f85`에서 다음을 닫았다.
+
+- Start write 전 endpoint/build/BootId/map/128-bit intent/mode exact durable journal
+- startup `ArmedBeforeDispatch -> RecoveryRequired` 승격과 endpoint lock
+- accepted/uncertain 결과 이후 original `0x7D23` replay 금지
+- recovery key의 Build/BootId/MapRevision exact match 및 mismatch zero-wire
+- terminal outcome + exact RecordGeneration durable 저장 후 `0x7D25` retire
+- retire 성공 이후에만 active journal resolve
+- deterministic Start rejection은 PLC retained outcome 생성 전 failure ACK라는 source 의미를 확인
+- definitive rejection의 exact identity/response/active journal bytes를 checksum-protected evidence로
+  write-through 저장한 뒤에만 recovery interlock 해제
+- reject identity mismatch/evidence failure는 fail-closed 유지
+
+상세 checkpoint는
+[MODE-13 WPF recovery evidence](design/evidence/SET_OPERATION_MODE_MODE13_WPF_RECOVERY_20260825.md)에 기록했다.
 
 ## 6. 최신 검증 현황
 
@@ -180,8 +202,10 @@ verifier/workflow를 `dev`에 복구했다. 현재 `dev` commit에 대한 새 Gi
 |---|---:|---|---|
 | SDK Debug | `1164/1164 PASS` | PC historical | SetOperationMode 11개 포함; current restored LASAL build 증거 아님 |
 | SDK Release | `1164/1164 PASS` | PC historical | 위와 동일 |
-| WPF Debug | `356/356 PASS` | PC historical | MODE-13 SetOperationMode journal 구현 전 checkpoint |
+| WPF Debug | `356/356 PASS` | PC historical | MODE-13 구현 전 full-suite checkpoint |
 | WPF Release | `356/356 PASS` | PC historical | 위와 동일 |
+| SetOperationMode WPF Debug | `12/12 PASS` | PC current | PR run `32789073664`; build 0 warnings / 0 errors |
+| SetOperationMode WPF Release | `12/12 PASS` | PC current | PR run `32789073664`; build 0 warnings / 0 errors |
 | SetPosition P1 mutation | `84/84 PASS` | Source/static historical | current Control/TCP 계약 포함 |
 | SetOperationMode static | `57 PASS` | Source/static | final qualified source semantics |
 | SetOperationMode method split | PASS | Source/static | 세 processor 모두 < 32 KiB |
@@ -227,7 +251,6 @@ fresh build 결과가 아니다.**
 - same image의 fresh `BootId`, `MapRevision`, Diagnostics build tuple
 - SetOperationMode same-mode no-write와 exact one-write/readback packet
 - 축 1~4 timeout/disconnect/mismatch/quarantine/retire hardware matrix
-- SetOperationMode MODE-13 WPF pre-dispatch journal/reconnect no-replay recovery
 - SetPosition `0x7D12` native execution/coordinate effect
 - latest image 전체 Axis/Group power/stop/fault/reconnect/soak matrix
 
@@ -238,7 +261,7 @@ fresh build 결과가 아니다.**
 | 순서 | API | 진행도 | 다음 gate |
 |---:|---|---:|---|
 | 1 | [HomeDS402](design/HOME_DS402_DESIGN.md) | 50% | 기존 method 37 lifecycle의 atomic activation과 축 1~4 실기 적격화 |
-| 2 | [SetOpMode](design/SET_OPERATION_MODE_DESIGN.md) | 60% | MODE-13 WPF recovery는 PC에서 병렬 진행; 최신 source는 fresh C78/ARM Rebuild/Link와 artifact review 후 MODE-11/12 hardware qualification |
+| 2 | [SetOpMode](design/SET_OPERATION_MODE_DESIGN.md) | 60% | MODE-13 PC/WPF PASS; fresh C78/ARM Rebuild/Link와 artifact review 후 MODE-11/12 hardware qualification |
 | 3 | [HomeDS402Ex](design/HOME_DS402_EX_DESIGN.md) | 0% | axis profile/scale 승인 후 `0x7D1B/1C/1D` dormant lifecycle |
 | 4 | [SetPosition](design/SET_POSITION_DESIGN.md) | 25% | `_FileSys` dual-file backend, RT claim/native와 terminal durability |
 
@@ -246,7 +269,7 @@ capability와 native mutation activation은 각 설계의 hardware gate 전까�
 
 ### P0 - current baseline / SetOperationMode qualification
 
-1. current `dev` source/static verifier와 workflow를 보존한다.
+1. current `dev` source/static verifier와 MODE-13 PC/WPF evidence를 보존한다.
 2. 최신 source를 LASAL IDE에서 fresh C78/ARM Rebuild/Link한다.
 3. 생성된 `Classes.lcb`를 source/generated ABI와 대조하고 의미 변화가 없다는 검토 뒤에만
    physical identity ratchet 승인 여부를 결정한다.
@@ -254,13 +277,16 @@ capability와 native mutation activation은 각 설계의 hardware gate 전까�
 5. 축 1부터 MODE-11/12 hardware/packet matrix를 수행한 뒤 축 2~4로 확대한다.
 6. 위 증거 전에는 `LMC_DIAG_SET_OPERATION_MODE_ENABLED`와 capability bits 8/9/10을 켜지 않는다.
 
-### P1 - PC에서 병렬 가능한 SetOperationMode MODE-13
+### P1 - SetOperationMode MODE-13 — PC/WPF PASS
 
-- WPF에서 Start write 전에 endpoint/build/BootId/map/intent/mode를 durable journal에 저장한다.
-- reconnect/startup recovery는 `0x7D24` query와 read-only observation만 사용한다.
-- original `0x7D23` Start를 자동 replay하지 않는다.
-- terminal generation을 저장하고 `0x7D25` retire 성공 뒤에만 journal을 resolve한다.
-- journal unit test와 MainWindow smoke를 추가한다.
+- Start 전 exact durable identity 기록: PASS
+- reconnect/startup recovery의 `0x7D24`/read-only no-replay: PASS
+- original `0x7D23` 자동 replay 금지: PASS
+- terminal generation 저장 후 exact `0x7D25` retire: PASS
+- definitive rejection durable evidence/archive와 identity mismatch fail-closed: PASS
+- Windows Debug/Release focused smoke `12/12`: PASS
+
+MODE-13 PASS는 PLC runtime/hardware PASS가 아니며 capability activation 근거로 사용하지 않는다.
 
 ### P2 - SetPosition durable backend와 executor
 
@@ -288,6 +314,7 @@ capability와 native mutation activation은 각 설계의 hardware gate 전까�
 | Current 구현률/시험/artifact/next step | 이 문서 |
 | SetOperationMode source contract | [SetOperationMode 설계](design/SET_OPERATION_MODE_DESIGN.md) |
 | SetOperationMode method split/static evidence | [MODE-10 설계](design/SET_OPERATION_MODE_MODE10_METHOD_SPLIT_DESIGN.md) |
+| SetOperationMode WPF recovery evidence | [MODE-13 evidence](design/evidence/SET_OPERATION_MODE_MODE13_WPF_RECOVERY_20260825.md) |
 | 설계 이유 | `docs/architecture/**` |
 | 원시 작업 이력 | `docs/history/**` |
 
@@ -303,5 +330,7 @@ capability와 native mutation activation은 각 설계의 hardware gate 전까�
 - [Diagnostics service](../../Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st)
 - [SetOperationMode static verifier](../../tools/Verify-SetOperationModeStatic.ps1)
 - [SetOperationMode static workflow](../../.github/workflows/set-operation-mode-static-qualification.yml)
+- [SetOperationMode WPF recovery workflow](../../.github/workflows/set-operation-mode-wpf-recovery.yml)
+- [SetOperationMode MODE-13 PC/WPF evidence](design/evidence/SET_OPERATION_MODE_MODE13_WPF_RECOVERY_20260825.md)
 - [SetPosition public API](../../LMC_Library/LMC_API_Delivery/src/LmcAxisSetPosition.cs)
 - [SetPosition volatile global](../../Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCSetPositionStore/global_LMCSetPositionStore.st)
