@@ -2,10 +2,10 @@
 
 - 대상: No.33 `MMC_ChngOpMode`
 - 현재 진행도: 25%
-- current 상태: `Dormant route`; PC/SDK contract와 LASAL deterministic failure route 구현, mode owner/SDO runtime executor는 `Missing`
+- current 상태: `Dormant route + owner ABI frozen`; PC/SDK contract와 LASAL deterministic failure route 구현, Control owner/runtime executor는 `Missing`
 - 구현된 SDK/LASAL command: `0x7D23 Start`, `0x7D24 ReadOutcome`, `0x7D25 Retire`
 - 1차 activation 범위: physical axis 1..4, Immediate, CSP mode 8만
-- 진행 판정: dormant source checkpoint 완료; CSP runtime/recovery와 실축 적격화는 미완료
+- 진행 판정: dormant source checkpoint와 owner/resource numeric ABI freeze 완료; CSP runtime/recovery와 실축 적격화는 미완료
 - 구현 동기화 기준: 2026-08-24
 
 ## 1. 정확한 API 의미
@@ -21,10 +21,12 @@ mode 허용으로 구현하면 안 된다.
 현재 C#에는 기존 `0x6061:0 Int8/1` read API와 별도로 SetOperationMode의 immutable
 prepare/start/query/retire SDK contract가 있다. LASAL에는 `0x7D23/0x7D24/0x7D25` TCP route와
 `LMCDiagnosticsService`의 Start/Outcome/Retire deterministic failure handler도 들어가 있다.
-다만 `AxisOperationMode` owner, `0x6061 -> 0x6060 -> 0x6061` executor, durable outcome store는
-아직 없고 capability bits 8/9/10도 current PLC에서 광고하지 않는다. 따라서 public Start는
-capability preflight에서 wire 송신 전에 차단되며, raw well-shaped request를 직접 보내도 dormant
-handler가 fail-closed response만 반환한다. `0x6060/0x6061` PDO도 current Elmo object에서 disabled다.
+`AxisOperationMode`의 numeric owner/resource ABI는 이 문서에서 동결했지만, 그 상수와 admission
+validation을 `LMCControlCommandService`/`LMCDiagnosticsService` source에 반영하는 작업,
+`0x6061 -> 0x6060 -> 0x6061` executor와 durable outcome store는 아직 없다. capability bits
+8/9/10도 current PLC에서 광고하지 않는다. 따라서 public Start는 capability preflight에서 wire
+송신 전에 차단되며, raw well-shaped request를 직접 보내도 dormant handler가 fail-closed
+response만 반환한다. `0x6060/0x6061` PDO도 current Elmo object에서 disabled다.
 
 ## 2. 1차 지원 범위
 
@@ -157,13 +159,48 @@ Accepted
 
 ## 5. mode ownership
 
-전용 `AxisOperationMode` owner kind/resource를 추가하고 다음과 충돌시킨다.
+전용 `AxisOperationMode` owner kind를 추가하고 기존 Diagnostics SDO resource를 공유해 다음과
+충돌시킨다.
 
 - Axis/Group motion, Power, Stop과 Reset의 active mutation
 - HomeDS402와 HomeDS402Ex
 - SetPosition
 - Encoder maintenance
 - generic D5 SDO operation
+
+### 5.1 AxisOperationMode owner/resource numeric ABI freeze
+
+MODE-06 source 구현 전에 다음 numeric ABI를 고정한다.
+
+| 항목 | 고정값 | source 이름/의미 |
+|---|---:|---|
+| OwnerKind | `6` | `LMC_OWNER_KIND_AXIS_OPERATION_MODE`, Diagnostics mirror도 `6` |
+| ResourceKind | `4` | 기존 `LMC_OWNER_RESOURCE_DIAGNOSTICS_SDO_ENGINE` / `LMC_DIAG_RESOURCE_DIAGNOSTICS_SDO` 공유 |
+| AdmissionMode | `4` | 기존 `LMC_OWNER_ADMISSION_LIFECYCLE` / `LMC_DIAG_ADMISSION_LIFECYCLE` |
+| Start Command | `0x7D23` | `AxisSetOperationModeStart` |
+| Active owner state | `12` | 신규 `LMC_OWNER_STATE_AXIS_OPERATION_MODE_ACTIVE` |
+| Reference | `1..4` | physical axis only |
+| Axis mask | `1 << (Reference-1)` | exact single-axis mask만 허용 |
+
+resource 4를 공유하는 이유는 current Control의 resource 4가 이미
+`DIAGNOSTICS_SDO_ENGINE`으로 정의돼 있고 singleton token/generation/axis-mask를 소유하며,
+`LMCDiagnosticsService`가 같은 축 1..4 `LMCSdoExecutor` client를 통해 Encoder maintenance와
+SetOperationMode를 실행하기 때문이다. 같은 실행 자원을 새 resource 5로 이중 표현하면 두
+lifecycle owner가 서로 다른 singleton lock을 획득해 같은 Diagnostics SDO execution domain을
+동시에 사용할 수 있는 여지를 만든다. 1차 구현은 resource 4를 공유해 Encoder maintenance와
+SetOperationMode를 전역 직렬화한다. 축별 병렬화가 필요하면 runtime evidence와 executor
+reentrancy를 별도 증명한 뒤 resource 모델 자체를 다시 설계한다.
+
+OwnerKind는 Encoder maintenance와 lifecycle/outcome 의미가 다르므로 `5`를 재사용하지 않고
+`6`으로 분리한다. Control의 current owner-kind upper bound와 command/resource tuple validator,
+commit/validate state mapping, safety-preemption special-owner 목록은 MODE-06 source에서 이 값을
+명시적으로 추가한다. `AxisOperationMode`는 좌표 원점을 바꾸지 않으므로 Encoder maintenance와
+달리 AxisRebaseRequired barrier를 set/clear하지 않는다.
+
+resource 4 ownership만으로 generic D5 operation까지 자동 배제된다고 간주하지 않는다.
+`LMCDiagnosticsService`의 generic D5 operation state가 idle인지와 해당 `SdoAxisN` executor가
+reusable인지 preflight에서 별도로 확인하고, generic D5 Write policy의 permanent unsafe object에
+`0x6060`을 추가한다. capability bits 8/9/10은 이 ABI가 source에 반영돼도 계속 OFF다.
 
 축의 current mode가 8이 아니거나 mode outcome이 unresolved이면 ordinary LMC motion을
 승인하지 않는다. PLC startup에서는 6061을 read-only로 확인하고 자동으로 6060을 쓰지 않는다.
@@ -199,7 +236,7 @@ capability parser와 PLC를 paired 배포하며, C78/PLC/hardware gate 전까지
 
 - dormant route 구현 완료: `Class/TCPMotionInterface/TCPMotionInterface.st`
 - dormant handler 구현 완료: `Class/LMCDiagnosticsService/LMCDiagnosticsService.st`
-- future owner conflict/ordinary mutation 연동: `Class/LMCControlCommandService/LMCControlCommandService.st`
+- owner ABI 설계 동결, source 반영 미완료: `Class/LMCControlCommandService/LMCControlCommandService.st`
 - 필요 declaration은 IDE에서 생성하고 implementation은 추적 `.st`에서 작성
 
 ### 7.1 MODE-05 PLC route freeze
@@ -236,11 +273,10 @@ well-shaped Start는 requested-mode DINT echo와 `NativeCommandState=0`을 포�
 well-shaped Outcome/Retire는 payload 16 bytes와 detail 49를 반환한다. 이 단계에서는
 성공 ACK, 112-byte outcome, `0x6060` write와 record retirement가 존재하면 안 된다.
 
-MODE-06 전에 `AxisOperationMode`의 numeric owner/resource ABI를 별도로 freeze한다. 현재
-Control owner kind 1..5와 resource 1..4는 모두 의미가 있고 resource singleton slot도 사용
-중이므로, 기존 SDO resource 4를 공유할지 새 resource와 저장 slot을 추가할지 근거 없이
-결정하지 않는다. MODE-05는 `AdmissionToken=0`, `OwnerGeneration=0`으로만 동작하며
-`ReserveAxisOwnership`을 호출하지 않는다.
+MODE-06 source는 5.1의 frozen ABI를 그대로 사용한다. `OwnerKind=6`,
+`ResourceKind=4`, `AdmissionMode=4`, active state `12`를 다른 값으로 임의 재배정하거나
+resource 5를 추가하지 않는다. 현재 MODE-05 route는 계속 `AdmissionToken=0`,
+`OwnerGeneration=0`으로만 동작하며 `ReserveAxisOwnership`을 호출하지 않는다.
 
 ### WPF recovery
 
@@ -254,7 +290,7 @@ Control owner kind 1..5와 resource 1..4는 모두 의미가 있고 resource sin
 ## 8. 작업 체크리스트
 
 - [x] `MODE-01` No.33을 Immediate-only `MMC_ChngOpMode`로 고정하고 Ex를 분리
-- [ ] `MODE-02` command ID와 capability bit는 중앙 등록 완료; PLC owner kind/resource는 미구현
+- [ ] `MODE-02` command ID/capability 중앙 등록과 owner/resource numeric ABI freeze 완료; Control/Diagnostics source 상수·validator 반영 미완료
 - [x] `MODE-03` immutable request/ack/outcome/recovery model과 sync/async API 구현
 - [x] `MODE-04` exact golden bytes, malformed parser와 capability-off zero-wire test 구현
 - [x] `MODE-05` Start/ReadOutcome/Retire LASAL parser와 dormant deterministic failure 구현
@@ -288,6 +324,9 @@ Control owner kind 1..5와 resource 1..4는 모두 의미가 있고 resource sin
   정형 Outcome/Retire는 detail 49의 16-byte failure만 반환한다.
 - owner reservation, SDO submit/read/write, motion/native call, outcome record와 capability bits
   8/9/10은 모두 OFF다. 따라서 raw route가 존재해도 SetOperationMode runtime mutation은 0회다.
+- owner/resource numeric ABI는 문서상 `OwnerKind=6`, shared Diagnostics SDO `ResourceKind=4`,
+  `AdmissionMode=4`, active state `12`로 동결했지만 current Control/Diagnostics source에는 아직
+  이 tuple이 추가되지 않았다. 이를 source 구현 완료 증거로 해석하지 않는다.
 - method-size checkpoint는 112 methods, 109 under-limit, baseline debt 3으로 통과했다.
 - latest C78/ARM Rebuild/Link는 `0 errors / 79 warnings`, `Linker Done`이고 PLC
   link/download/SystemInit/project load까지 성공했다. 이 image에 dormant route가 포함되어도
