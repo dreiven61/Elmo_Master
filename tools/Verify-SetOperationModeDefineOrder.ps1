@@ -12,12 +12,19 @@ if (-not (Test-Path -LiteralPath $diagnosticsPath -PathType Leaf)) {
 }
 
 $text = [System.IO.File]::ReadAllText($diagnosticsPath).Replace("`r`n", "`n").Replace("`r", "`n")
-$firstFunction = [regex]::Match($text, '(?m)^FUNCTION(?:[\t ]+(?:GLOBAL|VIRTUAL))*[\t ]+LMCDiagnosticsService::')
-if (-not $firstFunction.Success) {
-    throw 'Unable to locate the first LMCDiagnosticsService implementation function.'
+$implementationMarker = '//{{LSL_IMPLEMENTATION'
+$implementationIndex = $text.IndexOf($implementationMarker, [System.StringComparison]::Ordinal)
+if ($implementationIndex -lt 0) {
+    throw 'Unable to locate //{{LSL_IMPLEMENTATION marker.'
 }
 
-$modeDefines = [regex]::Matches($text, '(?m)^#define[\t ]+LMC_DIAG_MODE_[A-Z0-9_]+[\t ]+[^\r\n]+$')
+$implementation = $text.Substring($implementationIndex)
+$firstFunction = [regex]::Match($implementation, '(?m)^FUNCTION(?:[\t ]+(?:GLOBAL|VIRTUAL))*[\t ]+LMCDiagnosticsService::')
+if (-not $firstFunction.Success) {
+    throw 'Unable to locate the first LMCDiagnosticsService user implementation function.'
+}
+
+$modeDefines = [regex]::Matches($implementation, '(?m)^#define[\t ]+LMC_DIAG_MODE_[A-Z0-9_]+[\t ]+[^\r\n]+$')
 if ($modeDefines.Count -lt 50) {
     throw "Unexpected SetOperationMode define set: found $($modeDefines.Count), expected at least 50."
 }
@@ -25,7 +32,7 @@ if ($modeDefines.Count -lt 50) {
 $lateDefines = @($modeDefines | Where-Object { $_.Index -gt $firstFunction.Index })
 if ($lateDefines.Count -ne 0) {
     $names = $lateDefines | ForEach-Object { $_.Value.Trim() }
-    throw ("SetOperationMode #define declarations must precede the first LMCDiagnosticsService function. Late declarations:`n - " + ($names -join "`n - "))
+    throw ("SetOperationMode #define declarations must precede the first user implementation function. Late declarations:`n - " + ($names -join "`n - "))
 }
 
 $required = [ordered]@{
@@ -47,7 +54,7 @@ $required = [ordered]@{
 
 foreach ($entry in $required.GetEnumerator()) {
     $pattern = '(?m)^#define[\t ]+' + [regex]::Escape($entry.Key) + '[\t ]+' + [regex]::Escape($entry.Value) + '[\t ]*$'
-    $matches = [regex]::Matches($text, $pattern)
+    $matches = [regex]::Matches($implementation, $pattern)
     if ($matches.Count -ne 1) {
         throw "Expected exactly one '$($entry.Key) $($entry.Value)' declaration; found $($matches.Count)."
     }
@@ -55,14 +62,14 @@ foreach ($entry in $required.GetEnumerator()) {
 
 $modeBlockStart = $modeDefines[0].Index
 $modeBlockEnd = $modeDefines[$modeDefines.Count - 1].Index + $modeDefines[$modeDefines.Count - 1].Length
-$between = $text.Substring($modeBlockStart, $modeBlockEnd - $modeBlockStart)
+$between = $implementation.Substring($modeBlockStart, $modeBlockEnd - $modeBlockStart)
 $nonModeDefine = [regex]::Match($between, '(?m)^#define[\t ]+(?!LMC_DIAG_MODE_)[A-Z0-9_]+')
 if ($nonModeDefine.Success) {
     throw "SetOperationMode define block is no longer contiguous near: $($nonModeDefine.Value.Trim())"
 }
 
 Write-Host "PASS SetOperationMode define count: $($modeDefines.Count)"
-Write-Host 'PASS all SetOperationMode defines precede the first LMCDiagnosticsService function'
+Write-Host 'PASS all SetOperationMode defines precede the first user implementation function'
 Write-Host 'PASS required SetOperationMode ABI constants retain frozen values'
 Write-Host 'PASS SetOperationMode define block remains contiguous'
 exit 0
