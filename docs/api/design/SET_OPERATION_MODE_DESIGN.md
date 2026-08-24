@@ -2,13 +2,13 @@
 
 - 대상: No.33 `MMC_ChngOpMode`
 - 현재 진행도: 60%
-- current 상태: `Dormant runtime source`; PC/SDK contract, owner/runtime, no-replay recovery, safety preemption과 generic D5 0x6060 차단 source 구현
+- current 상태: `Dormant runtime source`; PC/SDK contract, owner/runtime, no-replay recovery, safety preemption, generic D5 0x6060 차단과 MODE-13 WPF durable recovery 구현
 - 구현된 SDK command: `0x7D23 Start`, `0x7D24 ReadOutcome`, `0x7D25 Retire`
 - 구현된 PLC route/runtime: Diagnostics route, owner kind/resource, `6061 -> 6060 -> 6061`, outcome lifecycle, write-dispatch 이후 read-only recovery, safety-preemption cleanup
 - 1차 activation 범위: physical axis 1..4, Immediate, CSP mode 8만
 - activation 상태: `LMC_DIAG_SET_OPERATION_MODE_ENABLED = FALSE`, capability bits 8/9/10 OFF
-- 진행 판정: MODE-02/06/07/08/09 source 완료, MODE-10 source/static PASS; fresh C78/PLC/hardware와 WPF recovery는 미완료
-- 문서 checkpoint: 2026-08-24, `dev@eb80b65e815c` 이후 qualified source tranche 반영
+- 진행 판정: MODE-02/06/07/08/09 source 완료, MODE-10 source/static PASS, MODE-13 PC/WPF PASS; fresh C78/PLC/hardware는 미완료
+- 문서 checkpoint: 2026-08-25, `dev@95333356f78a` 이후 MODE-13 evidence 반영
 
 ## 1. 정확한 API 의미
 
@@ -252,6 +252,7 @@ capability parser와 PLC를 paired 배포하며, C78/PLC/hardware gate 전까지
 - 등록 완료: `LmcProtocol.cs`, `LmcAdminModels.cs`, `LmcAdminProtocol.cs`,
   `LmcResponsePayloadLimits.cs`, `LmcErrorCatalog.cs`
 - 계약 시험: `AdminSetOperationModeContractTests.cs`
+- recovery identity fence: Build/BootId/MapRevision exact match, mismatch zero-wire
 - `LMC_Library/LMC_API_Delivery/docs/DINT_PACKET_MAP.txt`
 
 ### LASAL
@@ -269,6 +270,8 @@ capability parser와 PLC를 paired 배포하며, C78/PLC/hardware gate 전까지
 - `tools/Verify-SetOperationModeStatic.ps1`
 - `LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1`
 - `.github/workflows/set-operation-mode-static-qualification.yml`
+- `.github/workflows/set-operation-mode-wpf-recovery.yml`
+- [MODE-13 WPF recovery evidence](evidence/SET_OPERATION_MODE_MODE13_WPF_RECOVERY_20260825.md)
 
 ### 7.1 MODE-05 PLC route freeze — historical checkpoint
 
@@ -312,16 +315,19 @@ capability bits 8/9/10도 OFF였다. 아래 private ABI는 이후 runtime implem
 - terminal outcome은 exact 112 bytes이며 terminal retire는 같은 112-byte outcome을 반환한 뒤 record를 비운다.
 - compile-time activation flag와 capability triad는 계속 OFF다.
 
-### WPF recovery
+### WPF recovery — MODE-13 PASS
 
-- 신규 `AxisSetOperationModeRecoveryJournal.cs`
-- `MainWindow.xaml`/`MainWindow.xaml.cs`의 explicit confirmation과 unresolved interlock
+- `AxisSetOperationModeRecoveryJournal.cs` durable exact-key journal
+- dynamic WPF controller의 explicit one-shot confirmation과 unresolved interlock
 - wire write 전에 exact endpoint/build/BootId/map/intent/mode를 journal에 저장
-- startup/reconnect recovery는 `0x6061` read와 `0x7D24` query만 사용하고 6060 Write를 replay하지 않음
+- startup/reconnect recovery는 `0x7D24` query와 read-only observation만 사용하고 original `0x7D23`/`0x6060`을 replay하지 않음
 - exact terminal/generation 저장 후 `0x7D25` retire 성공 뒤에만 resolve
-- journal unit test와 MainWindow smoke test
+- deterministic Start rejection은 PLC가 retained outcome을 publish하기 전 반환한다는 source 의미를 적용
+- definitive rejection은 exact identity/response와 당시 active journal bytes/hash를 checksum-protected evidence에 write-through 저장한 뒤 interlock 해제
+- rejection identity mismatch 또는 evidence write 실패는 fail-closed
+- journal unit test, SDK recovery identity test와 MainWindow smoke test PASS
 
-현재 WPF recovery journal은 아직 MODE-13 범위다.
+MODE-13 PASS는 PC/WPF 증거 등급이며 C78/PLC/hardware activation 근거가 아니다.
 
 ## 8. 작업 체크리스트
 
@@ -337,7 +343,7 @@ capability bits 8/9/10도 OFF였다. 아래 private ABI는 이후 runtime implem
 - [ ] `MODE-10` source/static PASS; fresh C78/ARM Rebuild/Link, artifact identity 승인과 fault mutation matrix 미완료
 - [ ] `MODE-11` CSP same-mode no-write와 exact one-write/readback packet 검증
 - [ ] `MODE-12` 축 1~4 timeout/disconnect/mismatch/quarantine/retire 검증
-- [ ] `MODE-13` WPF pre-dispatch journal/startup no-replay recovery와 smoke test PASS
+- [x] `MODE-13` WPF pre-dispatch journal/startup no-replay recovery와 smoke test PASS
 - [ ] `MODE-14` capability bits 8/9/10 paired activation
 
 ### 8.1 2026-08-20 PC/SDK checkpoint
@@ -397,6 +403,23 @@ verifier를 `dev`에 복구했다.
 따라서 현재 판정은 `MODE-10 source/static PASS`, `IDE/artifact 이후 미완료`다. latest source의
 fresh C78/ARM Rebuild/Link, PLC download/runtime/hardware proof를 수행하지 않았으므로 MODE-10
 전체 체크박스는 완료로 올리지 않는다. artifact ratchet도 자동 갱신하지 않는다.
+
+### 8.6 MODE-13 PC/WPF qualification checkpoint
+
+PR #15(`fix(mode): close MODE-13 WPF reject recovery gap`)를 Windows runner에서 검증한 뒤
+`dev`에 squash merge했다. qualification run은 `32789073664`다.
+
+- Debug WPF smoke build: PASS, 0 warnings / 0 errors
+- Debug `--filter SetOperationMode`: `12/12 PASS`
+- Release WPF smoke build: PASS, 0 warnings / 0 errors
+- Release `--filter SetOperationMode`: `12/12 PASS`
+- `git diff --check origin/dev...HEAD`: PASS
+- SDK recovery BootId mismatch: 0x7D24/0x7D25 zero-wire PASS
+- WPF definitive rejection archive 후 interlock clear PASS
+- reject recovery-key mismatch 시 active interlock 유지 PASS
+
+상세 evidence는
+[evidence/SET_OPERATION_MODE_MODE13_WPF_RECOVERY_20260825.md](evidence/SET_OPERATION_MODE_MODE13_WPF_RECOVERY_20260825.md)에 고정한다.
 
 ## 9. 비-CSP 후속 gate
 
