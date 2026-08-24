@@ -23,7 +23,7 @@ jobs:
           ref: codex/mode-10-sourceonly-finalize
           fetch-depth: 0
 
-      - name: Patch proven ownership ratchets
+      - name: Patch proven ownership ratchets and expose disjoint self-test
         shell: python
         run: |
           from pathlib import Path
@@ -66,6 +66,20 @@ jobs:
               if count != 1:
                   raise SystemExit(f'ratchet token count={count}, expected=1: {old}')
               text = text.replace(old, new, 1)
+
+          marker = 'disjoint proof accepts a non-active Reserved/Quarantined state.'
+          lines = text.splitlines()
+          hits = [i for i, line in enumerate(lines) if marker in line]
+          if len(hits) != 1:
+              raise SystemExit(f'disjoint self-test marker count={len(hits)}, expected=1')
+          hit = hits[0]
+          start = max(0, hit - 90)
+          end = min(len(lines), hit + 45)
+          print('--- DISJOINT_SELFTEST_CONTEXT_BEGIN ---')
+          for i in range(start, end):
+              print(f'{i + 1}: {lines[i]}')
+          print('--- DISJOINT_SELFTEST_CONTEXT_END ---')
+
           src.write_text(text, encoding='utf-8', newline='')
 
       - name: Run repository SourceOnly contract
