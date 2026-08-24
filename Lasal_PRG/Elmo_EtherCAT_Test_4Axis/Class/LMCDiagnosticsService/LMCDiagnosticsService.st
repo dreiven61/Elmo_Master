@@ -382,6 +382,10 @@ LMCDiagnosticsService : CLASS
 		END_VAR;
 	
 	FUNCTION ProcessAxisSetOperationMode;
+	
+	FUNCTION ProcessAxisSetOperationModeMutationStages;
+	
+	FUNCTION ProcessAxisSetOperationModeRecoveryStages;
   //Tables:
 	FUNCTION @STD
 		VAR_OUTPUT
@@ -9541,5 +9545,15 @@ FUNCTION LMCDiagnosticsService::ProcessAxisSetOperationMode
 		AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
 			LMC_DIAG_MODE_STAGE_QUARANTINE;
 	end_case;
+
+END_FUNCTION
+
+
+FUNCTION LMCDiagnosticsService::ProcessAxisSetOperationModeMutationStages
+
+END_FUNCTION
+
+
+FUNCTION LMCDiagnosticsService::ProcessAxisSetOperationModeRecoveryStages
 
 END_FUNCTION
