@@ -23,28 +23,29 @@ jobs:
           ref: codex/mode-10-sourceonly-cleanup
           fetch-depth: 0
 
-      - name: Patch exact MODE-08 persistent-read ratchet and expose semantic ratchet lines
+      - name: Patch exact MODE-08 replacement-helper ratchets
         shell: python
         run: |
           from pathlib import Path
 
           src = Path('LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1')
           text = src.read_text(encoding='utf-8')
-          old_condition = "$replacementBankHistogram['ownershipstate'] -ne 41"
-          new_condition = "$replacementBankHistogram['ownershipstate'] -ne 44"
-          old_message = 'expected 41/12.'
-          new_message = 'expected 44/12.'
-          if text.count(old_condition) != 1:
-              raise SystemExit(f'condition count={text.count(old_condition)}, expected=1')
-          if text.count(old_message) != 1:
-              raise SystemExit(f'message count={text.count(old_message)}, expected=1')
-          text = text.replace(old_condition, new_condition, 1)
-          text = text.replace(old_message, new_message, 1)
-          lines = text.splitlines()
-          print('--- VERIFIER_LINES_850_970_BEGIN ---')
-          for number in range(850, min(971, len(lines) + 1)):
-              print(f'{number}: {lines[number - 1]}')
-          print('--- VERIFIER_LINES_850_970_END ---')
+          replacements = (
+              ("$replacementBankHistogram['ownershipstate'] -ne 41",
+               "$replacementBankHistogram['ownershipstate'] -ne 44"),
+              ('expected 41/12.', 'expected 44/12.'),
+              ('$replacementSemanticTokens.Length -ne 6434',
+               '$replacementSemanticTokens.Length -ne 6714'),
+              ("'9EAAB21F2262DB9C206B0581CC21AD3451727F0257CB85D3416D4CDDA2B03612'",
+               "'3386CCD85F63DEE01ABD5C06B82E2F4591179998E07D05B62DF4D816CCFF6D2B'"),
+              ('$($replacementSemanticTokens.Length)/6434, ',
+               '$($replacementSemanticTokens.Length)/6714, '),
+          )
+          for old, new in replacements:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'ratchet token count={count}, expected=1: {old}')
+              text = text.replace(old, new, 1)
           src.write_text(text, encoding='utf-8', newline='')
 
       - name: Diff hygiene
@@ -68,12 +69,12 @@ jobs:
           & '.\tools\Verify-SetOperationModeStatic.ps1' -ExpectedSdoWriteAxis 1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Commit verified ratchet
+      - name: Commit verified ratchets
         shell: powershell
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
           git diff --cached --check
-          git commit -m 'test(lasal): ratchet MODE-08 preemption read inventory'
+          git commit -m 'test(lasal): ratchet MODE-08 preemption replacement helper'
           git push origin HEAD:codex/mode-10-sourceonly-cleanup
