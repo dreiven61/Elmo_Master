@@ -43,6 +43,9 @@ namespace LasalMotionControlApiExample
             };
             ComboAdminGroupSelection.SelectedItem =
                 LMCGroupParameterSelection.All;
+
+            InitializeAxisSetOperationModeRecoveryUi(
+                physicalAxisReferences);
         }
 
         private void ClearReadOnlyApiState()
@@ -104,6 +107,10 @@ namespace LasalMotionControlApiExample
             ComboAdminAxisParameter.IsEnabled = idle;
             ComboAdminGroupSelection.IsEnabled = idle;
             ComboDriveReadAxisReference.IsEnabled = idle;
+
+            UpdateAxisSetOperationModeRecoveryUiState(
+                connected,
+                idle);
         }
 
         private async void ButtonAdminCapabilities_Click(
