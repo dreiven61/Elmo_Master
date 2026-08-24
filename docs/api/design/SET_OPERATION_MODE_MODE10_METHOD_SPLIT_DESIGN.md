@@ -176,7 +176,6 @@ PREFLIGHT_START/WAIT,
 WRITE_START/WAIT,
 VERIFY_START/WAIT
     -> ProcessAxisSetOperationModeMutationStages()
-
 RECOVERY_START/WAIT,
 TERMINAL_SUCCESS/FAILURE,
 QUARANTINE/QUARANTINE_HOLD
@@ -348,27 +347,34 @@ ratchet을 자동 갱신하거나 capability를 켜서 MODE-10을 억지로 완�
 설계서에 기록된 `tools/Verify-CodexLasalAscii.ps1`은 현재 repository에 존재하지 않는다.
 따라서 이번 검증은 변경한 LASAL source 전체를 대상으로 동일한 7-bit ASCII 조건을 직접 검사했다.
 
-### 13.3 full SourceOnly 결과
+### 13.3 full SourceOnly / artifact boundary 결과
 
-full SourceOnly는 이번 method split과 무관한 기존 ownership preemption self-test baseline에서 STOP됐다.
+PR #11 qualification에서 기존 ownership self-test baseline drift를 provenance 기반으로 영구 verifier에 반영했다.
+SetOperationMode 공통 owner 계약은 다음 조건까지 source contract로 고정됐다.
+
+- replacement persistent read inventory: `OwnershipState 44 / OwnershipIdentityState 12`
+- `CopyAxisOwnershipPreemption` identity shape: `0x7D23 = 56 bytes`
+- fully-disjoint live proof에서 `LMC_OWNER_STATE_QUARANTINED`는 계속 금지
+- `LMC_OWNER_STATE_RESERVED`는 SetOperationMode classifier에서만 정확히 1회 허용
+- SetOperationMode disjoint classifier는 `RESERVED | AXIS_OPERATION_MODE_ACTIVE`를 요구
+
+Windows runner에서 `Verify-SetOperationModeStatic.ps1 -ExpectedSdoWriteAxis 1`은 **57 checks PASS**했다.
+같은 patched verifier로 full SourceOnly를 실행한 결과 source/static ownership gate는 모두 통과했고,
+다음 기존 artifact identity blocker에서만 STOP했다.
 
 ```text
-replacement helper persistent read inventory is 44/12, expected 41/12.
+LASAL.UdpCallbackContract blocker: SetPosition-augmented Classes.lcb physical identity drifted.
 ```
-
-현재 `dev`와 기준 commit의 `LMCControlCommandService::ValidateAxisOwnershipPreemptionReplacement`에는
-SetOperationMode owner 상태 검증용 `OwnershipState` read 3개가 이미 포함돼 있지만 self-test 기대값은
-과거 41에 머물러 있다. 이번 변경 파일에는 `LMCControlCommandService.st`가 포함되지 않으며,
-해당 전역 ratchet을 부분 갱신하지 않았다.
 
 따라서 현재 판정은 다음과 같다.
 
 - MODE-10 method split source/static semantics: PASS
-- focused diagnostics source contract: PASS
-- full SourceOnly: STOP, pre-existing ownership self-test baseline drift
-- C78/IDE Rebuild/Link: 미수행
-- PLC download/runtime/hardware: 미수행
+- common ownership/source ratchets: PASS, 영구 verifier 반영 완료
+- full SourceOnly: STOP, `Classes.lcb` physical identity artifact ratchet만 잔존
+- latest method-split source 기준 fresh C78/ARM Rebuild/Link: 미수행
+- latest source 기준 PLC download/runtime/hardware proof: 미수행
 - production activation/capability: OFF
 
-C78/PLC/hardware proof와 full SourceOnly blocker 해소 전까지 상위 `SET_OPERATION_MODE_DESIGN.md`의
-`MODE-10` 체크박스는 완료로 올리지 않는다.
+다음 단계는 latest source를 LASAL IDE에서 fresh C78/ARM Rebuild/Link한 뒤 생성된 `Classes.lcb`의
+physical identity를 현재 artifact와 비교하고, build/link 증빙과 함께 새 artifact ratchet 승인 여부를 결정하는 것이다.
+이 승인 전에는 `Classes.lcb` expected identity를 자동 갱신하지 않고, `MODE-10` 전체 체크박스도 완료로 올리지 않는다.
