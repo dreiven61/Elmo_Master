@@ -67,6 +67,7 @@ namespace LasalApiWpfTestApp.SmokeTests
                     .AxisSetPositionRecoveryJournalTests.Register(tests);
                 LasalMotionControlApiExample
                     .AxisSetOperationModeRecoveryJournalTests.Register(tests);
+                AxisSetOperationModeSdkRecoveryIdentityTests.Register(tests);
                 LasalMotionControlApiExample
                     .MaintenanceActionRecoveryJournalTests.Register(tests);
                 LasalMotionControlApiExample
