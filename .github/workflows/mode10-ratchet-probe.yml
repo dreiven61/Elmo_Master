@@ -45,6 +45,8 @@ jobs:
               ('$($joinedMacros.Length)/2387, ', '$($joinedMacros.Length)/2470, '),
               ('Lexical = @(4170, 25319,', 'Lexical = @(4181, 25399,'),
               ("'3C1049ED8E8B05BA66B4E356865B6580DAE5FA69FE413A11E60322F62FC17000'", "'19E0C93B5538A8E9C361401CFAE85E23CDFFE0831422EF8174B735C57471FD50'"),
+              ('Lexical = @(3372, 22104,', 'Lexical = @(3451, 22781,'),
+              ("'C1035138B3C7020306E8243C8F613D817680A06F83A8A578AA85CF487543FA10'", "'C047EEB0042EEC4CEB2D3840E5226C1FAD420560EC90A058DAFE361546CC51F2'"),
               ('throw "$blocker $($fragmentContract.Name) lexical token inventory drifted."', 'throw "$blocker $($fragmentContract.Name) lexical token inventory drifted ($($metrics.LexicalCount)/$($metrics.LexicalLength)/$($metrics.LexicalSha256))."'),
               ('throw "$blocker $($fragmentContract.Name) local inventory drifted or is empty."', 'throw "$blocker $($fragmentContract.Name) local inventory drifted or is empty ($($metrics.LocalCount)/$($metrics.LocalLength)/$($metrics.LocalSha256))."'),
               ('throw "$blocker $($fragmentContract.Name) call inventory drifted."', 'throw "$blocker $($fragmentContract.Name) call inventory drifted ($($metrics.CallInventory))."'),
