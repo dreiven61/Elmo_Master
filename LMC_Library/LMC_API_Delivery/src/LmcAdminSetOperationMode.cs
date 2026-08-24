@@ -583,14 +583,15 @@ namespace LasalMotionControlLib
                 true);
             if (recoveryKey.SchemaVersion != ProtocolSchemaVersion
                 || recoveryKey.AxisReference != axis.AxisReference
-                || recoveryKey.DiagnosticsBootId == 0
                 || recoveryKey.DiagnosticsBuild
                     != verifiedDiagnosticCapabilities.DiagnosticsBuild
+                || recoveryKey.DiagnosticsBootId
+                    != verifiedDiagnosticCapabilities.DiagnosticsBootId
                 || recoveryKey.MapRevision
                     != verifiedDiagnosticCapabilities.MapRevision)
             {
                 throw new InvalidOperationException(
-                    "The SetOperationMode recovery key does not match the current axis, build, and map revision.");
+                    "The SetOperationMode recovery key does not match the current axis, build, BootId, and map revision.");
             }
 
             connection.EnsureSessionGeneration(expectedSessionGeneration);
