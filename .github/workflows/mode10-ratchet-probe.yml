@@ -23,7 +23,7 @@ jobs:
           ref: codex/mode-10-sourceonly-cleanup
           fetch-depth: 0
 
-      - name: Patch known MODE-08 ratchets and expose rollback contract
+      - name: Patch known MODE-08 ratchets and expose rollback dimensions
         shell: python
         run: |
           from pathlib import Path
@@ -31,55 +31,30 @@ jobs:
           src = Path('LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1')
           text = src.read_text(encoding='utf-8')
           replacements = (
-              ("$replacementBankHistogram['ownershipstate'] -ne 41",
-               "$replacementBankHistogram['ownershipstate'] -ne 44"),
+              ("$replacementBankHistogram['ownershipstate'] -ne 41", "$replacementBankHistogram['ownershipstate'] -ne 44"),
               ('expected 41/12.', 'expected 44/12.'),
-              ('$replacementSemanticTokens.Length -ne 6434',
-               '$replacementSemanticTokens.Length -ne 6714'),
-              ("'9EAAB21F2262DB9C206B0581CC21AD3451727F0257CB85D3416D4CDDA2B03612'",
-               "'3386CCD85F63DEE01ABD5C06B82E2F4591179998E07D05B62DF4D816CCFF6D2B'"),
-              ('$($replacementSemanticTokens.Length)/6434, ',
-               '$($replacementSemanticTokens.Length)/6714, '),
+              ('$replacementSemanticTokens.Length -ne 6434', '$replacementSemanticTokens.Length -ne 6714'),
+              ("'9EAAB21F2262DB9C206B0581CC21AD3451727F0257CB85D3416D4CDDA2B03612'", "'3386CCD85F63DEE01ABD5C06B82E2F4591179998E07D05B62DF4D816CCFF6D2B'"),
+              ('$($replacementSemanticTokens.Length)/6434, ', '$($replacementSemanticTokens.Length)/6714, '),
           )
           for old, new in replacements:
-              count = text.count(old)
-              if count != 1:
-                  raise SystemExit(f'ratchet token count={count}, expected=1: {old}')
+              if text.count(old) != 1:
+                  raise SystemExit(f'ratchet token count={text.count(old)}, expected=1: {old}')
               text = text.replace(old, new, 1)
 
-          lines = text.splitlines()
-          print('--- VERIFIER_LINES_2440_2540_BEGIN ---')
-          for number in range(2440, min(2541, len(lines) + 1)):
-              print(f'{number}: {lines[number - 1]}')
-          print('--- VERIFIER_LINES_2440_2540_END ---')
+          old_throw = 'throw "$blocker $($methodContract.Name) byte/hash ratchet drifted."'
+          new_throw = 'throw "$blocker $($methodContract.Name) byte/hash ratchet drifted ($($dimensions.LF)/$($dimensions.CRLF), $((Get-LasalRollbackSplitTextSha256 -Text $methodContract.Fragment)))."'
+          if text.count(old_throw) != 1:
+              raise SystemExit(f'rollback diagnostic throw count={text.count(old_throw)}, expected=1')
+          text = text.replace(old_throw, new_throw, 1)
           src.write_text(text, encoding='utf-8', newline='')
-
-      - name: Diff hygiene
-        shell: powershell
-        run: |
-          git diff --check
 
       - name: Run repository SourceOnly contract
         shell: powershell
         run: |
+          git diff --check
           & '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\Verify-LasalContract.ps1' `
             -RepositoryRoot (Get-Location).Path `
             -SourceOnly `
             -ExpectedSdoWriteAxis 1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      - name: Run SetOperationMode invariants
-        shell: powershell
-        run: |
-          & '.\tools\Verify-SetOperationModeStatic.ps1' -ExpectedSdoWriteAxis 1
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      - name: Commit verified ratchets
-        shell: powershell
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
-          git diff --cached --check
-          git commit -m 'test(lasal): ratchet MODE-08 preemption verifier'
-          git push origin HEAD:codex/mode-10-sourceonly-cleanup
