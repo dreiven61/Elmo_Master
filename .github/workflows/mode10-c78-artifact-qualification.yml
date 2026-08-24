@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 jobs:
-  terminal-wake-provenance:
+  network-aggregate-algorithm:
     runs-on: windows-latest
     steps:
       - name: Checkout finalize branch
@@ -20,54 +20,52 @@ jobs:
           ref: codex/mode-10-c78-finalize
           fetch-depth: 0
 
-      - name: Print expected aggregate selection logic
+      - name: Print Network aggregate helper source
         shell: python
         run: |
           from pathlib import Path
           text = Path('LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalUdpCallbackContract.ps1').read_text(encoding='utf-8')
-          needle = 'if (-not $networkAggregateExact)'
-          positions = []
-          start = 0
-          while True:
-              idx = text.find(needle, start)
-              if idx < 0: break
-              positions.append(idx); start = idx + 1
-          print('NETWORK_AGGREGATE_ASSERT_COUNT=', len(positions))
-          for idx in positions:
-              window = text[max(0, idx-5000):min(len(text), idx+1200)]
-              if 'TerminalWakeBrokerCandidate' in window:
-                  print('===== TERMINAL WAKE AGGREGATE SELECTION =====')
-                  print(window)
+          for needle in ('function Get-NetworkSnapshotEvidence', 'function Get-NetworkAggregate', 'FullNetworkSha256', 'TrackedNetworkSha256'):
+              print(f'===== {needle} =====')
+              start = 0
+              found = 0
+              while True:
+                  idx = text.find(needle, start)
+                  if idx < 0:
+                      break
+                  found += 1
+                  print(text[max(0, idx-1200):min(len(text), idx+5000)])
+                  start = idx + len(needle)
+                  if found >= 3:
+                      break
+              print('MATCHES_PRINTED=', found)
 
-      - name: Trace expected and actual aggregate hashes through Git history
-        shell: powershell
-        run: |
-          $verifier = 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalUdpCallbackContract.ps1'
-          foreach ($token in @(
-            '50F26CC4B5E4210985FB3474934F13B393979A564548F82589370EE8F0D3C0B9',
-            'BA304BFC820CDEB4B0027AAA506DE8D9E68498B6F522529BDBEF20FEB6070EC3',
-            'C8953FC1F486F320A6EBC673E09A430BF82D442715C3B8CFCD50A17F0BEBF0BB',
-            '1F82198AA56B2D25D353AB88BC3A3DA3DF494EA065B9C572528E0DF6C7A956FD',
-            'ExpectedTerminalWakeLayout'
-          )) {
-            Write-Host "===== git log -S $token ====="
-            git log --all --date=short --format='%H|%ad|%s' -S $token -- $verifier
-          }
-
-      - name: Inspect SetPosition verifier delta around terminal/network constants
-        shell: powershell
-        run: |
-          $verifier = 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalUdpCallbackContract.ps1'
-          git diff --unified=8 dde24aadf3fe53d173abb330cfadc991400de459 e03352b30da9096a3ec2b477dbfbdacc2a7c663b -- $verifier | `
-            Select-String -Pattern 'TerminalWake|FullNetwork|TrackedNetwork|ConfigObjects|SetPosition' -Context 8,12
-
-      - name: Compare tracked Network inventory around SetPosition
+      - name: Prove tracked Network tree is unchanged since SetPosition baseline
         shell: powershell
         run: |
           $root = 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network'
-          foreach ($rev in @('dde24aadf3fe53d173abb330cfadc991400de459','e03352b30da9096a3ec2b477dbfbdacc2a7c663b','HEAD')) {
-            Write-Host "===== $rev TRACKED NETWORK ====="
-            $files = @(git ls-tree -r --name-only $rev -- $root)
-            Write-Host "COUNT=$($files.Count)"
-            $files
+          Write-Host '===== NAME-STATUS e03352b..HEAD ====='
+          git diff --name-status e03352b30da9096a3ec2b477dbfbdacc2a7c663b HEAD -- $root
+          Write-Host '===== TREE IDS ====='
+          git rev-parse 'e03352b30da9096a3ec2b477dbfbdacc2a7c663b:Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network'
+          git rev-parse 'HEAD:Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network'
+
+      - name: Compare Git attributes and checkout EOL evidence
+        shell: powershell
+        run: |
+          $root = 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network'
+          git config --get core.autocrlf
+          git check-attr text eol -- "$root/ConfigObjects.st" "$root/Comm_Network/ONE_Comm_Network_Table.st" "$root/Comm_Network/Comm_Network.lcn"
+          foreach ($path in @(
+            "$root/ConfigObjects.st",
+            "$root/Comm_Network/ONE_Comm_Network_Table.st",
+            "$root/Comm_Network/Comm_Network.lcn"
+          )) {
+            Write-Host "===== $path ====="
+            $work = [IO.File]::ReadAllBytes($path)
+            $tmp = Join-Path $env:RUNNER_TEMP ([IO.Path]::GetRandomFileName())
+            git show "HEAD:$path" | Set-Content -LiteralPath $tmp -Encoding utf8NoBOM
+            $gitText = git show "HEAD:$path"
+            Write-Host "WORK_BYTES=$($work.Count) WORK_CRLF_PAIRS=$(([regex]::Matches([Text.Encoding]::UTF8.GetString($work), \"`r`n\")).Count))"
+            Write-Host "GIT_SHOW_LINES=$($gitText.Count)"
           }
