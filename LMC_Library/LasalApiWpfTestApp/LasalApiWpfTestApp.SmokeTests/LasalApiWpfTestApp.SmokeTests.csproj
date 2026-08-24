@@ -45,6 +45,7 @@
     <Compile Include="AxisPowerOnRecoveryJournalTests.cs" />
     <Compile Include="AxisSetPositionRecoveryJournalTests.cs" />
     <Compile Include="AxisSetOperationModeRecoveryJournalTests.cs" />
+    <Compile Include="AxisSetOperationModeSdkRecoveryIdentityTests.cs" />
     <Compile Include="MaintenanceActionRecoveryJournalTests.cs" />
     <Compile Include="AxisCommandRecoveryJournalTests.cs" />
     <Compile Include="AxisQualificationRecoveryJournalTests.cs" />
