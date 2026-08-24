@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 jobs:
-  gate-inventory:
+  remaining-identities:
     runs-on: windows-latest
     steps:
       - name: Checkout qualification branch
@@ -20,115 +20,36 @@ jobs:
           ref: codex/mode-10-c78-artifact-qualification
           fetch-depth: 0
 
-      - name: Inventory SetPosition-augmented current artifact contracts
-        shell: python
-        run: |
-          from pathlib import Path
-          import re
-
-          verifier = Path('LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalUdpCallbackContract.ps1').read_text(encoding='utf-8')
-
-          def balanced_block(text, marker):
-              start = text.index(marker)
-              brace = text.index('{', start)
-              depth = 0
-              quote = None
-              i = brace
-              while i < len(text):
-                  c = text[i]
-                  if quote:
-                      if c == quote:
-                          if i + 1 < len(text) and text[i + 1] == quote:
-                              i += 2
-                              continue
-                          quote = None
-                      i += 1
-                      continue
-                  if c in "'\"":
-                      quote = c
-                  elif c == '{':
-                      depth += 1
-                  elif c == '}':
-                      depth -= 1
-                      if depth == 0:
-                          return text[start:i + 1]
-                  i += 1
-              raise RuntimeError(f'unterminated block: {marker}')
-
-          gate = balanced_block(verifier, '$SetPositionAugmentedGateD = [ordered]@{')
-          lines = gate.splitlines()
-          print('CURRENT_GATE_TOP_LEVEL_BEGIN')
-          for line in lines:
-              if re.match(r'^    [A-Za-z][A-Za-z0-9_]*\s*=\s*\[ordered\]@\{', line):
-                  print(line.strip())
-          print('CURRENT_GATE_TOP_LEVEL_END')
-
-          print('CURRENT_GATE_IDENTITY_FIELDS_BEGIN')
-          active = None
-          depth = 0
-          for line in lines[1:]:
-              top = re.match(r'^    ([A-Za-z][A-Za-z0-9_]*)\s*=\s*\[ordered\]@\{', line)
-              if top:
-                  active = top.group(1)
-                  depth = 1
-                  print(f'[{active}]')
-                  continue
-              if active is None:
-                  continue
-              opens = line.count('@{') + max(0, line.count('{') - line.count('@{'))
-              closes = line.count('}')
-              depth += opens - closes
-              if re.search(r'\b(Bytes|RawBytes|RawSha256|CanonicalLfBytes|CanonicalLfSha256|Sha256|ObjectId)\s*=', line):
-                  print(line.strip())
-              elif re.fullmatch(r"\s*'[0-9A-Fa-f]{40,64}'\s*", line):
-                  print(line.strip())
-              if depth <= 0:
-                  active = None
-          print('CURRENT_GATE_IDENTITY_FIELDS_END')
-
-      - name: Print actual current text artifact identities
+      - name: Print remaining current Gate D identities
         shell: python
         run: |
           from pathlib import Path
           import hashlib
 
           root = Path('Lasal_PRG/Elmo_EtherCAT_Test_4Axis')
-          paths = [
+          text_paths = [
+              root / 'Elmo_EtherCAT_Test_4Axis.lcp',
               root / 'Network' / 'ConfigObjects.st',
               root / 'Include' / 'C_channels.h',
-              root / 'Include' / 'C_functions.h',
-              root / 'Include' / 'C_variables.h',
+              root / 'Include' / 'channels.h',
+              root / 'Include' / 'lslpublictypes.h',
               root / 'Network' / 'Comm_Network' / 'Comm_Network.lcn',
               root / 'Network' / 'Comm_Network' / 'ONE_Comm_Network_Table.st',
+          ]
+          binary_paths = [
+              root / 'Network' / 'Networks.lcb',
           ]
           def sha(data): return hashlib.sha256(data).hexdigest().upper()
           def canon(data):
               text = data.decode('latin-1').replace('\r\n','\n').replace('\r','\n')
               return text.encode('utf-8')
-          for path in paths:
-              if not path.exists():
-                  print(f'MISSING={path.as_posix()}')
-                  continue
+          for path in text_paths:
               raw = path.read_bytes()
               can = canon(raw)
-              print(f'ACTUAL={path.as_posix()}|RAW={len(raw)}/{sha(raw)}|CANON={len(can)}/{sha(can)}')
-
-      - name: Preserve ConfigObjects provenance evidence
-        shell: python
-        run: |
-          from pathlib import Path
-          import hashlib
-          import subprocess
-          rel = 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/ConfigObjects.st'
-          actual = Path(rel).read_bytes()
-          actual_sha = hashlib.sha256(actual).hexdigest().upper()
-          print(f'CONFIG_CURRENT={len(actual)}/{actual_sha}')
-          for commit in subprocess.check_output(['git','rev-list','--all','--',rel], text=True).splitlines():
-              raw = subprocess.check_output(['git','show',f'{commit}:{rel}'])
-              if len(raw) == len(actual) and hashlib.sha256(raw).hexdigest().upper() == actual_sha:
-                  meta = subprocess.check_output(['git','show','-s','--format=%H|%cs|%s',commit], text=True).strip()
-                  print(f'CONFIG_CURRENT_FIRST_HISTORY_MATCH={meta}')
-                  break
+              print(f'TEXT={path.as_posix()}|RAW={len(raw)}/{sha(raw)}|CANON={len(can)}/{sha(can)}')
+          for path in binary_paths:
+              raw = path.read_bytes()
+              print(f'BINARY={path.as_posix()}|BYTES={len(raw)}|SHA256={sha(raw)}')
 
       - name: Confirm fresh rebuild commit still contains only generated binaries
         shell: powershell
