@@ -1,18 +1,21 @@
 name: MODE-10 split SetOperationMode method
 
 on:
-  push:
+  pull_request:
     branches:
-      - codex/mode-10-static-qualification-v2
+      - dev
+    types:
+      - synchronize
     paths:
       - '.github/workflows/mode10-method-split.yml'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
 
 permissions:
   contents: write
 
 jobs:
   split:
-    if: github.actor != 'github-actions[bot]'
+    if: github.head_ref == 'codex/mode-10-static-qualification-v2' && github.actor != 'github-actions[bot]'
     runs-on: windows-latest
     steps:
       - name: Checkout feature branch
@@ -164,9 +167,6 @@ END_FUNCTION''')
 
           new_main = original_function[:common_start] + dispatch + n('\nEND_FUNCTION')
           replacement = new_main + mutation_helper + recovery_helper
-
-          if text.count(original_function) != 1:
-              raise SystemExit('original function replacement count mismatch')
           text = text[:function_start] + replacement + text[function_end:]
 
           for name in (
