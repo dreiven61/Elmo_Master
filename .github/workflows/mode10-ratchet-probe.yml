@@ -23,7 +23,7 @@ jobs:
           ref: codex/mode-10-sourceonly-cleanup
           fetch-depth: 0
 
-      - name: Patch known MODE-08 ratchets and expose publish metrics
+      - name: Patch known MODE-08 ratchets and diagnostic messages
         shell: python
         run: |
           from pathlib import Path
@@ -43,28 +43,22 @@ jobs:
               ("'064544E3EC5498E4ECAFC0C4C1E77FEBF1C0E59BDA7440C9A73867A343D6C2AF'", "'367C87E07AF2C33D60F32F3E94AECF73BA052C6F3155DA909DB9EAD1BB9EAB85'"),
               ('$($macroInventory.Count)/68, ', '$($macroInventory.Count)/70, '),
               ('$($joinedMacros.Length)/2387, ', '$($joinedMacros.Length)/2470, '),
+              ('throw "$blocker $($fragmentContract.Name) lexical token inventory drifted."',
+               'throw "$blocker $($fragmentContract.Name) lexical token inventory drifted ($($metrics.LexicalCount)/$($metrics.LexicalLength)/$($metrics.LexicalSha256))."'),
+              ('throw "$blocker $($fragmentContract.Name) local inventory drifted or is empty."',
+               'throw "$blocker $($fragmentContract.Name) local inventory drifted or is empty ($($metrics.LocalCount)/$($metrics.LocalLength)/$($metrics.LocalSha256))."'),
+              ('throw "$blocker $($fragmentContract.Name) call inventory drifted."',
+               'throw "$blocker $($fragmentContract.Name) call inventory drifted ($($metrics.CallInventory))."'),
+              ('throw "$blocker $($fragmentContract.Name) persistent mutation inventory drifted."',
+               'throw "$blocker $($fragmentContract.Name) persistent mutation inventory drifted ($($metrics.MutationCount)/$($metrics.MutationLength)/$($metrics.MutationSha256))."'),
+              ('throw "$blocker $($fragmentContract.Name) Result/RETURN inventory drifted."',
+               'throw "$blocker $($fragmentContract.Name) Result/RETURN inventory drifted ($($metrics.ControlFlowCount)/$($metrics.ControlFlowLength)/$($metrics.ControlFlowSha256))."'),
           )
           for old, new in replacements:
               count = text.count(old)
               if count != 1:
-                  raise SystemExit(f'ratchet token count={count}, expected=1: {old}')
+                  raise SystemExit(f'probe token count={count}, expected=1: {old}')
               text = text.replace(old, new, 1)
-
-          anchor = '    foreach ($fragmentContract in $fragmentContracts) {'
-          diagnostic = '''    foreach ($mode10ProbeContract in $fragmentContracts) {
-        $mode10ProbeMetrics = Get-LasalAxisOwnershipPublishSplitFragmentMetrics `
-            -Fragment $mode10ProbeContract.Fragment
-        Write-Host ("MODE10_PUBLISH_METRICS name=$($mode10ProbeContract.Name) " +
-            "lexical=$($mode10ProbeMetrics.LexicalCount)/$($mode10ProbeMetrics.LexicalLength)/$($mode10ProbeMetrics.LexicalSha256) " +
-            "locals=$($mode10ProbeMetrics.LocalCount)/$($mode10ProbeMetrics.LocalLength)/$($mode10ProbeMetrics.LocalSha256) " +
-            "calls=$($mode10ProbeMetrics.CallInventory) " +
-            "mutations=$($mode10ProbeMetrics.MutationCount)/$($mode10ProbeMetrics.MutationLength)/$($mode10ProbeMetrics.MutationSha256) " +
-            "control=$($mode10ProbeMetrics.ControlFlowCount)/$($mode10ProbeMetrics.ControlFlowLength)/$($mode10ProbeMetrics.ControlFlowSha256)")
-    }
-'''
-          if text.count(anchor) != 1:
-              raise SystemExit(f'publish fragment loop anchor count={text.count(anchor)}, expected=1')
-          text = text.replace(anchor, diagnostic + anchor, 1)
           src.write_text(text, encoding='utf-8', newline='')
 
       - name: Run repository SourceOnly contract
