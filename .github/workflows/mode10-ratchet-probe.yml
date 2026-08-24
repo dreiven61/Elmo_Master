@@ -61,15 +61,19 @@ jobs:
 
           lines = text.splitlines()
           hits = [i for i, line in enumerate(lines) if '61265' in line]
-          if len(hits) != 1:
-              raise SystemExit(f'expected exactly one 61265 semantic gate, found {len(hits)}')
-          hit = hits[0]
-          start = max(0, hit - 24)
-          end = min(len(lines), hit + 25)
-          print('--- RESERVE_SEMANTIC_GATE_CONTEXT_BEGIN ---')
-          for i in range(start, end):
-              print(f'{i + 1}: {lines[i]}')
-          print('--- RESERVE_SEMANTIC_GATE_CONTEXT_END ---')
+          if not hits:
+              raise SystemExit('no 61265 semantic gate occurrence found')
+          print(f'RESERVE_SEMANTIC_GATE_HITS={len(hits)}')
+          printed = set()
+          for hit in hits:
+              start = max(0, hit - 20)
+              end = min(len(lines), hit + 21)
+              print(f'--- RESERVE_SEMANTIC_GATE_CONTEXT_{hit + 1}_BEGIN ---')
+              for i in range(start, end):
+                  if i not in printed:
+                      print(f'{i + 1}: {lines[i]}')
+                      printed.add(i)
+              print(f'--- RESERVE_SEMANTIC_GATE_CONTEXT_{hit + 1}_END ---')
 
           src.write_text(text, encoding='utf-8', newline='')
 
