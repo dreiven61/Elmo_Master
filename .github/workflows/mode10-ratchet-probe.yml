@@ -23,7 +23,7 @@ jobs:
           ref: codex/mode-10-sourceonly-cleanup
           fetch-depth: 0
 
-      - name: Patch exact MODE-08 persistent-read ratchet and expose next semantic ratchet
+      - name: Patch exact MODE-08 persistent-read ratchet and expose semantic ratchet lines
         shell: python
         run: |
           from pathlib import Path
@@ -40,14 +40,11 @@ jobs:
               raise SystemExit(f'message count={text.count(old_message)}, expected=1')
           text = text.replace(old_condition, new_condition, 1)
           text = text.replace(old_message, new_message, 1)
-
-          needle = 'replacement loop/map/state/header/absence semantic inventory drifted'
-          pos = text.find(needle)
-          if pos < 0:
-              raise SystemExit('semantic inventory message not found')
-          print('--- SEMANTIC_RATCHET_CONTEXT_BEGIN ---')
-          print(text[max(0, pos - 2600):min(len(text), pos + len(needle) + 1600)])
-          print('--- SEMANTIC_RATCHET_CONTEXT_END ---')
+          lines = text.splitlines()
+          print('--- VERIFIER_LINES_850_970_BEGIN ---')
+          for number in range(850, min(971, len(lines) + 1)):
+              print(f'{number}: {lines[number - 1]}')
+          print('--- VERIFIER_LINES_850_970_END ---')
           src.write_text(text, encoding='utf-8', newline='')
 
       - name: Diff hygiene
