@@ -7,6 +7,20 @@ Elmo PMAS/MMCLib 기준 동작을 분석하고 SIGMATEK/LASAL 전용 DINT API와
 current API 계약과 개발 상태는 각각 `docs/api/API_MANUAL.md`와
 `docs/api/API_DEVELOPMENT_PROGRESS.md`에서만 관리한다.
 
+## 개발 브랜치 운영
+
+- 현재 active development 기준 브랜치는 `dev`다. 이후 기능 구현, 검증, 문서 동기화는
+  별도 사유가 없으면 `dev`를 current 기준으로 사용한다.
+- `codex/*` 형태의 작업 브랜치는 기능 구현·시험·비교를 위한 임시 branch로 취급하며
+  current source of truth로 사용하지 않는다.
+- 개발 중에는 임시 branch의 unique diff나 검증 이력을 잃지 않도록 유지한다. 개발 단위가
+  끝난 뒤 해당 변경이 `dev`에 반영되었거나 명시적으로 폐기되었고 필요한 시험 근거가
+  `test/` 또는 문서에 보존된 것을 확인한 다음 stale `codex/*` branch를 정리한다.
+- branch 수를 줄이기 위한 정리는 개발 도중 수시로 하지 않는다. 현재 작업이 끝난 뒤
+  일괄 cleanup하는 것을 기본 원칙으로 한다.
+- `main` 반영 시점은 개발/검증 단위가 닫힌 뒤 별도로 결정하며, 진행 중인 기능의 current
+  판정은 `dev` 기준 문서를 따른다.
+
 ## 현재 구성
 
 | 경로 | 역할 | 기준 여부 |
