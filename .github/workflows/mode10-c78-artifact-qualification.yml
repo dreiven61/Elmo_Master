@@ -90,8 +90,10 @@ jobs:
           path = Path('LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalUdpCallbackContract.ps1')
           text = path.read_text(encoding='utf-8')
 
-          marker = '$ExpectedTerminalWakeLayout = [ordered]@{'
-          alternate = '''$ExpectedTerminalWakeCleanGitNetwork = [ordered]@{
+          layout_marker = '$ExpectedTerminalWakeLayout = [ordered]@{'
+          if text.count(layout_marker) != 1:
+              raise SystemExit(f'TerminalWake layout marker count={text.count(layout_marker)}')
+          clean_git_expectation = '''$ExpectedTerminalWakeCleanGitNetwork = [ordered]@{
               FullNetwork = [ordered]@{
                   Count = 15
                   Sha256 =
@@ -104,23 +106,15 @@ jobs:
               }
           }
           '''
-          if text.count(marker) != 1:
-              raise SystemExit(f'TerminalWake layout marker count={text.count(marker)}')
-          text = text.replace(marker, alternate + marker, 1)
+          text = text.replace(layout_marker, clean_git_expectation + layout_marker, 1)
 
-          old_main = '''                    $networkAggregateExact = if ($state -ceq
-                              'TerminalWakeBrokerCandidate') {
-                              (Test-TerminalWakeNetworkAggregateIdentity `
-                                  -ActualCount $Snapshot.FullNetworkCount `
-                                  -ActualSha256 $Snapshot.FullNetworkSha256 `
-                                  -Expected $ExpectedTerminalWakeLayout.FullNetwork) -and
-                              (Test-TerminalWakeNetworkAggregateIdentity `
-                                  -ActualCount $Snapshot.TrackedNetworkCount `
-                                  -ActualSha256 $Snapshot.TrackedNetworkSha256 `
-                                  -Expected $ExpectedTerminalWakeLayout.TrackedNetwork)
-                          }
-                          else {'''
-          new_main = '''                    $networkAggregateExact = if ($state -ceq
+          main_start_marker = '                    $networkAggregateExact = if ($state -ceq'
+          main_start = text.index(main_start_marker)
+          terminal_marker = "'TerminalWakeBrokerCandidate') {"
+          if text.index(terminal_marker, main_start) > main_start + 300:
+              raise SystemExit('TerminalWake aggregate branch was not adjacent to the unique main marker')
+          main_else = text.index('                    else {', main_start)
+          main_terminal = '''                    $networkAggregateExact = if ($state -ceq
                               'TerminalWakeBrokerCandidate') {
                               $terminalWakePhysicalAggregateExact =
                                   (Test-TerminalWakeNetworkAggregateIdentity `
@@ -143,34 +137,17 @@ jobs:
                               $terminalWakePhysicalAggregateExact -or
                                   $terminalWakeCleanGitAggregateExact
                           }
-                          else {'''
-          if text.count(old_main) != 1:
-              raise SystemExit(f'main terminal aggregate block count={text.count(old_main)}')
-          text = text.replace(old_main, new_main, 1)
+          '''
+          text = text[:main_start] + main_terminal + text[main_else:]
 
-          old_layout = '''    foreach ($aggregate in @(
-                  [pscustomobject]@{
-                      Owner = 'full Network aggregate'
-                      ActualCount = [long]$Snapshot.FullNetworkCount
-                      ActualSha256 = $Snapshot.FullNetworkSha256
-                      Expected = $ExpectedTerminalWakeLayout.FullNetwork
-                  },
-                  [pscustomobject]@{
-                      Owner = 'tracked Network aggregate'
-                      ActualCount = [long]$Snapshot.TrackedNetworkCount
-                      ActualSha256 = $Snapshot.TrackedNetworkSha256
-                      Expected = $ExpectedTerminalWakeLayout.TrackedNetwork
-                  })) {
-              if (-not (Test-TerminalWakeNetworkAggregateIdentity `
-                      -ActualCount $aggregate.ActualCount `
-                      -ActualSha256 $aggregate.ActualSha256 `
-                      -Expected $aggregate.Expected)) {
-                  Throw-UdpCallbackBlocker (
-                      "$($aggregate.Owner) sanctioned Gate D identity drifted.")
-              }
-          }
-          }'''
-          new_layout = '''    $physicalNetworkAggregateExact =
+          function_start = text.index('function Assert-TerminalWakeLayoutContract')
+          aggregate_loop_start = text.index('    foreach ($aggregate in @(', function_start)
+          next_function_marker = '\nfunction ConvertTo-NormalizedGeneratedBlock'
+          next_function = text.index(next_function_marker, aggregate_loop_start)
+          function_close = text.rfind('\n}', aggregate_loop_start, next_function)
+          if function_close < aggregate_loop_start:
+              raise SystemExit('Assert-TerminalWakeLayoutContract closing brace not found')
+          layout_aggregate = '''    $physicalNetworkAggregateExact =
               (Test-TerminalWakeNetworkAggregateIdentity `
                   -ActualCount $Snapshot.FullNetworkCount `
                   -ActualSha256 $Snapshot.FullNetworkSha256 `
@@ -193,16 +170,13 @@ jobs:
                   'TerminalWake Network aggregate matches neither the sanctioned ' +
                   'physical LASAL snapshot nor the exact clean-Git snapshot.')
           }
-          }'''
-          if text.count(old_layout) != 1:
-              raise SystemExit(f'layout aggregate block count={text.count(old_layout)}')
-          text = text.replace(old_layout, new_layout, 1)
+          '''
+          text = text[:aggregate_loop_start] + layout_aggregate + text[function_close:]
 
-          old_approval = '''    $productionApproved =
-              ($state -in @('Absent', 'VendorImported')) -or
-              (($state -ceq 'TerminalWakeBrokerCandidate') -and
-                  $TerminalWakeBrokerExactPhysicalSnapshotApproved)'''
-          new_approval = '''    $terminalWakePhysicalSnapshotExact =
+          verify_function_start = text.index('function Assert-UdpCallbackContract') if 'function Assert-UdpCallbackContract' in text else 0
+          approval_start = text.index('    $productionApproved =', verify_function_start)
+          approval_end = text.index('    return [pscustomobject]@{', approval_start)
+          approval = '''    $terminalWakePhysicalSnapshotExact =
               ($state -ceq 'TerminalWakeBrokerCandidate') -and
               (-not $syntheticFixture) -and
               (Test-TerminalWakeNetworkAggregateIdentity `
@@ -217,11 +191,18 @@ jobs:
               ($state -in @('Absent', 'VendorImported')) -or
               (($state -ceq 'TerminalWakeBrokerCandidate') -and
                   $TerminalWakeBrokerExactPhysicalSnapshotApproved -and
-                  $terminalWakePhysicalSnapshotExact)'''
-          if text.count(old_approval) != 1:
-              raise SystemExit(f'production approval block count={text.count(old_approval)}')
-          text = text.replace(old_approval, new_approval, 1)
+                  $terminalWakePhysicalSnapshotExact)
+          '''
+          text = text[:approval_start] + approval + text[approval_end:]
 
+          for required in (
+              '$ExpectedTerminalWakeCleanGitNetwork',
+              '$terminalWakeCleanGitAggregateExact',
+              '$cleanGitNetworkAggregateExact',
+              '$terminalWakePhysicalSnapshotExact',
+          ):
+              if required not in text:
+                  raise SystemExit(f'missing patched token: {required}')
           path.write_text(text, encoding='utf-8', newline='')
 
       - name: Run full SourceOnly qualification
