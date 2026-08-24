@@ -2,10 +2,11 @@
 
 - 대상: No.33 `MMC_ChngOpMode`
 - 현재 진행도: 25%
-- current 상태: `Partial`, PC/SDK contract만 구현; PLC runtime은 `Missing`
-- 구현된 SDK command: `0x7D23 Start`, `0x7D24 ReadOutcome`, `0x7D25 Retire`
+- current 상태: `Dormant route`; PC/SDK contract와 LASAL deterministic failure route 구현, mode owner/SDO runtime executor는 `Missing`
+- 구현된 SDK/LASAL command: `0x7D23 Start`, `0x7D24 ReadOutcome`, `0x7D25 Retire`
 - 1차 activation 범위: physical axis 1..4, Immediate, CSP mode 8만
-- 진행 판정: 1차 범위는 `Partial/Limited, CSP recovery only`; No.33 완료는 아님
+- 진행 판정: dormant source checkpoint 완료; CSP runtime/recovery와 실축 적격화는 미완료
+- 구현 동기화 기준: 2026-08-24
 
 ## 1. 정확한 API 의미
 
@@ -18,10 +19,12 @@ cleanup에서 CSP mode 8을 전제로 한다. 따라서 `0x6060` unrestricted SD
 mode 허용으로 구현하면 안 된다.
 
 현재 C#에는 기존 `0x6061:0 Int8/1` read API와 별도로 SetOperationMode의 immutable
-prepare/start/query/retire SDK contract가 있다. 그러나 LASAL route/handler와 `0x6060` executor는
+prepare/start/query/retire SDK contract가 있다. LASAL에는 `0x7D23/0x7D24/0x7D25` TCP route와
+`LMCDiagnosticsService`의 Start/Outcome/Retire deterministic failure handler도 들어가 있다.
+다만 `AxisOperationMode` owner, `0x6061 -> 0x6060 -> 0x6061` executor, durable outcome store는
 아직 없고 capability bits 8/9/10도 current PLC에서 광고하지 않는다. 따라서 public Start는
-capability preflight에서 wire 송신 전에 차단된다. `0x6060/0x6061` PDO도 current Elmo object에서
-disabled다.
+capability preflight에서 wire 송신 전에 차단되며, raw well-shaped request를 직접 보내도 dormant
+handler가 fail-closed response만 반환한다. `0x6060/0x6061` PDO도 current Elmo object에서 disabled다.
 
 ## 2. 1차 지원 범위
 
@@ -194,9 +197,9 @@ capability parser와 PLC를 paired 배포하며, C78/PLC/hardware gate 전까지
 
 ### LASAL
 
-- `Class/TCPMotionInterface/TCPMotionInterface.st`
-- `Class/LMCControlCommandService/LMCControlCommandService.st`
-- `Class/LMCDiagnosticsService/LMCDiagnosticsService.st`
+- dormant route 구현 완료: `Class/TCPMotionInterface/TCPMotionInterface.st`
+- dormant handler 구현 완료: `Class/LMCDiagnosticsService/LMCDiagnosticsService.st`
+- future owner conflict/ordinary mutation 연동: `Class/LMCControlCommandService/LMCControlCommandService.st`
 - 필요 declaration은 IDE에서 생성하고 implementation은 추적 `.st`에서 작성
 
 ### 7.1 MODE-05 PLC route freeze
@@ -265,29 +268,35 @@ Control owner kind 1..5와 resource 1..4는 모두 의미가 있고 resource sin
 - [ ] `MODE-13` WPF pre-dispatch journal/startup no-replay recovery와 smoke test PASS
 - [ ] `MODE-14` capability bits 8/9/10 paired activation
 
-### 8.1 2026-08-20 PC/SDK checkpoint
+### 8.1 2026-08-20 PC/SDK historical checkpoint
 
 - VS2019 MSBuild Debug/Release 전체 PC suite: 각각 `1164/1164 PASS`, warning 0, error 0
 - SetOperationMode 신규 계약 시험: 11개 PASS
 - 독립 Debug 전체 실행에서 기존 GroupDisableWait compound test가 한 번 실패했으나 같은
   tree의 즉시 재실행은 PASS했다. SetOperationMode 11개에는 실패가 없었고, 해당 기존
   간헐 실패는 별도 안정화 대상으로 남긴다.
-- PC가 구현한 것은 immutable contract, exact frame/parser, capability-off zero-wire와
-  one-shot/no-replay API 경계다.
-- LASAL route, owner, `6061 -> 6060 -> 6061` 실행기, durable outcome, WPF journal,
-  C78/PLC/hardware 증거는 없다.
-- 따라서 이 checkpoint는 PC/SDK 25%이며 runtime activation 근거가 아니다.
+- 이 checkpoint에서 PC가 증명한 것은 immutable contract, exact frame/parser,
+  capability-off zero-wire와 one-shot/no-replay API 경계다.
+- 아래 MODE-05 source checkpoint가 이후 추가되었으므로 이 항목의 "PC-only" 범위를 current
+  LASAL route 상태로 확대 해석하지 않는다.
 
-### 8.2 MODE-05 source checkpoint
+### 8.2 MODE-05 current source/build checkpoint
 
 - `TCPMotionInterface` Diagnostics route와 `LMCDiagnosticsService` private handler 3개가
   `0x7D23/0x7D24/0x7D25`를 수신한다.
 - 정형 Start는 detail 43 또는 49의 24-byte failure ACK와 `NativeCommandState=0`만 반환한다.
   정형 Outcome/Retire는 detail 49의 16-byte failure만 반환한다.
-- 이 source checkpoint에서는 owner reservation, SDO submit/read/write, motion/native call,
-  outcome record와 capability bits 8/9/10이 모두 OFF다.
-- method-size script는 112 methods, 109 under-limit, baseline debt 3으로 통과했다.
-- C78 build, PLC download, packet, hardware proof는 아직 없다.
+- owner reservation, SDO submit/read/write, motion/native call, outcome record와 capability bits
+  8/9/10은 모두 OFF다. 따라서 raw route가 존재해도 SetOperationMode runtime mutation은 0회다.
+- method-size checkpoint는 112 methods, 109 under-limit, baseline debt 3으로 통과했다.
+- latest C78/ARM Rebuild/Link는 `0 errors / 79 warnings`, `Linker Done`이고 PLC
+  link/download/SystemInit/project load까지 성공했다. 이 image에 dormant route가 포함되어도
+  `6061 -> 6060 -> 6061` runtime executor와 hardware proof가 생기는 것은 아니다.
+- current `Classes.lcb`는 `8,610,206` bytes / SHA-256
+  `568FE55148D734BE4DB0BB5ED9AF4D7800DB33672A5FCE21ECCFE15EE3CAC5A7`이며, 기존 artifact
+  ratchet과 identity가 달라 UDP VerifyCurrent와 이를 포함한 full SourceOnly는 현재 STOP이다.
+  따라서 `MODE-10`은 아직 완료로 표시하지 않는다.
+- SetOperationMode packet/hardware 정상·fault·reconnect proof는 아직 없다.
 
 ## 9. 비-CSP 후속 gate
 
