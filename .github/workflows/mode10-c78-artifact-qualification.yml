@@ -20,16 +20,16 @@ jobs:
           ref: codex/mode-10-c78-finalize
           fetch-depth: 0
 
-      - name: Print exact scenario aggregate implementation context
+      - name: Print terminal aggregate definitions
         shell: powershell
         run: |
           $path = '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\Verify-LasalUdpCallbackContract.ps1'
           $lines = Get-Content -LiteralPath $path
-          foreach ($needle in @('function Assert-ScenarioEvidence', 'canonical Network aggregate drifted', "Name = 'TerminalWakeBrokerCandidate'")) {
+          foreach ($needle in @('function Test-TerminalWakeNetworkAggregateIdentity', '$ExpectedTerminalWakeLayout =', '$ExpectedTerminalWakeLayout', '$ExpectedDerivedCandidateFullNetworkSha256')) {
             $matches = @(Select-String -LiteralPath $path -SimpleMatch $needle)
             foreach ($match in $matches) {
-              $start = [Math]::Max(1, $match.LineNumber - 50)
-              $end = [Math]::Min($lines.Count, $match.LineNumber + 100)
+              $start = [Math]::Max(1, $match.LineNumber - 30)
+              $end = [Math]::Min($lines.Count, $match.LineNumber + 80)
               Write-Host "===== $needle @ $($match.LineNumber) : $start..$end ====="
               for ($i = $start; $i -le $end; $i++) {
                 Write-Host ('{0:D6}: {1}' -f $i, $lines[$i - 1])
