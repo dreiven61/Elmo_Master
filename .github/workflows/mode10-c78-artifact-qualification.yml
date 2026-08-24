@@ -1,4 +1,4 @@
-name: MODE-10 C78 artifact qualification
+name: MODE-10 C78 final qualification
 
 on:
   pull_request:
@@ -8,176 +8,30 @@ on:
       - '.github/workflows/mode10-c78-artifact-qualification.yml'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  qualify-current-gate:
+  aggregate-diagnostic:
     runs-on: windows-latest
     steps:
-      - name: Checkout qualification branch
+      - name: Checkout finalize branch
         uses: actions/checkout@v4
         with:
-          ref: codex/mode-10-c78-artifact-qualification
+          ref: codex/mode-10-c78-finalize
           fetch-depth: 0
 
-      - name: Patch only the current SetPosition-augmented Gate D identities
-        shell: python
-        run: |
-          from pathlib import Path
-
-          path = Path('LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalUdpCallbackContract.ps1')
-          original = path.read_bytes()
-          text = original.decode('utf-8')
-
-          def block_span(text, marker, start_at=0):
-              start = text.index(marker, start_at)
-              brace = text.index('{', start)
-              depth = 0
-              quote = None
-              i = brace
-              while i < len(text):
-                  c = text[i]
-                  if quote:
-                      if c == quote:
-                          if i + 1 < len(text) and text[i + 1] == quote:
-                              i += 2
-                              continue
-                          quote = None
-                      i += 1
-                      continue
-                  if c in "'\"":
-                      quote = c
-                  elif c == '{':
-                      depth += 1
-                  elif c == '}':
-                      depth -= 1
-                      if depth == 0:
-                          return start, i + 1
-                  i += 1
-              raise RuntimeError(f'unterminated block: {marker}')
-
-          gate_start, gate_end = block_span(text, '$SetPositionAugmentedGateD = [ordered]@{')
-          prefix = text[:gate_start]
-          gate = text[gate_start:gate_end]
-          suffix = text[gate_end:]
-
-          changes = {
-              'Classes': [
-                  ('Bytes = 8610206', 'Bytes = 8635284'),
-                  ("'33C1C2A68B97E852AD6646317CAE032A110D1F50C9615FA5B7EEF00410B649A8'",
-                   "'E5F86F542B0FA45065D2197054EE52493A29D57DB091FB32BF20151937736D2D'"),
-                  ('CurrentChangedBytes = 8594124', 'CurrentChangedBytes = 8619202'),
-                  ("'137B073078A13D0F7C7702D957A7AB51BE3D083ED27D83FB1A586F9F9673AAB7'",
-                   "'A0FD24EA008742655644A8DB844E0BA899DEEA8F64CC091FF0BD12109410FAB9'"),
-              ],
-              'Project': [
-                  ("'FE640A0683466FC1C68537A1CF5E9B96EEFBBBC5EE4885A78F25AF2557193A0E'",
-                   "'9887CD1BE02A4143FF67E8AC0D394123441C99C801F23C1DEDA8D93834732CF6'"),
-                  ("'611E9988056CD723F516D80FCE7C2FDC914CEC97EB7189FA11C3C61BA93F67F7'",
-                   "'4C7122E4BBDEF861E75C9CFB87E5171F28F4C1943A90EEFDD3910FEAD02CB572'"),
-              ],
-              'ConfigObjects': [
-                  ('RawBytes = 8830', 'RawBytes = 8585'),
-                  ("'4976C5C46F5647F55BAA54AF99D80A761A5C0648C74484939872AD277C13AC3F'",
-                   "'F9DCC4C7A3F174E908539E038AE19BF8A56B94175F99BDB708D653AB442B6163'"),
-              ],
-              'CChannels': [
-                  ('RawBytes = 25455', 'RawBytes = 24305'),
-                  ("'D827E526A997A6595BDF2B8CFDF8539DCFBD836CD6802DBC5B2705DA3BBF5FAF'",
-                   "'8DB54FBE3B59135960562E80EF59F9C54DE2A9136C5553C117B75AEEAA7A10BD'"),
-              ],
-              'StChannels': [
-                  ('RawBytes = 21521', 'RawBytes = 20697'),
-                  ("'F849B0E5F898C4C2D6269E3DF33B8F9EA93107AF0DD24A8933F75F9AB92B067F'",
-                   "'A734FEBD1FE60AAB3B530AF56E738F9D77FFC952411B1A6DCAC035D161844B1D'"),
-              ],
-              'PublicTypes': [
-                  ('RawBytes = 64423', 'RawBytes = 61906'),
-                  ("'EDD3F17794126577E17A841AD1D562F1CB6D41D03D7C7A7E3690146918E029AD'",
-                   "'4DDCD07636E534D3B1A41B3FCCA55F76CC68EACAA413A24F9BBC14CC76820B24'"),
-              ],
-              'CommTable': [
-                  ('RawBytes = 12136', 'RawBytes = 11843'),
-                  ("'E17E1EBF0C3171C8D52B7F70FB124078931FAB8D6089C1DE83257502186E7ECE'",
-                   "'BDF3134A791F480915A8864B59193690B2881C1A5D7F5529822088FC60678AA1'"),
-              ],
-          }
-
-          for name, replacements in changes.items():
-              marker = f'    {name} = [ordered]@{{'
-              child_start, child_end = block_span(gate, marker)
-              child = gate[child_start:child_end]
-              for old, new in replacements:
-                  count = child.count(old)
-                  if count != 1:
-                      raise SystemExit(f'{name}: expected exactly one current token {old!r}, count={count}')
-                  child = child.replace(old, new, 1)
-              gate = gate[:child_start] + child + gate[child_end:]
-
-          # The items that already matched must stay untouched.
-          required_unchanged = (
-              "ProjectDefinition = [ordered]@{",
-              'RawBytes = 25433',
-              "'96F5357FF18EA32C7A4783A7A8BF1B5D92EE6530879B1DCD0552575327ECE1AA'",
-              'CommNetwork = [ordered]@{',
-              'RawBytes = 17686',
-              "'478D53FB082491FC47EF102044FDA2529D4ABA70D6838850DC317EAC7FE1C132'",
-              'NetworksDatabase = [ordered]@{',
-              'Bytes = 243125',
-              "'8A115291E96D25E00D0507B68F9DAD3CFB735CE26646C0155E4533FCC2D6EFA8'",
-              # All EOL-only canonical identities remain frozen.
-              'CanonicalLfBytes = 8585',
-              "'F9DCC4C7A3F174E908539E038AE19BF8A56B94175F99BDB708D653AB442B6163'",
-              'CanonicalLfBytes = 24305',
-              "'8DB54FBE3B59135960562E80EF59F9C54DE2A9136C5553C117B75AEEAA7A10BD'",
-              'CanonicalLfBytes = 20697',
-              "'A734FEBD1FE60AAB3B530AF56E738F9D77FFC952411B1A6DCAC035D161844B1D'",
-              'CanonicalLfBytes = 61906',
-              "'4DDCD07636E534D3B1A41B3FCCA55F76CC68EACAA413A24F9BBC14CC76820B24'",
-              'CanonicalLfBytes = 11843',
-              "'BDF3134A791F480915A8864B59193690B2881C1A5D7F5529822088FC60678AA1'",
-          )
-          for token in required_unchanged:
-              if token not in gate:
-                  raise SystemExit(f'current Gate D frozen invariant missing after patch: {token}')
-
-          patched = prefix + gate + suffix
-          if patched[:gate_start] != prefix or patched[gate_start + len(gate):] != suffix:
-              raise SystemExit('content outside current SetPositionAugmentedGateD changed')
-          path.write_bytes(patched.encode('utf-8'))
-
-      - name: Run focused SetOperationMode static qualification
+      - name: Inspect TerminalWakeBrokerCandidate aggregate contract
         shell: powershell
         run: |
-          git diff --check
-          & '.\tools\Verify-SetOperationModeStatic.ps1' -ExpectedSdoWriteAxis 1
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $path = '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\Verify-LasalUdpCallbackContract.ps1'
+          Select-String -Path $path -Pattern 'TerminalWakeBrokerCandidate' -Context 8,24
+          Select-String -Path $path -Pattern 'canonical Network aggregate drifted' -Context 30,30
+          Select-String -Path $path -Pattern 'CanonicalNetwork' -Context 8,16
+          Select-String -Path $path -Pattern 'Network aggregate' -Context 12,20
 
-      - name: Require full SourceOnly PASS
+      - name: Confirm branch and dev relationship
         shell: powershell
         run: |
-          $repoRoot = (Get-Location).Path
-          & '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\Verify-LasalContract.ps1' `
-            -RepositoryRoot $repoRoot `
-            -SourceOnly `
-            -ExpectedSdoWriteAxis 1
-          if ($LASTEXITCODE -ne 0) {
-            throw "Full SourceOnly did not pass after complete current Gate D qualification. Exit=$LASTEXITCODE"
-          }
-          Write-Host 'FULL_SOURCEONLY_PASS=TRUE'
-
-      - name: Commit qualified current Gate D ratchet and remove temporary workflow
-        shell: powershell
-        run: |
-          git diff --check
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalUdpCallbackContract.ps1'
-          git rm '.github/workflows/mode10-c78-artifact-qualification.yml'
-          git diff --cached --check
-          git diff --cached --name-status
-          if (git diff --cached --quiet) {
-            throw 'No qualified current Gate D ratchet diff was produced.'
-          }
-          git commit -m 'test(mode): ratchet fresh C78 current artifacts'
-          git push origin 'HEAD:codex/mode-10-c78-artifact-qualification'
+          git rev-parse HEAD
+          git rev-parse origin/dev
+          git diff --name-status origin/dev...HEAD
