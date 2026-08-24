@@ -23,7 +23,7 @@ jobs:
           ref: codex/mode-10-sourceonly-finalize
           fetch-depth: 0
 
-      - name: Patch proven ownership ratchets and expose reserve lexical gate
+      - name: Patch proven ownership ratchets
         shell: python
         run: |
           from pathlib import Path
@@ -55,29 +55,17 @@ jobs:
               ('$semanticTokens.Length -ne 61265', '$semanticTokens.Length -ne 61704'),
               ("'960527D122DCB82BE9645415A3DA444E07C1FDFB0AAF28BE77723864450F084C'", "'44924A26D9B95E107DED81E8D65D18C8862176C833A2D08D596A8FD2F9A52BEF'"),
               ('$($semanticTokens.Length)/61265, ', '$($semanticTokens.Length)/61704, '),
+              ('$lexicalTokens.Count -ne 11917', '$lexicalTokens.Count -ne 11986'),
+              ('$lexicalInventory.Length -ne 73181', '$lexicalInventory.Length -ne 73689'),
+              ("'506B018E60715707471DD69571B6B4BCD35C6C887C6D43A7F829E0EED86B7587'", "'962B62140CB69C12743CBA8F27DF14609819A246C2E917D5804BA4077123B899'"),
+              ('$($lexicalTokens.Count)/11917, ', '$($lexicalTokens.Count)/11986, '),
+              ('$($lexicalInventory.Length)/73181, ', '$($lexicalInventory.Length)/73689, '),
           )
           for old, new in replacements:
               count = text.count(old)
               if count != 1:
                   raise SystemExit(f'ratchet token count={count}, expected=1: {old}')
               text = text.replace(old, new, 1)
-
-          lines = text.splitlines()
-          hits = [i for i, line in enumerate(lines) if '11917' in line]
-          if not hits:
-              raise SystemExit('no 11917 lexical gate occurrence found')
-          print(f'RESERVE_LEXICAL_GATE_HITS={len(hits)}')
-          printed = set()
-          for hit in hits:
-              start = max(0, hit - 14)
-              end = min(len(lines), hit + 18)
-              print(f'--- RESERVE_LEXICAL_GATE_CONTEXT_{hit + 1}_BEGIN ---')
-              for i in range(start, end):
-                  if i not in printed:
-                      print(f'{i + 1}: {lines[i]}')
-                      printed.add(i)
-              print(f'--- RESERVE_LEXICAL_GATE_CONTEXT_{hit + 1}_END ---')
-
           src.write_text(text, encoding='utf-8', newline='')
 
       - name: Run repository SourceOnly contract
