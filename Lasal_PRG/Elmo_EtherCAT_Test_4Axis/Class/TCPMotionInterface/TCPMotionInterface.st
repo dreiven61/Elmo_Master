@@ -2432,6 +2432,7 @@ FUNCTION TCPMotionInterface::MsgPaser
 		diagnosticsResourceKind : UINT;
 		diagnosticsReserved : BOOL;
 		diagnosticsDs402StartValid : BOOL;
+		diagnosticsOperationModeStartValid : BOOL;
 		diagnosticsDs402PreflightAttempted : BOOL;
 		diagnosticsDs402PreflightAccepted : BOOL;
 		diagnosticsExactAccepted : BOOL;
@@ -2493,6 +2494,7 @@ case CommandID of
 	  diagnosticsResourceKind := 0;
 	  diagnosticsReserved := FALSE;
 	  diagnosticsDs402StartValid := FALSE;
+	  diagnosticsOperationModeStartValid := FALSE;
 	  diagnosticsDs402PreflightAttempted := FALSE;
 	  diagnosticsDs402PreflightAccepted := FALSE;
 	  diagnosticsExactAccepted := FALSE;
@@ -2501,6 +2503,10 @@ case CommandID of
 	  if (CommandID = 0x7E53) & (Payload = 72) then
 		diagnosticsOwnerReference := RequestBuf[48]$UINT;
 		diagnosticsOwnerKind := 5;
+		diagnosticsResourceKind := 4;
+	  elsif (CommandID = 0x7D23) & (Payload = 56) then
+		diagnosticsOwnerReference := AxisRef$UINT;
+		diagnosticsOwnerKind := 6;
 		diagnosticsResourceKind := 4;
 	  elsif (CommandID = 0x7D15) & (Payload = 72) then
 		diagnosticsOwnerReference := AxisRef$UINT;
@@ -2538,6 +2544,28 @@ case CommandID of
 		  (RequestBuf[72]$UDINT <> 0) &
 		  (RequestBuf[76]$UDINT = 0x32303448);
 	  end_if;
+	  if (CommandID = 0x7D23) & (Payload = 56) &
+		 (diagnosticsAxisMask <> 0) then
+		diagnosticsOperationModeStartValid :=
+		  (RequestBuf[8]$UINT = 1) &
+		  (RequestBuf[10]$UINT = 0) &
+		  (RequestBuf[12]$UDINT <> 0) &
+		  (RequestBuf[16]$UINT = 1) &
+		  (RequestBuf[18]$UINT = 0) &
+		  (RequestBuf[20]$UDINT <> 0) &
+		  (RequestBuf[24]$UDINT <> 0) &
+		  (RequestBuf[28]$UDINT <> 0) &
+		  (RequestBuf[32]$UDINT = RequestBuf[12]$UDINT) &
+		  ((RequestBuf[36]$UDINT <> 0) |
+		   (RequestBuf[40]$UDINT <> 0) |
+		   (RequestBuf[44]$UDINT <> 0) |
+		   (RequestBuf[48]$UDINT <> 0)) &
+		  (RequestBuf[52]$UINT = AxisRef$UINT) &
+		  (RequestBuf[54]$SINT = 8) &
+		  (RequestBuf[55]$USINT = 0) &
+		  (RequestBuf[56]$UDINT <> 0) &
+		  (RequestBuf[60]$UDINT = 0);
+	  end_if;
 	  if diagnosticsDs402StartValid &
 		 IsClientConnected(#Diagnostics) &
 		 IsClientConnected(#ControlCommands) then
@@ -2558,6 +2586,7 @@ case CommandID of
 	  end_if;
 	  if (diagnosticsAxisMask <> 0) &
 		 ((CommandID = 0x7E53) |
+		  diagnosticsOperationModeStartValid |
 		  (diagnosticsDs402StartValid &
 		   diagnosticsDs402PreflightAccepted)) &
 		 IsClientConnected(#Diagnostics) &
@@ -2580,11 +2609,11 @@ case CommandID of
 		if diagnosticsAdmissionResult = 0 then
 		  diagnosticsReserved := TRUE;
 		end_if;
-	  elsif diagnosticsDs402StartValid then
+	  elsif diagnosticsDs402StartValid | diagnosticsOperationModeStartValid then
 		diagnosticsAdmissionResult := -3;
 	  end_if;
 
-    if diagnosticsDs402StartValid &
+    if (diagnosticsDs402StartValid | diagnosticsOperationModeStartValid) &
 		 (diagnosticsAdmissionResult <> 0) &
 		 ((diagnosticsDs402PreflightAttempted = FALSE) |
 		  diagnosticsDs402PreflightAccepted) then
@@ -2598,13 +2627,20 @@ case CommandID of
       else
         Sendbuf[20]$UDINT := 42;
       end_if;
-      Sendbuf[24]$DINT := RequestBuf[44]$DINT;
+      if diagnosticsOperationModeStartValid then
+        Sendbuf[24]$DINT := 8;
+      else
+        Sendbuf[24]$DINT := RequestBuf[44]$DINT;
+      end_if;
       Sendbuf[28]$UDINT := 0;
       diagnosticsResponseSize := 24;
     end_if;
 
-    if ((diagnosticsDs402StartValid = FALSE) |
-		  (diagnosticsDs402PreflightAccepted &
+    if (((diagnosticsDs402StartValid = FALSE) &
+		  (diagnosticsOperationModeStartValid = FALSE)) |
+		  (diagnosticsDs402StartValid & diagnosticsDs402PreflightAccepted &
+		   (diagnosticsAdmissionResult = 0)) |
+		  (diagnosticsOperationModeStartValid &
 		   (diagnosticsAdmissionResult = 0))) &
        IsClientConnected(#Diagnostics) then
       diagnosticsResponseSize := Diagnostics.HandleRequest(
@@ -2638,6 +2674,25 @@ case CommandID of
 			(Sendbuf[14]$INT = -32000) &
 			(Sendbuf[16]$UDINT = RequestBuf[12]$UDINT) &
 			(Sendbuf[20]$UDINT <> 0);
+		elsif CommandID = 0x7D23 then
+		  diagnosticsExactAccepted :=
+			(diagnosticsResponseSize = 24) &
+			(Sendbuf[8]$UINT = 1) &
+			(Sendbuf[12]$UINT = 0) &
+			(Sendbuf[14]$INT = 0) &
+			(Sendbuf[16]$UDINT = RequestBuf[12]$UDINT) &
+			(Sendbuf[20]$UDINT = 0) &
+			(Sendbuf[24]$DINT = 8) &
+			(Sendbuf[28]$UDINT = 0);
+		  diagnosticsExactFailure :=
+			(diagnosticsResponseSize = 24) &
+			(Sendbuf[8]$UINT = 1) &
+			(Sendbuf[12]$UINT = 1) &
+			(Sendbuf[14]$INT = -31000) &
+			(Sendbuf[16]$UDINT = RequestBuf[12]$UDINT) &
+			(Sendbuf[20]$UDINT <> 0) &
+			(Sendbuf[24]$DINT = 8) &
+			(Sendbuf[28]$UDINT = 0);
 		elsif CommandID = 0x7D15 then
 		  diagnosticsExactAccepted :=
 			(diagnosticsResponseSize = 24) &

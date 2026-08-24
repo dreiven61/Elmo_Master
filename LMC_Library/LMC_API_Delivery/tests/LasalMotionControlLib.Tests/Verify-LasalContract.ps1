@@ -594,12 +594,12 @@ function Assert-LasalAxisOwnershipPreemptionCleanupMutationFences {
         }
         $replacementBankHistogram[$bankName]++
     }
-    if (($replacementBankHistogram['ownershipstate'] -ne 41) -or
+    if (($replacementBankHistogram['ownershipstate'] -ne 44) -or
         ($replacementBankHistogram['ownershipidentitystate'] -ne 12)) {
         throw (
             "$blocker replacement helper persistent read inventory is " +
             "$($replacementBankHistogram['ownershipstate'])/" +
-            "$($replacementBankHistogram['ownershipidentitystate']), expected 41/12.")
+            "$($replacementBankHistogram['ownershipidentitystate']), expected 44/12.")
     }
     foreach ($inputName in @(
             'PreemptedAdmissionToken',
@@ -925,12 +925,12 @@ function Assert-LasalAxisOwnershipPreemptionCleanupMutationFences {
     finally {
         $replacementSemanticSha.Dispose()
     }
-    if (($replacementSemanticTokens.Length -ne 6434) -or
+    if (($replacementSemanticTokens.Length -ne 6714) -or
         ($replacementSemanticSha256 -cne
-            '9EAAB21F2262DB9C206B0581CC21AD3451727F0257CB85D3416D4CDDA2B03612')) {
+            '3386CCD85F63DEE01ABD5C06B82E2F4591179998E07D05B62DF4D816CCFF6D2B')) {
         throw (
             "$blocker replacement loop/map/state/header/absence semantic " +
-            "inventory drifted ($($replacementSemanticTokens.Length)/6434, " +
+            "inventory drifted ($($replacementSemanticTokens.Length)/6714, " +
             "$replacementSemanticSha256).")
     }
     Assert-Match $scan (
@@ -2485,7 +2485,7 @@ function Assert-LasalAxisOwnershipRollbackSplitMutationFences {
 
     foreach ($methodContract in @(
             @{ Name = 'adapter'; Fragment = $adapter; LF = 29124; CRLF = 29922; Sha = '8855AEEAE9B617CEAC1D10C7CC4ADB7F4D0536D108592560CE0D39ACF344AFAC' },
-            @{ Name = 'helper'; Fragment = $helper; LF = 21760; CRLF = 22363; Sha = 'FC1CA1BBD8E56B13FFE55FA7158C8C8EA28038522AC9793A803B2B77EBD58A23' })) {
+            @{ Name = 'helper'; Fragment = $helper; LF = 22214; CRLF = 22826; Sha = '9E0A37E0EC0A3AD7FDD194CF8691BF3B492D4E4C6FD10E8C118323571F980BDD' })) {
         if (-not $methodContract.Fragment.EndsWith(
                 "`n",
                 [StringComparison]::Ordinal)) {
@@ -4585,14 +4585,14 @@ function Assert-LasalAxisOwnershipPublishSplitMutationFences {
                      ' ').ToLowerInvariant())
             })
     $joinedMacros = [string]::Join('|', $macroInventory)
-    if (($macroInventory.Count -ne 68) -or
-        ($joinedMacros.Length -ne 2387) -or
+    if (($macroInventory.Count -ne 70) -or
+        ($joinedMacros.Length -ne 2470) -or
         ((Get-LasalPublishSplitTextSha256 -Text $joinedMacros) -cne
-            '064544E3EC5498E4ECAFC0C4C1E77FEBF1C0E59BDA7440C9A73867A343D6C2AF')) {
+            '367C87E07AF2C33D60F32F3E94AECF73BA052C6F3155DA909DB9EAD1BB9EAB85')) {
         throw (
             "$blocker referenced macro closure drifted " +
-            "($($macroInventory.Count)/68, " +
-            "$($joinedMacros.Length)/2387, " +
+            "($($macroInventory.Count)/70, " +
+            "$($joinedMacros.Length)/2470, " +
             "$(Get-LasalPublishSplitTextSha256 -Text $joinedMacros)).")
     }
 
@@ -4600,8 +4600,8 @@ function Assert-LasalAxisOwnershipPublishSplitMutationFences {
         @{
             Name = 'adapter'
             Fragment = $fragments.Adapter
-            Lexical = @(4170, 25319,
-                '3C1049ED8E8B05BA66B4E356865B6580DAE5FA69FE413A11E60322F62FC17000')
+            Lexical = @(4181, 25399,
+                '19E0C93B5538A8E9C361401CFAE85E23CDFFE0831422EF8174B735C57471FD50')
             Locals = @(38, 829,
                 '3732E95DEC618170651A42C7A956ECA78CC53C8F5D6D8CD80FB3159F8362CA62')
             Calls = (
@@ -4630,8 +4630,8 @@ function Assert-LasalAxisOwnershipPublishSplitMutationFences {
         @{
             Name = 'decision helper'
             Fragment = $fragments.Decision
-            Lexical = @(3372, 22104,
-                'C1035138B3C7020306E8243C8F613D817680A06F83A8A578AA85CF487543FA10')
+            Lexical = @(3451, 22781,
+                'C047EEB0042EEC4CEB2D3840E5226C1FAD420560EC90A058DAFE361546CC51F2')
             Locals = @(49, 1100,
                 '5F8DB2CE8C6D09E32D0F5919D816E61843B3FDDD4920BC5A702E05A936DD67A4')
             Calls = '_memcmp=1|to_udint=17'
@@ -8318,14 +8318,14 @@ function Assert-LasalAxisOwnershipReserveMutationFences {
     finally {
         $localSha.Dispose()
     }
-    if (($localInventory.Count -ne 81) -or
-        ($joinedLocals.Length -ne 1817) -or
+    if (($localInventory.Count -ne 82) -or
+        ($joinedLocals.Length -ne 1847) -or
         ($localSha256 -cne
-            '55ACBC2438AE68FAE362C479F4B9EB2ADD3F416180DBE863AD78729BE9F4DFF1')) {
+            '91324B1D9039B8329C237A3107FE5402DC53D65E5685557A942CF71C91F22971')) {
         throw (
             "$blocker local variable inventory drifted " +
-            "($($localInventory.Count)/81, " +
-            "$($joinedLocals.Length)/1817, $localSha256).")
+            "($($localInventory.Count)/82, " +
+            "$($joinedLocals.Length)/1847, $localSha256).")
     }
 
     $ignoredCallNames = @(
@@ -8604,12 +8604,12 @@ function Assert-LasalAxisOwnershipReserveMutationFences {
     finally {
         $semanticSha.Dispose()
     }
-    if (($semanticTokens.Length -ne 61265) -or
+    if (($semanticTokens.Length -ne 61704) -or
         ($semanticSha256 -cne
-            '960527D122DCB82BE9645415A3DA444E07C1FDFB0AAF28BE77723864450F084C')) {
+            '44924A26D9B95E107DED81E8D65D18C8862176C833A2D08D596A8FD2F9A52BEF')) {
         throw (
             "$blocker normalized semantic token inventory drifted " +
-            "($($semanticTokens.Length)/61265, $semanticSha256).")
+            "($($semanticTokens.Length)/61704, $semanticSha256).")
     }
     $lexicalTokens = @(
         [regex]::Matches(
@@ -8629,14 +8629,14 @@ function Assert-LasalAxisOwnershipReserveMutationFences {
     finally {
         $lexicalSha.Dispose()
     }
-    if (($lexicalTokens.Count -ne 11917) -or
-        ($lexicalInventory.Length -ne 73181) -or
+    if (($lexicalTokens.Count -ne 11986) -or
+        ($lexicalInventory.Length -ne 73689) -or
         ($lexicalSha256 -cne
-            '506B018E60715707471DD69571B6B4BCD35C6C887C6D43A7F829E0EED86B7587')) {
+            '962B62140CB69C12743CBA8F27DF14609819A246C2E917D5804BA4077123B899')) {
         throw (
             "$blocker lexical token boundary inventory drifted " +
-            "($($lexicalTokens.Count)/11917, " +
-            "$($lexicalInventory.Length)/73181, $lexicalSha256).")
+            "($($lexicalTokens.Count)/11986, " +
+            "$($lexicalInventory.Length)/73689, $lexicalSha256).")
     }
 }
 
@@ -10769,6 +10769,7 @@ function Assert-LasalAxisOwnershipIdentityPreemptionContract {
         @{ Label = '0x7D12'; Pattern = '0x7D12\s*:\s*identityExpectedSize\s*:=\s*48\s*;' },
         @{ Label = '0x7D13'; Pattern = '0x7D13\s*:\s*identityExpectedSize\s*:=\s*56\s*;' },
         @{ Label = '0x7D15'; Pattern = '0x7D15\s*:\s*identityExpectedSize\s*:=\s*72\s*;' },
+        @{ Label = '0x7D23'; Pattern = '0x7D23\s*:\s*identityExpectedSize\s*:=\s*56\s*;' },
         @{ Label = '0x7E53'; Pattern = '0x7E53\s*:\s*identityExpectedSize\s*:=\s*72\s*;' })
     foreach ($shape in $copyIdentityShapes) {
         Assert-Match $copyBlock $shape.Pattern (
@@ -10805,8 +10806,13 @@ function Assert-LasalAxisOwnershipIdentityPreemptionContract {
         throw "$blocker fully-disjoint proof block is missing or misplaced."
     }
     $disjointBlock = $disjointMatch.Value
-    if ($disjointBlock -match '(?i)LMC_OWNER_STATE_RESERVED|LMC_OWNER_STATE_QUARANTINED') {
-        throw "$blocker disjoint proof accepts a non-active Reserved/Quarantined state."
+    if ($disjointBlock -match '(?i)LMC_OWNER_STATE_QUARANTINED') {
+        throw "$blocker disjoint proof accepts a Quarantined state."
+    }
+    $reservedDisjointStates = @(
+        [regex]::Matches($disjointBlock, '(?i)LMC_OWNER_STATE_RESERVED'))
+    if ($reservedDisjointStates.Count -ne 1) {
+        throw "$blocker disjoint proof Reserved state must appear exactly once for SetOperationMode."
     }
     Assert-Match $disjointBlock (
         '(?s)LMC_OWNER_KIND_DIRECT\s*:\s*currentStateValid\s*:=\s*' +
@@ -10823,7 +10829,10 @@ function Assert-LasalAxisOwnershipIdentityPreemptionContract {
         'LMC_OWNER_STATE_DS402_HOME_ACTIVE\s*;.*?' +
         'LMC_OWNER_KIND_ENCODER\s*:\s*currentStateValid\s*:=.*?' +
         'LMC_OWNER_STATE_TW20_QUEUED.*?LMC_OWNER_STATE_TW20_RUNNING.*?' +
-        'LMC_OWNER_STATE_TW20_DRAINING') (
+        'LMC_OWNER_STATE_TW20_DRAINING.*?' +
+        'LMC_OWNER_KIND_AXIS_OPERATION_MODE\s*:\s*currentStateValid\s*:=.*?' +
+        'LMC_OWNER_STATE_RESERVED.*?' +
+        'LMC_OWNER_STATE_AXIS_OPERATION_MODE_ACTIVE') (
         "$blocker disjoint proof active-state classifier drifted.")
     Assert-Match $disjointBlock (
         '(?s)OwnershipState\[currentRecordBase\]\s*<>\s*axisIndex.*?' +
