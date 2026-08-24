@@ -1,0 +1,30 @@
+name: MODE-10 Classes.lcb identity probe
+
+on:
+  pull_request:
+    branches:
+      - dev
+    paths:
+      - '.github/workflows/mode10-artifact-identity-probe.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  identity:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Print Classes.lcb physical identity
+        shell: powershell
+        run: |
+          $path = '.\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\Classes.lcb'
+          $item = Get-Item -LiteralPath $path
+          $hash = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash
+          Write-Host "CLASSES_BYTES=$($item.Length)"
+          Write-Host "CLASSES_SHA256=$hash"
+          Write-Host 'EXPECTED_BYTES=8610206'
+          Write-Host 'EXPECTED_SHA256=33C1C2A68B97E852AD6646317CAE032A110D1F50C9615FA5B7EEF00410B649A8'
+          Write-Host "BYTE_DELTA=$($item.Length - 8610206)"
