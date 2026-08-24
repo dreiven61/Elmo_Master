@@ -23,7 +23,7 @@ jobs:
           ref: codex/mode-10-sourceonly-finalize
           fetch-depth: 0
 
-      - name: Patch proven ownership ratchets and expose reserve semantic gate
+      - name: Patch proven ownership ratchets
         shell: python
         run: |
           from pathlib import Path
@@ -52,29 +52,15 @@ jobs:
               ("'55ACBC2438AE68FAE362C479F4B9EB2ADD3F416180DBE863AD78729BE9F4DFF1'", "'91324B1D9039B8329C237A3107FE5402DC53D65E5685557A942CF71C91F22971'"),
               ('$($localInventory.Count)/81, ', '$($localInventory.Count)/82, '),
               ('$($joinedLocals.Length)/1817, ', '$($joinedLocals.Length)/1847, '),
+              ('$semanticTokens.Length -ne 61265', '$semanticTokens.Length -ne 61704'),
+              ("'960527D122DCB82BE9645415A3DA444E07C1FDFB0AAF28BE77723864450F084C'", "'44924A26D9B95E107DED81E8D65D18C8862176C833A2D08D596A8FD2F9A52BEF'"),
+              ('$($semanticTokens.Length)/61265, ', '$($semanticTokens.Length)/61704, '),
           )
           for old, new in replacements:
               count = text.count(old)
               if count != 1:
                   raise SystemExit(f'ratchet token count={count}, expected=1: {old}')
               text = text.replace(old, new, 1)
-
-          lines = text.splitlines()
-          hits = [i for i, line in enumerate(lines) if '61265' in line]
-          if not hits:
-              raise SystemExit('no 61265 semantic gate occurrence found')
-          print(f'RESERVE_SEMANTIC_GATE_HITS={len(hits)}')
-          printed = set()
-          for hit in hits:
-              start = max(0, hit - 20)
-              end = min(len(lines), hit + 21)
-              print(f'--- RESERVE_SEMANTIC_GATE_CONTEXT_{hit + 1}_BEGIN ---')
-              for i in range(start, end):
-                  if i not in printed:
-                      print(f'{i + 1}: {lines[i]}')
-                      printed.add(i)
-              print(f'--- RESERVE_SEMANTIC_GATE_CONTEXT_{hit + 1}_END ---')
-
           src.write_text(text, encoding='utf-8', newline='')
 
       - name: Run repository SourceOnly contract
