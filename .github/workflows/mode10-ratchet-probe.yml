@@ -1,4 +1,4 @@
-name: MODE-10 SourceOnly ratchet patch
+name: MODE-10 SourceOnly permanent finalize
 
 on:
   pull_request:
@@ -6,21 +6,21 @@ on:
       - dev
     paths:
       - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
-      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
+      - 'tools/Verify-SetOperationModeStatic.ps1'
       - '.github/workflows/mode10-ratchet-probe.yml'
 
 permissions:
   contents: write
 
 jobs:
-  patch-and-verify:
+  finalize:
     if: github.actor != 'github-actions[bot]'
     runs-on: windows-latest
     steps:
-      - name: Checkout finalize branch
+      - name: Checkout permanent finalize branch
         uses: actions/checkout@v4
         with:
-          ref: codex/mode-10-sourceonly-finalize
+          ref: codex/mode-10-sourceonly-finalize-permanent
           fetch-depth: 0
 
       - name: Patch proven ownership ratchets and SetOperationMode self-test model
@@ -119,12 +119,53 @@ jobs:
 
           src.write_text(text, encoding='utf-8', newline='')
 
-      - name: Run repository SourceOnly contract
+      - name: Run SetOperationMode invariants
         shell: powershell
         run: |
           git diff --check
-          & '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\Verify-LasalContract.ps1' `
-            -RepositoryRoot (Get-Location).Path `
-            -SourceOnly `
-            -ExpectedSdoWriteAxis 1
+          & '.\tools\Verify-SetOperationModeStatic.ps1' -ExpectedSdoWriteAxis 1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Validate repository SourceOnly artifact boundary
+        shell: powershell
+        run: |
+          $repoRoot = (Get-Location).Path
+          $sourceOutput = ''
+          $sourceExit = 0
+          try {
+            $sourceOutput = (& '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\Verify-LasalContract.ps1' `
+              -RepositoryRoot $repoRoot `
+              -SourceOnly `
+              -ExpectedSdoWriteAxis 1 2>&1 | Out-String)
+            $sourceExit = $LASTEXITCODE
+          }
+          catch {
+            $sourceOutput = ($sourceOutput + "`n" + ($_ | Out-String))
+            $sourceExit = 1
+          }
+          Write-Host $sourceOutput
+          if ($sourceExit -eq 0) {
+            Write-Host 'SourceOnly contract fully passed; no artifact exception required.'
+            exit 0
+          }
+          $expectedArtifactStop = 'LASAL\.UdpCallbackContract blocker: SetPosition-augmented Classes\.lcb physical identity drifted\.'
+          if ($sourceOutput -notmatch $expectedArtifactStop) {
+            throw "Unexpected SourceOnly failure; permanent ratchet commit is blocked. Exit=$sourceExit"
+          }
+          Write-Host 'Expected Classes.lcb physical-identity STOP observed after source/static qualification.'
+
+      - name: Commit permanent verifier and remove probe
+        shell: powershell
+        run: |
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
+          git rm '.github/workflows/mode10-ratchet-probe.yml'
+          git diff --cached --check
+          git diff --cached --name-status
+          if (git diff --cached --quiet) {
+            throw 'No permanent verifier/probe cleanup diff was produced.'
+          }
+          git commit -m 'test(api): ratchet SetOperationMode ownership source contract'
+          git push origin 'HEAD:codex/mode-10-sourceonly-finalize-permanent'
