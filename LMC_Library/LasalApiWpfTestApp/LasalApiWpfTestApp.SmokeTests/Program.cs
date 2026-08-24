@@ -36,10 +36,7 @@ namespace LasalApiWpfTestApp.SmokeTests
                 if (args != null && args.Length != 0)
                 {
                     if (args.Length == 2
-                        && string.Equals(
-                            args[0],
-                            "--filter",
-                            StringComparison.Ordinal)
+                        && string.Equals(args[0], "--filter", StringComparison.Ordinal)
                         && !string.IsNullOrWhiteSpace(args[1]))
                     {
                         filter = args[1];
@@ -53,49 +50,30 @@ namespace LasalApiWpfTestApp.SmokeTests
                 }
 
                 var tests = new List<TestCase>();
-                LasalMotionControlApiExample
-                    .UiLocalizationTests.Register(tests);
-                LasalMotionControlApiExample
-                    .ApplicationInstanceLeaseTests.Register(tests);
-                LasalMotionControlApiExample
-                    .RecoveryRecordRetirementTests.Register(tests);
-                LasalMotionControlApiExample
-                    .GroupProfileLockRecoveryJournalTests.Register(tests);
-                LasalMotionControlApiExample
-                    .AxisPowerOnRecoveryJournalTests.Register(tests);
-                LasalMotionControlApiExample
-                    .AxisSetPositionRecoveryJournalTests.Register(tests);
-                LasalMotionControlApiExample
-                    .MaintenanceActionRecoveryJournalTests.Register(tests);
-                LasalMotionControlApiExample
-                    .AxisCommandRecoveryJournalTests.Register(tests);
-                LasalMotionControlApiExample
-                    .AxisQualificationRecoveryJournalTests.Register(tests);
-                LasalMotionControlApiExample
-                    .GroupPowerRecoveryJournalTests.Register(tests);
-                LasalMotionControlApiExample
-                    .GroupResetRecoveryJournalTests.Register(tests);
-                LasalMotionControlApiExample
-                    .MotionUncertaintyJournalTests.Register(tests);
-                LasalMotionControlApiExample
-                    .SdoWriteActivationQualificationProofTests.Register(tests);
-                WpfMainWindowIntegrationTests
-                    .RegisterMotionRecoveryIntegrationTests(tests);
-                WpfMainWindowIntegrationTests
-                    .RegisterAxisPowerOnRecoveryTests(tests);
-                WpfMainWindowIntegrationTests
-                    .RegisterRecoveryRecordRetirementIntegrationTests(tests);
-                WpfMainWindowIntegrationTests
-                    .RegisterAxisCommandRecoveryIntegrationTests(tests);
-                WpfMainWindowIntegrationTests
-                    .RegisterAxisQualificationIntegrationTests(tests);
+                LasalMotionControlApiExample.UiLocalizationTests.Register(tests);
+                LasalMotionControlApiExample.ApplicationInstanceLeaseTests.Register(tests);
+                LasalMotionControlApiExample.RecoveryRecordRetirementTests.Register(tests);
+                LasalMotionControlApiExample.GroupProfileLockRecoveryJournalTests.Register(tests);
+                LasalMotionControlApiExample.AxisPowerOnRecoveryJournalTests.Register(tests);
+                LasalMotionControlApiExample.AxisSetPositionRecoveryJournalTests.Register(tests);
+                LasalMotionControlApiExample.AxisSetOperationModeRecoveryJournalTests.Register(tests);
+                LasalMotionControlApiExample.MaintenanceActionRecoveryJournalTests.Register(tests);
+                LasalMotionControlApiExample.AxisCommandRecoveryJournalTests.Register(tests);
+                LasalMotionControlApiExample.AxisQualificationRecoveryJournalTests.Register(tests);
+                LasalMotionControlApiExample.GroupPowerRecoveryJournalTests.Register(tests);
+                LasalMotionControlApiExample.GroupResetRecoveryJournalTests.Register(tests);
+                LasalMotionControlApiExample.MotionUncertaintyJournalTests.Register(tests);
+                LasalMotionControlApiExample.SdoWriteActivationQualificationProofTests.Register(tests);
+                WpfMainWindowIntegrationTests.RegisterMotionRecoveryIntegrationTests(tests);
+                WpfMainWindowIntegrationTests.RegisterAxisPowerOnRecoveryTests(tests);
+                WpfMainWindowIntegrationTests.RegisterRecoveryRecordRetirementIntegrationTests(tests);
+                WpfMainWindowIntegrationTests.RegisterAxisCommandRecoveryIntegrationTests(tests);
+                WpfMainWindowIntegrationTests.RegisterAxisQualificationIntegrationTests(tests);
                 WpfMaintenanceActionIntegrationTests.Register(tests);
                 WpfTopologyIoLiveEvidenceTests.Register(tests);
                 WpfMainWindowIntegrationTests.Register(tests);
-                WpfMainWindowIntegrationTests
-                    .RegisterGroupStopCompoundTests(tests);
-                WpfMainWindowIntegrationTests
-                    .RegisterGroupResetRecoveryTests(tests);
+                WpfMainWindowIntegrationTests.RegisterGroupStopCompoundTests(tests);
+                WpfMainWindowIntegrationTests.RegisterGroupResetRecoveryTests(tests);
                 WpfMutationRecoveryProcessTests.Register(tests);
 
                 var selected = 0;
@@ -103,9 +81,7 @@ namespace LasalApiWpfTestApp.SmokeTests
                 foreach (var test in tests)
                 {
                     if (filter != null
-                        && test.Name.IndexOf(
-                            filter,
-                            StringComparison.OrdinalIgnoreCase) < 0)
+                        && test.Name.IndexOf(filter, StringComparison.OrdinalIgnoreCase) < 0)
                     {
                         continue;
                     }
@@ -125,16 +101,10 @@ namespace LasalApiWpfTestApp.SmokeTests
                 }
 
                 Console.WriteLine(
-                    "TOTAL "
-                    + selected
-                    + ", PASSED "
-                    + (selected - failed)
-                    + ", FAILED "
-                    + failed);
+                    "TOTAL " + selected + ", PASSED " + (selected - failed) + ", FAILED " + failed);
                 if (selected == 0)
                 {
-                    Console.Error.WriteLine(
-                        "ERROR no tests matched the requested filter.");
+                    Console.Error.WriteLine("ERROR no tests matched the requested filter.");
                     return 64;
                 }
 
