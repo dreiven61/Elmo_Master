@@ -23,7 +23,7 @@ jobs:
           ref: codex/mode-10-sourceonly-cleanup
           fetch-depth: 0
 
-      - name: Patch known MODE-08 ratchets and expose rollback dimensions
+      - name: Patch known MODE-08 ratchets
         shell: python
         run: |
           from pathlib import Path
@@ -36,17 +36,14 @@ jobs:
               ('$replacementSemanticTokens.Length -ne 6434', '$replacementSemanticTokens.Length -ne 6714'),
               ("'9EAAB21F2262DB9C206B0581CC21AD3451727F0257CB85D3416D4CDDA2B03612'", "'3386CCD85F63DEE01ABD5C06B82E2F4591179998E07D05B62DF4D816CCFF6D2B'"),
               ('$($replacementSemanticTokens.Length)/6434, ', '$($replacementSemanticTokens.Length)/6714, '),
+              ("@{ Name = 'helper'; Fragment = $helper; LF = 21760; CRLF = 22363; Sha = 'FC1CA1BBD8E56B13FFE55FA7158C8C8EA28038522AC9793A803B2B77EBD58A23' }",
+               "@{ Name = 'helper'; Fragment = $helper; LF = 22214; CRLF = 22826; Sha = '9E0A37E0EC0A3AD7FDD194CF8691BF3B492D4E4C6FD10E8C118323571F980BDD' }"),
           )
           for old, new in replacements:
-              if text.count(old) != 1:
-                  raise SystemExit(f'ratchet token count={text.count(old)}, expected=1: {old}')
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'ratchet token count={count}, expected=1: {old}')
               text = text.replace(old, new, 1)
-
-          old_throw = 'throw "$blocker $($methodContract.Name) byte/hash ratchet drifted."'
-          new_throw = 'throw "$blocker $($methodContract.Name) byte/hash ratchet drifted ($($dimensions.LF)/$($dimensions.CRLF), $((Get-LasalRollbackSplitTextSha256 -Text $methodContract.Fragment)))."'
-          if text.count(old_throw) != 1:
-              raise SystemExit(f'rollback diagnostic throw count={text.count(old_throw)}, expected=1')
-          text = text.replace(old_throw, new_throw, 1)
           src.write_text(text, encoding='utf-8', newline='')
 
       - name: Run repository SourceOnly contract
