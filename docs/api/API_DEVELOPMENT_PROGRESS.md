@@ -3,7 +3,7 @@
 - 문서 버전: 1.0-current
 - 기준일: 2026-08-24
 - API: `LasalMotionControlLib 0.9.1-preview`
-- 기준 branch/HEAD: `main@03c967c1bd21` + 본 current-progress 동기화
+- 기준 branch/HEAD: `dev@9ca030d732ea` + 본 current-progress 동기화
 - 릴리스 판정: **production NO-GO**
 
 이 문서는 API 구현률, 최신 검증 결과, artifact identity, 제한과 다음 작업의 단일 current
@@ -11,6 +11,11 @@
 [DINT packet map](../../LMC_Library/LMC_API_Delivery/docs/DINT_PACKET_MAP.txt)을 따른다.
 설계 이유와 과거 실험은 architecture/history 문서에 남기고 이 문서에 override를 누적하지
 않는다.
+
+현재 active development 기준은 `dev` branch다. `codex/*` 작업 branch는 구현·시험 과정의
+임시 branch이며 current source of truth로 사용하지 않는다. 개발이 끝날 때까지 unique diff와
+시험 흔적 보존을 위해 유지하고, `dev` 반영 또는 명시적 폐기와 증거 보존을 확인한 뒤 stale
+branch를 일괄 정리한다.
 
 ## 1. 판정 기준
 
@@ -47,6 +52,8 @@
   `OwnerKind=6`, shared Diagnostics SDO `ResourceKind=4`, `AdmissionMode=4`, active state `12`로
   설계 동결했지만 Control/Diagnostics source owner와 SDO executor는 아직 없다. capability
   bits 8/9/10 preflight는 Start를 wire 전에 차단한다.
+- active development baseline은 최신 `dev` branch다. `codex/*` branch는 중간 시험/구현
+  branch로 남겨 두되 개발 완료 후 정리 대상으로 관리한다.
 - RETAIN 할당 실패를 없애기 위해 SetPosition backing을 1,344-byte ordinary volatile
   `VAR_GLOBAL`로 변경했다. current build/download/project load에서 이전
   `alloc for retain var failed, size=1344`가 재현되지 않았다.
@@ -252,11 +259,13 @@ activation 원칙은 [최우선 API 개발 설계](design/README.md)를 따른�
 
 ### P0 - current baseline 고정
 
-1. current full SourceOnly, focused verifier, method budget와 UDP identity를 같은 tree에서 모두
+1. `dev` current tree에서 full SourceOnly, focused verifier, method budget와 UDP identity를 모두
    재실행한다.
 2. `Classes.lcb` current delta를 source/generated ABI와 대조하고, 의미 변화가 없다는 검토 뒤에만
    UDP physical identity ratchet을 `568FE551...C5A7`로 갱신한다. hash만 보고 승인하지 않는다.
-3. 목적별 source/verifier/docs/artifact 변경을 분리해 commit하고 clean checkout에서 재현한다.
+3. 목적별 source/verifier/docs/artifact 변경을 `dev`에 분리 commit한다. `codex/*` 임시 branch는
+   개발 완료 전까지 보존하고, 완료 후 unique commit/diff와 시험 근거가 남아 있지 않은 것을
+   확인한 뒤 일괄 삭제한다.
 4. latest image의 `BootId`, `MapRevision`, Diagnostics build와 artifact tuple을 한 evidence로 묶는다.
 
 ### P1 - 기존 기능 current image 회귀
@@ -291,6 +300,7 @@ activation 원칙은 [최우선 API 개발 설계](design/README.md)를 따른�
 
 | 사실 | 정본 |
 |---|---|
+| Active development branch | `dev`; `codex/*`는 임시 구현/시험 branch |
 | Public API signature/behavior | `LMC_API_Delivery/src/**/*.cs` + [API 설명서](API_MANUAL.md) |
 | LASAL route/gate/runtime source | `TCPMotionInterface.st`, `LMCControlCommandService.st`, `LMCDiagnosticsService.st` |
 | Wire offset/frame | [DINT packet map](../../LMC_Library/LMC_API_Delivery/docs/DINT_PACKET_MAP.txt) |
@@ -301,6 +311,10 @@ activation 원칙은 [최우선 API 개발 설계](design/README.md)를 따른�
 이 문서만 current 진척도를 가진다. dated plan/progress/backlog, generated HTML/PDF/DOCX와
 history는 과거 증거 또는 배포 산출물이며 current 상태를 override하지 않는다. 시험 수치나
 artifact identity가 바뀌면 이 문서를 교체하고 다른 문서에 중복 복사하지 않는다.
+
+branch cleanup은 current 상태 기록과 분리한다. 개발 중에는 `codex/*`의 unique diff를
+보존하고, 개발 완료 시 각 branch가 `dev`에 포함됐는지 또는 폐기 가능한지 확인한 뒤 정리한다.
+branch가 많다는 이유만으로 중간 개발 이력을 먼저 삭제하지 않는다.
 
 ## 9. 직접 근거
 
