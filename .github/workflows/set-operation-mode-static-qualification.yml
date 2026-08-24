@@ -8,6 +8,7 @@ on:
       - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
       - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
       - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st'
+      - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
       - 'tools/Verify-SetOperationModeStatic.ps1'
       - 'docs/SET_OPERATION_MODE_DESIGN.md'
       - '.github/workflows/set-operation-mode-static-qualification.yml'
@@ -18,6 +19,7 @@ on:
       - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
       - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
       - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st'
+      - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
       - 'tools/Verify-SetOperationModeStatic.ps1'
       - 'docs/SET_OPERATION_MODE_DESIGN.md'
       - '.github/workflows/set-operation-mode-static-qualification.yml'
@@ -35,13 +37,20 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Run SetOperationMode source/static gate
-        shell: pwsh
+      - name: Run repository SourceOnly contract
+        shell: powershell
+        run: |
+          & '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\Verify-LasalContract.ps1' `
+            -SourceOnly `
+            -ExpectedSdoWriteAxis 1
+
+      - name: Run SetOperationMode invariants
+        shell: powershell
         run: |
           & '.\tools\Verify-SetOperationModeStatic.ps1' -ExpectedSdoWriteAxis 1
 
       - name: Diff hygiene
-        shell: pwsh
+        shell: powershell
         run: |
           if ($env:GITHUB_EVENT_NAME -eq 'pull_request') {
             git diff --check "origin/$env:GITHUB_BASE_REF...HEAD"
