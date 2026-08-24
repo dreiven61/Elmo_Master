@@ -1,9 +1,9 @@
 # LASAL Motion Control API 개발 진척도
 
 - 문서 버전: 1.0-current
-- 기준일: 2026-08-20
+- 기준일: 2026-08-24
 - API: `LasalMotionControlLib 0.9.1-preview`
-- 기준 branch/HEAD: `main@5c80afe94685` + 현재 working tree
+- 기준 branch/HEAD: `main@03c967c1bd21` + 본 current-progress 동기화
 - 릴리스 판정: **production NO-GO**
 
 이 문서는 API 구현률, 최신 검증 결과, artifact identity, 제한과 다음 작업의 단일 current
@@ -43,13 +43,15 @@
 - SetPosition `0x7D12/0x7D14/0x7D1A`는 SDK, wire, route와 P1 async lifecycle source를
   구현했지만 current runtime은 의도적으로 fail-closed다.
 - SetOperationMode `0x7D23/0x7D24/0x7D25`는 PC/SDK immutable lifecycle, exact frame/parser와
-  LASAL dormant failure route를 구현했다. owner/SDO executor는 없으며 capability bits 8/9/10
-  preflight가 Start를 wire 전에 차단한다.
+  LASAL dormant failure route를 구현했다. `AxisOperationMode` numeric owner ABI는
+  `OwnerKind=6`, shared Diagnostics SDO `ResourceKind=4`, `AdmissionMode=4`, active state `12`로
+  설계 동결했지만 Control/Diagnostics source owner와 SDO executor는 아직 없다. capability
+  bits 8/9/10 preflight는 Start를 wire 전에 차단한다.
 - RETAIN 할당 실패를 없애기 위해 SetPosition backing을 1,344-byte ordinary volatile
   `VAR_GLOBAL`로 변경했다. current build/download/project load에서 이전
   `alloc for retain var failed, size=1344`가 재현되지 않았다.
 - 최신 C78 build와 PLC link/download/SystemInit/project load는 성공했다. 이 결과를
-  SetPosition 실행, 전체 motion 회귀 또는 production 승인으로 확대하지 않는다.
+  SetPosition 실행, SetOperationMode 실행, 전체 motion 회귀 또는 production 승인으로 확대하지 않는다.
 - 마지막 IDE build가 `Classes.lcb`를 다시 생성해 current SHA가 승인 ratchet과 달라졌다.
   따라서 UDP artifact verifier와 이를 포함한 full SourceOnly는 현재 **FAIL/STOP**이다.
 
@@ -67,7 +69,7 @@
 - 완전/적응 구현: `D + E = 40/65 = 61.5%`
 - 부분 포함: `D + E + P = 53/65 = 81.5%`
 - High-priority 21개 관점: Active 17, Partial 3(SetPosition, DS402 Home,
-  SetOperationMode PC/SDK), Missing 1(`HomeDS402Ex`)
+  SetOperationMode PC/SDK+dormant route), Missing 1(`HomeDS402Ex`)
 
 ## 4. 기능별 current 상태
 
@@ -80,7 +82,7 @@
 | LMC Home | `0x7D13/7D18/7D19` | Active/Limited | Admin bit 4 ON; no-motion CurrentPositionZero이며 switch-search Home이 아님 |
 | SetPosition | `0x7D12/7D14/7D1A` | Dormant | Store/ownership FALSE, max-jump 0, bits 3/5/7 OFF, volatile backing, native call 0, detail 24 |
 | DS402 Home | `0x7D15/7D16/7D17` | Dormant | method 37 source, gate FALSE, Admin bit 6 OFF; `HomeDS402Ex` 실행은 없음 |
-| SetOperationMode | `0x7D23/7D24/7D25` | Dormant route | PC/SDK lifecycle과 deterministic failure route 구현; owner/SDO/store 없음, bits 8/9/10 OFF, SDK wire 송신 전 차단 |
+| SetOperationMode | `0x7D23/7D24/7D25` | Dormant route | PC/SDK lifecycle+dormant failure route 구현; owner ABI는 문서 동결만 완료, source owner/SDO/store 없음, bits 8/9/10 OFF |
 | Diagnostics capability | `0x7E00` | Active | 매 connection에서 fresh `BootId`, `MapRevision`, mask를 읽어야 함 |
 | D1/D2 | `0x7E01/02/10/20`, `0x7E30-33` | Active/Limited | typed catalog/PI/Bulk 경로; fault/partial/soak 확대 필요 |
 | D3 Recorder | `0x7E40-49` | Active/Limited | Single/Ring/Trigger, single recorder owner; capture 적격성 확대 필요 |
@@ -139,6 +141,24 @@ Axis override, typed emergency callback producer, profile conditioning pair와 S
 
 이 값은 결함이 아니라 current image에서 좌표 mutation과 비내구성 replay를 막는 의도된
 release fence다. static/build PASS를 이유로 gate를 켜면 안 된다.
+
+### 5.4 SetOperationMode owner/resource ABI freeze
+
+2026-08-24 source 구현 전 설계 gate로 다음 ABI를 동결했다.
+
+- `AxisOperationMode OwnerKind = 6`
+- 기존 Diagnostics SDO `ResourceKind = 4` 공유
+- `AdmissionMode = 4 (Lifecycle)`
+- 신규 active owner state `12`
+- Start command `0x7D23`, physical axis 1..4 exact single-axis mask
+
+resource 4는 current Control에서 이미 `DIAGNOSTICS_SDO_ENGINE` singleton으로 사용되고
+Diagnostics의 Encoder maintenance가 같은 `SdoAxis1..4` execution domain을 사용한다. 새
+resource 5를 추가하지 않고 이 resource를 공유해 1차 구현에서 Encoder maintenance와
+SetOperationMode를 직렬화한다. OwnerKind는 lifecycle/outcome 의미가 다르므로 Encoder kind 5와
+분리한다. 이 결정은 문서 ABI freeze이며 current `LMCControlCommandService.st`와
+`LMCDiagnosticsService.st` 상수/validator/state mapping 구현 완료를 뜻하지 않는다.
+SetOperationMode는 좌표 원점을 바꾸지 않으므로 AxisRebaseRequired barrier를 변경하지 않는다.
 
 ## 6. 최신 검증 현황
 
@@ -205,12 +225,13 @@ histogram과 intentional baseline을 다시 검토해야 한다. artifact hash�
 - download image와 함께 기록한 fresh `BootId`, `MapRevision`, Diagnostics build tuple
 - 축 1~4의 실제 RT task id/core/priority 동등성
 - SetPosition `0x7D12` 실행, native call, coordinate 변화 또는 packet capture
+- SetOperationMode owner kind/resource source 구현, `0x6061 -> 0x6060 -> 0x6061` 실행 또는 packet capture
 - latest image의 전체 Axis/Group motion, power, stop, fault, reconnect와 soak matrix
 - live UDP callback wake + causal TCP terminal packet evidence
 - fresh PLC OS/SYSMSG log를 포함한 장시간 무재시작 증거
 
-따라서 현재 PLC가 정상 구동된 관찰은 PLC load/smoke 증거이며 production runtime 또는
-SetPosition hardware PASS가 아니다.
+따라서 현재 PLC가 정상 구동된 관찰은 PLC load/smoke 증거이며 production runtime,
+SetPosition 또는 SetOperationMode hardware PASS가 아니다.
 
 ## 7. Release blockers와 우선순위
 
@@ -222,7 +243,7 @@ activation 원칙은 [최우선 API 개발 설계](design/README.md)를 따른�
 | 순서 | API | 진행도 | 다음 구현 gate |
 |---:|---|---:|---|
 | 1 | [HomeDS402](design/HOME_DS402_DESIGN.md) | 50% | 기존 method 37 lifecycle의 5-part atomic activation과 축 1~4 실기 적격화 |
-| 2 | [SetOpMode](design/SET_OPERATION_MODE_DESIGN.md) | 25% | PC/SDK contract 완료; CSP mode owner, LASAL lifecycle와 no-replay runtime recovery |
+| 2 | [SetOpMode](design/SET_OPERATION_MODE_DESIGN.md) | 25% | owner/resource numeric ABI freeze 완료; Control/Diagnostics owner source 반영 후 CSP SDO lifecycle/no-replay runtime recovery |
 | 3 | [HomeDS402Ex](design/HOME_DS402_EX_DESIGN.md) | 0% | axis profile/scale 승인 후 `0x7D1B/1C/1D` dormant lifecycle |
 | 4 | [SetPosition](design/SET_POSITION_DESIGN.md) | 25% | RAMex production NO-GO; `_FileSys` dual-file backend, RT claim/native와 terminal durability |
 
