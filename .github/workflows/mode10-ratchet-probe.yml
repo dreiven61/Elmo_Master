@@ -17,13 +17,13 @@ jobs:
     if: github.actor != 'github-actions[bot]'
     runs-on: windows-latest
     steps:
-      - name: Checkout cleanup branch
+      - name: Checkout finalize branch
         uses: actions/checkout@v4
         with:
-          ref: codex/mode-10-sourceonly-cleanup
+          ref: codex/mode-10-sourceonly-finalize
           fetch-depth: 0
 
-      - name: Patch proven ownership ratchets
+      - name: Patch proven ownership ratchets and expose reserve semantic gate
         shell: python
         run: |
           from pathlib import Path
@@ -58,11 +58,19 @@ jobs:
               if count != 1:
                   raise SystemExit(f'ratchet token count={count}, expected=1: {old}')
               text = text.replace(old, new, 1)
+
           lines = text.splitlines()
-          print('--- VERIFIER_LINES_8360_8470_BEGIN ---')
-          for number in range(8360, min(8471, len(lines) + 1)):
-              print(f'{number}: {lines[number - 1]}')
-          print('--- VERIFIER_LINES_8360_8470_END ---')
+          hits = [i for i, line in enumerate(lines) if '61265' in line]
+          if len(hits) != 1:
+              raise SystemExit(f'expected exactly one 61265 semantic gate, found {len(hits)}')
+          hit = hits[0]
+          start = max(0, hit - 24)
+          end = min(len(lines), hit + 25)
+          print('--- RESERVE_SEMANTIC_GATE_CONTEXT_BEGIN ---')
+          for i in range(start, end):
+              print(f'{i + 1}: {lines[i]}')
+          print('--- RESERVE_SEMANTIC_GATE_CONTEXT_END ---')
+
           src.write_text(text, encoding='utf-8', newline='')
 
       - name: Run repository SourceOnly contract
