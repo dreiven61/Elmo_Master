@@ -1,0 +1,93 @@
+name: SetOperationMode WPF recovery qualification
+
+on:
+  pull_request:
+    branches:
+      - dev
+    paths:
+      - 'LMC_Library/LMC_API_Delivery/src/LmcAdminSetOperationMode*.cs'
+      - 'LMC_Library/LMC_API_Delivery/src/LmcAxisSetOperationMode.cs'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/AxisSetOperationModeRecoveryJournal.cs'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/LasalApiWpfTestApp.csproj'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/AxisSetOperationModeRecoveryJournalTests.cs'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/LasalApiWpfTestApp.SmokeTests.csproj'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/Program.cs'
+      - '.github/workflows/set-operation-mode-wpf-recovery.yml'
+  push:
+    branches:
+      - dev
+    paths:
+      - 'LMC_Library/LMC_API_Delivery/src/LmcAdminSetOperationMode*.cs'
+      - 'LMC_Library/LMC_API_Delivery/src/LmcAxisSetOperationMode.cs'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/AxisSetOperationModeRecoveryJournal.cs'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/LasalApiWpfTestApp.csproj'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/AxisSetOperationModeRecoveryJournalTests.cs'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/LasalApiWpfTestApp.SmokeTests.csproj'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/Program.cs'
+      - '.github/workflows/set-operation-mode-wpf-recovery.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  journal-smoke:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Locate MSBuild
+        id: msbuild
+        shell: powershell
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          if (-not (Test-Path -LiteralPath $vswhere)) {
+            throw "vswhere.exe was not found on the Windows runner."
+          }
+          $msbuild = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
+          if ([string]::IsNullOrWhiteSpace($msbuild)) {
+            throw "MSBuild.exe was not found on the Windows runner."
+          }
+          "path=$msbuild" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Build WPF smoke tests Debug
+        shell: powershell
+        run: |
+          $project = '.\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\LasalApiWpfTestApp.SmokeTests.csproj'
+          & '${{ steps.msbuild.outputs.path }}' $project /t:Build /p:Configuration=Debug /p:Platform=AnyCPU /m
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run SetOperationMode journal smoke tests Debug
+        shell: powershell
+        run: |
+          $exe = '.\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\bin\Debug\LasalApiWpfTestApp.SmokeTests.exe'
+          & $exe --filter AxisSetOperationModeJournal
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build WPF smoke tests Release
+        shell: powershell
+        run: |
+          $project = '.\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\LasalApiWpfTestApp.SmokeTests.csproj'
+          & '${{ steps.msbuild.outputs.path }}' $project /t:Build /p:Configuration=Release /p:Platform=AnyCPU /m
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run SetOperationMode journal smoke tests Release
+        shell: powershell
+        run: |
+          $exe = '.\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\bin\Release\LasalApiWpfTestApp.SmokeTests.exe'
+          & $exe --filter AxisSetOperationModeJournal
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Diff hygiene
+        shell: powershell
+        run: |
+          if ($env:GITHUB_EVENT_NAME -eq 'pull_request') {
+            git diff --check "origin/$env:GITHUB_BASE_REF...HEAD"
+          }
+          elseif ($env:GITHUB_EVENT_NAME -eq 'push') {
+            git diff --check HEAD^ HEAD
+          }
+          else {
+            git diff --check
+          }
