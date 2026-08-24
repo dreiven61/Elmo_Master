@@ -8,8 +8,12 @@ on:
       - 'LMC_Library/LMC_API_Delivery/src/LmcAdminSetOperationMode*.cs'
       - 'LMC_Library/LMC_API_Delivery/src/LmcAxisSetOperationMode.cs'
       - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/AxisSetOperationModeRecoveryJournal.cs'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.AxisSetOperationModeRecovery.cs'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.ReadOnlyApi.cs'
       - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/LasalApiWpfTestApp.csproj'
       - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/AxisSetOperationModeRecoveryJournalTests.cs'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/AxisSetOperationModeSdkRecoveryIdentityTests.cs'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/WpfAxisSetOperationModeRecoveryIntegrationTests.cs'
       - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/LasalApiWpfTestApp.SmokeTests.csproj'
       - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/Program.cs'
       - '.github/workflows/set-operation-mode-wpf-recovery.yml'
@@ -20,8 +24,12 @@ on:
       - 'LMC_Library/LMC_API_Delivery/src/LmcAdminSetOperationMode*.cs'
       - 'LMC_Library/LMC_API_Delivery/src/LmcAxisSetOperationMode.cs'
       - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/AxisSetOperationModeRecoveryJournal.cs'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.AxisSetOperationModeRecovery.cs'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.ReadOnlyApi.cs'
       - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/LasalApiWpfTestApp.csproj'
       - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/AxisSetOperationModeRecoveryJournalTests.cs'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/AxisSetOperationModeSdkRecoveryIdentityTests.cs'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/WpfAxisSetOperationModeRecoveryIntegrationTests.cs'
       - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/LasalApiWpfTestApp.SmokeTests.csproj'
       - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/Program.cs'
       - '.github/workflows/set-operation-mode-wpf-recovery.yml'
@@ -31,7 +39,7 @@ permissions:
   contents: read
 
 jobs:
-  journal-smoke:
+  recovery-smoke:
     runs-on: windows-latest
     steps:
       - name: Checkout
@@ -58,11 +66,11 @@ jobs:
           & '${{ steps.msbuild.outputs.path }}' $project /t:Build /p:Configuration=Debug /p:Platform=AnyCPU /m
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Run SetOperationMode journal smoke tests Debug
+      - name: Run SetOperationMode recovery smoke tests Debug
         shell: powershell
         run: |
           $exe = '.\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\bin\Debug\LasalApiWpfTestApp.SmokeTests.exe'
-          & $exe --filter AxisSetOperationModeJournal
+          & $exe --filter SetOperationMode
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Build WPF smoke tests Release
@@ -72,11 +80,11 @@ jobs:
           & '${{ steps.msbuild.outputs.path }}' $project /t:Build /p:Configuration=Release /p:Platform=AnyCPU /m
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Run SetOperationMode journal smoke tests Release
+      - name: Run SetOperationMode recovery smoke tests Release
         shell: powershell
         run: |
           $exe = '.\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\bin\Release\LasalApiWpfTestApp.SmokeTests.exe'
-          & $exe --filter AxisSetOperationModeJournal
+          & $exe --filter SetOperationMode
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Diff hygiene
