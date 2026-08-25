@@ -1,4 +1,4 @@
-# one-shot repair trigger: 2026-08-26 semantic-actual-pair
+# one-shot repair trigger: 2026-08-26 adapter-ratchet-diagnostic
 name: HomeDS402Ex HOMEEX-09 one-shot repair
 
 on:
@@ -48,6 +48,13 @@ jobs:
           control.write_bytes(control_bytes)
 
           contract_bytes = contract.read_bytes()
+          for needle in (b'byte/hash ratchet', b'ValidateAxisOwnershipPreemptionReplacement'):
+              positions = [match.start() for match in re.finditer(re.escape(needle), contract_bytes, re.IGNORECASE)]
+              print(f'INFO verifier diagnostic needle={needle!r} occurrences={len(positions)}')
+              for ordinal, position in enumerate(positions, 1):
+                  context = contract_bytes[max(0, position - 1800):min(len(contract_bytes), position + 1800)]
+                  print(f'INFO verifier diagnostic {needle!r} context {ordinal}: {context!r}')
+
           state_old = b"$replacementBankHistogram['ownershipstate'] -ne 44"
           state_new = b"$replacementBankHistogram['ownershipstate'] -ne 47"
           message_old = b'expected 44/12.'
