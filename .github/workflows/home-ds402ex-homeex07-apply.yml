@@ -6,6 +6,7 @@ on:
       - codex/home-ds402ex-homeex07-ownership
     paths:
       - 'tools/Apply-HomeDs402ExHomeex07Ownership.ps1'
+      - 'tools/Invoke-HomeDs402ExHomeex07OwnershipTransform.ps1'
       - '.github/workflows/home-ds402ex-homeex07-apply.yml'
   workflow_dispatch:
 
@@ -32,7 +33,7 @@ jobs:
       - name: Apply exact HOMEEX-07 source transform
         shell: pwsh
         run: |
-          & .\tools\Apply-HomeDs402ExHomeex07Ownership.ps1
+          & .\tools\Invoke-HomeDs402ExHomeex07OwnershipTransform.ps1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Verify HOMEEX-07 ownership candidate
