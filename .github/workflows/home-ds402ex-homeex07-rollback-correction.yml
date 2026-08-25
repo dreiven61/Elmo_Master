@@ -58,10 +58,10 @@ jobs:
           if ($tcp -notmatch 'if \(CommandID\s*=\s*0x7D1B\)\s*\|[\s\S]{0,180}?diagnosticsExactFailure\s*=\s*FALSE[\s\S]{0,180}?RollbackAxisOwnership') { throw 'HomeEx gate-off response is not followed by TCP owner rollback' }
 
           $verify = [System.IO.File]::ReadAllText($verifyPath).Replace("`r`n", "`n").Replace("`r", "`n")
-          $verifyOld = "Require-Regex `$startBody 'AxisOwnership\\.RollbackAxisOwnership' 'deterministic gate-OFF Start rejection releases the exact reservation'"
+          $verifyOld = "Require-Regex `$startBody 'AxisOwnership\.RollbackAxisOwnership' 'deterministic gate-OFF Start rejection releases the exact reservation'"
           $verifyNew = @(
             "Require-AbsentRegex `$startBody 'RollbackAxisOwnership' 'Diagnostics HomeDS402Ex Start does not own reservation release'",
-            "Require-Regex `$tcp 'if \\(CommandID\\s*=\\s*0x7D1B\\)\\s*\\|[\\s\\S]{0,180}?diagnosticsExactFailure\\s*=\\s*FALSE[\\s\\S]{0,180}?RollbackAxisOwnership' 'TCP releases every reserved HomeDS402Ex gate-OFF Start before response completion'"
+            "Require-Regex `$tcp 'if \(CommandID\s*=\s*0x7D1B\)\s*\|[\s\S]{0,180}?diagnosticsExactFailure\s*=\s*FALSE[\s\S]{0,180}?RollbackAxisOwnership' 'TCP releases every reserved HomeDS402Ex gate-OFF Start before response completion'"
           ) -join "`n"
           if ([regex]::Matches($verify, [regex]::Escape($verifyOld)).Count -ne 1) { throw 'Expected one legacy Diagnostics rollback verifier assertion' }
           $verify = $verify.Replace($verifyOld, $verifyNew)
@@ -100,8 +100,9 @@ jobs:
           git add -- $paths
           git diff --cached --check
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $staged = @(git diff --cached --name-only)
           foreach ($path in $paths) {
-            if (-not (@(git diff --cached --name-only) -contains $path)) { throw "Missing staged correction: $path" }
+            if (-not ($staged -contains $path)) { throw "Missing staged correction: $path" }
           }
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
