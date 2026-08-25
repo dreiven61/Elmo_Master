@@ -18,6 +18,16 @@ function Replace-Once {
     return $Text.Replace($Old, $New)
 }
 
+function Replace-RegexOnce {
+    param([string]$Text, [string]$Pattern, [string]$New, [string]$Label)
+    $matches = [regex]::Matches($Text, $Pattern, [System.Text.RegularExpressions.RegexOptions]::Multiline)
+    if ($matches.Count -ne 1) {
+        throw "HOMEEX-06 progress sync refused: '$Label' expected one regex match, found $($matches.Count)"
+    }
+    Write-Host "PASS exact regex anchor: $Label"
+    return [regex]::Replace($Text, $Pattern, [System.Text.RegularExpressions.MatchEvaluator]{ param($m) $New }, [System.Text.RegularExpressions.RegexOptions]::Multiline)
+}
+
 function Read-Lf {
     param([string]$Path)
     return [System.IO.File]::ReadAllText($Path).Replace("`r`n", "`n").Replace("`r", "`n")
@@ -33,8 +43,8 @@ function Write-Utf8NoBomLf {
 $progress = Read-Lf $progressPath
 $readme = Read-Lf $designReadmePath
 
-$progress = Replace-Once $progress `
-    '- 기준 branch/HEAD: `dev@925dd8258feb` + 본 current-progress 동기화' `
+$progress = Replace-RegexOnce $progress `
+    '^- 기준 branch/HEAD: `dev@925dd8258feb` \+ 본 current-progress 동기화$' `
     '- 기준 branch/HEAD: `dev@5a98162b5d48` + HOMEEX-06 current-progress 동기화' `
     'current dev HEAD'
 
