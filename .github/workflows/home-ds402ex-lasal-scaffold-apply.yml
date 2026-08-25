@@ -1,0 +1,86 @@
+name: HomeDS402Ex LASAL scaffold apply
+
+on:
+  push:
+    branches:
+      - codex/home-ds402ex-lasal-scaffold
+    paths:
+      - tools/Apply-HomeDs402ExLasalScaffold.ps1
+      - tools/HomeDs402ExLasalScaffold.fragment.txt
+      - tools/Verify-HomeDs402ExLasalScaffold.ps1
+      - .github/workflows/home-ds402ex-lasal-scaffold-apply.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply-scaffold:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify exact dormant baseline before transform
+        shell: powershell
+        run: |
+          powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\tools\Verify-HomeDs402ExLasalBaseline.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Apply exact HOMEEX-06 scaffold transform
+        shell: powershell
+        run: |
+          powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\tools\Apply-HomeDs402ExLasalScaffold.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify SCAFFOLD_OFF invariants
+        shell: powershell
+        run: |
+          powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\tools\Verify-HomeDs402ExLasalScaffold.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify SetOperationMode define order regression
+        shell: powershell
+        run: |
+          powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\tools\Verify-SetOperationModeDefineOrder.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify exact changed source set and diff hygiene
+        shell: powershell
+        run: |
+          $expected = @(
+            'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st',
+            'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st'
+          ) | Sort-Object
+          $actual = @(git diff --name-only) | Sort-Object
+          if ($actual.Count -ne $expected.Count) {
+            throw "Unexpected changed-file count: $($actual.Count)"
+          }
+          for ($index = 0; $index -lt $expected.Count; $index++) {
+            if ($actual[$index] -ne $expected[$index]) {
+              throw "Unexpected changed path: $($actual[$index])"
+            }
+          }
+          git diff --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git diff --stat
+
+      - name: Commit exact scaffold sources
+        shell: powershell
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- `
+            'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st' `
+            'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
+          git diff --cached --quiet
+          if ($LASTEXITCODE -eq 0) {
+            throw 'HOMEEX-06 scaffold transform produced no staged source change.'
+          }
+          git commit -m 'feat(homeex): add gate-off LASAL parser scaffold'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git push origin HEAD:codex/home-ds402ex-lasal-scaffold
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
