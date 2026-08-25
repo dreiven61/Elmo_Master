@@ -6,16 +6,26 @@ on:
       - dev
     paths:
       - 'LMC_Library/LMC_API_Delivery/src/LmcAdminDs402HomeEx*.cs'
+      - 'LMC_Library/LMC_API_Delivery/src/LmcProtocol.cs'
+      - 'LMC_Library/LMC_API_Delivery/src/LmcAdminModels.cs'
+      - 'LMC_Library/LMC_API_Delivery/src/LmcResponsePayloadLimits.cs'
       - 'LMC_Library/LMC_API_Delivery/src/LasalMotionControlLib.csproj'
-      - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/AxisDs402HomeExParameterContractTests.cs'
+      - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/*Ds402HomeEx*Tests.cs'
+      - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Program.cs'
+      - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/LasalMotionControlLib.Tests.csproj'
       - '.github/workflows/home-ds402ex-sdk-wire.yml'
   push:
     branches:
       - codex/home-ds402ex-sdk-wire
     paths:
       - 'LMC_Library/LMC_API_Delivery/src/LmcAdminDs402HomeEx*.cs'
+      - 'LMC_Library/LMC_API_Delivery/src/LmcProtocol.cs'
+      - 'LMC_Library/LMC_API_Delivery/src/LmcAdminModels.cs'
+      - 'LMC_Library/LMC_API_Delivery/src/LmcResponsePayloadLimits.cs'
       - 'LMC_Library/LMC_API_Delivery/src/LasalMotionControlLib.csproj'
-      - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/AxisDs402HomeExParameterContractTests.cs'
+      - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/*Ds402HomeEx*Tests.cs'
+      - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Program.cs'
+      - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/LasalMotionControlLib.Tests.csproj'
       - '.github/workflows/home-ds402ex-sdk-wire.yml'
   workflow_dispatch:
 
