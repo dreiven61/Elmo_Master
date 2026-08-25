@@ -41,6 +41,7 @@
     <Compile Include="LmcAdminDs402HomeProtocol.cs" />
     <Compile Include="LmcAdminDs402HomeOutcomeProtocol.cs" />
     <Compile Include="LmcAdminDs402HomeOutcomeRetirementProtocol.cs" />
+    <Compile Include="LmcAdminDs402HomeExProtocol.cs" />
     <Compile Include="LmcAdminModels.cs" />
     <Compile Include="LmcAdminSetAxisPositionModels.cs" />
     <Compile Include="LmcAdminSetAxisPositionOutcomeModels.cs" />
@@ -51,6 +52,7 @@
     <Compile Include="LmcAdminHomeModels.cs" />
     <Compile Include="LmcAdminDs402HomeModels.cs" />
     <Compile Include="LmcAdminDs402HomeExModels.cs" />
+    <Compile Include="LmcAdminDs402HomeExWireModels.cs" />
     <Compile Include="LmcAdminDs402HomeOutcomeModels.cs" />
     <Compile Include="LmcAdminDs402HomeOutcomeRetirementModels.cs" />
     <Compile Include="LmcAdmin.cs" />
