@@ -1,4 +1,4 @@
-name: HomeDS402Ex LASAL dormant baseline
+name: HomeDS402Ex LASAL scaffold qualification
 
 on:
   pull_request:
@@ -8,35 +8,45 @@ on:
       - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st'
       - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
       - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
-      - 'tools/Verify-HomeDs402ExLasalBaseline.ps1'
+      - 'tools/Verify-HomeDs402ExLasalScaffold.ps1'
+      - 'tools/Verify-SetOperationModeDefineOrder.ps1'
       - '.github/workflows/home-ds402ex-lasal-baseline.yml'
       - 'docs/api/design/HOME_DS402_EX_LASAL_SCAFFOLD_READINESS.md'
+      - 'docs/api/design/HOME_DS402_EX_DESIGN.md'
   push:
     branches:
-      - codex/home-ds402ex-lasal-scaffold-readiness
+      - codex/home-ds402ex-lasal-scaffold
     paths:
       - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st'
       - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
       - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
-      - 'tools/Verify-HomeDs402ExLasalBaseline.ps1'
+      - 'tools/Verify-HomeDs402ExLasalScaffold.ps1'
+      - 'tools/Verify-SetOperationModeDefineOrder.ps1'
       - '.github/workflows/home-ds402ex-lasal-baseline.yml'
       - 'docs/api/design/HOME_DS402_EX_LASAL_SCAFFOLD_READINESS.md'
+      - 'docs/api/design/HOME_DS402_EX_DESIGN.md'
   workflow_dispatch:
 
 jobs:
-  dormant-baseline:
-    runs-on: windows-latest
-    timeout-minutes: 10
+  scaffold-off:
+    runs-on: windows-2025
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Verify HomeDS402Ex LASAL baseline
+      - name: Verify HomeDS402Ex SCAFFOLD_OFF
         shell: powershell
         run: |
-          powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\tools\Verify-HomeDs402ExLasalBaseline.ps1
+          powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\tools\Verify-HomeDs402ExLasalScaffold.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify SetOperationMode define order regression
+        shell: powershell
+        run: |
+          powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\tools\Verify-SetOperationModeDefineOrder.ps1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Diff hygiene
