@@ -1,10 +1,10 @@
 # HomeDS402Ex 최우선 개발 설계
 
 - 대상: No.22 `MMC_HomeDS402ExCmd`
-- 현재 진행도: 0%
-- current 상태: typed input model only, runtime `Missing`
-- 신규 command 예약: `0x7D1B Start`, `0x7D1C ReadOutcome`, `0x7D1D Retire`
-- activation: independent Admin feature bit 11, current OFF
+- 현재 진행 상태: SDK wire/lifecycle qualification 완료, LASAL runtime/WPF durable journal 미구현
+- current C#: frozen wire contract, strict Start/Outcome/Retire parser, one-shot lifecycle facade, read-only recovery rehydrate 구현
+- 신규 command: `0x7D1B Start`, `0x7D1C ReadOutcome`, `0x7D1D Retire`
+- activation: independent Admin feature bit 11, PLC advertisement/current runtime OFF
 
 ## 1. 목적과 분리 원칙
 
@@ -12,8 +12,11 @@
 recovery key, outcome record와 capability를 가진다. 두 API는 같은 축의 DS402 Home engine과
 SDO executor resource를 공유해 동시에 실행되지 않게 한다.
 
-current C#에는 `LMCAxisDs402HomeExParameters`와 validation test만 있다. public 실행 API,
-wire, capability, LASAL route/state/store와 WPF 실행 경로는 없다.
+current C#에는 `LMCAxisDs402HomeExParameters` 입력 model에 더해 frozen DINT execution plan,
+`0x7D1B/1C/1D` wire contract, strict response parser, one-shot Start/Outcome/Retire facade와
+read-only durable recovery-key rehydrate가 구현되어 있다. engineering-unit public Prepare는
+axis별 scale/profile 승인 전까지 의도적으로 닫혀 있다. LASAL route/state/store와 WPF durable
+journal 실행 경로는 아직 구현하지 않았다.
 
 ## 2. v1 범위
 
@@ -46,14 +49,18 @@ axis별 scale, rounding, min/max와 overflow를 적용해 wire용 DINT plan을 �
 - Maestro 완료 위치 의미는 `ActualPosition == -Position`
 - scale/allowlist 변경은 Diagnostics MapRevision과 paired update한다.
 
+current SDK frozen-plan constructor는 `Position == Int32.MinValue`를 Start intent 생성 전에
+거부한다. engineering-unit scale/rounding/range 자체는 HOMEEX-01/02 승인 전까지 public Prepare로
+노출하지 않는다.
+
 scale과 wiring은 코드에 숨은 상수로 두지 않고 axis homing profile 표로 관리한다. profile은
 Home switch, positive/negative limit, index/block source, active level, debounce, travel direction,
 max travel, torque range와 method mask를 포함한다.
 
-## 4. wire 제안
+## 4. wire contract
 
-source 구현 전 `HOMEEX-03` golden-byte test에서 아래 layout을 최종 고정하고 packet map에
-승격한다.
+`HOMEEX-03` SDK golden-byte test에서 아래 layout을 고정했다. PLC/LASAL route는 아직 OFF이며
+packet map/LASAL paired activation은 별도 단계로 진행한다.
 
 ### Start `0x7D1B`, 116 bytes
 
@@ -84,7 +91,7 @@ terminal 완료가 아니다.
 
 복구 key는 collision 가능한 짧은 hash가 아니라 다음 full exact tuple을 사용한다.
 
-`build + BootId + map + original RequestId + ClientIntentId[4] + 모든 변환된 실행 parameter`
+`build + BootId + map + original RequestId + ClientIntentId[4] + axis + 모든 변환된 실행 parameter`
 
 - `0x7D1C` request: 116 bytes. Start의 P112 ExecuteToken 자리를 없애고 P20에
   OriginalRequestId를 넣은 뒤 나머지 exact parameter를 4 bytes 뒤로 이동한다.
@@ -132,7 +139,7 @@ Succeeded response로 만들지 않고 query detail 54 또는 62로 unresolved �
 Running은 CompletionCycle=0이다. terminal은 CompletionCycle>=StartCycle과 full key echo가
 필수다. Query/Retire domain failure는 16-byte common envelope만 반환한다.
 
-`CleanupProofFlags`는 최소 다음을 포함한다.
+`CleanupProofFlags`는 다음 6개를 safe-terminal 필수 proof로 고정한다.
 
 - start bit low
 - CSP 8 복원
@@ -141,11 +148,10 @@ Running은 CompletionCycle=0이다. terminal은 CompletionCycle>=StartCycle과 f
 - 임시 homing parameter 복원
 - SDO callback/orphan drain 해소
 
-ErrorCatalogVersion 7 후보 detail은 `53 outcome not found`, `54 indeterminate`, `55 store
-corrupt`, `56 exact-key mismatch`, `57 storage unavailable`, `58 runtime execution failed`,
-`59 aborted`, `60 slot occupied`, `61 invalid profile/method/scale`, `62 cleanup incomplete`로
-예약한다. 공통 owner conflict/quarantine는 기존 41/42를 재사용한다. source 반영 시 packet
-map과 C#/LASAL enum을 같은 changeset에서 고정한다.
+ErrorCatalogVersion 7 detail은 `53 outcome not found`, `54 indeterminate`, `55 store corrupt`,
+`56 exact-key mismatch`, `57 storage unavailable`, `58 runtime execution failed`, `59 aborted`,
+`60 slot occupied`, `61 invalid profile/method/scale`, `62 cleanup incomplete`로 C# enum과 중앙
+error catalog에 등록했다. 공통 owner conflict/quarantine는 기존 41/42를 재사용한다.
 
 ## 5. 상태 머신
 
@@ -182,30 +188,46 @@ overall timeout와 detection timeout은 SDO timeout과 분리한다. service tim
 - terminal record는 exact generation retire 뒤에만 다음 Home을 허용한다.
 - current ordinary/warm memory를 cold-durable store로 주장하지 않는다.
 
+SDK는 Start write-boundary 뒤 응답 유실 시 prepared command를 consumed 상태로 유지하고 session을
+invalid/faulted 처리한다. persisted full key는 `LMCAxisDs402HomeExRecovery.Rehydrate`로 다시 만들 수
+있지만 이 key로 Start prepared command를 생성할 수는 없다. 재접속 뒤 Query는 exact same
+Build/BootId/MapRevision과 current capability observation을 요구한다. Retire 응답 유실 뒤에는
+같은 recovery key와 같은 nonzero record generation으로만 exact retry할 수 있다.
+
 ## 7. capability
 
-Admin feature bit 11 `AxisDs402HomeEx`를 예약한다. 이 한 bit는 Start/ReadOutcome/Retire와
-current error catalog 전체를 indivisible하게 의미한다. SetOpMode가 예약한 bits 8..10과
-충돌하지 않는다. strict SDK와 PLC를 paired 배포하며 physical qualification 전까지 OFF다.
+Admin feature bit 11 `AxisDs402HomeEx`를 C# protocol에 고정했다. 이 한 bit는
+Start/ReadOutcome/Retire와 ErrorCatalogVersion 7 전체를 indivisible하게 의미한다.
+SetOpMode가 예약한 bits 8..10과 충돌하지 않는다. SDK parser는 bit 11 + catalog 7 미만 조합,
+physical axis count 범위 위반과 unknown feature bit를 fail-closed한다.
 
-## 8. 변경 대상
+PLC/LASAL capability advertisement와 runtime route는 physical qualification 전까지 OFF다.
 
-### C# 신규
+## 8. 변경 대상과 current SDK implementation
+
+### C# 구현됨
 
 - `LmcAdminDs402HomeExProtocol.cs`
 - `LmcAdminDs402HomeExOutcomeProtocol.cs`
-- `LmcAdminDs402HomeExOutcomeRetirementProtocol.cs`
+- `LmcAdminDs402HomeExLifecycleProtocol.cs`
+- `LmcAdminDs402HomeExWireModels.cs`
+- `LmcAdminDs402HomeExOutcomeModels.cs`
+- `LmcAdminDs402HomeExLifecycleModels.cs`
+- `LmcAdminDs402HomeExRecovery.cs`
 - `LmcAdminDs402HomeEx.cs`
 - `LmcAxisDs402HomeEx.cs`
-- `LmcAxisDs402HomeExOutcomeRetirement.cs`
-
-### C# 수정
-
 - `LmcProtocol.cs`, `LmcAdminModels.cs`, `LmcAdminProtocol.cs`
-- `LmcAdminDs402HomeExModels.cs`
-- response payload limits, packet map와 golden/parser/recovery tests
+- `LmcErrorCatalog.cs`, response payload limits
+- golden/parser/capability/recovery/lifecycle/public-surface/retire-retry contract tests
 
-### LASAL
+### C# 의도적으로 미개방
+
+- public engineering-unit `PrepareDs402HomeEx`
+- arbitrary raw DINT execution-plan construction
+
+두 surface는 HOMEEX-01/02 axis profile, scale, rounding, range, wiring 승인이 끝난 뒤에만 연다.
+
+### LASAL 미구현
 
 - `TCPMotionInterface.st`: route와 two-phase owner admission
 - `LMCDiagnosticsService.st`: independent handler/state/outcome record
@@ -213,7 +235,7 @@ current error catalog 전체를 indivisible하게 의미한다. SetOpMode가 예
 - `LMCControlCommandService.st`: shared resource conflict/preemption
 - `Verify-LasalContract.ps1`: dormant/active atomic gate와 mutation fixtures
 
-### WPF recovery
+### WPF recovery 미구현
 
 - 신규 `AxisDs402HomeExRecoveryJournal.cs`
 - `MainWindow.xaml`과 `MainWindow.xaml.cs`의 explicit confirmation/interlock
@@ -226,9 +248,11 @@ current error catalog 전체를 indivisible하게 의미한다. SetOpMode가 예
 
 - [ ] `HOMEEX-01` 축 1~4 wiring, active level/debounce와 method allowlist 승인
 - [ ] `HOMEEX-02` scale/rounding/range/overflow와 MapRevision profile 승인
-- [ ] `HOMEEX-03` `0x7D1B/1C/1D` exact offsets, full recovery key와 capability bit 고정
-- [ ] `HOMEEX-04` C# Prepare/Start/Outcome/Retire와 capability-off zero-wire 구현
+- [x] `HOMEEX-03` `0x7D1B/1C/1D` exact offsets, full recovery key와 SDK capability bit 고정
+- [x] `HOMEEX-04` C# approved-plan Prepare/one-shot Start/Outcome/Retire, capability-off zero-wire와 public raw-plan gate 구현
 - [ ] `HOMEEX-05` golden bytes, malformed, overflow, duplicate intent와 disconnect test 구현
+  - SDK golden/malformed/overflow/start-response-loss/reconnect-read-only/exact-retire-retry/public-surface tests는 PASS
+  - duplicate-intent retained-store behavior는 LASAL outcome store가 없으므로 아직 미검증
 - [ ] `HOMEEX-06` LASAL parser/state/outcome scaffold를 gate OFF로 구현
 - [ ] `HOMEEX-07` shared Home/mode/SDO/axis ownership과 startup reconciliation 구현
 - [ ] `HOMEEX-08` parameter snapshot/program/restore와 CleanupProofFlags 구현
@@ -238,7 +262,25 @@ current error catalog 전체를 indivisible하게 의미한다. SetOpMode가 예
 - [ ] `HOMEEX-12` WPF pre-dispatch journal/startup no-replay recovery와 smoke test PASS
 - [ ] `HOMEEX-13` capability bit 11과 WPF UI paired activation
 
-## 10. activation 금지 조건
+## 10. current SDK qualification evidence
+
+PR #20 SDK qualification rerun on the current code tranche passed:
+
+- Debug build PASS, 0 warnings / 0 errors
+- Debug full suite: 1187 / 1187 PASS
+- Release build PASS
+- Release full suite: 1187 / 1187 PASS
+- `git diff --check` PASS
+- HomeDS402Ex parameter/wire/parser/capability/recovery/lifecycle/public-surface/exact-retire-retry contracts PASS
+
+An earlier identical-head attempt observed one pre-existing `GroupDisableWait.Observer.ConcurrentResumeIsZeroWire`
+timing/socket failure; the identical job rerun passed the complete Debug and Release suites. No HomeDS402Ex
+safety invariant was weakened to address that unrelated flaky test.
+
+This evidence qualifies the current C# SDK tranche only. It is not LASAL build/runtime, EtherCAT packet,
+hardware or production activation evidence.
+
+## 11. activation 금지 조건
 
 scale, wiring 또는 method allowlist가 비어 있거나, temporary parameter 복원과 CSP 8 복귀가
 증명되지 않거나, ActualPosition `-Position` overflow/결과가 불명확하면 capability를 켜지 않는다.
