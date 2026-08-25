@@ -70,6 +70,7 @@
     <Compile Include="LmcAdminDs402HomeOutcome.cs" />
     <Compile Include="LmcAdminDs402HomeOutcomeRetirement.cs" />
     <Compile Include="LmcAdminDs402HomeEx.cs" />
+    <Compile Include="LmcAdminDs402HomeExApprovedProfile.cs" />
     <Compile Include="LmcAxisHome.cs" />
     <Compile Include="LmcHome.cs" />
     <Compile Include="LmcDiagnosticsProtocol.cs" />
