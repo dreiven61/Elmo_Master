@@ -91,6 +91,8 @@ namespace LasalApiWpfTestApp.SmokeTests
                 WpfMainWindowIntegrationTests
                     .RegisterAxisSetOperationModeRecoveryTests(tests);
                 WpfMainWindowIntegrationTests
+                    .RegisterAxisDs402HomeExRecoveryTests(tests);
+                WpfMainWindowIntegrationTests
                     .RegisterRecoveryRecordRetirementIntegrationTests(tests);
                 WpfMainWindowIntegrationTests
                     .RegisterAxisCommandRecoveryIntegrationTests(tests);
