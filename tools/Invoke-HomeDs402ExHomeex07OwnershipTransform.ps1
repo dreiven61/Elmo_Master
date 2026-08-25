@@ -67,32 +67,18 @@ $control = Replace-RegexCount $control '^#define LMC_OWNER_IDENTITY_PREFIX_BYTES
 '@ `
     'axis tail slot insertion'
 
+# The ten current OperationMode labels are one indentation level deeper than the
+# parent ELSE terminator. Each branch body is assignment-only and contains no
+# nested ELSE. Match the nearest ELSE regardless of indentation, while retaining
+# the exact ten-match guard so structural drift still fails closed.
 $oldOwnerBranch = @'
 $control = Replace-RegexCount $control '^(?<indent>[ \t]*)LMC_OWNER_KIND_AXIS_OPERATION_MODE:[ \t]*\n(?<body>.*?)(?=^\k<indent>else\b)' 10 {
 '@
 $newOwnerBranch = @'
-$control = Replace-RegexCount $control '^(?<indent>[ \t]*)LMC_OWNER_KIND_AXIS_OPERATION_MODE:[ \t]*\n(?<body>.*?)(?=^\k<indent>(?:else\b|end_case;))' 10 {
+$control = Replace-RegexCount $control '^(?<indent>[ \t]*)LMC_OWNER_KIND_AXIS_OPERATION_MODE:[ \t]*\n(?<body>.*?)(?=^[ \t]*else\b)' 10 {
 '@
 $text = Replace-LiteralOnce $text $oldOwnerBranch $newOwnerBranch `
-    'allow owner-kind branch to terminate at else or end_case'
-
-# Diagnostic only: print bounded source context for all ten current labels before
-# the fail-closed transform runs. This does not write tracked LASAL source.
-$controlPath = Join-Path $RepositoryRoot 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCControlCommandService\LMCControlCommandService.st'
-$controlSource = [System.IO.File]::ReadAllText($controlPath).Replace("`r`n", "`n").Replace("`r", "`n")
-$labels = [regex]::Matches($controlSource, '(?m)^(?<indent>[ \t]*)LMC_OWNER_KIND_AXIS_OPERATION_MODE:[ \t]*$')
-Write-Host ("OWNER_KIND_CONTEXT_COUNT={0}" -f $labels.Count)
-$contextIndex = 0
-foreach ($labelMatch in $labels) {
-    $contextIndex++
-    $lineNumber = 1 + ([regex]::Matches($controlSource.Substring(0, $labelMatch.Index), "`n")).Count
-    $remaining = $controlSource.Substring($labelMatch.Index)
-    $take = [Math]::Min(900, $remaining.Length)
-    $snippet = $remaining.Substring(0, $take)
-    $snippet = $snippet.Replace("`n", ' <NL> ')
-    Write-Host ("OWNER_KIND_CONTEXT_{0}_LINE={1}" -f $contextIndex, $lineNumber)
-    Write-Host ("OWNER_KIND_CONTEXT_{0}={1}" -f $contextIndex, $snippet)
-}
+    'match parent else for all owner-kind branches'
 
 [System.IO.File]::WriteAllText($tempPath, $text, [System.Text.UTF8Encoding]::new($false))
 & $tempPath -RepositoryRoot $RepositoryRoot
