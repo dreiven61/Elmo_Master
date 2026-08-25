@@ -1,0 +1,65 @@
+name: HomeDS402Ex HOMEEX-09 static qualification
+
+on:
+  push:
+    branches:
+      - codex/home-ds402ex-homeex09-static-qualification
+    paths:
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st'
+      - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
+      - 'tools/Verify-HomeDs402ExHomeex09Static.ps1'
+      - 'docs/api/design/evidence/HOME_DS402_EX_HOMEEX09_STATIC_20260825.md'
+      - '.github/workflows/home-ds402ex-homeex09-static-qualification.yml'
+  pull_request:
+    branches:
+      - codex/home-ds402ex-homeex01-02-profile-gate
+    paths:
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st'
+      - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
+      - 'tools/Verify-HomeDs402ExHomeex09Static.ps1'
+      - 'docs/api/design/evidence/HOME_DS402_EX_HOMEEX09_STATIC_20260825.md'
+      - '.github/workflows/home-ds402ex-homeex09-static-qualification.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  homeex09-static:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify HOMEEX-09 static invariants
+        shell: powershell
+        run: |
+          & '.\tools\Verify-HomeDs402ExHomeex09Static.ps1'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run legacy LASAL SourceOnly contract
+        shell: powershell
+        run: |
+          & '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\Verify-LasalContract.ps1' -RepositoryRoot $env:GITHUB_WORKSPACE
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Diff hygiene
+        shell: powershell
+        run: |
+          if ($env:GITHUB_EVENT_NAME -eq 'pull_request') {
+            git diff --check "origin/$env:GITHUB_BASE_REF...HEAD"
+          }
+          elseif ($env:GITHUB_EVENT_NAME -eq 'push') {
+            git diff --check HEAD^ HEAD
+          }
+          else {
+            git diff --check
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
