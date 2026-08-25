@@ -49,7 +49,7 @@ function Require-AbsentRegex([string]$Text, [string]$Pattern, [string]$Message) 
 function Require-AsciiFile([string]$Path, [string]$Label) {
     $ascii = $true
     foreach ($value in [System.IO.File]::ReadAllBytes($Path)) {
-        if ($value -gt 0x7F) { $ascii = $false; break }
+        if ($value -gt 0x7F) { $ascii = false; break }
     }
     Require-True $ascii ($Label + ' remains 7-bit ASCII')
 }
@@ -141,4 +141,4 @@ Require-AsciiFile $controlPath 'LMCControlCommandService.st'
 Require-AsciiFile $tcpPath 'TCPMotionInterface.st'
 Require-AsciiFile $diagnosticsPath 'LMCDiagnosticsService.st'
 
-Write-Host ("HOMEEX-07 ownership qualification PASS: {0} checks; runtime=OFF; capability=OFF") -f $script:PassCount
+Write-Host ("HOMEEX-07 ownership qualification PASS: {0} checks; runtime=OFF; capability=OFF" -f $script:PassCount)
