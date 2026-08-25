@@ -34,10 +34,13 @@ jobs:
       - name: Prove activation profile remains closed
         shell: powershell
         run: |
-          $output = & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass `
-            -File '.\tools\Verify-HomeDs402ExAxisProfile.ps1' -ExpectedState Approved 2>&1
+          $logPath = Join-Path $env:RUNNER_TEMP 'homeex-approved-gate.log'
+          & cmd.exe /d /s /c "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\tools\Verify-HomeDs402ExAxisProfile.ps1 -ExpectedState Approved > `"$logPath`" 2>&1"
           $exitCode = $LASTEXITCODE
-          $output | Write-Host
+          $global:LASTEXITCODE = 0
+          if (Test-Path -LiteralPath $logPath) {
+            Get-Content -LiteralPath $logPath | Write-Host
+          }
           if ($exitCode -eq 0) {
             throw 'Pending HOMEEX-01/02 profile unexpectedly passed the Approved gate.'
           }
