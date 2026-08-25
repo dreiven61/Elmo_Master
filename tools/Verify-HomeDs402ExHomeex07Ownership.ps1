@@ -125,8 +125,10 @@ Require-AbsentRegex $homeExBodies 'InputLatch\.' 'HOMEEX-07 HomeDS402Ex handlers
 Require-AbsentRegex $homeExBodies '0x6060|0x6040|0x607A|0x60FF|0x6071' 'HOMEEX-07 HomeDS402Ex handlers contain no motion/mode mutation object'
 Require-AbsentRegex $homeExBodies 'Ds402HomeExState\s*\[[^\]]+\]\s*:=' 'HOMEEX-07 still writes no HomeDS402Ex runtime/outcome record'
 Require-Regex $processBody 'RETURN;' 'HomeDS402Ex cyclic processor remains a no-op'
-Require-Regex $outcomeBody 'RequestSize\s*<>\s*116[\s\S]{0,1800}?LMC_DIAG_HOMEEX_DETAIL_NOT_FOUND' 'Outcome remains read-only exact-key scaffold behavior'
-Require-Regex $retireBody 'RequestSize\s*<>\s*120[\s\S]{0,1800}?expectedGeneration\s*=\s*0' 'Retire remains exact 120-byte/generation-checked scaffold behavior'
+Require-Regex $outcomeBody 'RequestSize\s*<>\s*116' 'Outcome requires exact 116-byte key payload'
+Require-Regex $outcomeBody 'LMC_DIAG_HOMEEX_DETAIL_NOT_FOUND' 'Outcome remains read-only not-found scaffold behavior'
+Require-Regex $retireBody 'RequestSize\s*<>\s*120' 'Retire requires exact 120-byte payload'
+Require-Regex $retireBody 'expectedGeneration\s*=\s*0' 'Retire remains generation-checked scaffold behavior'
 
 # Capability remains private through HOMEEX-07.
 $featureMatches = [regex]::Matches($control, '\(pResponseFrame\s*\+\s*24\)\^\$UDINT\s*:=\s*0x([0-9A-Fa-f]{8})\s*;')
@@ -139,4 +141,4 @@ Require-AsciiFile $controlPath 'LMCControlCommandService.st'
 Require-AsciiFile $tcpPath 'TCPMotionInterface.st'
 Require-AsciiFile $diagnosticsPath 'LMCDiagnosticsService.st'
 
-Write-Host ("HOMEEX-07 ownership qualification PASS: {0} checks; runtime=OFF; capability=OFF" -f $script:PassCount)
+Write-Host ("HOMEEX-07 ownership qualification PASS: {0} checks; runtime=OFF; capability=OFF") -f $script:PassCount
