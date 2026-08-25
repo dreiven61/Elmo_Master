@@ -123,6 +123,17 @@ namespace LasalMotionControlLib
                     "HomeDS402Ex wire plan accepts only standard-method candidates.");
             }
 
+            // HomeDS402Ex success is defined by ActualPosition == -Position.
+            // Int32.MinValue cannot be negated in a DINT, so an approved plan
+            // containing it can never have a representable terminal target.
+            // Reject before a prepared Start intent can exist.
+            if (position == int.MinValue)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "position",
+                    "HomeDS402Ex Position cannot be Int32.MinValue because the required final-position negation would overflow.");
+            }
+
             if (bufferMode != LMCDs402HomeBufferMode.Aborting)
             {
                 throw new NotSupportedException(
