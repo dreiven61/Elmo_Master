@@ -1,10 +1,15 @@
 [CmdletBinding()]
 param(
-    [string]$RepositoryRoot = (Split-Path -Parent $PSScriptRoot)
+    [string]$RepositoryRoot
 )
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
+
+if ([string]::IsNullOrWhiteSpace($RepositoryRoot)) {
+    $scriptDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
+    $RepositoryRoot = Split-Path -Parent $scriptDirectory
+}
 
 function Require-True {
     param(
