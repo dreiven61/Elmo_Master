@@ -57,6 +57,7 @@
     <Compile Include="WpfMotionRecoveryIntegrationTests.cs" />
     <Compile Include="WpfAxisPowerOnRecoveryIntegrationTests.cs" />
     <Compile Include="WpfAxisSetOperationModeRecoveryIntegrationTests.cs" />
+    <Compile Include="WpfAxisDs402HomeExRecoveryIntegrationTests.cs" />
     <Compile Include="WpfRecoveryRecordRetirementIntegrationTests.cs" />
     <Compile Include="WpfAxisCommandRecoveryIntegrationTests.cs" />
     <Compile Include="WpfAxisQualificationIntegrationTests.cs" />
