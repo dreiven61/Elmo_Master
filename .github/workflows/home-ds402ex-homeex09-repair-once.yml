@@ -1,4 +1,4 @@
-# one-shot repair trigger: 2026-08-26 semantic-ratchet
+# one-shot repair trigger: 2026-08-26 semantic-context
 name: HomeDS402Ex HOMEEX-09 one-shot repair
 
 on:
@@ -63,26 +63,26 @@ jobs:
           contract_bytes = contract_bytes.replace(state_old, state_new, 1)
           contract_bytes = contract_bytes.replace(message_old, message_new, 1)
 
-          semantic_phrase = b'LASAL.SetPosition replacement loop/map/state/header/absence semantic inventory drifted.'
-          if contract_bytes.count(semantic_phrase) != 1:
-              raise SystemExit(f'Expected exactly one replacement semantic-inventory ratchet, found {contract_bytes.count(semantic_phrase)}')
-          phrase_index = contract_bytes.index(semantic_phrase)
-          window_start = max(0, phrase_index - 4096)
-          window_end = min(len(contract_bytes), phrase_index + len(semantic_phrase) + 2048)
-          semantic_window = contract_bytes[window_start:window_end]
-          old_header_count = semantic_window.count(b'6714')
-          if old_header_count != 2:
-              raise SystemExit(f'Expected exactly two 6714 tokens in anchored replacement semantic ratchet window, found {old_header_count}')
-          if semantic_window.count(b'6715') != 0:
-              raise SystemExit('6715 already exists in anchored replacement semantic ratchet window; refusing ambiguous rewrite')
-          semantic_window = semantic_window.replace(b'6714', b'6715')
-          contract_bytes = contract_bytes[:window_start] + semantic_window + contract_bytes[window_end:]
+          header_positions = [match.start() for match in re.finditer(br'6714', contract_bytes)]
+          print(f'INFO verifier 6714 occurrences={len(header_positions)}')
+          for ordinal, position in enumerate(header_positions, 1):
+              context = contract_bytes[max(0, position - 320):min(len(contract_bytes), position + 320)]
+              print(f'INFO 6714 context {ordinal}: {context!r}')
+          if len(header_positions) != 2:
+              raise SystemExit(f'Expected exactly two verifier 6714 tokens for the replacement semantic header ratchet, found {len(header_positions)}')
+          for position in header_positions:
+              context = contract_bytes[max(0, position - 512):min(len(contract_bytes), position + 512)].lower()
+              if b'replacement' not in context or b'header' not in context:
+                  raise SystemExit('A 6714 token is not bounded by replacement/header semantic-ratchet context; refusing rewrite')
+          if contract_bytes.count(b'6715') != 0:
+              raise SystemExit(f'Unexpected pre-existing verifier 6715 token count={contract_bytes.count(b"6715")}; refusing ambiguous rewrite')
+          contract_bytes = contract_bytes.replace(b'6714', b'6715', 2)
           contract.write_bytes(contract_bytes)
 
           print('PASS repaired exactly two stale identity-tail strides')
           print('PASS re-baselined only OwnershipState persisted-read fence 44 -> 47')
           print('PASS preserved OwnershipIdentityState fence at 12')
-          print('PASS re-baselined anchored replacement semantic header inventory 6714 -> 6715')
+          print('PASS re-baselined exact replacement/header semantic inventory 6714 -> 6715')
           '@ | python -
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
