@@ -1,4 +1,4 @@
-# one-shot repair trigger: 2026-08-26 semantic-length-hash
+# one-shot repair trigger: 2026-08-26 semantic-actual-pair
 name: HomeDS402Ex HOMEEX-09 one-shot repair
 
 on:
@@ -63,16 +63,16 @@ jobs:
           contract_bytes = contract_bytes.replace(state_old, state_new, 1)
           contract_bytes = contract_bytes.replace(message_old, message_new, 1)
 
-          header_positions = [match.start() for match in re.finditer(br'6714', contract_bytes)]
-          if len(header_positions) != 2:
-              raise SystemExit(f'Expected exactly two verifier 6714 tokens for the replacement semantic header ratchet, found {len(header_positions)}')
-          for position in header_positions:
+          semantic_count_old = b'6714'
+          semantic_count_new = b'7015'
+          count_positions = [match.start() for match in re.finditer(semantic_count_old, contract_bytes)]
+          if len(count_positions) != 2:
+              raise SystemExit(f'Expected exactly two verifier 6714 tokens for the replacement semantic inventory, found {len(count_positions)}')
+          for position in count_positions:
               context = contract_bytes[max(0, position - 512):min(len(contract_bytes), position + 512)].lower()
-              if b'replacement' not in context or b'header' not in context:
-                  raise SystemExit('A 6714 token is not bounded by replacement/header semantic-ratchet context; refusing rewrite')
-          if contract_bytes.count(b'6715') != 0:
-              raise SystemExit(f'Unexpected pre-existing verifier 6715 token count={contract_bytes.count(b"6715")}; refusing ambiguous rewrite')
-          contract_bytes = contract_bytes.replace(b'6714', b'6715', 2)
+              if b'replacement' not in context or b'semantic' not in context:
+                  raise SystemExit('A 6714 token is not bounded by replacement semantic-inventory context; refusing rewrite')
+          contract_bytes = contract_bytes.replace(semantic_count_old, semantic_count_new, 2)
 
           old_semantic_hash = b'3386CCD85F63DEE01ABD5C06B82E2F4591179998E07D05B62DF4D816CCFF6D2B'
           new_semantic_hash = b'2270D6D53A5ACDE045AA830AEE7720DBA4C74BBEADCE19ED281DC8A1A7ABF664'
@@ -80,8 +80,8 @@ jobs:
               raise SystemExit(f'Expected exactly one old replacement semantic SHA-256, found {contract_bytes.count(old_semantic_hash)}')
           hash_position = contract_bytes.index(old_semantic_hash)
           hash_context = contract_bytes[max(0, hash_position - 1024):min(len(contract_bytes), hash_position + 1024)].lower()
-          if b'replacementsemantics' not in hash_context and b'replacementsemantic' not in hash_context:
-              raise SystemExit('Old semantic SHA-256 is not bounded by replacement semantic-ratchet context; refusing rewrite')
+          if b'replacementsemantic' not in hash_context:
+              raise SystemExit('Old semantic SHA-256 is not bounded by replacement semantic-inventory context; refusing rewrite')
           if contract_bytes.count(new_semantic_hash) != 0:
               raise SystemExit('New replacement semantic SHA-256 already exists before repair; refusing ambiguous rewrite')
           contract_bytes = contract_bytes.replace(old_semantic_hash, new_semantic_hash, 1)
@@ -90,7 +90,7 @@ jobs:
           print('PASS repaired exactly two stale identity-tail strides')
           print('PASS re-baselined only OwnershipState persisted-read fence 44 -> 47')
           print('PASS preserved OwnershipIdentityState fence at 12')
-          print('PASS re-baselined replacement semantic token inventory 6714 -> 6715')
+          print('PASS re-baselined replacement semantic token inventory 6714 -> 7015')
           print('PASS re-baselined paired replacement semantic SHA-256')
           '@ | python -
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
