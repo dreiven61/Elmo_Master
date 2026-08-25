@@ -1,4 +1,4 @@
-# one-shot repair trigger: 2026-08-26 adapter-metrics
+# one-shot repair trigger: 2026-08-26 verifier-native-adapter-metrics
 name: HomeDS402Ex HOMEEX-09 one-shot repair
 
 on:
@@ -27,35 +27,12 @@ jobs:
         run: |
           @'
           from pathlib import Path
-          import hashlib
           import re
 
           control = Path(r'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st')
           contract = Path(r'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1')
 
-          def replacement_adapter_metrics(raw_bytes):
-              lf_bytes = raw_bytes.replace(b'\r\n', b'\n')
-              if b'\r' in lf_bytes:
-                  raise SystemExit('Unexpected bare CR in Control source while measuring replacement adapter')
-              pattern = re.compile(
-                  br'(?ims)^[ \t]*FUNCTION[ \t]+LMCControlCommandService::ValidateAxisOwnershipPreemptionReplacement[ \t]*\n.*?^[ \t]*END_FUNCTION[ \t]*(?:\n|$)'
-              )
-              matches = list(pattern.finditer(lf_bytes))
-              if len(matches) != 1:
-                  raise SystemExit(f'Expected exactly one replacement adapter fragment, found {len(matches)}')
-              fragment = matches[0].group(0)
-              if not fragment.endswith(b'\n'):
-                  raise SystemExit('Replacement adapter fragment does not retain canonical LF terminator')
-              crlf_fragment = fragment.replace(b'\n', b'\r\n')
-              return len(fragment), len(crlf_fragment), hashlib.sha256(fragment).hexdigest().upper()
-
           control_bytes = control.read_bytes()
-          old_adapter_metrics = replacement_adapter_metrics(control_bytes)
-          print(f'INFO replacement adapter baseline metrics LF={old_adapter_metrics[0]} CRLF={old_adapter_metrics[1]} SHA={old_adapter_metrics[2]}')
-          expected_old_metrics = (29124, 29922, '8855AEEAE9B617CEAC1D10C7CC4ADB7F4D0536D108592560CE0D39ACF344AFAC')
-          if old_adapter_metrics != expected_old_metrics:
-              raise SystemExit(f'Replacement adapter measurement does not reproduce frozen baseline: {old_adapter_metrics!r}')
-
           tail_pattern = re.compile(
               br'(replacementTailOffset\s*:=\s*(?:\r?\n[ \t]*)?TO_UDINT\(probeAxisIndex\s*-\s*1\)\s*\*\s*)8(\s*;)',
               re.IGNORECASE,
@@ -68,8 +45,6 @@ jobs:
               control_bytes,
               count=2,
           )
-          new_adapter_metrics = replacement_adapter_metrics(control_bytes)
-          print(f'INFO replacement adapter repaired metrics LF={new_adapter_metrics[0]} CRLF={new_adapter_metrics[1]} SHA={new_adapter_metrics[2]}')
           control.write_bytes(control_bytes)
 
           contract_bytes = contract.read_bytes()
@@ -84,7 +59,6 @@ jobs:
               raise SystemExit(f'Expected exactly one 44/12 diagnostic, found {contract_bytes.count(message_old)}')
           if contract_bytes.count(state_new) != 0 or contract_bytes.count(message_new) != 0:
               raise SystemExit('47/12 fence already exists before one-shot repair; refusing ambiguous rewrite')
-
           contract_bytes = contract_bytes.replace(state_old, state_new, 1)
           contract_bytes = contract_bytes.replace(message_old, message_new, 1)
 
@@ -110,6 +84,12 @@ jobs:
           if contract_bytes.count(new_semantic_hash) != 0:
               raise SystemExit('New replacement semantic SHA-256 already exists before repair; refusing ambiguous rewrite')
           contract_bytes = contract_bytes.replace(old_semantic_hash, new_semantic_hash, 1)
+
+          diagnostic_throw_old = b'throw "$blocker $($methodContract.Name) byte/hash ratchet drifted."'
+          diagnostic_throw_new = b'throw "$blocker $($methodContract.Name) byte/hash ratchet drifted (LF=$($dimensions.LF)/$($methodContract.LF), CRLF=$($dimensions.CRLF)/$($methodContract.CRLF), SHA=$(Get-LasalRollbackSplitTextSha256 -Text $methodContract.Fragment)/$($methodContract.Sha))."'
+          if contract_bytes.count(diagnostic_throw_old) != 1:
+              raise SystemExit(f'Expected exactly one rollback-split byte/hash throw, found {contract_bytes.count(diagnostic_throw_old)}')
+          contract_bytes = contract_bytes.replace(diagnostic_throw_old, diagnostic_throw_new, 1)
           contract.write_bytes(contract_bytes)
 
           print('PASS repaired exactly two stale identity-tail strides')
@@ -117,6 +97,7 @@ jobs:
           print('PASS preserved OwnershipIdentityState fence at 12')
           print('PASS re-baselined replacement semantic token inventory 6714 -> 7015')
           print('PASS re-baselined paired replacement semantic SHA-256')
+          print('INFO added transient verifier-native adapter metric diagnostic; it is never committed on failure')
           '@ | python -
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
