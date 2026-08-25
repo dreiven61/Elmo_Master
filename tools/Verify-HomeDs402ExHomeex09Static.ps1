@@ -93,9 +93,9 @@ Require-Regex $tcp '(?s)CommandID\s*=\s*0x7D1B.*?RollbackAxisOwnership\s*\(' 'TC
 
 # HOMEEX-09 re-baselines exactly the known +3 OwnershipState reads introduced
 # by the HomeDS402Ex replacement-state branch. OwnershipIdentityState stays 12.
-Require-Regex $legacyContract "(?m)\$replacementBankHistogram\['ownershipstate'\]\s*-ne\s*47" 'legacy SourceOnly OwnershipState persisted-read fence is exactly 47'
-Require-NoRegex $legacyContract "(?m)\$replacementBankHistogram\['ownershipstate'\]\s*-ne\s*44" 'legacy SourceOnly OwnershipState fence no longer expects 44'
-Require-Regex $legacyContract "(?m)\$replacementBankHistogram\['ownershipidentitystate'\]\s*-ne\s*12" 'legacy SourceOnly OwnershipIdentityState fence remains exactly 12'
+Require-Regex $legacyContract '(?m)\$replacementBankHistogram\[''ownershipstate''\]\s*-ne\s*47' 'legacy SourceOnly OwnershipState persisted-read fence is exactly 47'
+Require-NoRegex $legacyContract '(?m)\$replacementBankHistogram\[''ownershipstate''\]\s*-ne\s*44' 'legacy SourceOnly OwnershipState fence no longer expects 44'
+Require-Regex $legacyContract '(?m)\$replacementBankHistogram\[''ownershipidentitystate''\]\s*-ne\s*12' 'legacy SourceOnly OwnershipIdentityState fence remains exactly 12'
 Require-Regex $legacyContract '(?m)expected\s+47/12\.' 'legacy SourceOnly persisted-read diagnostic reports the paired 47/12 fence'
 Require-NoRegex $legacyContract '(?m)expected\s+44/12\.' 'legacy SourceOnly diagnostic no longer reports obsolete 44/12 fence'
 
