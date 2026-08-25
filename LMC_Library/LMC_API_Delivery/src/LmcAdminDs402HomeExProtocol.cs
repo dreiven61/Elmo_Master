@@ -3,13 +3,6 @@ using System.IO;
 
 namespace LasalMotionControlLib
 {
-    internal static class LMC_Ds402HomeExCommandId
-    {
-        internal const ushort Start = 0x7D1B;
-        internal const ushort ReadOutcome = 0x7D1C;
-        internal const ushort Retire = 0x7D1D;
-    }
-
     internal static partial class LMC_AdminFrame
     {
         internal const int StartAxisDs402HomeExRequestPayloadLength = 116;
@@ -27,7 +20,7 @@ namespace LasalMotionControlLib
 
             ValidateAxisReference(recoveryKey.AxisReference);
             var buffer = CreateCommonRequest(
-                LMC_Ds402HomeExCommandId.Start,
+                LMC_CommandId.StartAxisDs402HomeEx,
                 recoveryKey.AxisReference,
                 StartAxisDs402HomeExRequestPayloadLength,
                 recoveryKey.OriginalRequestId);
@@ -62,7 +55,7 @@ namespace LasalMotionControlLib
             LMCAxisDs402HomeExRecoveryKey recoveryKey)
         {
             return BuildAxisDs402HomeExOutcomeRequest(
-                LMC_Ds402HomeExCommandId.ReadOutcome,
+                LMC_CommandId.ReadAxisDs402HomeExOutcome,
                 queryRequestId,
                 recoveryKey,
                 0,
@@ -81,7 +74,7 @@ namespace LasalMotionControlLib
             }
 
             return BuildAxisDs402HomeExOutcomeRequest(
-                LMC_Ds402HomeExCommandId.Retire,
+                LMC_CommandId.RetireAxisDs402HomeExOutcome,
                 retireRequestId,
                 recoveryKey,
                 expectedRecordGeneration,
