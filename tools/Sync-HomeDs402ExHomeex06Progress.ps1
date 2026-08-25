@@ -60,15 +60,10 @@ $progress = Replace-Once $progress `
     "- HomeDS402Ex ``0x7D1B/0x7D1C/0x7D1D``는 HOMEEX-06에서 LASAL diagnostics route, 전용 scaffold state와 strict Start/Outcome/Retire parser를 구현했고 67-check ``SCAFFOLD_OFF`` source/static qualification을 통과했다. runtime gate와 Admin bit 11은 OFF이며 OwnerKind 7/full 116-byte owner identity, SDO/RT/motion execution은 HOMEEX-07 이후로 닫혀 있다.`n- SetOperationMode MODE-13 PC/WPF recovery는 current Windows PR qualification에서" `
     'summary HomeDS402Ex scaffold'
 
-$oldPriority = @'
-- High-priority 21개 관점: Active 17, Partial 3(SetPosition, DS402 Home, SetOperationMode),
-  Missing 1(`HomeDS402Ex`)
-'@
-$newPriority = @'
-- High-priority 21개 관점: Active 17, Partial 3(SetPosition, DS402 Home, SetOperationMode),
-  Dormant 1(`HomeDS402Ex`)
-'@
-$progress = Replace-Once $progress $oldPriority $newPriority 'high-priority HomeDS402Ex status'
+$progress = Replace-Once $progress `
+    '  Missing 1(`HomeDS402Ex`)' `
+    '  Dormant 1(`HomeDS402Ex`)' `
+    'high-priority HomeDS402Ex status'
 
 $oldHomeRow = '| DS402 Home | `0x7D15/7D16/7D17` | Dormant | method 37 source, gate FALSE, Admin bit 6 OFF; `HomeDS402Ex` 실행은 없음 |'
 $newHomeRows = @'
