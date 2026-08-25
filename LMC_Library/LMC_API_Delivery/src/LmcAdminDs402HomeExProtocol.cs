@@ -3,6 +3,13 @@ using System.IO;
 
 namespace LasalMotionControlLib
 {
+    internal static class LMC_Ds402HomeExCommandId
+    {
+        internal const ushort Start = 0x7D1B;
+        internal const ushort ReadOutcome = 0x7D1C;
+        internal const ushort Retire = 0x7D1D;
+    }
+
     internal static partial class LMC_AdminFrame
     {
         internal const int StartAxisDs402HomeExRequestPayloadLength = 116;
@@ -20,7 +27,7 @@ namespace LasalMotionControlLib
 
             ValidateAxisReference(recoveryKey.AxisReference);
             var buffer = CreateCommonRequest(
-                LMC_CommandId.StartAxisDs402HomeEx,
+                LMC_Ds402HomeExCommandId.Start,
                 recoveryKey.AxisReference,
                 StartAxisDs402HomeExRequestPayloadLength,
                 recoveryKey.OriginalRequestId);
@@ -37,7 +44,12 @@ namespace LasalMotionControlLib
             LMC_Frame.WriteUInt16(buffer, payloadOffset + 70, 0);
             LMC_Frame.WriteUInt32(buffer, payloadOffset + 72, plan.OverallTimeoutMilliseconds);
             LMC_Frame.WriteUInt32(buffer, payloadOffset + 76, plan.DetectionTimeoutMilliseconds);
-            Buffer.BlockCopy(plan.Spare, 0, buffer, payloadOffset + 80, LMCAxisDs402HomeExExecutionPlan.SpareLength);
+            Buffer.BlockCopy(
+                plan.Spare,
+                0,
+                buffer,
+                payloadOffset + 80,
+                LMCAxisDs402HomeExExecutionPlan.SpareLength);
             LMC_Frame.WriteUInt32(
                 buffer,
                 payloadOffset + 112,
@@ -50,7 +62,7 @@ namespace LasalMotionControlLib
             LMCAxisDs402HomeExRecoveryKey recoveryKey)
         {
             return BuildAxisDs402HomeExOutcomeRequest(
-                LMC_CommandId.ReadAxisDs402HomeExOutcome,
+                LMC_Ds402HomeExCommandId.ReadOutcome,
                 queryRequestId,
                 recoveryKey,
                 0,
@@ -69,7 +81,7 @@ namespace LasalMotionControlLib
             }
 
             return BuildAxisDs402HomeExOutcomeRequest(
-                LMC_CommandId.RetireAxisDs402HomeExOutcome,
+                LMC_Ds402HomeExCommandId.Retire,
                 retireRequestId,
                 recoveryKey,
                 expectedRecordGeneration,
@@ -111,7 +123,12 @@ namespace LasalMotionControlLib
             LMC_Frame.WriteUInt16(buffer, payloadOffset + 74, 0);
             LMC_Frame.WriteUInt32(buffer, payloadOffset + 76, plan.OverallTimeoutMilliseconds);
             LMC_Frame.WriteUInt32(buffer, payloadOffset + 80, plan.DetectionTimeoutMilliseconds);
-            Buffer.BlockCopy(plan.Spare, 0, buffer, payloadOffset + 84, LMCAxisDs402HomeExExecutionPlan.SpareLength);
+            Buffer.BlockCopy(
+                plan.Spare,
+                0,
+                buffer,
+                payloadOffset + 84,
+                LMCAxisDs402HomeExExecutionPlan.SpareLength);
             if (includeGeneration)
             {
                 LMC_Frame.WriteUInt32(buffer, payloadOffset + 116, expectedRecordGeneration);
@@ -172,7 +189,10 @@ namespace LasalMotionControlLib
                 uint expectedRequestId,
                 int expectedHomingMethod)
         {
-            var transport = ParseTransport(raw, "StartAxisDs402HomeEx", false);
+            var transport = ParseTransport(
+                raw,
+                "StartAxisDs402HomeEx",
+                false);
             var response = ParseCommonResponse(
                 transport,
                 expectedRequestId,
@@ -201,12 +221,17 @@ namespace LasalMotionControlLib
                 transport,
                 StartAxisDs402HomeExResponsePayloadLength,
                 "StartAxisDs402HomeEx");
-            var homingMethod = LMC_Frame.ReadInt32(transport.Payload, 16);
-            var nativeCommandState = LMC_Frame.ReadUInt32(transport.Payload, 20);
+            var homingMethod = LMC_Frame.ReadInt32(
+                transport.Payload,
+                16);
+            var nativeCommandState = LMC_Frame.ReadUInt32(
+                transport.Payload,
+                20);
             if (homingMethod != expectedHomingMethod
                 || nativeCommandState != 0
                 || (!response.IsSuccess
-                    && !IsStartAxisDs402HomeExFailure(response.DetailCode)))
+                    && !IsStartAxisDs402HomeExFailure(
+                        response.DetailCodeValue)))
             {
                 throw new InvalidDataException(
                     "StartAxisDs402HomeEx response echo, native state, or detail code is invalid.");
@@ -219,15 +244,18 @@ namespace LasalMotionControlLib
         }
 
         private static bool IsStartAxisDs402HomeExFailure(
-            LMCAdminDetailCode detailCode)
+            uint detailCode)
         {
-            return (detailCode >= LMCAdminDetailCode.DiagnosticsBuildMismatch
-                    && detailCode <= LMCAdminDetailCode.MapRevisionMismatch)
-                || detailCode == LMCAdminDetailCode.AxisOwnershipConflict
-                || detailCode == LMCAdminDetailCode.AxisOwnershipQuarantined
-                || (detailCode >= LMCAdminDetailCode.Ds402HomeExOutcomeStoreCorrupt
-                    && detailCode <= LMCAdminDetailCode.Ds402HomeExOutcomeSlotOccupied)
-                || detailCode == LMCAdminDetailCode.Ds402HomeExInvalidProfile;
+            return (detailCode
+                    >= (uint)LMCAdminDetailCode.DiagnosticsBuildMismatch
+                    && detailCode
+                        <= (uint)LMCAdminDetailCode.MapRevisionMismatch)
+                || detailCode == (uint)LMCAdminDetailCode.AxisOwnershipConflict
+                || detailCode == (uint)LMCAdminDetailCode.AxisOwnershipQuarantined
+                || detailCode == 55u
+                || detailCode == 57u
+                || detailCode == 60u
+                || detailCode == 61u;
         }
     }
 }
