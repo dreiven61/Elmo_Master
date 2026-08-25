@@ -1,7 +1,7 @@
 # HomeDS402Ex Ownership ABI
 
 Date: 2026-08-25
-Status: frozen design contract for subsequent gate-OFF LASAL scaffold
+Status: frozen design contract for HOMEEX-07 ownership integration
 
 ## Frozen values
 
@@ -17,7 +17,7 @@ HomeDS402Ex uses:
 - exact axis mask = `1 << (Reference - 1)`
 - proposed active owner state = 13, immediately after current SetOperationMode active state 12
 
-The numeric active state 13 is reserved here for the later runtime tranche. HOMEEX-06 gate-OFF scaffold must not claim an active HomeDS402Ex runtime merely by defining the state constant.
+The numeric active state 13 is reserved for the later actual runtime tranche. HOMEEX-06 gate-OFF scaffold does not define or transition an active HomeDS402Ex owner state.
 
 ## Why OwnerKind 7
 
@@ -42,7 +42,7 @@ Current ResourceKind 3 already represents `DS402_HOME_ENGINE`. Creating a separa
 
 The shared resource does **not** mean the two APIs share an outcome record or recovery identity. They retain separate OwnerKind, command ids, parser/state/outcome storage and exact recovery keys.
 
-The current ResourceKind 3 admission code only accepts OwnerKind 4 + command `0x7D15`. The later scaffold must broaden that exact tuple check to accept either:
+The current ResourceKind 3 admission code only accepts OwnerKind 4 + command `0x7D15`. HOMEEX-07 must broaden that exact tuple check to accept either:
 
 - legacy HomeDS402: OwnerKind 4 + Start `0x7D15`; or
 - HomeDS402Ex: OwnerKind 7 + Start `0x7D1B`.
@@ -71,30 +71,38 @@ Only Start `0x7D1B` may create a new owner reservation. ReadOutcome `0x7D1C` and
 
 The Start owner identity must contain the full frozen HomeDS402Ex request identity used by the diagnostics service. Query/Retire must use the retained outcome store identity and exact record generation; they must not reconstruct a new owner reservation from a recovery key.
 
-## Required source changes in later LASAL tranche
+## Why ownership starts in HOMEEX-07, not HOMEEX-06
 
-When HOMEEX-06 implementation begins, ownership-related source changes must be paired and fail closed:
+HOMEEX-06 completed only the gate-OFF parser/state/outcome scaffold. It intentionally did not add OwnerKind 7 to source.
 
-1. define `LMC_OWNER_KIND_DS402_HOME_EX 7`;
-2. extend the OwnerKind range guard from maximum 6 to maximum 7;
-3. accept OwnerKind 7 only with ResourceKind 3, AdmissionMode 4 and Start `0x7D1B` on physical axes 1..4;
-4. retain legacy OwnerKind 4 + ResourceKind 3 + Start `0x7D15` unchanged;
-5. update exact tuple validation, commit/rollback/session-close/recovery paths that enumerate lifecycle owner kinds;
-6. reserve active state 13 only for actual runtime activation logic; gate-OFF scaffold must not transition into it;
-7. preserve all existing safety-preemption and quarantine semantics;
-8. keep Admin capability bit 11 OFF and feature mask `0x00000017` during HOMEEX-06.
+The current non-group ownership identity bank preserves a 64-byte prefix plus at most an 8-byte tail. The frozen HomeDS402Ex Start request is 116 bytes and its exact lifecycle identity includes fields beyond that storage window. Accepting OwnerKind 7 without first extending the identity bank would permit admission using an identity representation that cannot preserve the complete frozen Start tuple.
 
-Any path that accepts OwnerKind 7 with another resource, command or admission mode is an ABI violation.
+Therefore HOMEEX-07 must pair the owner-kind admission change with a full identity-storage extension. Until then HOMEEX-06 rejects unexpected admission token/generation values and remains non-executable.
+
+## Required source changes in HOMEEX-07
+
+Ownership-related source changes must be paired and fail closed:
+
+1. extend the non-group owner identity bank so the full frozen 116-byte HomeDS402Ex Start identity is retained and exactly validated;
+2. define `LMC_OWNER_KIND_DS402_HOME_EX 7`;
+3. extend the OwnerKind range guard from maximum 6 to maximum 7;
+4. accept OwnerKind 7 only with ResourceKind 3, AdmissionMode 4 and Start `0x7D1B` on physical axes 1..4;
+5. retain legacy OwnerKind 4 + ResourceKind 3 + Start `0x7D15` unchanged;
+6. update exact tuple validation, commit/rollback/session-close/recovery paths that enumerate lifecycle owner kinds;
+7. reserve active state 13 only for actual runtime activation logic; ownership admission alone must not imply successful homing runtime;
+8. preserve all existing safety-preemption and quarantine semantics;
+9. keep Admin capability bit 11 OFF and feature mask `0x00000017` during HOMEEX-07 source work.
+
+Any path that accepts OwnerKind 7 with another resource, command or admission mode, or accepts a truncated HomeDS402Ex owner identity, is an ABI violation.
 
 ## Non-goals
 
 This ABI freeze does not:
 
-- implement HomeDS402Ex LASAL handlers;
 - enable capability bit 11;
 - approve wiring, homing methods or engineering-unit scale profiles;
 - prove parameter SDO programming/restore;
 - prove CSP restoration, setpoint alignment or final position;
-- provide hardware qualification.
+- provide C78, PLC load or hardware qualification.
 
-Production remains fail-closed until the remaining HOMEEX gates are completed.
+HOMEEX-06 parser/state/outcome source qualification does not satisfy this ownership gate. Production remains fail-closed until the remaining HOMEEX gates are completed.
