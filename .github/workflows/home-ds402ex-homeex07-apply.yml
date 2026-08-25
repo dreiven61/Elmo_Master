@@ -7,6 +7,7 @@ on:
     paths:
       - 'tools/Apply-HomeDs402ExHomeex07Ownership.ps1'
       - 'tools/Invoke-HomeDs402ExHomeex07OwnershipTransform.ps1'
+      - 'tools/Verify-HomeDs402ExHomeex07Ownership.ps1'
       - '.github/workflows/home-ds402ex-homeex07-apply.yml'
   workflow_dispatch:
 
