@@ -1,4 +1,4 @@
-# one-shot repair trigger: 2026-08-26 adapter-ratchet-diagnostic
+# one-shot repair trigger: 2026-08-26 adapter-metrics
 name: HomeDS402Ex HOMEEX-09 one-shot repair
 
 on:
@@ -27,12 +27,35 @@ jobs:
         run: |
           @'
           from pathlib import Path
+          import hashlib
           import re
 
           control = Path(r'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st')
           contract = Path(r'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1')
 
+          def replacement_adapter_metrics(raw_bytes):
+              lf_bytes = raw_bytes.replace(b'\r\n', b'\n')
+              if b'\r' in lf_bytes:
+                  raise SystemExit('Unexpected bare CR in Control source while measuring replacement adapter')
+              pattern = re.compile(
+                  br'(?ims)^[ \t]*FUNCTION[ \t]+LMCControlCommandService::ValidateAxisOwnershipPreemptionReplacement[ \t]*\n.*?^[ \t]*END_FUNCTION[ \t]*(?:\n|$)'
+              )
+              matches = list(pattern.finditer(lf_bytes))
+              if len(matches) != 1:
+                  raise SystemExit(f'Expected exactly one replacement adapter fragment, found {len(matches)}')
+              fragment = matches[0].group(0)
+              if not fragment.endswith(b'\n'):
+                  raise SystemExit('Replacement adapter fragment does not retain canonical LF terminator')
+              crlf_fragment = fragment.replace(b'\n', b'\r\n')
+              return len(fragment), len(crlf_fragment), hashlib.sha256(fragment).hexdigest().upper()
+
           control_bytes = control.read_bytes()
+          old_adapter_metrics = replacement_adapter_metrics(control_bytes)
+          print(f'INFO replacement adapter baseline metrics LF={old_adapter_metrics[0]} CRLF={old_adapter_metrics[1]} SHA={old_adapter_metrics[2]}')
+          expected_old_metrics = (29124, 29922, '8855AEEAE9B617CEAC1D10C7CC4ADB7F4D0536D108592560CE0D39ACF344AFAC')
+          if old_adapter_metrics != expected_old_metrics:
+              raise SystemExit(f'Replacement adapter measurement does not reproduce frozen baseline: {old_adapter_metrics!r}')
+
           tail_pattern = re.compile(
               br'(replacementTailOffset\s*:=\s*(?:\r?\n[ \t]*)?TO_UDINT\(probeAxisIndex\s*-\s*1\)\s*\*\s*)8(\s*;)',
               re.IGNORECASE,
@@ -45,16 +68,11 @@ jobs:
               control_bytes,
               count=2,
           )
+          new_adapter_metrics = replacement_adapter_metrics(control_bytes)
+          print(f'INFO replacement adapter repaired metrics LF={new_adapter_metrics[0]} CRLF={new_adapter_metrics[1]} SHA={new_adapter_metrics[2]}')
           control.write_bytes(control_bytes)
 
           contract_bytes = contract.read_bytes()
-          for needle in (b'byte/hash ratchet', b'ValidateAxisOwnershipPreemptionReplacement'):
-              positions = [match.start() for match in re.finditer(re.escape(needle), contract_bytes, re.IGNORECASE)]
-              print(f'INFO verifier diagnostic needle={needle!r} occurrences={len(positions)}')
-              for ordinal, position in enumerate(positions, 1):
-                  context = contract_bytes[max(0, position - 1800):min(len(contract_bytes), position + 1800)]
-                  print(f'INFO verifier diagnostic {needle!r} context {ordinal}: {context!r}')
-
           state_old = b"$replacementBankHistogram['ownershipstate'] -ne 44"
           state_new = b"$replacementBankHistogram['ownershipstate'] -ne 47"
           message_old = b'expected 44/12.'
