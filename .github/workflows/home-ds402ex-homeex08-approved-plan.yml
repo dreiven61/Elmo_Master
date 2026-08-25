@@ -7,6 +7,8 @@ on:
     paths:
       - 'LMC_Library/LMC_API_Delivery/src/LmcAdminDs402HomeExModels.cs'
       - 'LMC_Library/LMC_API_Delivery/src/LmcAdminDs402HomeExWireModels.cs'
+      - 'LMC_Library/LMC_API_Delivery/src/LmcAdminDs402HomeExApprovedProfile.cs'
+      - 'LMC_Library/LMC_API_Delivery/src/LasalMotionControlLib.csproj'
       - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/AdminDs402HomeExPublicSurfaceContractTests.cs'
       - '.github/workflows/home-ds402ex-homeex08-approved-plan.yml'
   pull_request:
@@ -15,6 +17,8 @@ on:
     paths:
       - 'LMC_Library/LMC_API_Delivery/src/LmcAdminDs402HomeExModels.cs'
       - 'LMC_Library/LMC_API_Delivery/src/LmcAdminDs402HomeExWireModels.cs'
+      - 'LMC_Library/LMC_API_Delivery/src/LmcAdminDs402HomeExApprovedProfile.cs'
+      - 'LMC_Library/LMC_API_Delivery/src/LasalMotionControlLib.csproj'
       - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/AdminDs402HomeExPublicSurfaceContractTests.cs'
       - '.github/workflows/home-ds402ex-homeex08-approved-plan.yml'
   workflow_dispatch:
