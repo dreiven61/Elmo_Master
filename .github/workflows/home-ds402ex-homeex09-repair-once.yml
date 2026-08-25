@@ -1,4 +1,4 @@
-# one-shot repair trigger: 2026-08-26 paired-adapter-ratchet
+# one-shot repair trigger: 2026-08-26 helper-ratchet-diagnostic
 name: HomeDS402Ex HOMEEX-09 one-shot repair
 
 on:
@@ -52,11 +52,8 @@ jobs:
           state_new = b"$replacementBankHistogram['ownershipstate'] -ne 47"
           message_old = b'expected 44/12.'
           message_new = b'expected 47/12.'
-
-          if contract_bytes.count(state_old) != 1:
-              raise SystemExit(f'Expected exactly one OwnershipState 44 fence, found {contract_bytes.count(state_old)}')
-          if contract_bytes.count(message_old) != 1:
-              raise SystemExit(f'Expected exactly one 44/12 diagnostic, found {contract_bytes.count(message_old)}')
+          if contract_bytes.count(state_old) != 1 or contract_bytes.count(message_old) != 1:
+              raise SystemExit('Expected exact legacy 44/12 SourceOnly fence before repair')
           if contract_bytes.count(state_new) != 0 or contract_bytes.count(message_new) != 0:
               raise SystemExit('47/12 fence already exists before one-shot repair; refusing ambiguous rewrite')
           contract_bytes = contract_bytes.replace(state_old, state_new, 1)
@@ -66,52 +63,46 @@ jobs:
           semantic_count_new = b'7015'
           count_positions = [match.start() for match in re.finditer(semantic_count_old, contract_bytes)]
           if len(count_positions) != 2:
-              raise SystemExit(f'Expected exactly two verifier 6714 tokens for the replacement semantic inventory, found {len(count_positions)}')
+              raise SystemExit(f'Expected exactly two verifier 6714 tokens, found {len(count_positions)}')
           for position in count_positions:
               context = contract_bytes[max(0, position - 512):min(len(contract_bytes), position + 512)].lower()
               if b'replacement' not in context or b'semantic' not in context:
-                  raise SystemExit('A 6714 token is not bounded by replacement semantic-inventory context; refusing rewrite')
+                  raise SystemExit('A 6714 token is not bounded by replacement semantic-inventory context')
           if contract_bytes.count(semantic_count_new) != 0:
-              raise SystemExit('7015 already exists before one-shot repair; refusing ambiguous rewrite')
+              raise SystemExit('7015 already exists before repair')
           contract_bytes = contract_bytes.replace(semantic_count_old, semantic_count_new, 2)
 
           old_semantic_hash = b'3386CCD85F63DEE01ABD5C06B82E2F4591179998E07D05B62DF4D816CCFF6D2B'
           new_semantic_hash = b'2270D6D53A5ACDE045AA830AEE7720DBA4C74BBEADCE19ED281DC8A1A7ABF664'
-          if contract_bytes.count(old_semantic_hash) != 1:
-              raise SystemExit(f'Expected exactly one old replacement semantic SHA-256, found {contract_bytes.count(old_semantic_hash)}')
+          if contract_bytes.count(old_semantic_hash) != 1 or contract_bytes.count(new_semantic_hash) != 0:
+              raise SystemExit('Replacement semantic SHA precondition failed')
           hash_position = contract_bytes.index(old_semantic_hash)
-          hash_context = contract_bytes[max(0, hash_position - 1024):min(len(contract_bytes), hash_position + 1024)].lower()
-          if b'replacementsemantic' not in hash_context:
-              raise SystemExit('Old semantic SHA-256 is not bounded by replacement semantic-inventory context; refusing rewrite')
-          if contract_bytes.count(new_semantic_hash) != 0:
-              raise SystemExit('New replacement semantic SHA-256 already exists before repair; refusing ambiguous rewrite')
+          if b'replacementsemantic' not in contract_bytes[max(0, hash_position - 1024):min(len(contract_bytes), hash_position + 1024)].lower():
+              raise SystemExit('Old semantic SHA is outside replacement semantic context')
           contract_bytes = contract_bytes.replace(old_semantic_hash, new_semantic_hash, 1)
 
           adapter_old = b"@{ Name = 'adapter'; Fragment = $adapter; LF = 29124; CRLF = 29922; Sha = '8855AEEAE9B617CEAC1D10C7CC4ADB7F4D0536D108592560CE0D39ACF344AFAC' }"
           adapter_new = b"@{ Name = 'adapter'; Fragment = $adapter; LF = 29184; CRLF = 29981; Sha = '855FA45D910DAFA0EA236807A004E08EFDA080BC57A80FD433BF38F0B3B6BA01' }"
           helper_expected = b"@{ Name = 'helper'; Fragment = $helper; LF = 22214; CRLF = 22826; Sha = '9E0A37E0EC0A3AD7FDD194CF8691BF3B492D4E4C6FD10E8C118323571F980BDD' }"
-          if contract_bytes.count(adapter_old) != 1:
-              raise SystemExit(f'Expected exactly one old rollback-split adapter ratchet tuple, found {contract_bytes.count(adapter_old)}')
-          if contract_bytes.count(adapter_new) != 0:
-              raise SystemExit('New rollback-split adapter ratchet tuple already exists; refusing ambiguous rewrite')
+          if contract_bytes.count(adapter_old) != 1 or contract_bytes.count(adapter_new) != 0:
+              raise SystemExit('Rollback-split adapter tuple precondition failed')
           if contract_bytes.count(helper_expected) != 1:
-              raise SystemExit(f'Rollback-split helper ratchet tuple drifted before HOMEEX-09 repair; found {contract_bytes.count(helper_expected)}')
+              raise SystemExit('Rollback-split helper baseline tuple is not exact before diagnostic')
           adapter_position = contract_bytes.index(adapter_old)
           adapter_context = contract_bytes[max(0, adapter_position - 1024):min(len(contract_bytes), adapter_position + 2048)].lower()
           if b'methodcontract' not in adapter_context or b'byte/hash ratchet' not in adapter_context:
-              raise SystemExit('Rollback-split adapter tuple is not bounded by the byte/hash ratchet context; refusing rewrite')
+              raise SystemExit('Adapter tuple is outside rollback-split ratchet context')
           contract_bytes = contract_bytes.replace(adapter_old, adapter_new, 1)
-          if contract_bytes.count(helper_expected) != 1:
-              raise SystemExit('Rollback-split helper ratchet changed unexpectedly while updating adapter tuple')
 
+          diagnostic_throw_old = b'throw "$blocker $($methodContract.Name) byte/hash ratchet drifted."'
+          diagnostic_throw_new = b'throw "$blocker $($methodContract.Name) byte/hash ratchet drifted (LF=$($dimensions.LF)/$($methodContract.LF), CRLF=$($dimensions.CRLF)/$($methodContract.CRLF), SHA=$(Get-LasalRollbackSplitTextSha256 -Text $methodContract.Fragment)/$($methodContract.Sha))."'
+          if contract_bytes.count(diagnostic_throw_old) != 1:
+              raise SystemExit(f'Expected exactly one rollback-split byte/hash throw, found {contract_bytes.count(diagnostic_throw_old)}')
+          contract_bytes = contract_bytes.replace(diagnostic_throw_old, diagnostic_throw_new, 1)
           contract.write_bytes(contract_bytes)
 
-          print('PASS repaired exactly two stale identity-tail strides')
-          print('PASS re-baselined only OwnershipState persisted-read fence 44 -> 47')
-          print('PASS preserved OwnershipIdentityState fence at 12')
-          print('PASS re-baselined replacement semantic token inventory 6714 -> 7015')
-          print('PASS re-baselined paired replacement semantic SHA-256')
-          print('PASS re-baselined rollback-split adapter LF/CRLF/SHA and preserved helper ratchet')
+          print('PASS applied exact source/fence/semantic/adapter repairs')
+          print('INFO transient helper metric diagnostic added; failure path commits nothing')
           '@ | python -
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
@@ -133,8 +124,6 @@ jobs:
           git diff --check
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           git diff --stat
-          git diff -- 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
-          git diff -- 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
 
       - name: Commit repair and remove one-shot workflow
         shell: powershell
