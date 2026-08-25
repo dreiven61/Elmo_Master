@@ -89,29 +89,12 @@ $fragment = Read-AsciiLf $fragmentPath
 Require-True ($fragment.StartsWith('FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeExStart')) 'fragment begins at HomeDS402Ex Start handler'
 Require-True ($fragment.Contains('FUNCTION LMCDiagnosticsService::ProcessAxisDs402HomeEx')) 'fragment contains dormant processor'
 
-$oldTcpRoute = @'
-  0x7D15, 0x7D16, 0x7D17,
-  0x7D23, 0x7D24, 0x7D25,
-'@
-$newTcpRoute = @'
-  0x7D15, 0x7D16, 0x7D17,
-  0x7D1B, 0x7D1C, 0x7D1D,
-  0x7D23, 0x7D24, 0x7D25,
-'@
+$oldTcpRoute = '  0x7D15, 0x7D16, 0x7D17,'
+$newTcpRoute = $oldTcpRoute + "`n  0x7D1B, 0x7D1C, 0x7D1D,"
 $tcp = Replace-Once $tcp $oldTcpRoute $newTcpRoute 'route HomeDS402Ex lifecycle through diagnostics without ownership admission'
 
-$oldState = @'
-		Ds402HomeState : ARRAY [0..127] OF DINT;
-
-		EncoderMaintenanceState : ARRAY [0..191] OF DINT;
-'@
-$newState = @'
-		Ds402HomeState : ARRAY [0..127] OF DINT;
-
-		Ds402HomeExState : ARRAY [0..255] OF DINT;
-
-		EncoderMaintenanceState : ARRAY [0..191] OF DINT;
-'@
+$oldState = "`t`tDs402HomeState : ARRAY [0..127] OF DINT;"
+$newState = $oldState + "`n`n`t`tDs402HomeExState : ARRAY [0..255] OF DINT;"
 $diagnostics = Replace-Once $diagnostics $oldState $newState 'declare dedicated HomeDS402Ex scaffold state'
 
 $declarations = @'
@@ -163,12 +146,9 @@ $declarations = @'
 $functionDeclarationAnchor = "`tFUNCTION HandleAxisDs402HomeStart"
 $diagnostics = Replace-Once $diagnostics $functionDeclarationAnchor ($declarations + $functionDeclarationAnchor) 'declare HomeDS402Ex handlers and dormant processor'
 
-$oldGate = @'
-#define LMC_DIAG_DS402_HOME_ENABLED FALSE
-// SetOperationMode runtime remains private until MODE-14 paired activation.
-'@
-$newGate = @'
-#define LMC_DIAG_DS402_HOME_ENABLED FALSE
+$oldGate = '#define LMC_DIAG_DS402_HOME_ENABLED FALSE'
+$newGate = $oldGate + @'
+
 // HomeDS402Ex parser/outcome scaffold is private until HOMEEX-07/08 runtime work.
 #define LMC_DIAG_DS402_HOME_EX_ENABLED FALSE
 #define LMC_DIAG_HOMEEX_RECORD_STRIDE 40
@@ -183,39 +163,18 @@ $newGate = @'
 #define LMC_DIAG_HOMEEX_DETAIL_SLOT_OCCUPIED 60
 #define LMC_DIAG_HOMEEX_DETAIL_INVALID_PROFILE 61
 #define LMC_DIAG_HOMEEX_DETAIL_CLEANUP_INCOMPLETE 62
-// SetOperationMode runtime remains private until MODE-14 paired activation.
 '@
 $diagnostics = Replace-Once $diagnostics $oldGate $newGate 'add frozen HomeDS402Ex gate and scaffold constants'
 
-$oldPump = @'
-	ProcessEncoderMaintenance();
-	ProcessAxisDs402Home();
-	ProcessAxisSetOperationMode();
-'@
-$newPump = @'
-	ProcessEncoderMaintenance();
-	ProcessAxisDs402Home();
-	ProcessAxisDs402HomeEx();
-	ProcessAxisSetOperationMode();
-'@
+$oldPump = "`tProcessAxisDs402Home();"
+$newPump = $oldPump + "`n`tProcessAxisDs402HomeEx();"
 $diagnostics = Replace-Once $diagnostics $oldPump $newPump 'pump dormant HomeDS402Ex processor before generic diagnostics work'
 
-$oldInit = @'
-	_memset(dest:=#EncoderMaintenanceState[0], usByte:=0,
-		cntr:=sizeof(EncoderMaintenanceState));
-'@
-$newInit = @'
-	_memset(dest:=#Ds402HomeExState[0], usByte:=0,
-		cntr:=sizeof(Ds402HomeExState));
-	_memset(dest:=#EncoderMaintenanceState[0], usByte:=0,
-		cntr:=sizeof(EncoderMaintenanceState));
-'@
+$oldInit = "`t_memset(dest:=#EncoderMaintenanceState[0], usByte:=0,"
+$newInit = "`t_memset(dest:=#Ds402HomeExState[0], usByte:=0,`n`t`tcntr:=sizeof(Ds402HomeExState));`n" + $oldInit
 $diagnostics = Replace-Once $diagnostics $oldInit $newInit 'zero dedicated HomeDS402Ex scaffold state at construction'
 
-$oldRequestRoute = @'
-	// Home uses physical axis references 1..4, unlike diagnostics commands below.
-	if CommandId = 0x7D15 then
-'@
+$oldRequestRoute = "`t// Home uses physical axis references 1..4, unlike diagnostics commands below.`n`tif CommandId = 0x7D15 then"
 $newRequestRoute = @'
 	// Home lifecycles use physical axis references 1..4.
 	if CommandId = 0x7D1B then
