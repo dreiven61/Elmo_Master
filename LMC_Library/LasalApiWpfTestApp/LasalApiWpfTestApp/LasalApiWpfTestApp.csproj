@@ -216,6 +216,9 @@
     <Compile Include="AxisSetOperationModeRecoveryJournal.cs">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="AxisDs402HomeExRecoveryJournal.cs">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="MaintenanceActionRecoveryJournal.cs">
       <SubType>Code</SubType>
     </Compile>
@@ -320,6 +323,6 @@
       <Link>README.md</Link>
     </None>
   </ItemGroup>
-  <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\WPF\Microsoft.WinFX.targets" Condition="Exists('$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\WPF\Microsoft.WinFX.targets')" />
+  <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\WPF\Microsoft.WinFX.targets" Condition="Exists('$(MSBuildExtensionsPath32)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
