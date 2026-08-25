@@ -1,4 +1,4 @@
-# one-shot repair trigger: 2026-08-26 verifier-native-adapter-metrics
+# one-shot repair trigger: 2026-08-26 paired-adapter-ratchet
 name: HomeDS402Ex HOMEEX-09 one-shot repair
 
 on:
@@ -71,6 +71,8 @@ jobs:
               context = contract_bytes[max(0, position - 512):min(len(contract_bytes), position + 512)].lower()
               if b'replacement' not in context or b'semantic' not in context:
                   raise SystemExit('A 6714 token is not bounded by replacement semantic-inventory context; refusing rewrite')
+          if contract_bytes.count(semantic_count_new) != 0:
+              raise SystemExit('7015 already exists before one-shot repair; refusing ambiguous rewrite')
           contract_bytes = contract_bytes.replace(semantic_count_old, semantic_count_new, 2)
 
           old_semantic_hash = b'3386CCD85F63DEE01ABD5C06B82E2F4591179998E07D05B62DF4D816CCFF6D2B'
@@ -85,11 +87,23 @@ jobs:
               raise SystemExit('New replacement semantic SHA-256 already exists before repair; refusing ambiguous rewrite')
           contract_bytes = contract_bytes.replace(old_semantic_hash, new_semantic_hash, 1)
 
-          diagnostic_throw_old = b'throw "$blocker $($methodContract.Name) byte/hash ratchet drifted."'
-          diagnostic_throw_new = b'throw "$blocker $($methodContract.Name) byte/hash ratchet drifted (LF=$($dimensions.LF)/$($methodContract.LF), CRLF=$($dimensions.CRLF)/$($methodContract.CRLF), SHA=$(Get-LasalRollbackSplitTextSha256 -Text $methodContract.Fragment)/$($methodContract.Sha))."'
-          if contract_bytes.count(diagnostic_throw_old) != 1:
-              raise SystemExit(f'Expected exactly one rollback-split byte/hash throw, found {contract_bytes.count(diagnostic_throw_old)}')
-          contract_bytes = contract_bytes.replace(diagnostic_throw_old, diagnostic_throw_new, 1)
+          adapter_old = b"@{ Name = 'adapter'; Fragment = $adapter; LF = 29124; CRLF = 29922; Sha = '8855AEEAE9B617CEAC1D10C7CC4ADB7F4D0536D108592560CE0D39ACF344AFAC' }"
+          adapter_new = b"@{ Name = 'adapter'; Fragment = $adapter; LF = 29184; CRLF = 29981; Sha = '855FA45D910DAFA0EA236807A004E08EFDA080BC57A80FD433BF38F0B3B6BA01' }"
+          helper_expected = b"@{ Name = 'helper'; Fragment = $helper; LF = 22214; CRLF = 22826; Sha = '9E0A37E0EC0A3AD7FDD194CF8691BF3B492D4E4C6FD10E8C118323571F980BDD' }"
+          if contract_bytes.count(adapter_old) != 1:
+              raise SystemExit(f'Expected exactly one old rollback-split adapter ratchet tuple, found {contract_bytes.count(adapter_old)}')
+          if contract_bytes.count(adapter_new) != 0:
+              raise SystemExit('New rollback-split adapter ratchet tuple already exists; refusing ambiguous rewrite')
+          if contract_bytes.count(helper_expected) != 1:
+              raise SystemExit(f'Rollback-split helper ratchet tuple drifted before HOMEEX-09 repair; found {contract_bytes.count(helper_expected)}')
+          adapter_position = contract_bytes.index(adapter_old)
+          adapter_context = contract_bytes[max(0, adapter_position - 1024):min(len(contract_bytes), adapter_position + 2048)].lower()
+          if b'methodcontract' not in adapter_context or b'byte/hash ratchet' not in adapter_context:
+              raise SystemExit('Rollback-split adapter tuple is not bounded by the byte/hash ratchet context; refusing rewrite')
+          contract_bytes = contract_bytes.replace(adapter_old, adapter_new, 1)
+          if contract_bytes.count(helper_expected) != 1:
+              raise SystemExit('Rollback-split helper ratchet changed unexpectedly while updating adapter tuple')
+
           contract.write_bytes(contract_bytes)
 
           print('PASS repaired exactly two stale identity-tail strides')
@@ -97,7 +111,7 @@ jobs:
           print('PASS preserved OwnershipIdentityState fence at 12')
           print('PASS re-baselined replacement semantic token inventory 6714 -> 7015')
           print('PASS re-baselined paired replacement semantic SHA-256')
-          print('INFO added transient verifier-native adapter metric diagnostic; it is never committed on failure')
+          print('PASS re-baselined rollback-split adapter LF/CRLF/SHA and preserved helper ratchet')
           '@ | python -
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
