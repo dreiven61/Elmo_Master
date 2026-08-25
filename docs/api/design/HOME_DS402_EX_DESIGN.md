@@ -1,8 +1,9 @@
 # HomeDS402Ex 최우선 개발 설계
 
 - 대상: No.22 `MMC_HomeDS402ExCmd`
-- 현재 진행 상태: SDK wire/lifecycle qualification 완료, LASAL runtime/WPF durable journal 미구현
+- 현재 진행 상태: SDK wire/lifecycle + WPF durable no-replay recovery qualification 완료, LASAL runtime 미구현
 - current C#: frozen wire contract, strict Start/Outcome/Retire parser, one-shot lifecycle facade, read-only recovery rehydrate 구현
+- current WPF: pre-dispatch durable journal, startup interlock, read-only exact-key recovery와 exact-generation retire 구현; Start UI는 닫힘
 - 신규 command: `0x7D1B Start`, `0x7D1C ReadOutcome`, `0x7D1D Retire`
 - activation: independent Admin feature bit 11, PLC advertisement/current runtime OFF
 
@@ -15,8 +16,9 @@ SDO executor resource를 공유해 동시에 실행되지 않게 한다.
 current C#에는 `LMCAxisDs402HomeExParameters` 입력 model에 더해 frozen DINT execution plan,
 `0x7D1B/1C/1D` wire contract, strict response parser, one-shot Start/Outcome/Retire facade와
 read-only durable recovery-key rehydrate가 구현되어 있다. engineering-unit public Prepare는
-axis별 scale/profile 승인 전까지 의도적으로 닫혀 있다. LASAL route/state/store와 WPF durable
-journal 실행 경로는 아직 구현하지 않았다.
+axis별 scale/profile 승인 전까지 의도적으로 닫혀 있다. WPF에는 Start를 재구성하지 않는
+pre-dispatch durable journal과 startup interlock, exact-key outcome query 및 exact-generation retire
+recovery만 구현되어 있다. LASAL route/state/store는 아직 구현하지 않았다.
 
 ## 2. v1 범위
 
@@ -194,6 +196,13 @@ invalid/faulted 처리한다. persisted full key는 `LMCAxisDs402HomeExRecovery.
 Build/BootId/MapRevision과 current capability observation을 요구한다. Retire 응답 유실 뒤에는
 같은 recovery key와 같은 nonzero record generation으로만 exact retry할 수 있다.
 
+WPF durable recovery journal은 future Start integration이 write boundary를 넘기 전에 exact intent를
+먼저 durable arm하도록 API를 제공한다. startup에서 unresolved `ArmedBeforeDispatch`는
+`RecoveryRequired`로 승격하고 일반 mutation UI를 interlock한다. journal은 Start sender를 갖지
+않으며, recovery panel도 capability refresh와 exact `0x7D1C` query / `0x7D1D` retire만 제공한다.
+terminal outcome은 durable proof로 먼저 기록한 뒤 exact-generation retirement가 성공해야만
+Resolved가 된다. BootId를 포함한 recovery identity가 달라지면 자동 복구/해제를 하지 않는다.
+
 ## 7. capability
 
 Admin feature bit 11 `AxisDs402HomeEx`를 C# protocol에 고정했다. 이 한 bit는
@@ -235,14 +244,18 @@ PLC/LASAL capability advertisement와 runtime route는 physical qualification �
 - `LMCControlCommandService.st`: shared resource conflict/preemption
 - `Verify-LasalContract.ps1`: dormant/active atomic gate와 mutation fixtures
 
-### WPF recovery 미구현
+### WPF recovery 구현됨
 
-- 신규 `AxisDs402HomeExRecoveryJournal.cs`
-- `MainWindow.xaml`과 `MainWindow.xaml.cs`의 explicit confirmation/interlock
-- startup unresolved record는 exact BootId가 같아도 ReadOutcome만 허용하고 Start를 replay하지 않음
-- BootId가 바뀌면 operator recovery-required로 유지
-- exact terminal과 generation을 journal에 저장한 뒤 retire 성공 후에만 resolve
-- 전용 journal unit test와 MainWindow smoke test
+- `AxisDs402HomeExRecoveryJournal.cs`: pre-dispatch durable arm, startup promotion, exact-key persistence, terminal proof와 exact-retirement resolution
+- `MainWindow.AxisDs402HomeExRecovery.cs`: startup unresolved-record interlock와 read-only Query/Retire recovery panel
+- recovery journal/record에는 Start sender가 없고 recovery key로 Start를 재구성하지 않음
+- active recovery 중 ordinary mutation UI는 차단하고 safety/read-only/recovery action만 allowlist
+- endpoint + Build/BootId/MapRevision + full recovery key exact match 요구
+- terminal outcome/generation을 먼저 durable 저장한 뒤 exact `0x7D1D` 성공 후에만 resolve
+- dedicated journal + MainWindow integration smoke tests와 Debug/Release workflow
+
+HomeDS402Ex Start UI와 engineering-unit confirmation surface는 HOMEEX-13 paired activation 전까지
+의도적으로 닫혀 있다.
 
 ## 9. 작업 체크리스트
 
@@ -259,10 +272,10 @@ PLC/LASAL capability advertisement와 runtime route는 physical qualification �
 - [ ] `HOMEEX-09` SourceOnly, method-size, C78와 generated artifact PASS
 - [ ] `HOMEEX-10` Axis1 normal/timeout/limit/SDO abort/preempt/reconnect/retire matrix PASS
 - [ ] `HOMEEX-11` Axis2~4와 승인 method matrix PASS
-- [ ] `HOMEEX-12` WPF pre-dispatch journal/startup no-replay recovery와 smoke test PASS
+- [x] `HOMEEX-12` WPF pre-dispatch journal/startup no-replay recovery와 smoke test PASS
 - [ ] `HOMEEX-13` capability bit 11과 WPF UI paired activation
 
-## 10. current SDK qualification evidence
+## 10. current software qualification evidence
 
 PR #20 SDK qualification rerun on the current code tranche passed:
 
@@ -277,8 +290,21 @@ An earlier identical-head attempt observed one pre-existing `GroupDisableWait.Ob
 timing/socket failure; the identical job rerun passed the complete Debug and Release suites. No HomeDS402Ex
 safety invariant was weakened to address that unrelated flaky test.
 
-This evidence qualifies the current C# SDK tranche only. It is not LASAL build/runtime, EtherCAT packet,
-hardware or production activation evidence.
+HOMEEX-12 WPF recovery qualification on head `0012f67f7b38e633421cf7f9cdf989cc3f6537f5` passed:
+
+- workflow run `32802902270`, job `97667184835`
+- Debug WPF smoke build PASS, 0 warnings / 0 errors
+- Debug HomeDS402Ex recovery smoke: 11 / 11 PASS
+- Release WPF smoke build PASS, 0 warnings / 0 errors
+- Release HomeDS402Ex recovery smoke: 11 / 11 PASS
+- `git diff --check` PASS
+- same-head SetOperationMode WPF recovery workflow `32802902209` PASS
+
+Detailed HOMEEX-12 evidence is recorded in
+`docs/api/design/evidence/HOME_DS402_EX_HOMEEX12_WPF_RECOVERY_20260825.md`.
+
+This evidence qualifies the current C# SDK and WPF recovery tranches only. It is not LASAL build/runtime,
+EtherCAT packet, hardware or production activation evidence.
 
 ## 11. activation 금지 조건
 
