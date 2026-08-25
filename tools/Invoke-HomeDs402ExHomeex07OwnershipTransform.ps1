@@ -57,6 +57,17 @@ $control = Replace-RegexCount $control '^#define LMC_OWNER_IDENTITY_PREFIX_BYTES
 '@ `
     'axis tail slot insertion'
 
+# Four of the ten current OperationMode owner-kind branches terminate directly
+# at END_CASE rather than through an ELSE arm. Preserve the exact semantic copy
+# logic and widen only that branch-boundary lookahead. The transform itself still
+# requires exactly ten matches, so any future structural drift fails closed.
+$text = Replace-ScriptBlockOnce $text `
+    "\\$control = Replace-RegexCount \\$control '.*?LMC_OWNER_KIND_AXIS_OPERATION_MODE:\[ \\t\]\*\\\\n\\(\?<body>\.\*\?\)\(\?=\^\\\\k<indent>else\\\\b\)' 10 \{" `
+    @'
+$control = Replace-RegexCount $control '^(?<indent>[ \t]*)LMC_OWNER_KIND_AXIS_OPERATION_MODE:[ \t]*\n(?<body>.*?)(?=^\k<indent>(?:else\b|end_case;))' 10 {
+'@ `
+    'allow owner-kind branch to terminate at else or end_case'
+
 [System.IO.File]::WriteAllText($tempPath, $text, [System.Text.UTF8Encoding]::new($false))
 & $tempPath -RepositoryRoot $RepositoryRoot
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
