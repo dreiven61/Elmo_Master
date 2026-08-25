@@ -37,12 +37,12 @@ jobs:
               re.IGNORECASE,
           )
           tail_matches = list(tail_pattern.finditer(control_bytes))
-          if len(tail_matches) != 1:
-              raise SystemExit(f'Expected exactly one stale replacementTailOffset * 8 match, found {len(tail_matches)}')
+          if len(tail_matches) != 2:
+              raise SystemExit(f'Expected exactly two stale replacementTailOffset * 8 matches, found {len(tail_matches)}')
           control_bytes = tail_pattern.sub(
               br'\1LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES\2',
               control_bytes,
-              count=1,
+              count=2,
           )
           control.write_bytes(control_bytes)
 
@@ -74,7 +74,7 @@ jobs:
           contract_bytes = contract_bytes[:offset] + b'47' + contract_bytes[offset + 2:]
           contract.write_bytes(contract_bytes)
 
-          print('PASS repaired stale preemption tail stride: 8 -> LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES')
+          print('PASS repaired two stale replacement tail strides: 8 -> LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES')
           print('PASS re-baselined persisted-read SourceOnly fence: 44 -> 47')
           '@ | python -
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
