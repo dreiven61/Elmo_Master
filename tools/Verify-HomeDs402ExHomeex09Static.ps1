@@ -69,6 +69,11 @@ Require-Regex $preemption '(?s)LMC_OWNER_KIND_DS402_HOME_EX\s*:.*?LMC_OWNER_STAT
 Require-Regex $preemption '(?s)replacementTailOffset\s*:=\s*TO_UDINT\(probeAxisIndex\s*-\s*1\)\s*\*\s*LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES\s*;' 'preemption replacement uses the expanded 52-byte per-axis tail stride'
 Require-NoRegex $preemption '(?s)replacementTailOffset\s*:=\s*TO_UDINT\(probeAxisIndex\s*-\s*1\)\s*\*\s*8\s*;' 'preemption replacement contains no stale 8-byte tail stride'
 
+$publishDecision = Extract-Function $control 'LMCControlCommandService::PrepareAxisOwnershipPublishDecision'
+Require-Regex $publishDecision '(?s)LMC_OWNER_KIND_DS402_HOME_EX\s*:.*?preemptCommand\s*=\s*0x7D1B.*?preemptIdentitySize\s*=\s*116' 'publish decision recognizes the full HomeDS402Ex preempted identity'
+Require-Regex $publishDecision '(?s)replacementTailOffset\s*:=\s*TO_UDINT\(probeAxisIndex\s*-\s*1\)\s*\*\s*LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES\s*;' 'publish decision uses the expanded 52-byte replacement tail stride'
+Require-NoRegex $publishDecision '(?s)replacementTailOffset\s*:=\s*TO_UDINT\(probeAxisIndex\s*-\s*1\)\s*\*\s*8\s*;' 'publish decision contains no stale 8-byte replacement tail stride'
+
 # HOMEEX-08 remains blocked: HOMEEX-09 must not activate motion while the axis profile is pending.
 Require-Regex $diag '(?m)^#define\s+LMC_DIAG_DS402_HOME_EX_ENABLED\s+FALSE\s*$' 'HomeDS402Ex runtime gate remains FALSE'
 Require-Regex $diag '(?m)^#define\s+LMC_DIAG_OWNER_KIND_DS402_HOME_EX\s+7\s*$' 'Diagnostics owner kind remains paired to OwnerKind 7'
