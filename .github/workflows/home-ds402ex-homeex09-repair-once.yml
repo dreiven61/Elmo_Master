@@ -13,7 +13,7 @@ permissions:
 jobs:
   repair-and-prove:
     runs-on: windows-2025
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Checkout branch
         uses: actions/checkout@v4
@@ -21,7 +21,7 @@ jobs:
           ref: codex/home-ds402ex-homeex09-static-qualification
           fetch-depth: 0
 
-      - name: Discover exact HOMEEX-09 ratchet location
+      - name: Apply byte-preserving HOMEEX-09 repairs
         shell: powershell
         run: |
           @'
@@ -39,22 +39,68 @@ jobs:
           tail_matches = list(tail_pattern.finditer(control_bytes))
           if len(tail_matches) != 2:
               raise SystemExit(f'Expected exactly two stale replacementTailOffset * 8 matches, found {len(tail_matches)}')
-          print('PASS found exactly two stale replacementTailOffset * 8 sites')
+          control_bytes = tail_pattern.sub(
+              br'\1LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES\2',
+              control_bytes,
+              count=2,
+          )
+          control.write_bytes(control_bytes)
 
-          text = contract.read_text(encoding='utf-8-sig')
-          lines = text.splitlines()
-          candidates = []
-          for index, line in enumerate(lines):
-              if re.search(r'(?<!\d)44(?!\d)', line):
-                  start = max(0, index - 4)
-                  end = min(len(lines), index + 5)
-                  context = '\n'.join(f'{i + 1}: {lines[i]}' for i in range(start, end))
-                  candidates.append((index + 1, context))
+          contract_bytes = contract.read_bytes()
+          state_old = b"$replacementBankHistogram['ownershipstate'] -ne 44"
+          state_new = b"$replacementBankHistogram['ownershipstate'] -ne 47"
+          message_old = b'expected 44/12.'
+          message_new = b'expected 47/12.'
 
-          print(f'Found {len(candidates)} standalone 44 candidate line(s) in Verify-LasalContract.ps1')
-          for line_number, context in candidates:
-              print(f'--- candidate line {line_number} ---')
-              print(context)
-          raise SystemExit('Diagnostic stop after printing standalone 44 candidates; no files committed.')
+          if contract_bytes.count(state_old) != 1:
+              raise SystemExit(f'Expected exactly one OwnershipState 44 fence, found {contract_bytes.count(state_old)}')
+          if contract_bytes.count(message_old) != 1:
+              raise SystemExit(f'Expected exactly one 44/12 diagnostic, found {contract_bytes.count(message_old)}')
+          if contract_bytes.count(state_new) != 0 or contract_bytes.count(message_new) != 0:
+              raise SystemExit('47/12 fence already exists before one-shot repair; refusing ambiguous rewrite')
+
+          contract_bytes = contract_bytes.replace(state_old, state_new, 1)
+          contract_bytes = contract_bytes.replace(message_old, message_new, 1)
+          contract.write_bytes(contract_bytes)
+
+          print('PASS repaired exactly two stale identity-tail strides')
+          print('PASS re-baselined only OwnershipState persisted-read fence 44 -> 47')
+          print('PASS preserved OwnershipIdentityState fence at 12')
           '@ | python -
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify HOMEEX-09 static invariants after repair
+        shell: powershell
+        run: |
+          & '.\tools\Verify-HomeDs402ExHomeex09Static.ps1'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run legacy LASAL SourceOnly contract after repair
+        shell: powershell
+        run: |
+          & '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\Verify-LasalContract.ps1' -RepositoryRoot $env:GITHUB_WORKSPACE
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Check focused diff
+        shell: powershell
+        run: |
+          git diff --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git diff --stat
+          git diff -- 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
+          git diff -- 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
+
+      - name: Commit repair and remove one-shot workflow
+        shell: powershell
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm '.github/workflows/home-ds402ex-homeex09-repair-once.yml'
+          git add 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
+          git add 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
+          git diff --cached --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git commit -m 'fix(homeex): close HOMEEX-09 identity ratchets'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git push origin HEAD:codex/home-ds402ex-homeex09-static-qualification
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
