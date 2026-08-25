@@ -89,6 +89,15 @@ namespace LasalMotionControlLib
                     return LMC_AdminParser
                         .AxisDs402HomeOutcomeRetirementResponsePayloadLength;
 
+                case LMC_CommandId.StartAxisDs402HomeEx:
+                    return LMC_AdminParser
+                        .StartAxisDs402HomeExResponsePayloadLength;
+
+                case LMC_CommandId.ReadAxisDs402HomeExOutcome:
+                case LMC_CommandId.RetireAxisDs402HomeExOutcome:
+                    return LMC_AdminParser
+                        .AxisDs402HomeExOutcomeResponsePayloadLength;
+
                 case LMC_CommandId.ReadAxisHomeOutcome:
                 case LMC_CommandId.RetireAxisHomeOutcome:
                     return LMC_AdminParser

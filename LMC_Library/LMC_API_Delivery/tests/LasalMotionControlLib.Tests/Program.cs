@@ -61,6 +61,12 @@ namespace LasalMotionControlLib.Tests
             AdminLmcHomeContractTests.Register(tests);
             AdminDs402HomeCurrentPositionZeroContractTests.Register(tests);
             AxisDs402HomeExParameterContractTests.Register(tests);
+            AdminDs402HomeExOutcomeContractTests.Register(tests);
+            AdminDs402HomeExCapabilityContractTests.Register(tests);
+            AdminDs402HomeExRecoveryContractTests.Register(tests);
+            AdminDs402HomeExLifecycleContractTests.Register(tests);
+            AdminDs402HomeExPublicSurfaceContractTests.Register(tests);
+            AdminDs402HomeExRetirementRetryContractTests.Register(tests);
             EncoderMaintenanceProtocolContractTests.Register(tests);
             AdminDs402HomeOutcomeRetirementContractTests.Register(tests);
             ErrorCatalogTests.Register(tests);

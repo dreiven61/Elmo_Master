@@ -350,6 +350,36 @@ namespace LasalMotionControlLib
             AddAdmin(entries, LMCAdminDetailCode.SetOperationModeOutcomeSlotOccupied,
                 "The axis already has an unretired SetOperationMode outcome.",
                 "Read and retire the exact terminal generation before preparing another mode mutation.");
+            AddAdmin(entries, LMCAdminDetailCode.Ds402HomeExOutcomeNotFound,
+                "No exact retained HomeDS402Ex outcome was found.",
+                "Keep recovery unresolved; absence is not proof that the original Start was not dispatched.");
+            AddAdmin(entries, LMCAdminDetailCode.Ds402HomeExOutcomeIndeterminate,
+                "The retained HomeDS402Ex outcome is transitional, indeterminate, or quarantined.",
+                "Do not replay Start; use only the exact recovery-key outcome path until the record becomes safely terminal.");
+            AddAdmin(entries, LMCAdminDetailCode.Ds402HomeExOutcomeStoreCorrupt,
+                "The retained HomeDS402Ex outcome store failed its integrity checks.",
+                "Keep recovery unresolved and service the retained store before another HomeDS402Ex attempt.");
+            AddAdmin(entries, LMCAdminDetailCode.Ds402HomeExOutcomeKeyMismatch,
+                "The retained HomeDS402Ex record does not exactly match the full recovery key.",
+                "Verify build, BootId, map revision, original request, client intent, axis, and every converted execution parameter.");
+            AddAdmin(entries, LMCAdminDetailCode.Ds402HomeExOutcomeStorageUnavailable,
+                "The HomeDS402Ex retained outcome storage is unavailable.",
+                "Do not submit HomeDS402Ex until storage is healthy and capability bit 11 is advertised with error catalog version 7 or later.");
+            AddAdmin(entries, LMCAdminDetailCode.Ds402HomeExExecutionFailed,
+                "The accepted HomeDS402Ex operation failed during PLC-side execution.",
+                "Inspect retained DS402 status, position readback, runtime evidence, and cleanup proof before deciding recovery.");
+            AddAdmin(entries, LMCAdminDetailCode.Ds402HomeExAborted,
+                "The accepted HomeDS402Ex operation was aborted.",
+                "Inspect the retained result and current machine safety state; do not replay the original Start automatically.");
+            AddAdmin(entries, LMCAdminDetailCode.Ds402HomeExOutcomeSlotOccupied,
+                "The axis already has an unretired HomeDS402Ex outcome.",
+                "Read the exact terminal outcome and retire its exact nonzero record generation before preparing another HomeDS402Ex intent.");
+            AddAdmin(entries, LMCAdminDetailCode.Ds402HomeExInvalidProfile,
+                "The HomeDS402Ex method, scale, range, or axis homing profile is not approved for the requested execution plan.",
+                "Refresh the approved axis profile and paired MapRevision; do not bypass method, scale, range, or overflow validation.");
+            AddAdmin(entries, LMCAdminDetailCode.Ds402HomeExCleanupIncomplete,
+                "HomeDS402Ex cleanup did not prove every required safe terminal condition.",
+                "Keep the axis quarantined and the recovery record unresolved until the exact outcome proves parameter restoration, CSP restoration, setpoint alignment, owner release, and SDO drain.");
 
             return entries;
         }

@@ -271,7 +271,8 @@ namespace LasalMotionControlLib
                 | LMCAdminFeature.AxisSetPositionOutcomeRetirement
                 | LMCAdminFeature.AxisSetOperationModeStart
                 | LMCAdminFeature.AxisSetOperationModeOutcomeRead
-                | LMCAdminFeature.AxisSetOperationModeOutcomeRetire;
+                | LMCAdminFeature.AxisSetOperationModeOutcomeRetire
+                | LMCAdminFeature.AxisDs402HomeEx;
             const uint knownAxisMask = 0x0000003Fu;
 
             if ((features & ~knownFeatures) != 0
@@ -343,6 +344,10 @@ namespace LasalMotionControlLib
                         || physicalAxisCount == 0
                         || physicalAxisCount > 4
                         || errorCatalogVersion < 6))
+                || ((features & LMCAdminFeature.AxisDs402HomeEx) != 0
+                    && (physicalAxisCount == 0
+                        || physicalAxisCount > 4
+                        || errorCatalogVersion < 7))
                 || errorCatalogVersion == 0)
             {
                 throw new InvalidDataException(
