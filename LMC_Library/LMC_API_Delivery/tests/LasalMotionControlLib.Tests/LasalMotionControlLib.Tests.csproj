@@ -48,6 +48,7 @@
     <Compile Include="AdminLmcHomeContractTests.cs" />
     <Compile Include="AdminDs402HomeCurrentPositionZeroContractTests.cs" />
     <Compile Include="AxisDs402HomeExParameterContractTests.cs" />
+    <Compile Include="AdminDs402HomeExOutcomeContractTests.cs" />
     <Compile Include="EncoderMaintenanceProtocolContractTests.cs" />
     <Compile Include="AdminDs402HomeOutcomeRetirementContractTests.cs" />
     <Compile Include="ErrorCatalogTests.cs" />
