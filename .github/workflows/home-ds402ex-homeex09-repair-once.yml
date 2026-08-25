@@ -1,4 +1,4 @@
-# one-shot repair trigger: 2026-08-25
+# one-shot repair trigger: 2026-08-26 semantic-ratchet
 name: HomeDS402Ex HOMEEX-09 one-shot repair
 
 on:
@@ -62,11 +62,27 @@ jobs:
 
           contract_bytes = contract_bytes.replace(state_old, state_new, 1)
           contract_bytes = contract_bytes.replace(message_old, message_new, 1)
+
+          semantic_phrase = b'LASAL.SetPosition replacement loop/map/state/header/absence semantic inventory drifted.'
+          if contract_bytes.count(semantic_phrase) != 1:
+              raise SystemExit(f'Expected exactly one replacement semantic-inventory ratchet, found {contract_bytes.count(semantic_phrase)}')
+          phrase_index = contract_bytes.index(semantic_phrase)
+          window_start = max(0, phrase_index - 4096)
+          window_end = min(len(contract_bytes), phrase_index + len(semantic_phrase) + 2048)
+          semantic_window = contract_bytes[window_start:window_end]
+          old_header_count = semantic_window.count(b'6714')
+          if old_header_count != 2:
+              raise SystemExit(f'Expected exactly two 6714 tokens in anchored replacement semantic ratchet window, found {old_header_count}')
+          if semantic_window.count(b'6715') != 0:
+              raise SystemExit('6715 already exists in anchored replacement semantic ratchet window; refusing ambiguous rewrite')
+          semantic_window = semantic_window.replace(b'6714', b'6715')
+          contract_bytes = contract_bytes[:window_start] + semantic_window + contract_bytes[window_end:]
           contract.write_bytes(contract_bytes)
 
           print('PASS repaired exactly two stale identity-tail strides')
           print('PASS re-baselined only OwnershipState persisted-read fence 44 -> 47')
           print('PASS preserved OwnershipIdentityState fence at 12')
+          print('PASS re-baselined anchored replacement semantic header inventory 6714 -> 6715')
           '@ | python -
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
