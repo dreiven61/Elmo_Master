@@ -91,22 +91,12 @@ Require-Regex $tcp '(?s)diagnosticsHomeExStartValid\s*:=.*?RequestBuf\[120\]\$UD
 Require-Regex $tcp '(?s)CommandID\s*=\s*0x7D1B.*?diagnosticsExactAccepted\s*:=\s*FALSE' 'TCP refuses to classify gate-OFF HomeDS402Ex as accepted'
 Require-Regex $tcp '(?s)CommandID\s*=\s*0x7D1B.*?RollbackAxisOwnership\s*\(' 'TCP deterministically rolls back every gate-OFF HomeDS402Ex reservation'
 
-# HOMEEX-09 formally re-baselines only the known +3 persisted reads. Keep the
-# legacy SourceOnly fence in force instead of replacing it with a looser test.
-$persistedMarkerIndex = $legacyContract.IndexOf('Persisted-read', [System.StringComparison]::OrdinalIgnoreCase)
-Require-True ($persistedMarkerIndex -ge 0) 'legacy SourceOnly verifier still contains the persisted-read inventory fence'
-$windowStart = [Math]::Max(0, $persistedMarkerIndex - 1200)
-$windowLength = [Math]::Min(2400, $legacyContract.Length - $windowStart)
-$persistedWindow = $legacyContract.Substring($windowStart, $windowLength)
-Require-Regex $persistedWindow '(?<!\d)47(?!\d)' 'legacy persisted-read inventory fence is re-baselined to exactly 47'
-Require-NoRegex $persistedWindow '(?<!\d)44(?!\d)' 'legacy persisted-read inventory fence no longer expects 44'
-
-# Pointer inventory was unchanged by HOMEEX-07 and must remain independently fenced at 12.
-$pointerMarkerIndex = $legacyContract.IndexOf('pointer', [System.StringComparison]::OrdinalIgnoreCase)
-Require-True ($pointerMarkerIndex -ge 0) 'legacy SourceOnly verifier still contains a pointer inventory fence'
-$pointerWindowStart = [Math]::Max(0, $pointerMarkerIndex - 1200)
-$pointerWindowLength = [Math]::Min(2400, $legacyContract.Length - $pointerWindowStart)
-$pointerWindow = $legacyContract.Substring($pointerWindowStart, $pointerWindowLength)
-Require-Regex $pointerWindow '(?<!\d)12(?!\d)' 'legacy pointer inventory remains fenced at 12'
+# HOMEEX-09 re-baselines exactly the known +3 OwnershipState reads introduced
+# by the HomeDS402Ex replacement-state branch. OwnershipIdentityState stays 12.
+Require-Regex $legacyContract "(?m)\$replacementBankHistogram\['ownershipstate'\]\s*-ne\s*47" 'legacy SourceOnly OwnershipState persisted-read fence is exactly 47'
+Require-NoRegex $legacyContract "(?m)\$replacementBankHistogram\['ownershipstate'\]\s*-ne\s*44" 'legacy SourceOnly OwnershipState fence no longer expects 44'
+Require-Regex $legacyContract "(?m)\$replacementBankHistogram\['ownershipidentitystate'\]\s*-ne\s*12" 'legacy SourceOnly OwnershipIdentityState fence remains exactly 12'
+Require-Regex $legacyContract '(?m)expected\s+47/12\.' 'legacy SourceOnly persisted-read diagnostic reports the paired 47/12 fence'
+Require-NoRegex $legacyContract '(?m)expected\s+44/12\.' 'legacy SourceOnly diagnostic no longer reports obsolete 44/12 fence'
 
 Write-Host ("HomeDS402Ex HOMEEX-09 static verification PASS: checks={0}" -f $script:PassCount)
