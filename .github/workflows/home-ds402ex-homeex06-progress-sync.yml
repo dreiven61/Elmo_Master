@@ -1,0 +1,47 @@
+name: HomeDS402Ex HOMEEX-06 progress sync
+
+on:
+  push:
+    branches:
+      - codex/home-ds402ex-homeex06-progress-sync
+    paths:
+      - 'tools/Sync-HomeDs402ExHomeex06Progress.ps1'
+      - '.github/workflows/home-ds402ex-homeex06-progress-sync.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  sync-progress:
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify exact dev parent
+        shell: powershell
+        run: |
+          git merge-base --is-ancestor 5a98162b5d487b13e4a2075d179c0475c7517e1e HEAD
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Apply exact progress sync
+        shell: powershell
+        run: |
+          powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\tools\Sync-HomeDs402ExHomeex06Progress.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Commit docs only
+        shell: powershell
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- docs/api/API_DEVELOPMENT_PROGRESS.md docs/api/design/README.md
+          $staged = @(git diff --cached --name-only)
+          if ($staged.Count -ne 2) { throw "Expected exactly two staged docs, found $($staged.Count)" }
+          git commit -m 'docs(homeex): sync HOMEEX-06 current progress'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git push origin HEAD:codex/home-ds402ex-homeex06-progress-sync
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
