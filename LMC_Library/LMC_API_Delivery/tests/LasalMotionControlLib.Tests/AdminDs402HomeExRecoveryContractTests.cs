@@ -74,6 +74,13 @@ namespace LasalMotionControlLib.Tests
                     LMCDs402HomeBufferMode.Aborting,
                     1000, 1000, zeroSpare));
 
+            AssertEx.Throws<ArgumentOutOfRangeException>(() =>
+                LMCAxisDs402HomeExRecovery.Rehydrate(
+                    1, 1, 2, 3, 4, intent, 1,
+                    1, int.MinValue, 1, 1, 1, 1, 1, 1,
+                    LMCDs402HomeBufferMode.Aborting,
+                    1000, 1000, zeroSpare));
+
             AssertEx.Throws<NotSupportedException>(() =>
                 LMCAxisDs402HomeExRecovery.Rehydrate(
                     1, 1, 2, 3, 4, intent, 1,
