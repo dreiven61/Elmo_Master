@@ -20,7 +20,7 @@ function Replace-Once {
 
 function Replace-LineByPrefix {
     param([string]$Text, [string]$Prefix, [string]$NewLine, [string]$Label)
-    $lines = @($Text -split "`n", -1)
+    $lines = @($Text.Split([char]10))
     $matches = @()
     for ($index = 0; $index -lt $lines.Count; $index++) {
         if ($lines[$index].StartsWith($Prefix, [System.StringComparison]::Ordinal)) {
