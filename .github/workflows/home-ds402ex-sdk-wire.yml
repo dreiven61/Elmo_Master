@@ -1,0 +1,88 @@
+name: HomeDS402Ex SDK wire qualification
+
+on:
+  pull_request:
+    branches:
+      - dev
+    paths:
+      - 'LMC_Library/LMC_API_Delivery/src/LmcAdminDs402HomeEx*.cs'
+      - 'LMC_Library/LMC_API_Delivery/src/LasalMotionControlLib.csproj'
+      - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/AxisDs402HomeExParameterContractTests.cs'
+      - '.github/workflows/home-ds402ex-sdk-wire.yml'
+  push:
+    branches:
+      - codex/home-ds402ex-sdk-wire
+    paths:
+      - 'LMC_Library/LMC_API_Delivery/src/LmcAdminDs402HomeEx*.cs'
+      - 'LMC_Library/LMC_API_Delivery/src/LasalMotionControlLib.csproj'
+      - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/AxisDs402HomeExParameterContractTests.cs'
+      - '.github/workflows/home-ds402ex-sdk-wire.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sdk-wire:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Locate MSBuild
+        id: msbuild
+        shell: powershell
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          if (-not (Test-Path -LiteralPath $vswhere)) {
+            throw "vswhere.exe was not found on the Windows runner."
+          }
+          $msbuild = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
+          if ([string]::IsNullOrWhiteSpace($msbuild)) {
+            throw "MSBuild.exe was not found on the Windows runner."
+          }
+          "path=$msbuild" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Build API tests Debug
+        shell: powershell
+        run: |
+          $project = '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\LasalMotionControlLib.Tests.csproj'
+          & '${{ steps.msbuild.outputs.path }}' $project /t:Build /p:Configuration=Debug /p:Platform=AnyCPU /m
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run API tests Debug
+        shell: powershell
+        run: |
+          $exe = '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\bin\Debug\LasalMotionControlLib.Tests.exe'
+          & $exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build API tests Release
+        shell: powershell
+        run: |
+          $project = '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\LasalMotionControlLib.Tests.csproj'
+          & '${{ steps.msbuild.outputs.path }}' $project /t:Build /p:Configuration=Release /p:Platform=AnyCPU /m
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run API tests Release
+        shell: powershell
+        run: |
+          $exe = '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\bin\Release\LasalMotionControlLib.Tests.exe'
+          & $exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Diff hygiene
+        shell: powershell
+        run: |
+          if ($env:GITHUB_EVENT_NAME -eq 'pull_request') {
+            git diff --check "origin/$env:GITHUB_BASE_REF...HEAD"
+          }
+          elseif ($env:GITHUB_EVENT_NAME -eq 'push') {
+            git diff --check HEAD^ HEAD
+          }
+          else {
+            git diff --check
+          }
