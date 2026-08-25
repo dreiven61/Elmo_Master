@@ -50,6 +50,8 @@
     <Compile Include="AxisDs402HomeExParameterContractTests.cs" />
     <Compile Include="AdminDs402HomeExOutcomeContractTests.cs" />
     <Compile Include="AdminDs402HomeExCapabilityContractTests.cs" />
+    <Compile Include="AdminDs402HomeExRecoveryContractTests.cs" />
+    <Compile Include="AdminDs402HomeExLifecycleContractTests.cs" />
     <Compile Include="EncoderMaintenanceProtocolContractTests.cs" />
     <Compile Include="AdminDs402HomeOutcomeRetirementContractTests.cs" />
     <Compile Include="ErrorCatalogTests.cs" />
