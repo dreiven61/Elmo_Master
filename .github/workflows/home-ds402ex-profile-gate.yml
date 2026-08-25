@@ -1,0 +1,58 @@
+name: HomeDS402Ex HOMEEX-01-02 profile gate
+
+on:
+  push:
+    branches:
+      - codex/home-ds402ex-homeex01-02-profile-gate
+    paths:
+      - 'docs/api/design/HOME_DS402_EX_AXIS_PROFILE.json'
+      - 'tools/Verify-HomeDs402ExAxisProfile.ps1'
+      - '.github/workflows/home-ds402ex-profile-gate.yml'
+  pull_request:
+    branches:
+      - codex/home-ds402ex-homeex07-ownership
+    paths:
+      - 'docs/api/design/HOME_DS402_EX_AXIS_PROFILE.json'
+      - 'tools/Verify-HomeDs402ExAxisProfile.ps1'
+      - '.github/workflows/home-ds402ex-profile-gate.yml'
+  workflow_dispatch:
+
+jobs:
+  profile-gate:
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify pending profile is explicit and unguessed
+        shell: powershell
+        run: |
+          & '.\tools\Verify-HomeDs402ExAxisProfile.ps1' -ExpectedState Pending
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Prove activation profile remains closed
+        shell: powershell
+        run: |
+          $output = & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass `
+            -File '.\tools\Verify-HomeDs402ExAxisProfile.ps1' -ExpectedState Approved 2>&1
+          $exitCode = $LASTEXITCODE
+          $output | Write-Host
+          if ($exitCode -eq 0) {
+            throw 'Pending HOMEEX-01/02 profile unexpectedly passed the Approved gate.'
+          }
+          Write-Host 'PASS HOMEEX-08 activation input remains fail-closed while profile approval is pending.'
+
+      - name: Diff hygiene
+        shell: powershell
+        run: |
+          if ($env:GITHUB_EVENT_NAME -eq 'pull_request') {
+            git diff --check "origin/$env:GITHUB_BASE_REF...HEAD"
+          }
+          elseif ($env:GITHUB_EVENT_NAME -eq 'push') {
+            git diff --check HEAD^ HEAD
+          }
+          else {
+            git diff --check
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
