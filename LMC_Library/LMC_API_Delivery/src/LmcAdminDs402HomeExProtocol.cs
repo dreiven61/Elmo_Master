@@ -193,14 +193,9 @@ namespace LasalMotionControlLib
                 raw,
                 "StartAxisDs402HomeEx",
                 false);
-            var response = ParseCommonResponse(
+            var response = ParseDs402HomeExCommonResponse(
                 transport,
-                expectedRequestId,
-                true,
-                true,
-                false,
-                false,
-                true);
+                expectedRequestId);
 
             var malformedCommonFailure = !response.IsSuccess
                 && response.DetailCodeValue
@@ -243,15 +238,64 @@ namespace LasalMotionControlLib
                 nativeCommandState);
         }
 
+        internal static LMCAdminResponse ParseDs402HomeExCommonResponse(
+            LMC_Response transport,
+            uint expectedRequestId)
+        {
+            if (transport == null
+                || transport.Payload.Length < CommonResponsePayloadLength)
+            {
+                throw new InvalidDataException(
+                    "HomeDS402Ex response does not contain the 16-byte common envelope.");
+            }
+
+            var payload = transport.Payload;
+            var schemaVersion = LMC_Frame.ReadUInt16(payload, 0);
+            var responseFlags = LMC_Frame.ReadUInt16(payload, 2);
+            var commandStatus = LMC_Frame.ReadUInt16(payload, 4);
+            var errorId = unchecked((short)LMC_Frame.ReadUInt16(payload, 6));
+            var requestId = LMC_Frame.ReadUInt32(payload, 8);
+            var detailCode = LMC_Frame.ReadUInt32(payload, 12);
+
+            if (schemaVersion != LMC_AdminFrame.SchemaVersion
+                || responseFlags != 0
+                || requestId != expectedRequestId
+                || commandStatus > 1
+                || (commandStatus == 0
+                    && (errorId != 0 || detailCode != 0))
+                || (commandStatus == 1
+                    && (errorId != AdminErrorId
+                        || !IsDs402HomeExFailureDetail(detailCode))))
+            {
+                throw new InvalidDataException(
+                    "HomeDS402Ex common response status, identity, or detail is invalid.");
+            }
+
+            return new LMCAdminResponse(
+                transport,
+                schemaVersion,
+                responseFlags,
+                commandStatus,
+                errorId,
+                requestId,
+                detailCode);
+        }
+
+        private static bool IsDs402HomeExFailureDetail(uint detailCode)
+        {
+            return (detailCode >= 1u && detailCode <= 8u)
+                || (detailCode >= 16u && detailCode <= 18u)
+                || detailCode == 41u
+                || detailCode == 42u
+                || (detailCode >= 53u && detailCode <= 62u);
+        }
+
         private static bool IsStartAxisDs402HomeExFailure(
             uint detailCode)
         {
-            return (detailCode
-                    >= (uint)LMCAdminDetailCode.DiagnosticsBuildMismatch
-                    && detailCode
-                        <= (uint)LMCAdminDetailCode.MapRevisionMismatch)
-                || detailCode == (uint)LMCAdminDetailCode.AxisOwnershipConflict
-                || detailCode == (uint)LMCAdminDetailCode.AxisOwnershipQuarantined
+            return (detailCode >= 16u && detailCode <= 18u)
+                || detailCode == 41u
+                || detailCode == 42u
                 || detailCode == 55u
                 || detailCode == 57u
                 || detailCode == 60u
