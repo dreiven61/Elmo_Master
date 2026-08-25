@@ -53,6 +53,7 @@
     <Compile Include="AdminDs402HomeExRecoveryContractTests.cs" />
     <Compile Include="AdminDs402HomeExLifecycleContractTests.cs" />
     <Compile Include="AdminDs402HomeExPublicSurfaceContractTests.cs" />
+    <Compile Include="AdminDs402HomeExRetirementRetryContractTests.cs" />
     <Compile Include="EncoderMaintenanceProtocolContractTests.cs" />
     <Compile Include="AdminDs402HomeOutcomeRetirementContractTests.cs" />
     <Compile Include="ErrorCatalogTests.cs" />
