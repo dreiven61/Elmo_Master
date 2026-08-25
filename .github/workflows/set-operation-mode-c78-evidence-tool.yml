@@ -6,6 +6,8 @@ on:
       - dev
     paths:
       - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/Classes.lcb'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Elmo_EtherCAT_Test_4Axis.lcb'
       - 'tools/Capture-SetOperationModeC78Evidence.ps1'
       - 'tools/Verify-SetOperationModeDefineOrder.ps1'
       - '.github/workflows/set-operation-mode-c78-evidence-tool.yml'
@@ -14,6 +16,8 @@ on:
       - dev
     paths:
       - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/Classes.lcb'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Elmo_EtherCAT_Test_4Axis.lcb'
       - 'tools/Capture-SetOperationModeC78Evidence.ps1'
       - 'tools/Verify-SetOperationModeDefineOrder.ps1'
       - '.github/workflows/set-operation-mode-c78-evidence-tool.yml'
@@ -37,6 +41,17 @@ jobs:
         run: |
           & '.\tools\Verify-SetOperationModeDefineOrder.ps1'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Report tracked artifact physical identity
+        shell: powershell
+        run: |
+          $classes = '.\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\Classes.lcb'
+          $project = '.\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Elmo_EtherCAT_Test_4Axis.lcb'
+          foreach ($path in @($classes, $project)) {
+            $item = Get-Item -LiteralPath $path
+            $sha = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToUpperInvariant()
+            Write-Host ("ARTIFACT {0} bytes={1} sha256={2}" -f $path, $item.Length, $sha)
+          }
 
       - name: Self-test fresh C78 evidence collector
         shell: powershell
