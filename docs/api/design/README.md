@@ -15,7 +15,7 @@ byte offset은 `LMC_Library/LMC_API_Delivery/docs/DINT_PACKET_MAP.txt`가 정본
 |---:|---|---:|---|---|
 | 1 | `HomeDS402` | 50% | 기존 `0x7D15/16/17` 경로의 activation·실축 적격화 | [HOME_DS402_DESIGN.md](HOME_DS402_DESIGN.md) |
 | 2 | `SetOpMode` | 60% | owner/SDO/no-replay/preemption/D5 deny source와 MODE-10 static, MODE-13 PC/WPF recovery PASS; fresh C78/PLC/hardware 남음 | [SET_OPERATION_MODE_DESIGN.md](SET_OPERATION_MODE_DESIGN.md) |
-| 3 | `HomeDS402Ex` | 0% | 기존 Home과 분리된 확장 Homing 신규 구현 | [HOME_DS402_EX_DESIGN.md](HOME_DS402_EX_DESIGN.md) |
+| 3 | `HomeDS402Ex` | 0% | HOMEEX-06 `SCAFFOLD_OFF` source/static PASS; full-identity ownership/runtime 후속 | [HOME_DS402_EX_DESIGN.md](HOME_DS402_EX_DESIGN.md) |
 | 4 | `SetPosition` | 25% | P1 async lifecycle/volatile Store까지 완료; durable backend와 RT exactly-once 후속 구현 | [SET_POSITION_DESIGN.md](SET_POSITION_DESIGN.md) |
 
 순서는 단순한 중요도 순위가 아니라 의존성 순서다. `HomeDS402`는 이미 존재하는 가장 짧은
@@ -29,7 +29,7 @@ MODE-13 PC/WPF durable recovery도 PASS했으므로 `HomeDS402Ex`는 이 공유 
 | API | Start | ReadOutcome | Retire | 상태 |
 |---|---:|---:|---:|---|
 | HomeDS402 | `0x7D15` | `0x7D16` | `0x7D17` | current source/wire에 존재 |
-| HomeDS402Ex | `0x7D1B` | `0x7D1C` | `0x7D1D` | 설계 예약, 아직 source 미반영 |
+| HomeDS402Ex | `0x7D1B` | `0x7D1C` | `0x7D1D` | LASAL diagnostics route/scaffold 존재, runtime gate/capability OFF |
 | SetOpMode | `0x7D23` | `0x7D24` | `0x7D25` | C#/LASAL lifecycle + WPF durable recovery 구현; compile gate/capability OFF |
 | SetPosition | `0x7D12` | `0x7D14` | `0x7D1A` | current source/wire에 존재, runtime fail-closed |
 
@@ -59,7 +59,7 @@ packet map과 golden-byte test를 한 변경 단위로 반영한다.
 
 - HomeDS402: C78 candidate와 method 37 normal/fault/recovery matrix를 닫는다.
 - SetOpMode: MODE-13 PC/WPF gate는 닫혔다. compile gate와 capability는 OFF 유지하고 MODE-11/12 장비 증거를 준비한다.
-- HomeDS402Ex: 승인된 axis profile과 method allowlist를 입력으로 dormant source를 구현한다.
+- HomeDS402Ex: HOMEEX-06 dormant parser/state/outcome scaffold는 완료했다. HOMEEX-07에서 full 116-byte owner identity bank와 OwnerKind 7/ResourceKind 3 admission을 paired 구현한다.
 - SetPosition: durable A/B journal과 RT claim/native/stable-3 observer를 구현한다.
 
 ### Wave 3 - 장비 적격화와 paired activation

@@ -3,7 +3,7 @@
 - 문서 버전: 1.0-current
 - 기준일: 2026-08-25
 - API: `LasalMotionControlLib 0.9.1-preview`
-- 기준 branch/HEAD: `dev@925dd8258feb` + 본 current-progress 동기화
+- 기준 branch/HEAD: `dev@5a98162b5d48` + HOMEEX-06 current-progress 동기화
 - 릴리스 판정: **production NO-GO**
 
 이 문서는 API 구현률, 최신 검증 결과, artifact identity, 제한과 다음 작업의 단일 current
@@ -55,6 +55,7 @@ branch를 일괄 정리한다.
   57 checks PASS했고 common ownership/source gate도 통과했다. 해당 canonical source/verifier를
   `dev`에 복구했다. 그러나 이 최종 source의 fresh C78/ARM Rebuild/Link, PLC download/runtime,
   hardware/packet proof는 아직 없다.
+- HomeDS402Ex `0x7D1B/0x7D1C/0x7D1D`는 HOMEEX-06에서 LASAL diagnostics route, 전용 scaffold state와 strict Start/Outcome/Retire parser를 구현했고 67-check `SCAFFOLD_OFF` source/static qualification을 통과했다. runtime gate와 Admin bit 11은 OFF이며 OwnerKind 7/full 116-byte owner identity, SDO/RT/motion execution은 HOMEEX-07 이후로 닫혀 있다.
 - SetOperationMode MODE-13 PC/WPF recovery는 current Windows PR qualification에서
   Debug/Release 각각 `12/12 PASS`, build `0 warnings / 0 errors`, diff hygiene PASS다.
   Start 전 durable exact identity, startup/reconnect no-replay, terminal generation 저장 후
@@ -80,7 +81,7 @@ branch를 일괄 정리한다.
 - 완전/적응 구현: `D + E = 40/65 = 61.5%`
 - 부분 포함: `D + E + P = 53/65 = 81.5%`
 - High-priority 21개 관점: Active 17, Partial 3(SetPosition, DS402 Home, SetOperationMode),
-  Missing 1(`HomeDS402Ex`)
+  Dormant 1(`HomeDS402Ex`)
 
 ## 4. 기능별 current 상태
 
@@ -92,7 +93,8 @@ branch를 일괄 정리한다.
 | Admin read | `0x7D00/7D10/7D20/7D22` | Active | capability와 allowlisted semantic key를 사용; raw parameter passthrough 아님 |
 | LMC Home | `0x7D13/7D18/7D19` | Active/Limited | Admin bit 4 ON; no-motion CurrentPositionZero이며 switch-search Home이 아님 |
 | SetPosition | `0x7D12/7D14/7D1A` | Dormant | Store/ownership FALSE, max-jump 0, bits 3/5/7 OFF, volatile backing, native call 0, detail 24 |
-| DS402 Home | `0x7D15/7D16/7D17` | Dormant | method 37 source, gate FALSE, Admin bit 6 OFF; `HomeDS402Ex` 실행은 없음 |
+| DS402 Home | `0x7D15/7D16/7D17` | Dormant | method 37 source, gate FALSE, Admin bit 6 OFF |
+| HomeDS402Ex | `0x7D1B/7D1C/7D1D` | Dormant | HOMEEX-06 diagnostics route + dedicated scaffold state + strict Start/Outcome/Retire parser; 67-check `SCAFFOLD_OFF` PASS; runtime gate/bit 11 OFF, owner/SDO/RT/motion 미구현 |
 | SetOperationMode | `0x7D23/7D24/7D25` | Dormant | owner kind 6/resource 4, SDO lifecycle, no-replay recovery, preemption, outcome, D5 `0x6060` deny와 MODE-13 WPF durable recovery 구현; compile gate/bits 8/9/10 OFF; fresh C78/PLC/hardware 미검증 |
 | Diagnostics capability | `0x7E00` | Active | 매 connection에서 fresh `BootId`, `MapRevision`, mask를 읽어야 함 |
 | D1/D2 | `0x7E01/02/10/20`, `0x7E30-33` | Active/Limited | typed catalog/PI/Bulk 경로; fault/partial/soak 확대 필요 |
