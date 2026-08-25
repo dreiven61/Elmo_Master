@@ -10,6 +10,7 @@ on:
       - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st'
       - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
       - 'tools/Verify-SetOperationModeStatic.ps1'
+      - 'tools/Verify-SetOperationModeDefineOrder.ps1'
       - 'docs/api/design/SET_OPERATION_MODE_DESIGN.md'
       - 'docs/api/design/SET_OPERATION_MODE_MODE10_METHOD_SPLIT_DESIGN.md'
       - '.github/workflows/set-operation-mode-static-qualification.yml'
@@ -22,6 +23,7 @@ on:
       - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st'
       - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
       - 'tools/Verify-SetOperationModeStatic.ps1'
+      - 'tools/Verify-SetOperationModeDefineOrder.ps1'
       - 'docs/api/design/SET_OPERATION_MODE_DESIGN.md'
       - 'docs/api/design/SET_OPERATION_MODE_MODE10_METHOD_SPLIT_DESIGN.md'
       - '.github/workflows/set-operation-mode-static-qualification.yml'
@@ -39,20 +41,16 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Run repository SourceOnly contract
-        shell: powershell
-        run: |
-          $repoRoot = (Get-Location).Path
-          & '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\Verify-LasalContract.ps1' `
-            -RepositoryRoot $repoRoot `
-            -SourceOnly `
-            -ExpectedSdoWriteAxis 1
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
       - name: Run SetOperationMode invariants
         shell: powershell
         run: |
           & '.\tools\Verify-SetOperationModeStatic.ps1' -ExpectedSdoWriteAxis 1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify SetOperationMode define order
+        shell: powershell
+        run: |
+          & '.\tools\Verify-SetOperationModeDefineOrder.ps1'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Diff hygiene
@@ -67,3 +65,13 @@ jobs:
           else {
             git diff --check
           }
+
+      - name: Run repository SourceOnly contract and artifact ratchet
+        shell: powershell
+        run: |
+          $repoRoot = (Get-Location).Path
+          & '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\Verify-LasalContract.ps1' `
+            -RepositoryRoot $repoRoot `
+            -SourceOnly `
+            -ExpectedSdoWriteAxis 1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
