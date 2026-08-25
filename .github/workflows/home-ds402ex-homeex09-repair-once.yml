@@ -1,4 +1,4 @@
-# one-shot repair rerun after literal verifier fix
+# one-shot repair trigger: 2026-08-25
 name: HomeDS402Ex HOMEEX-09 one-shot repair
 
 on:
