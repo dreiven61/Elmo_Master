@@ -22,19 +22,19 @@ jobs:
           fetch-depth: 0
 
       - name: Verify exact dev parent
-        shell: powershell
+        shell: pwsh
         run: |
           git merge-base --is-ancestor 5a98162b5d487b13e4a2075d179c0475c7517e1e HEAD
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Apply exact progress sync
-        shell: powershell
+        shell: pwsh
         run: |
-          powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\tools\Sync-HomeDs402ExHomeex06Progress.ps1
+          & .\tools\Sync-HomeDs402ExHomeex06Progress.ps1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Commit docs only
-        shell: powershell
+        shell: pwsh
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
