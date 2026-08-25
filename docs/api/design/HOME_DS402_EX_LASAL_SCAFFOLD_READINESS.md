@@ -6,7 +6,7 @@ This document prepares `HOMEEX-06` without modifying LASAL function bodies or en
 
 ## Verified current baseline
 
-Current `dev` before this readiness branch:
+Current `dev` before the readiness work:
 
 - HomeDS402 lifecycle `0x7D15/0x7D16/0x7D17` is routed in `TCPMotionInterface.st`.
 - SetOperationMode lifecycle `0x7D23/0x7D24/0x7D25` is routed in `TCPMotionInterface.st`.
@@ -21,7 +21,7 @@ Current `dev` before this readiness branch:
 
 ## Frozen items already supplied by the SDK contract
 
-The following are already frozen and should not be changed by the LASAL scaffold:
+The following are frozen and should not be changed by the LASAL scaffold:
 
 - Start command: `0x7D1B`
 - ReadOutcome command: `0x7D1C`
@@ -40,17 +40,32 @@ The following are already frozen and should not be changed by the LASAL scaffold
 - successful terminal proof requires all six cleanup flags before retirement
 - capability bit 11 remains OFF until final paired activation.
 
+## Frozen ownership ABI
+
+The ownership ABI is frozen in `HOME_DS402_EX_OWNER_ABI.md`:
+
+- HomeDS402Ex OwnerKind = **7**
+- ResourceKind = **3**, reusing the existing `DS402_HOME_ENGINE`
+- AdmissionMode = **4** lifecycle
+- Start `0x7D1B` is the only command that may create the HomeDS402Ex owner reservation
+- ReadOutcome `0x7D1C` and Retire `0x7D1D` never create or replay a Start reservation
+- physical axis mask is exact `1 << (Reference-1)` for Reference 1..4
+- active-state value **13** is reserved for the later actual runtime tranche; HOMEEX-06 gate-OFF scaffold must not transition into it.
+
+ResourceKind 3 is intentionally shared with legacy HomeDS402 so both APIs serialize on the same DS402 Home engine. OwnerKind 7 remains distinct so the two APIs retain separate lifecycle/recovery identity.
+
 ## HOMEEX-06 scaffold boundary
 
 The first LASAL tranche should be a **gate-OFF parser/state/outcome scaffold only**. It must not perform homing motion, SDO parameter programming, controlword bit 4 changes, mode switching, setpoint alignment or capability activation.
 
-Expected structural work after the owner/resource ABI is explicitly frozen:
+Expected structural work:
 
 1. `TCPMotionInterface.st`
    - recognize `0x7D1B/1C/1D` in the diagnostics lifecycle route;
    - validate exact request sizes before admission;
    - Start only: physical axis mask must be exact `1 << (Reference-1)` for Reference 1..4;
-   - reserve/validate/commit ownership using a dedicated HomeDS402Ex owner identity;
+   - reserve/validate/commit ownership using OwnerKind 7 / ResourceKind 3 / AdmissionMode 4;
+   - keep legacy HomeDS402 OwnerKind 4 / ResourceKind 3 behavior unchanged;
    - Query/Retire are recovery operations and must not reserve a new motion Start intent;
    - preserve exact accepted/rejected response-shape checking.
 
@@ -62,42 +77,34 @@ Expected structural work after the owner/resource ABI is explicitly frozen:
    - Query returns only an existing exact-key record;
    - Retire requires exact terminal record generation;
    - no Start replay from Query/Retire;
-   - no SDO write or RT mailbox behavior in HOMEEX-06.
+   - no SDO write or RT mailbox behavior in HOMEEX-06;
+   - no transition into reserved active state 13 while the runtime gate is OFF.
 
 3. `LMCControlCommandService.st`
+   - define OwnerKind 7 and extend the current owner-kind upper bound from 6 to 7;
+   - ResourceKind 3 must accept exactly legacy HomeDS402 `(OwnerKind 4, Start 0x7D15)` or HomeDS402Ex `(OwnerKind 7, Start 0x7D1B)`, both lifecycle mode 4;
+   - no other OwnerKind/command pairing may consume ResourceKind 3;
+   - preserve per-axis exclusivity, safety-preemption, quarantine and session-close semantics;
    - do not advertise bit 11;
-   - only add ownership ABI support once dedicated owner kind/resource conflict semantics are frozen;
    - existing HomeDS402/SetOperationMode ownership behavior must remain unchanged.
 
 4. verification
    - source verifier must distinguish `BASELINE_OFF`, `SCAFFOLD_OFF`, and later `ACTIVE` states;
    - `SCAFFOLD_OFF` requires routes/handlers to exist while Admin bit11 remains OFF and runtime mutation sites remain absent;
+   - OwnerKind 7 must be accepted only for the exact HomeDS402Ex lifecycle tuple;
+   - ResourceKind 3 must remain shared with legacy HomeDS402 and must not accept unrelated owners;
    - generic D5 writes must remain unable to manufacture HomeDS402Ex state;
    - SourceOnly and 7-bit ASCII checks remain mandatory for modified `.st` files.
 
-## Owner/resource ABI not frozen yet
-
-Do not hard-code a new HomeDS402Ex owner kind in source until this is explicitly frozen.
-
-Verified existing values are:
-
-- HomeDS402: owner kind 4, resource kind 3
-- EncoderMaintenance: existing separate owner/resource path
-- SetOperationMode: owner kind 6, resource kind 4
-
-Design intent says HomeDS402Ex must conflict with HomeDS402 on the same physical axis and DS402 Home engine, while also conflicting with SetOperationMode, SetPosition, motion, power/stop/reset, encoder maintenance and generic SDO mutation. The exact new owner-kind value and whether resource kind 3 is directly reused or represented through a new conflict mapping must be frozen before implementation.
-
-A likely next numeric owner kind would be 7 and direct Home-engine sharing suggests resource kind 3, but these are **proposals only**, not qualified ABI in this document.
-
 ## Activation prohibition
 
-This readiness tranche must leave all of the following unchanged:
+HOMEEX-06 must leave all of the following true:
 
 - Admin feature mask `0x00000017`
 - HomeDS402Ex bit11 OFF
 - no public engineering-unit Prepare
 - no WPF HomeDS402Ex Start UI
-- no LASAL HomeDS402Ex runtime execution
+- no HomeDS402Ex motion/SDO/controlword runtime execution
 - no production or hardware qualification claim.
 
-`HOMEEX-06` is not complete merely because this readiness verifier passes. It becomes complete only after the actual gate-OFF LASAL parser/state/outcome scaffold exists and passes its dedicated source/static qualification.
+`HOMEEX-06` is not complete merely because the baseline verifier or ABI documentation passes. It becomes complete only after the actual gate-OFF LASAL parser/state/outcome scaffold exists and passes its dedicated source/static qualification.
