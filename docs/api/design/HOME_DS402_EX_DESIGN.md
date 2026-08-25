@@ -1,7 +1,7 @@
 # HomeDS402Ex 최우선 개발 설계
 
 - 대상: No.22 `MMC_HomeDS402ExCmd`
-- 현재 진행 상태: SDK wire/lifecycle + WPF durable no-replay recovery qualification 완료, LASAL runtime 미구현
+- 현재 진행 상태: SDK wire/lifecycle + WPF durable no-replay recovery + HOMEEX-06 LASAL gate-OFF parser/state/outcome scaffold qualification 완료, ownership/runtime 미구현
 - current C#: frozen wire contract, strict Start/Outcome/Retire parser, one-shot lifecycle facade, read-only recovery rehydrate 구현
 - current WPF: pre-dispatch durable journal, startup interlock, read-only exact-key recovery와 exact-generation retire 구현; Start UI는 닫힘
 - 신규 command: `0x7D1B Start`, `0x7D1C ReadOutcome`, `0x7D1D Retire`
@@ -18,7 +18,9 @@ current C#에는 `LMCAxisDs402HomeExParameters` 입력 model에 더해 frozen DI
 read-only durable recovery-key rehydrate가 구현되어 있다. engineering-unit public Prepare는
 axis별 scale/profile 승인 전까지 의도적으로 닫혀 있다. WPF에는 Start를 재구성하지 않는
 pre-dispatch durable journal과 startup interlock, exact-key outcome query 및 exact-generation retire
-recovery만 구현되어 있다. LASAL route/state/store는 아직 구현하지 않았다.
+recovery만 구현되어 있다. LASAL에는 `0x7D1B/1C/1D` diagnostics route, dedicated scaffold state와
+strict fail-closed handlers가 HOMEEX-06으로 들어왔지만 ownership admission과 실제 homing runtime은
+아직 구현하지 않았다.
 
 ## 2. v1 범위
 
@@ -61,7 +63,8 @@ max travel, torque range와 method mask를 포함한다.
 
 ## 4. wire contract
 
-`HOMEEX-03` SDK golden-byte test에서 아래 layout을 고정했다. PLC/LASAL route는 아직 OFF이며
+`HOMEEX-03` SDK golden-byte test에서 아래 layout을 고정했다. HOMEEX-06에서 LASAL diagnostics route와
+strict parser scaffold가 추가됐지만 compile/runtime gate와 capability advertisement는 계속 OFF이며
 packet map/LASAL paired activation은 별도 단계로 진행한다.
 
 ### Start `0x7D1B`, 116 bytes
@@ -203,6 +206,12 @@ WPF durable recovery journal은 future Start integration이 write boundary를 �
 terminal outcome은 durable proof로 먼저 기록한 뒤 exact-generation retirement가 성공해야만
 Resolved가 된다. BootId를 포함한 recovery identity가 달라지면 자동 복구/해제를 하지 않는다.
 
+HOMEEX-06에서는 ownership source를 일부만 열지 않았다. current non-group owner identity bank는
+64-byte prefix + 최대 8-byte tail만 보존하므로 116-byte HomeDS402Ex Start identity 전체를 담지 못한다.
+따라서 OwnerKind 7 / ResourceKind 3 admission과 owner identity 확장은 HOMEEX-07에서 한 번에 paired
+변경한다. HOMEEX-06 handler는 unexpected admission token/generation을 거부하고 owner reservation을
+만들지 않는다.
+
 ## 7. capability
 
 Admin feature bit 11 `AxisDs402HomeEx`를 C# protocol에 고정했다. 이 한 bit는
@@ -210,7 +219,8 @@ Start/ReadOutcome/Retire와 ErrorCatalogVersion 7 전체를 indivisible하게 �
 SetOpMode가 예약한 bits 8..10과 충돌하지 않는다. SDK parser는 bit 11 + catalog 7 미만 조합,
 physical axis count 범위 위반과 unknown feature bit를 fail-closed한다.
 
-PLC/LASAL capability advertisement와 runtime route는 physical qualification 전까지 OFF다.
+PLC/LASAL capability advertisement와 runtime execution은 physical qualification 전까지 OFF다.
+HOMEEX-06은 route/parser scaffold만 추가했고 feature mask `0x00000017`을 유지한다.
 
 ## 8. 변경 대상과 current SDK implementation
 
@@ -236,13 +246,21 @@ PLC/LASAL capability advertisement와 runtime route는 physical qualification �
 
 두 surface는 HOMEEX-01/02 axis profile, scale, rounding, range, wiring 승인이 끝난 뒤에만 연다.
 
-### LASAL 미구현
+### LASAL HOMEEX-06 구현됨
 
-- `TCPMotionInterface.st`: route와 two-phase owner admission
-- `LMCDiagnosticsService.st`: independent handler/state/outcome record
+- `TCPMotionInterface.st`: `0x7D1B/1C/1D` diagnostics lifecycle route
+- `LMCDiagnosticsService.st`: independent `Ds402HomeExState[0..255]`, strict Start/Outcome/Retire scaffold handlers, no-op processor
+- `Verify-HomeDs402ExLasalScaffold.ps1`: `SCAFFOLD_OFF` source/static qualification
+- runtime gate `LMC_DIAG_DS402_HOME_EX_ENABLED FALSE`
+- Admin bit 11 OFF / feature mask `0x00000017`
+
+### LASAL 후속 미구현
+
+- `TCPMotionInterface.st`: OwnerKind 7 two-phase owner admission과 full 116-byte identity preservation
 - `LMCEcatInputLatch.st`: Ex RT mailbox 또는 shared Home mailbox versioning
-- `LMCControlCommandService.st`: shared resource conflict/preemption
-- `Verify-LasalContract.ps1`: dormant/active atomic gate와 mutation fixtures
+- `LMCControlCommandService.st`: OwnerKind 7 / ResourceKind 3 shared Home conflict/preemption와 full identity bank
+- `LMCDiagnosticsService.st`: actual outcome record writes, SDO/runtime state machine, cleanup proof
+- `Verify-LasalContract.ps1`: later active atomic gate와 mutation fixtures
 
 ### WPF recovery 구현됨
 
@@ -266,8 +284,8 @@ HomeDS402Ex Start UI와 engineering-unit confirmation surface는 HOMEEX-13 paire
 - [ ] `HOMEEX-05` golden bytes, malformed, overflow, duplicate intent와 disconnect test 구현
   - SDK golden/malformed/overflow/start-response-loss/reconnect-read-only/exact-retire-retry/public-surface tests는 PASS
   - duplicate-intent retained-store behavior는 LASAL outcome store가 없으므로 아직 미검증
-- [ ] `HOMEEX-06` LASAL parser/state/outcome scaffold를 gate OFF로 구현
-- [ ] `HOMEEX-07` shared Home/mode/SDO/axis ownership과 startup reconciliation 구현
+- [x] `HOMEEX-06` LASAL parser/state/outcome scaffold를 gate OFF로 구현하고 67-check `SCAFFOLD_OFF` qualification PASS
+- [ ] `HOMEEX-07` full 116-byte owner identity bank + OwnerKind 7/ResourceKind 3 shared Home/mode/SDO/axis ownership과 startup reconciliation 구현
 - [ ] `HOMEEX-08` parameter snapshot/program/restore와 CleanupProofFlags 구현
 - [ ] `HOMEEX-09` SourceOnly, method-size, C78와 generated artifact PASS
 - [ ] `HOMEEX-10` Axis1 normal/timeout/limit/SDO abort/preempt/reconnect/retire matrix PASS
@@ -303,8 +321,24 @@ HOMEEX-12 WPF recovery qualification on head `0012f67f7b38e633421cf7f9cdf989cc3f
 Detailed HOMEEX-12 evidence is recorded in
 `docs/api/design/evidence/HOME_DS402_EX_HOMEEX12_WPF_RECOVERY_20260825.md`.
 
-This evidence qualifies the current C# SDK and WPF recovery tranches only. It is not LASAL build/runtime,
-EtherCAT packet, hardware or production activation evidence.
+HOMEEX-06 LASAL scaffold qualification on source head
+`30892f223deae6165ff9565afaa48138f04c8fd8` passed:
+
+- source application workflow run `32808873536`, job `97684258450`: SUCCESS
+- generated tracked source commit `40df37f4acb7c44db75439b4370fed5c8c3cf8c9`
+- final HomeDS402Ex workflow run `32809237405`, job `97685273091`: SUCCESS
+- HomeDS402Ex source verifier: 67 / 67 PASS, state `SCAFFOLD_OFF`
+- SetOperationMode define-order regression PASS
+- `git diff --check` PASS
+- same source head SetOperationMode static verifier: 57 / 57 PASS
+- same source head SetOperationMode C78 evidence-tool self-test PASS
+- full repository SourceOnly still stops only at the pre-existing `SetPosition-augmented Classes.lcb physical identity drifted` artifact ratchet
+
+Detailed HOMEEX-06 evidence is recorded in
+`docs/api/design/evidence/HOME_DS402_EX_HOMEEX06_LASAL_SCAFFOLD_20260825.md`.
+
+These evidence records qualify the current C# SDK, WPF recovery and HOMEEX-06 LASAL source/static tranches only.
+They are not C78 build, PLC load/runtime, EtherCAT packet, hardware homing or production activation evidence.
 
 ## 11. activation 금지 조건
 
