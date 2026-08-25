@@ -1,4 +1,4 @@
-# one-shot repair trigger: 2026-08-26 helper-ratchet-diagnostic
+# one-shot repair trigger: 2026-08-26 helper-ratchet-final
 name: HomeDS402Ex HOMEEX-09 one-shot repair
 
 on:
@@ -83,26 +83,30 @@ jobs:
 
           adapter_old = b"@{ Name = 'adapter'; Fragment = $adapter; LF = 29124; CRLF = 29922; Sha = '8855AEEAE9B617CEAC1D10C7CC4ADB7F4D0536D108592560CE0D39ACF344AFAC' }"
           adapter_new = b"@{ Name = 'adapter'; Fragment = $adapter; LF = 29184; CRLF = 29981; Sha = '855FA45D910DAFA0EA236807A004E08EFDA080BC57A80FD433BF38F0B3B6BA01' }"
-          helper_expected = b"@{ Name = 'helper'; Fragment = $helper; LF = 22214; CRLF = 22826; Sha = '9E0A37E0EC0A3AD7FDD194CF8691BF3B492D4E4C6FD10E8C118323571F980BDD' }"
+          helper_old = b"@{ Name = 'helper'; Fragment = $helper; LF = 22214; CRLF = 22826; Sha = '9E0A37E0EC0A3AD7FDD194CF8691BF3B492D4E4C6FD10E8C118323571F980BDD' }"
+          helper_new = b"@{ Name = 'helper'; Fragment = $helper; LF = 22712; CRLF = 23332; Sha = 'EB2E6D61A638DE06B890613D015C0904901318C4EB6B76E63F6D0F7E7A45E527' }"
           if contract_bytes.count(adapter_old) != 1 or contract_bytes.count(adapter_new) != 0:
               raise SystemExit('Rollback-split adapter tuple precondition failed')
-          if contract_bytes.count(helper_expected) != 1:
-              raise SystemExit('Rollback-split helper baseline tuple is not exact before diagnostic')
+          if contract_bytes.count(helper_old) != 1 or contract_bytes.count(helper_new) != 0:
+              raise SystemExit('Rollback-split helper tuple precondition failed')
           adapter_position = contract_bytes.index(adapter_old)
           adapter_context = contract_bytes[max(0, adapter_position - 1024):min(len(contract_bytes), adapter_position + 2048)].lower()
           if b'methodcontract' not in adapter_context or b'byte/hash ratchet' not in adapter_context:
               raise SystemExit('Adapter tuple is outside rollback-split ratchet context')
+          helper_position = contract_bytes.index(helper_old)
+          helper_context = contract_bytes[max(0, helper_position - 1024):min(len(contract_bytes), helper_position + 2048)].lower()
+          if b'methodcontract' not in helper_context or b'byte/hash ratchet' not in helper_context:
+              raise SystemExit('Helper tuple is outside rollback-split ratchet context')
           contract_bytes = contract_bytes.replace(adapter_old, adapter_new, 1)
-
-          diagnostic_throw_old = b'throw "$blocker $($methodContract.Name) byte/hash ratchet drifted."'
-          diagnostic_throw_new = b'throw "$blocker $($methodContract.Name) byte/hash ratchet drifted (LF=$($dimensions.LF)/$($methodContract.LF), CRLF=$($dimensions.CRLF)/$($methodContract.CRLF), SHA=$(Get-LasalRollbackSplitTextSha256 -Text $methodContract.Fragment)/$($methodContract.Sha))."'
-          if contract_bytes.count(diagnostic_throw_old) != 1:
-              raise SystemExit(f'Expected exactly one rollback-split byte/hash throw, found {contract_bytes.count(diagnostic_throw_old)}')
-          contract_bytes = contract_bytes.replace(diagnostic_throw_old, diagnostic_throw_new, 1)
+          contract_bytes = contract_bytes.replace(helper_old, helper_new, 1)
           contract.write_bytes(contract_bytes)
 
-          print('PASS applied exact source/fence/semantic/adapter repairs')
-          print('INFO transient helper metric diagnostic added; failure path commits nothing')
+          print('PASS repaired exactly two stale identity-tail strides')
+          print('PASS re-baselined only OwnershipState persisted-read fence 44 -> 47')
+          print('PASS preserved OwnershipIdentityState fence at 12')
+          print('PASS re-baselined replacement semantic token inventory 6714 -> 7015')
+          print('PASS re-baselined paired replacement semantic SHA-256')
+          print('PASS re-baselined rollback-split adapter and helper LF/CRLF/SHA ratchets')
           '@ | python -
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
