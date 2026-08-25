@@ -594,6 +594,7 @@ END_FUNCTION
 #define LMC_DIAG_ENCODER_VERIFY_ALL 0x000003FF
 #define LMC_DIAG_OWNER_KIND_ENCODER 5
 #define LMC_DIAG_OWNER_KIND_DS402_HOME 4
+#define LMC_DIAG_OWNER_KIND_DS402_HOME_EX 7
 #define LMC_DIAG_RESOURCE_DIAGNOSTICS_SDO 4
 #define LMC_DIAG_RESOURCE_DS402_HOME 3
 #define LMC_DIAG_ADMISSION_SAFETY 2
@@ -4542,7 +4543,9 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeExStart
 		detailCode : UDINT;
 		homingMethod : DINT;
 		positionRaw : UDINT;
+		axisMask : UDINT;
 		spareIndex, recordIndex, recordBase : DINT;
+		ownerResult, rollbackResult : DINT;
 		spareZero, methodCandidate, recordDirty : BOOL;
 	END_VAR
 
@@ -4624,30 +4627,59 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeExStart
 			detailCode := 5;
 		elsif (methodCandidate = FALSE) | (positionRaw = 0x80000000) then
 			detailCode := LMC_DIAG_HOMEEX_DETAIL_INVALID_PROFILE;
-		elsif (AdmissionToken <> 0) | (OwnerGeneration <> 0) then
-			// HOMEEX-06 has no ownership reservation. HOMEEX-07 adds the full
-			// 116-byte owner identity before any Start crosses that boundary.
+		elsif (AdmissionToken = 0) | (OwnerGeneration = 0) |
+		      (IsClientConnected(#AxisOwnership) = FALSE) then
 			detailCode := 42;
 		else
-			recordBase := TO_DINT(Reference - 1) * LMC_DIAG_HOMEEX_RECORD_STRIDE;
-			recordDirty := FALSE;
-			recordIndex := 0;
-			while recordIndex < LMC_DIAG_HOMEEX_RECORD_STRIDE do
-				if Ds402HomeExState[recordBase + recordIndex] <> 0 then
-					recordDirty := TRUE;
-				end_if;
-				recordIndex += 1;
-			end_while;
-			if recordDirty then
-				detailCode := LMC_DIAG_HOMEEX_DETAIL_STORE_CORRUPT;
-			elsif LMC_DIAG_DS402_HOME_EX_ENABLED = FALSE then
-				detailCode := LMC_DIAG_HOMEEX_DETAIL_INVALID_PROFILE;
+			axisMask := TO_UDINT(1) shl TO_UDINT(Reference - 1);
+			ownerResult := AxisOwnership.ValidateAxisOwnershipIdentity(
+				CommandId:=0x7D1B,
+				Reference:=Reference,
+				ExpectedAxisMask:=axisMask,
+				OwnerKind:=LMC_DIAG_OWNER_KIND_DS402_HOME_EX,
+				ResourceKind:=LMC_DIAG_RESOURCE_DS402_HOME,
+				AdmissionMode:=LMC_DIAG_ADMISSION_LIFECYCLE,
+				CallerSessionEpoch:=CallerSessionEpoch,
+				RequestSequence:=RequestSequence,
+				AdmissionToken:=AdmissionToken,
+				OwnerGeneration:=OwnerGeneration,
+				RequiredPhase:=LMC_DIAG_OWNER_PHASE_RESERVED,
+				pIdentity:=pRequest$^void,
+				IdentitySize:=RequestSize);
+			if ownerResult <> 0 then
+				detailCode := 42;
 			else
-				// HOMEEX-06 remains non-executable even if the private gate is
-				// edited. HOMEEX-07/08 must replace this deterministic failure.
-				detailCode := LMC_DIAG_HOMEEX_DETAIL_STORAGE;
+				recordBase := TO_DINT(Reference - 1) * LMC_DIAG_HOMEEX_RECORD_STRIDE;
+				recordDirty := FALSE;
+				recordIndex := 0;
+				while recordIndex < LMC_DIAG_HOMEEX_RECORD_STRIDE do
+					if Ds402HomeExState[recordBase + recordIndex] <> 0 then
+						recordDirty := TRUE;
+					end_if;
+					recordIndex += 1;
+				end_while;
+				if recordDirty then
+					detailCode := LMC_DIAG_HOMEEX_DETAIL_STORE_CORRUPT;
+				elsif LMC_DIAG_DS402_HOME_EX_ENABLED = FALSE then
+					detailCode := LMC_DIAG_HOMEEX_DETAIL_INVALID_PROFILE;
+				else
+					// HOMEEX-07 proves ownership only. HOMEEX-08 adds execution.
+					detailCode := LMC_DIAG_HOMEEX_DETAIL_STORAGE;
+				end_if;
 			end_if;
 		end_if;
+	end_if;
+
+	rollbackResult := 0;
+	if (detailCode <> 0) & (AdmissionToken <> 0) &
+	   (OwnerGeneration <> 0) & (CallerSessionEpoch <> 0) &
+	   (RequestSequence <> 0) & IsClientConnected(#AxisOwnership) then
+		rollbackResult := AxisOwnership.RollbackAxisOwnership(
+			AdmissionToken:=AdmissionToken,
+			OwnerGeneration:=OwnerGeneration,
+			CallerSessionEpoch:=CallerSessionEpoch,
+			RequestSequence:=RequestSequence,
+			Reason:=0);
 	end_if;
 
 	(pResponse + 12)^$UDINT := detailCode;
@@ -4902,8 +4934,8 @@ END_FUNCTION
 
 
 FUNCTION LMCDiagnosticsService::ProcessAxisDs402HomeEx
-	// HOMEEX-06 is a parser/outcome scaffold only. No ownership, SDO, RT
-	// mailbox, controlword, mode, setpoint or motion transition is permitted.
+	// HOMEEX-07 adds exact ownership only. SDO, RT mailbox, controlword,
+	// mode, setpoint and motion execution remain forbidden until HOMEEX-08.
 	RETURN;
 
 END_FUNCTION

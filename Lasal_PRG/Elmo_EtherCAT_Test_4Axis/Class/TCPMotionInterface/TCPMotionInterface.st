@@ -2432,7 +2432,11 @@ FUNCTION TCPMotionInterface::MsgPaser
 		diagnosticsResourceKind : UINT;
 		diagnosticsReserved : BOOL;
 		diagnosticsDs402StartValid : BOOL;
+		diagnosticsHomeExStartValid : BOOL;
 		diagnosticsOperationModeStartValid : BOOL;
+		diagnosticsHomeExSpareZero : BOOL;
+		diagnosticsHomeExSpareIndex : DINT;
+		diagnosticsHomeExMethod : DINT;
 		diagnosticsDs402PreflightAttempted : BOOL;
 		diagnosticsDs402PreflightAccepted : BOOL;
 		diagnosticsExactAccepted : BOOL;
@@ -2495,7 +2499,11 @@ case CommandID of
 	  diagnosticsResourceKind := 0;
 	  diagnosticsReserved := FALSE;
 	  diagnosticsDs402StartValid := FALSE;
+	  diagnosticsHomeExStartValid := FALSE;
 	  diagnosticsOperationModeStartValid := FALSE;
+	  diagnosticsHomeExSpareZero := TRUE;
+	  diagnosticsHomeExSpareIndex := 0;
+	  diagnosticsHomeExMethod := 0;
 	  diagnosticsDs402PreflightAttempted := FALSE;
 	  diagnosticsDs402PreflightAccepted := FALSE;
 	  diagnosticsExactAccepted := FALSE;
@@ -2505,6 +2513,10 @@ case CommandID of
 		diagnosticsOwnerReference := RequestBuf[48]$UINT;
 		diagnosticsOwnerKind := 5;
 		diagnosticsResourceKind := 4;
+	  elsif (CommandID = 0x7D1B) & (Payload = 116) then
+		diagnosticsOwnerReference := AxisRef$UINT;
+		diagnosticsOwnerKind := 7;
+		diagnosticsResourceKind := 3;
 	  elsif (CommandID = 0x7D23) & (Payload = 56) then
 		diagnosticsOwnerReference := AxisRef$UINT;
 		diagnosticsOwnerKind := 6;
@@ -2544,6 +2556,42 @@ case CommandID of
 		  (RequestBuf[70]$UINT = 0) &
 		  (RequestBuf[72]$UDINT <> 0) &
 		  (RequestBuf[76]$UDINT = 0x32303448);
+	  end_if;
+	  if (CommandID = 0x7D1B) & (Payload = 116) &
+		 (diagnosticsAxisMask <> 0) then
+		diagnosticsHomeExSpareZero := TRUE;
+		diagnosticsHomeExSpareIndex := 88;
+		while diagnosticsHomeExSpareIndex <= 119 do
+		  if RequestBuf[diagnosticsHomeExSpareIndex] <> 0 then
+			diagnosticsHomeExSpareZero := FALSE;
+		  end_if;
+		  diagnosticsHomeExSpareIndex += 1;
+		end_while;
+		diagnosticsHomeExMethod := RequestBuf[44]$DINT;
+		diagnosticsHomeExStartValid :=
+		  (RequestBuf[8]$UINT = 1) &
+		  (RequestBuf[10]$UINT = 0) &
+		  (RequestBuf[12]$UDINT <> 0) &
+		  (RequestBuf[16]$UDINT = 1) &
+		  (RequestBuf[20]$UDINT <> 0) &
+		  (RequestBuf[24]$UDINT <> 0) &
+		  ((RequestBuf[28]$UDINT <> 0) |
+		   (RequestBuf[32]$UDINT <> 0) |
+		   (RequestBuf[36]$UDINT <> 0) |
+		   (RequestBuf[40]$UDINT <> 0)) &
+		  (((diagnosticsHomeExMethod >= 1) &
+		    (diagnosticsHomeExMethod <= 14)) |
+		   ((diagnosticsHomeExMethod >= 17) &
+		    (diagnosticsHomeExMethod <= 30)) |
+		   ((diagnosticsHomeExMethod >= 33) &
+		    (diagnosticsHomeExMethod <= 34))) &
+		  (RequestBuf[48]$UDINT <> 0x80000000) &
+		  (RequestBuf[76]$UINT = 1) &
+		  (RequestBuf[78]$UINT = 0) &
+		  (RequestBuf[80]$UDINT <> 0) &
+		  (RequestBuf[84]$UDINT <> 0) &
+		  diagnosticsHomeExSpareZero &
+		  (RequestBuf[120]$UDINT = 0x58453448);
 	  end_if;
 	  if (CommandID = 0x7D23) & (Payload = 56) &
 		 (diagnosticsAxisMask <> 0) then
@@ -2587,6 +2635,7 @@ case CommandID of
 	  end_if;
 	  if (diagnosticsAxisMask <> 0) &
 		 ((CommandID = 0x7E53) |
+		  diagnosticsHomeExStartValid |
 		  diagnosticsOperationModeStartValid |
 		  (diagnosticsDs402StartValid &
 		   diagnosticsDs402PreflightAccepted)) &
@@ -2610,11 +2659,12 @@ case CommandID of
 		if diagnosticsAdmissionResult = 0 then
 		  diagnosticsReserved := TRUE;
 		end_if;
-	  elsif diagnosticsDs402StartValid | diagnosticsOperationModeStartValid then
+	  elsif diagnosticsDs402StartValid | diagnosticsHomeExStartValid | diagnosticsOperationModeStartValid then
 		diagnosticsAdmissionResult := -3;
 	  end_if;
 
-    if (diagnosticsDs402StartValid | diagnosticsOperationModeStartValid) &
+    if (diagnosticsDs402StartValid | diagnosticsHomeExStartValid |
+        diagnosticsOperationModeStartValid) &
 		 (diagnosticsAdmissionResult <> 0) &
 		 ((diagnosticsDs402PreflightAttempted = FALSE) |
 		  diagnosticsDs402PreflightAccepted) then
@@ -2638,8 +2688,11 @@ case CommandID of
     end_if;
 
     if (((diagnosticsDs402StartValid = FALSE) &
+		  (diagnosticsHomeExStartValid = FALSE) &
 		  (diagnosticsOperationModeStartValid = FALSE)) |
 		  (diagnosticsDs402StartValid & diagnosticsDs402PreflightAccepted &
+		   (diagnosticsAdmissionResult = 0)) |
+		  (diagnosticsHomeExStartValid &
 		   (diagnosticsAdmissionResult = 0)) |
 		  (diagnosticsOperationModeStartValid &
 		   (diagnosticsAdmissionResult = 0))) &
@@ -2693,6 +2746,18 @@ case CommandID of
 			(Sendbuf[16]$UDINT = RequestBuf[12]$UDINT) &
 			(Sendbuf[20]$UDINT <> 0) &
 			(Sendbuf[24]$DINT = 8) &
+			(Sendbuf[28]$UDINT = 0);
+		elsif CommandID = 0x7D1B then
+		  // HOMEEX-07 remains gate-OFF. Any apparent success is not accepted.
+		  diagnosticsExactAccepted := FALSE;
+		  diagnosticsExactFailure :=
+			(diagnosticsResponseSize = 24) &
+			(Sendbuf[8]$UINT = 1) &
+			(Sendbuf[12]$UINT = 1) &
+			(Sendbuf[14]$INT = -31000) &
+			(Sendbuf[16]$UDINT = RequestBuf[12]$UDINT) &
+			(Sendbuf[20]$UDINT <> 0) &
+			(Sendbuf[24]$DINT = RequestBuf[44]$DINT) &
 			(Sendbuf[28]$UDINT = 0);
 		elsif CommandID = 0x7D15 then
 		  diagnosticsExactAccepted :=
