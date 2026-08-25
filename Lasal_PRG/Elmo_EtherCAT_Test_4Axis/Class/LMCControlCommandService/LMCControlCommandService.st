@@ -12978,16 +12978,6 @@ FUNCTION GLOBAL LMCControlCommandService::CopyAxisOwnershipPreemption
 				(referenceAxisMask <> 0) &
 				(referenceAxisMask <= 0x00000008) &
 				(oldAxisMask = referenceAxisMask);
-		0x7E53:
-			identityExpectedSize := 116;
-			identityMetadataValid :=
-				(oldOwnerKind = LMC_OWNER_KIND_ENCODER) &
-				(oldResourceKind =
-				 LMC_OWNER_RESOURCE_DIAGNOSTICS_SDO_ENGINE) &
-				(oldAdmissionMode = LMC_OWNER_ADMISSION_LIFECYCLE) &
-				(referenceAxisMask <> 0) &
-				(referenceAxisMask <= 0x00000008) &
-				(oldAxisMask = referenceAxisMask);
 		0x7D23:
 			identityExpectedSize := 56;
 			identityMetadataValid :=
