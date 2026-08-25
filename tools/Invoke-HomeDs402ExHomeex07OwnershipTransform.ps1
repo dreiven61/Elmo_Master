@@ -27,6 +27,16 @@ function Replace-ScriptBlockOnce {
     return $regex.Replace($InputText, [System.Text.RegularExpressions.MatchEvaluator]{ param($m) $Replacement })
 }
 
+function Replace-LiteralOnce {
+    param([string]$InputText, [string]$Old, [string]$New, [string]$Label)
+    $count = ([regex]::Matches($InputText, [regex]::Escape($Old))).Count
+    if ($count -ne 1) {
+        throw "HOMEEX-07 bootstrap refused: '$Label' expected one literal block, found $count"
+    }
+    Write-Host "PASS bootstrap anchor: $Label"
+    return $InputText.Replace($Old, $New)
+}
+
 $text = Replace-ScriptBlockOnce $text `
     '\$control = Replace-Once \$control @''\n#define LMC_OWNER_STATE_AXIS_OPERATION_MODE_ACTIVE 12\n#define LMC_OWNER_KIND_DIRECT 1\n''@ @''\n#define LMC_OWNER_STATE_AXIS_OPERATION_MODE_ACTIVE 12\n#define LMC_OWNER_STATE_DS402_HOME_EX_ACTIVE 13\n#define LMC_OWNER_KIND_DIRECT 1\n''@ ''reserve active state 13''' `
     @'
@@ -58,14 +68,16 @@ $control = Replace-RegexCount $control '^#define LMC_OWNER_IDENTITY_PREFIX_BYTES
     'axis tail slot insertion'
 
 # Four of the ten current OperationMode owner-kind branches terminate directly
-# at END_CASE rather than through an ELSE arm. Preserve the exact semantic copy
-# logic and widen only that branch-boundary lookahead. The transform itself still
-# requires exactly ten matches, so any future structural drift fails closed.
-$text = Replace-ScriptBlockOnce $text `
-    "\\$control = Replace-RegexCount \\$control '.*?LMC_OWNER_KIND_AXIS_OPERATION_MODE:\[ \\t\]\*\\\\n\\(\?<body>\.\*\?\)\(\?=\^\\\\k<indent>else\\\\b\)' 10 \{" `
-    @'
+# at END_CASE rather than through an ELSE arm. Widen only the branch boundary;
+# the underlying transform still requires exactly ten matches and therefore
+# fails closed on any future structural drift.
+$oldOwnerBranch = @'
+$control = Replace-RegexCount $control '^(?<indent>[ \t]*)LMC_OWNER_KIND_AXIS_OPERATION_MODE:[ \t]*\n(?<body>.*?)(?=^\k<indent>else\b)' 10 {
+'@
+$newOwnerBranch = @'
 $control = Replace-RegexCount $control '^(?<indent>[ \t]*)LMC_OWNER_KIND_AXIS_OPERATION_MODE:[ \t]*\n(?<body>.*?)(?=^\k<indent>(?:else\b|end_case;))' 10 {
-'@ `
+'@
+$text = Replace-LiteralOnce $text $oldOwnerBranch $newOwnerBranch `
     'allow owner-kind branch to terminate at else or end_case'
 
 [System.IO.File]::WriteAllText($tempPath, $text, [System.Text.UTF8Encoding]::new($false))
