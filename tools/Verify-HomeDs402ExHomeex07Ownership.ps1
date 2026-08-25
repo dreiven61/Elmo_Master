@@ -49,7 +49,7 @@ function Require-AbsentRegex([string]$Text, [string]$Pattern, [string]$Message) 
 function Require-AsciiFile([string]$Path, [string]$Label) {
     $ascii = $true
     foreach ($value in [System.IO.File]::ReadAllBytes($Path)) {
-        if ($value -gt 0x7F) { $ascii = false; break }
+        if ($value -gt 0x7F) { $ascii = $false; break }
     }
     Require-True $ascii ($Label + ' remains 7-bit ASCII')
 }
@@ -93,6 +93,15 @@ Require-Regex $control 'LMC_OWNER_KIND_DS402_HOME_EX:[\s\S]{0,160}?LMC_OWNER_STA
 Require-AbsentRegex $control '#define\s+LMC_OWNER_RESOURCE_[A-Z0-9_]+\s+5' 'HOMEEX-07 does not introduce ResourceKind 5'
 Require-Regex $control 'LMC_OWNER_KIND_DS402_HOME[\s\S]{0,180}?0x7D15' 'legacy HomeDS402 OwnerKind 4/Start 0x7D15 contract remains present'
 Require-Regex $control 'LMC_OWNER_KIND_AXIS_OPERATION_MODE[\s\S]{0,180}?0x7D23' 'SetOperationMode OwnerKind 6/Start 0x7D23 contract remains present'
+
+$copyPreemptionMatches = [regex]::Matches(
+    $control,
+    'FUNCTION GLOBAL LMCControlCommandService::CopyAxisOwnershipPreemption(?s).*?END_FUNCTION')
+Require-True ($copyPreemptionMatches.Count -eq 1) 'CopyAxisOwnershipPreemption function scope is unique'
+$copyPreemptionBody = $copyPreemptionMatches[0].Value
+Require-RegexCount $copyPreemptionBody '^\s*0x7E53:\s*\n\s*identityExpectedSize\s*:=\s*72;' 1 'Encoder preemption identity remains exactly one 72-byte command case'
+Require-AbsentRegex $copyPreemptionBody '^\s*0x7E53:\s*\n\s*identityExpectedSize\s*:=\s*116;' 'HomeDS402Ex command cloning never rewrites Encoder identity to 116 bytes'
+Require-RegexCount $copyPreemptionBody '^\s*0x7D1B:\s*\n\s*identityExpectedSize\s*:=\s*116;' 1 'HomeDS402Ex preemption identity remains exactly one 116-byte command case'
 
 # TCP must reserve the full Start identity before the diagnostics handler sees a nonzero owner token.
 Require-Regex $tcp 'diagnosticsHomeExStartValid\s*:\s*BOOL' 'TCP declares a dedicated HomeDS402Ex Start classifier'
