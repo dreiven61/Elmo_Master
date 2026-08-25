@@ -32,18 +32,34 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Audit HOMEEX-07 baseline or verify candidate
+      - name: Detect ownership stage
+        id: stage
         shell: pwsh
         run: |
-          if (Test-Path .\tools\Verify-HomeDs402ExHomeex07Ownership.ps1) {
-            & .\tools\Verify-HomeDs402ExHomeex07Ownership.ps1
-          }
-          else {
-            & .\tools\Audit-HomeDs402ExHomeex07Ownership.ps1
-          }
+          $control = Get-Content -LiteralPath '.\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCControlCommandService\LMCControlCommandService.st' -Raw
+          $candidate = $control.Contains('#define LMC_OWNER_KIND_DS402_HOME_EX 7')
+          "candidate=$($candidate.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          Write-Host "HOMEEX07Candidate=$candidate"
+
+      - name: Audit HOMEEX-07 baseline
+        if: steps.stage.outputs.candidate != 'true'
+        shell: pwsh
+        run: |
+          & .\tools\Audit-HomeDs402ExHomeex07Ownership.ps1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Verify HOMEEX-06 scaffold regression
+      - name: Verify HOMEEX-07 ownership candidate
+        if: steps.stage.outputs.candidate == 'true'
+        shell: pwsh
+        run: |
+          if (-not (Test-Path .\tools\Verify-HomeDs402ExHomeex07Ownership.ps1)) {
+            throw 'HOMEEX-07 candidate source requires the candidate verifier.'
+          }
+          & .\tools\Verify-HomeDs402ExHomeex07Ownership.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify HOMEEX-06 scaffold baseline regression
+        if: steps.stage.outputs.candidate != 'true'
         shell: powershell
         run: |
           powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\tools\Verify-HomeDs402ExLasalScaffold.ps1
