@@ -1,0 +1,54 @@
+name: HomeDS402Ex LASAL dormant baseline
+
+on:
+  pull_request:
+    branches:
+      - dev
+    paths:
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
+      - 'tools/Verify-HomeDs402ExLasalBaseline.ps1'
+      - '.github/workflows/home-ds402ex-lasal-baseline.yml'
+      - 'docs/api/design/HOME_DS402_EX_LASAL_SCAFFOLD_READINESS.md'
+  push:
+    branches:
+      - codex/home-ds402ex-lasal-scaffold-readiness
+    paths:
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
+      - 'tools/Verify-HomeDs402ExLasalBaseline.ps1'
+      - '.github/workflows/home-ds402ex-lasal-baseline.yml'
+      - 'docs/api/design/HOME_DS402_EX_LASAL_SCAFFOLD_READINESS.md'
+  workflow_dispatch:
+
+jobs:
+  dormant-baseline:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify HomeDS402Ex LASAL baseline
+        shell: powershell
+        run: |
+          powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\tools\Verify-HomeDs402ExLasalBaseline.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Diff hygiene
+        shell: powershell
+        run: |
+          if ($env:GITHUB_EVENT_NAME -eq 'pull_request') {
+            git diff --check "origin/$env:GITHUB_BASE_REF...HEAD"
+          }
+          elseif ($env:GITHUB_EVENT_NAME -eq 'push') {
+            git diff --check HEAD^ HEAD
+          }
+          else {
+            git diff --check
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
