@@ -4545,7 +4545,7 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeExStart
 		positionRaw : UDINT;
 		axisMask : UDINT;
 		spareIndex, recordIndex, recordBase : DINT;
-		ownerResult, rollbackResult : DINT;
+		ownerResult : DINT;
 		spareZero, methodCandidate, recordDirty : BOOL;
 	END_VAR
 
@@ -4668,18 +4668,6 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeExStart
 				end_if;
 			end_if;
 		end_if;
-	end_if;
-
-	rollbackResult := 0;
-	if (detailCode <> 0) & (AdmissionToken <> 0) &
-	   (OwnerGeneration <> 0) & (CallerSessionEpoch <> 0) &
-	   (RequestSequence <> 0) & IsClientConnected(#AxisOwnership) then
-		rollbackResult := AxisOwnership.RollbackAxisOwnership(
-			AdmissionToken:=AdmissionToken,
-			OwnerGeneration:=OwnerGeneration,
-			CallerSessionEpoch:=CallerSessionEpoch,
-			RequestSequence:=RequestSequence,
-			Reason:=0);
 	end_if;
 
 	(pResponse + 12)^$UDINT := detailCode;

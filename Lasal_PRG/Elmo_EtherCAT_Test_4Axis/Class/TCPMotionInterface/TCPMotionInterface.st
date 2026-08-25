@@ -2776,8 +2776,9 @@ case CommandID of
 			(Sendbuf[20]$UDINT <> 0);
 		end_if;
 
-		if (diagnosticsExactAccepted = FALSE) &
-		   (diagnosticsExactFailure = FALSE) then
+		if (CommandID = 0x7D1B) |
+		   ((diagnosticsExactAccepted = FALSE) &
+		    (diagnosticsExactFailure = FALSE)) then
 		  diagnosticsRollbackResult :=
 			ControlCommands.RollbackAxisOwnership(
 			  AdmissionToken:=diagnosticsAdmissionToken,
