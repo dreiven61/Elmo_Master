@@ -1,0 +1,100 @@
+name: HomeDS402Ex WPF recovery qualification
+
+on:
+  pull_request:
+    branches:
+      - dev
+    paths:
+      - 'LMC_Library/LMC_API_Delivery/src/LmcAdminDs402HomeEx*.cs'
+      - 'LMC_Library/LMC_API_Delivery/src/LmcAxisDs402HomeEx.cs'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/AxisDs402HomeExRecoveryJournal.cs'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.AxisDs402HomeExRecovery.cs'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/LasalApiWpfTestApp.csproj'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/AxisDs402HomeExRecoveryJournalTests.cs'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/WpfAxisDs402HomeExRecoveryIntegrationTests.cs'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/LasalApiWpfTestApp.SmokeTests.csproj'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/Program.cs'
+      - '.github/workflows/home-ds402ex-wpf-recovery.yml'
+  push:
+    branches:
+      - codex/home-ds402ex-wpf-recovery
+    paths:
+      - 'LMC_Library/LMC_API_Delivery/src/LmcAdminDs402HomeEx*.cs'
+      - 'LMC_Library/LMC_API_Delivery/src/LmcAxisDs402HomeEx.cs'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/AxisDs402HomeExRecoveryJournal.cs'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.AxisDs402HomeExRecovery.cs'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/LasalApiWpfTestApp.csproj'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/AxisDs402HomeExRecoveryJournalTests.cs'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/WpfAxisDs402HomeExRecoveryIntegrationTests.cs'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/LasalApiWpfTestApp.SmokeTests.csproj'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/Program.cs'
+      - '.github/workflows/home-ds402ex-wpf-recovery.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  recovery-smoke:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Locate MSBuild
+        id: msbuild
+        shell: powershell
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          if (-not (Test-Path -LiteralPath $vswhere)) {
+            throw "vswhere.exe was not found on the Windows runner."
+          }
+          $msbuild = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
+          if ([string]::IsNullOrWhiteSpace($msbuild)) {
+            throw "MSBuild.exe was not found on the Windows runner."
+          }
+          "path=$msbuild" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Build WPF smoke tests Debug
+        shell: powershell
+        run: |
+          $project = '.\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\LasalApiWpfTestApp.SmokeTests.csproj'
+          & '${{ steps.msbuild.outputs.path }}' $project /t:Build /p:Configuration=Debug /p:Platform=AnyCPU /m
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run HomeDS402Ex recovery smoke tests Debug
+        shell: powershell
+        run: |
+          $exe = '.\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\bin\Debug\LasalApiWpfTestApp.SmokeTests.exe'
+          & $exe --filter HomeDS402Ex
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build WPF smoke tests Release
+        shell: powershell
+        run: |
+          $project = '.\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\LasalApiWpfTestApp.SmokeTests.csproj'
+          & '${{ steps.msbuild.outputs.path }}' $project /t:Build /p:Configuration=Release /p:Platform=AnyCPU /m
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run HomeDS402Ex recovery smoke tests Release
+        shell: powershell
+        run: |
+          $exe = '.\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\bin\Release\LasalApiWpfTestApp.SmokeTests.exe'
+          & $exe --filter HomeDS402Ex
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Diff hygiene
+        shell: powershell
+        run: |
+          if ($env:GITHUB_EVENT_NAME -eq 'pull_request') {
+            git diff --check "origin/$env:GITHUB_BASE_REF...HEAD"
+          }
+          elseif ($env:GITHUB_EVENT_NAME -eq 'push') {
+            git diff --check HEAD^ HEAD
+          }
+          else {
+            git diff --check
+          }
