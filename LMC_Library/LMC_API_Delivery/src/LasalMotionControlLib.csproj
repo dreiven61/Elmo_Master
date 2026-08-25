@@ -43,6 +43,7 @@
     <Compile Include="LmcAdminDs402HomeOutcomeRetirementProtocol.cs" />
     <Compile Include="LmcAdminDs402HomeExProtocol.cs" />
     <Compile Include="LmcAdminDs402HomeExOutcomeProtocol.cs" />
+    <Compile Include="LmcAdminDs402HomeExLifecycleProtocol.cs" />
     <Compile Include="LmcAdminModels.cs" />
     <Compile Include="LmcAdminSetAxisPositionModels.cs" />
     <Compile Include="LmcAdminSetAxisPositionOutcomeModels.cs" />
