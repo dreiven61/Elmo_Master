@@ -55,6 +55,7 @@
     <Compile Include="LmcAdminDs402HomeExModels.cs" />
     <Compile Include="LmcAdminDs402HomeExWireModels.cs" />
     <Compile Include="LmcAdminDs402HomeExOutcomeModels.cs" />
+    <Compile Include="LmcAdminDs402HomeExLifecycleModels.cs" />
     <Compile Include="LmcAdminDs402HomeOutcomeModels.cs" />
     <Compile Include="LmcAdminDs402HomeOutcomeRetirementModels.cs" />
     <Compile Include="LmcAdmin.cs" />
@@ -66,6 +67,7 @@
     <Compile Include="LmcAdminDs402Home.cs" />
     <Compile Include="LmcAdminDs402HomeOutcome.cs" />
     <Compile Include="LmcAdminDs402HomeOutcomeRetirement.cs" />
+    <Compile Include="LmcAdminDs402HomeEx.cs" />
     <Compile Include="LmcAxisHome.cs" />
     <Compile Include="LmcHome.cs" />
     <Compile Include="LmcDiagnosticsProtocol.cs" />
@@ -118,6 +120,7 @@
     <Compile Include="LmcAxisSetOperationMode.cs" />
     <Compile Include="LmcAxisDs402Home.cs" />
     <Compile Include="LmcAxisDs402HomeOutcomeRetirement.cs" />
+    <Compile Include="LmcAxisDs402HomeEx.cs" />
     <Compile Include="LmcAxisDriveReads.cs" />
     <Compile Include="LmcGroup.cs" />
     <Compile Include="LmcGroupResetWait.cs" />
