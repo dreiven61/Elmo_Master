@@ -57,6 +57,7 @@
     <Compile Include="LmcAdminDs402HomeExWireModels.cs" />
     <Compile Include="LmcAdminDs402HomeExOutcomeModels.cs" />
     <Compile Include="LmcAdminDs402HomeExLifecycleModels.cs" />
+    <Compile Include="LmcAdminDs402HomeExRecovery.cs" />
     <Compile Include="LmcAdminDs402HomeOutcomeModels.cs" />
     <Compile Include="LmcAdminDs402HomeOutcomeRetirementModels.cs" />
     <Compile Include="LmcAdmin.cs" />
