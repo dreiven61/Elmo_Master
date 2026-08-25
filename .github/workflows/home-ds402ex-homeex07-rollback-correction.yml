@@ -1,0 +1,99 @@
+name: HomeDS402Ex HOMEEX-07 rollback handoff correction
+
+on:
+  push:
+    branches:
+      - codex/home-ds402ex-homeex07-ownership
+    paths:
+      - '.github/workflows/home-ds402ex-homeex07-rollback-correction.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  correct-source:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - name: Checkout qualification branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: codex/home-ds402ex-homeex07-ownership
+
+      - name: Harden Diagnostics rollback failure handoff
+        shell: pwsh
+        run: |
+          $path = 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
+          $text = [System.IO.File]::ReadAllText($path).Replace("`r`n", "`n").Replace("`r", "`n")
+          $functionRegex = [regex]::new('FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeExStart(?s).*?END_FUNCTION')
+          $matches = $functionRegex.Matches($text)
+          if ($matches.Count -ne 1) { throw "Expected one HomeDS402Ex Start function, found $($matches.Count)" }
+          $original = $matches[0].Value
+          $old = "`t`t(pResponse + 20)^`$UDINT := 0;"
+          $new = @'
+		if rollbackResult <> 0 then
+			(pResponse + 20)^$UDINT := TO_UDINT(0 - rollbackResult);
+		else
+			(pResponse + 20)^$UDINT := 0;
+		end_if;
+'@.TrimEnd("`r", "`n")
+          $count = ([regex]::Matches($original, [regex]::Escape($old))).Count
+          if ($count -ne 1) { throw "Expected one zero NativeCommandState assignment in HomeEx Start, found $count" }
+          $corrected = $original.Replace($old, $new)
+          if (-not $corrected.Contains('if rollbackResult <> 0 then')) { throw 'Rollback handoff guard was not inserted' }
+          if (-not $corrected.Contains('(pResponse + 20)^$UDINT := TO_UDINT(0 - rollbackResult);')) { throw 'Rollback failure NativeCommandState handoff missing' }
+          $text = $text.Replace($original, $corrected)
+          foreach ($ch in $text.ToCharArray()) {
+            if ([int]$ch -gt 0x7F) { throw 'Corrected Diagnostics source is not 7-bit ASCII' }
+          }
+          [System.IO.File]::WriteAllText($path, $text, [System.Text.Encoding]::ASCII)
+          git diff --check -- $path
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify HOMEEX-07 ownership contract
+        shell: pwsh
+        run: |
+          & .\tools\Verify-HomeDs402ExHomeex07Ownership.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $path = 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
+          $text = Get-Content -LiteralPath $path -Raw
+          $m = [regex]::Matches($text, 'FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeExStart(?s).*?END_FUNCTION')
+          if ($m.Count -ne 1) { throw 'HomeEx Start scope is not unique' }
+          $body = $m[0].Value
+          if (-not $body.Contains('if rollbackResult <> 0 then')) { throw 'Rollback failure is not surfaced' }
+          if (-not $body.Contains('(pResponse + 20)^$UDINT := TO_UDINT(0 - rollbackResult);')) { throw 'Rollback failure does not force nonzero native state' }
+
+      - name: Verify TCP fallback contract
+        shell: pwsh
+        run: |
+          $tcp = Get-Content -LiteralPath 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st' -Raw
+          if ($tcp -notmatch 'elsif CommandID\s*=\s*0x7D1B then[\s\S]{0,700}?diagnosticsExactFailure[\s\S]{0,400}?Sendbuf\[28\]\$UDINT\s*=\s*0') {
+            throw 'TCP HomeEx exact-failure classifier no longer requires zero native state'
+          }
+          if ($tcp -notmatch 'if \(diagnosticsExactAccepted\s*=\s*FALSE\)[\s\S]{0,120}?\(diagnosticsExactFailure\s*=\s*FALSE\)[\s\S]{0,220}?RollbackAxisOwnership') {
+            throw 'TCP fallback rollback path is not present for non-exact responses'
+          }
+
+      - name: Verify SetOperationMode define order
+        shell: powershell
+        run: |
+          powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\tools\Verify-SetOperationModeDefineOrder.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Commit corrected Diagnostics source
+        shell: pwsh
+        run: |
+          $path = 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
+          git add -- $path
+          $staged = @(git diff --cached --name-only)
+          if ($staged.Count -ne 1 -or $staged[0] -ne $path) { throw "Unexpected staged files: $($staged -join ', ')" }
+          git diff --cached --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix(homeex): surface ownership rollback failure'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git push origin HEAD:codex/home-ds402ex-homeex07-ownership
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
