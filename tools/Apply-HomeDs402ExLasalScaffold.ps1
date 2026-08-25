@@ -67,6 +67,7 @@ function Replace-Once {
 
 function Write-AsciiLf {
     param([string]$Path, [string]$Text)
+    $Text = $Text.Replace("`r`n", "`n").Replace("`r", "`n")
     Require-True (-not $Text.Contains("`r")) ("LF-only transformed text: " + $Path)
     foreach ($character in $Text.ToCharArray()) {
         if ([int]$character -gt 0x7F) {
