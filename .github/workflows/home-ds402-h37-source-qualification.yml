@@ -15,12 +15,17 @@ on:
       - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Program.cs'
       - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/LasalMotionControlLib.Tests.csproj'
       - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/LasalApiWpfTestApp.csproj'
       - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.MaintenanceActions.cs'
       - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MaintenanceActionRecoveryJournal.cs'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/LasalApiWpfTestApp.SmokeTests.csproj'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/**.cs'
       - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st'
       - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
       - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
       - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCEcatInputLatch/LMCEcatInputLatch.st'
+      - 'docs/api/API_MANUAL.md'
+      - 'docs/api/API_DEVELOPMENT_PROGRESS.md'
       - 'docs/api/design/HOME_DS402_DESIGN.md'
       - '.github/workflows/home-ds402-h37-source-qualification.yml'
   pull_request:
@@ -35,12 +40,17 @@ on:
       - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Program.cs'
       - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/LasalMotionControlLib.Tests.csproj'
       - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/LasalApiWpfTestApp.csproj'
       - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.MaintenanceActions.cs'
       - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MaintenanceActionRecoveryJournal.cs'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/LasalApiWpfTestApp.SmokeTests.csproj'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/**.cs'
       - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st'
       - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
       - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
       - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCEcatInputLatch/LMCEcatInputLatch.st'
+      - 'docs/api/API_MANUAL.md'
+      - 'docs/api/API_DEVELOPMENT_PROGRESS.md'
       - 'docs/api/design/HOME_DS402_DESIGN.md'
       - '.github/workflows/home-ds402-h37-source-qualification.yml'
   workflow_dispatch:
@@ -51,7 +61,7 @@ permissions:
 jobs:
   h37-source:
     runs-on: windows-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -108,6 +118,20 @@ jobs:
           & '${{ steps.msbuild.outputs.path }}' $project /t:Build /p:Configuration=Release /p:Platform=AnyCPU /m
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\bin\Release\LasalMotionControlLib.Tests.exe'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build and run WPF smoke tests Debug
+        shell: powershell
+        run: |
+          $project = '.\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\LasalApiWpfTestApp.SmokeTests.csproj'
+          & '${{ steps.msbuild.outputs.path }}' $project /t:RunWpfSmokeTests /p:Configuration=Debug /p:Platform=AnyCPU /m
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build and run WPF smoke tests Release
+        shell: powershell
+        run: |
+          $project = '.\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\LasalApiWpfTestApp.SmokeTests.csproj'
+          & '${{ steps.msbuild.outputs.path }}' $project /t:RunWpfSmokeTests /p:Configuration=Release /p:Platform=AnyCPU /m
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Run repository SourceOnly contract and artifact ratchet
