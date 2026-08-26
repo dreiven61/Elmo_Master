@@ -1,4 +1,4 @@
-# one-shot repair trigger: 2026-08-26 pr-synchronize-repair
+# one-shot repair trigger: 2026-08-26 publish-macro-closure-ratchet
 name: HomeDS402Ex HOMEEX-09 one-shot repair
 
 on:
@@ -104,6 +104,30 @@ jobs:
               raise SystemExit('Helper tuple is outside rollback-split ratchet context')
           contract_bytes = contract_bytes.replace(adapter_old, adapter_new, 1)
           contract_bytes = contract_bytes.replace(helper_old, helper_new, 1)
+
+          macro_hash_old = b'367C87E07AF2C33D60F32F3E94AECF73BA052C6F3155DA909DB9EAD1BB9EAB85'
+          macro_hash_new = b'EE120B0DDC3757546616C32B5C3C4592D4EFACFBF4B6DA2DE24354596EB513DE'
+          if contract_bytes.count(macro_hash_old) != 1 or contract_bytes.count(macro_hash_new) != 0:
+              raise SystemExit('Publish referenced-macro closure SHA precondition failed')
+          macro_hash_position = contract_bytes.index(macro_hash_old)
+          macro_lo = max(0, macro_hash_position - 1800)
+          macro_hi = min(len(contract_bytes), macro_hash_position + 1800)
+          macro_context = contract_bytes[macro_lo:macro_hi]
+          macro_replacements = (
+              (b'$macroInventory.Count -ne 70', b'$macroInventory.Count -ne 73'),
+              (b'$joinedMacros.Length -ne 2470', b'$joinedMacros.Length -ne 2579'),
+              (macro_hash_old, macro_hash_new),
+              (b'$($macroInventory.Count)/70', b'$($macroInventory.Count)/73'),
+              (b'$($joinedMacros.Length)/2470', b'$($joinedMacros.Length)/2579'),
+          )
+          if b'referenced macro closure drifted' not in macro_context:
+              raise SystemExit('Publish referenced-macro closure hash is outside expected blocker context')
+          for old, new in macro_replacements:
+              if macro_context.count(old) != 1 or macro_context.count(new) != 0:
+                  raise SystemExit(f'Publish referenced-macro closure token precondition failed: {old!r}')
+              macro_context = macro_context.replace(old, new, 1)
+          contract_bytes = contract_bytes[:macro_lo] + macro_context + contract_bytes[macro_hi:]
+
           contract.write_bytes(contract_bytes)
 
           print('PASS repaired exactly two stale identity-tail strides')
@@ -112,6 +136,7 @@ jobs:
           print('PASS re-baselined replacement semantic token inventory 6714 -> 7015')
           print('PASS re-baselined paired replacement semantic SHA-256')
           print('PASS re-baselined rollback-split adapter and helper LF/CRLF/SHA ratchets')
+          print('PASS re-baselined publish referenced-macro closure 70/2470 -> 73/2579')
           '@ | python -
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
