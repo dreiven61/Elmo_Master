@@ -120,18 +120,28 @@ jobs:
           & '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\bin\Release\LasalMotionControlLib.Tests.exe'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Build and run WPF smoke tests Debug
+      - name: Build and run H37 WPF recovery smoke Debug
         shell: powershell
         run: |
           $project = '.\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\LasalApiWpfTestApp.SmokeTests.csproj'
-          & '${{ steps.msbuild.outputs.path }}' $project /t:RunWpfSmokeTests /p:Configuration=Debug /p:Platform=AnyCPU /m
+          $exe = '.\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\bin\Debug\LasalApiWpfTestApp.SmokeTests.exe'
+          & '${{ steps.msbuild.outputs.path }}' $project /t:Build /p:Configuration=Debug /p:Platform=AnyCPU /m
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $exe --filter MaintenanceJournal
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $exe --filter Ds402Home
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Build and run WPF smoke tests Release
+      - name: Build and run H37 WPF recovery smoke Release
         shell: powershell
         run: |
           $project = '.\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\LasalApiWpfTestApp.SmokeTests.csproj'
-          & '${{ steps.msbuild.outputs.path }}' $project /t:RunWpfSmokeTests /p:Configuration=Release /p:Platform=AnyCPU /m
+          $exe = '.\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\bin\Release\LasalApiWpfTestApp.SmokeTests.exe'
+          & '${{ steps.msbuild.outputs.path }}' $project /t:Build /p:Configuration=Release /p:Platform=AnyCPU /m
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $exe --filter MaintenanceJournal
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $exe --filter Ds402Home
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Run repository SourceOnly contract and artifact ratchet
