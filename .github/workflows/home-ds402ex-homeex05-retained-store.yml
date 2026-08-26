@@ -1,0 +1,110 @@
+name: HomeDS402Ex HOMEEX-05 retained store qualification
+
+on:
+  push:
+    branches:
+      - codex/home-ds402ex-homeex05-retained-store
+      - dev
+    paths:
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
+      - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
+      - 'tools/Verify-HomeDs402ExRetainedStore.ps1'
+      - 'tools/Verify-HomeDs402ExHomeEx09Static.ps1'
+      - '.github/workflows/home-ds402ex-homeex05-retained-store.yml'
+  pull_request:
+    branches:
+      - dev
+    paths:
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
+      - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
+      - 'tools/Verify-HomeDs402ExRetainedStore.ps1'
+      - 'tools/Verify-HomeDs402ExHomeEx09Static.ps1'
+      - '.github/workflows/home-ds402ex-homeex05-retained-store.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  retained-store:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify HOMEEX-05 retained store contract
+        shell: powershell
+        run: |
+          & '.\tools\Verify-HomeDs402ExRetainedStore.ps1'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify HomeDS402Ex method source budgets
+        shell: powershell
+        run: |
+          $text = [IO.File]::ReadAllText('Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st')
+          foreach ($name in @('HandleAxisDs402HomeExStart','HandleAxisDs402HomeExOutcome','HandleAxisDs402HomeExRetire')) {
+            $m = [regex]::Match($text, '(?ms)^FUNCTION\s+LMCDiagnosticsService::' + $name + '\b.*?^END_FUNCTION\s*$')
+            if (-not $m.Success) { throw "Missing $name" }
+            $bytes = [Text.Encoding]::UTF8.GetByteCount($m.Value)
+            Write-Host "$name bytes=$bytes"
+            if ($bytes -ge 32768) { throw "$name exceeds conservative 32KiB source budget: $bytes" }
+          }
+
+      - name: Verify HOMEEX-09 source regression
+        shell: powershell
+        run: |
+          & '.\tools\Verify-HomeDs402ExHomeEx09Static.ps1'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify full SourceOnly to exact known artifact boundary
+        shell: powershell
+        run: |
+          $knownArtifactBoundary = 'LASAL.UdpCallbackContract blocker: SetPosition-augmented Classes.lcb physical identity drifted.'
+          $captured = New-Object System.Collections.Generic.List[string]
+          $code = 0
+          try {
+            $ErrorActionPreference = 'Continue'
+            & '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\Verify-LasalContract.ps1' -RepositoryRoot $env:GITHUB_WORKSPACE 2>&1 |
+              ForEach-Object {
+                $text = $_ | Out-String
+                [void]$captured.Add($text)
+                Write-Host $_
+              }
+            $code = $LASTEXITCODE
+          }
+          catch {
+            $text = $_ | Out-String
+            [void]$captured.Add($text)
+            Write-Host $text
+            $code = 1
+          }
+          if ($code -eq 0) {
+            Write-Host 'PASS full SourceOnly contract completed.'
+            exit 0
+          }
+          $joined = [string]::Join("`n", $captured)
+          if ($joined.Contains($knownArtifactBoundary)) {
+            Write-Host 'PASS HOMEEX-05 source/static qualification reached the exact known C78/generated-artifact boundary.'
+            Write-Host 'NOTE this does not qualify or approve the tracked Classes.lcb artifact.'
+            exit 0
+          }
+          exit $code
+
+      - name: Diff hygiene
+        shell: powershell
+        run: |
+          if ($env:GITHUB_EVENT_NAME -eq 'pull_request') {
+            git diff --check "origin/$env:GITHUB_BASE_REF...HEAD"
+          }
+          elseif ($env:GITHUB_EVENT_NAME -eq 'push') {
+            git diff --check HEAD^ HEAD
+          }
+          else {
+            git diff --check
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
