@@ -807,9 +807,54 @@ namespace LasalApiWpfTestApp.SmokeTests
                         "latestDs402HomeRecoveryKey")
                         as LMCAxisDs402HomeRecoveryKey;
                     AssertEx.NotNull(restored);
-                    AssertEx.True(
-                        expected.Equals(restored),
-                        "DS402 Home relaunch did not restore the exact recovery key before the first outcome query.");
+                    AssertEx.Equal(expected.SchemaVersion, restored.SchemaVersion);
+                    AssertEx.Equal(expected.RequestId, restored.RequestId);
+                    AssertEx.Equal(
+                        expected.DiagnosticsBuild,
+                        restored.DiagnosticsBuild);
+                    AssertEx.Equal(
+                        expected.DiagnosticsBootId,
+                        restored.DiagnosticsBootId);
+                    AssertEx.Equal(expected.MapRevision, restored.MapRevision);
+                    AssertEx.Equal(
+                        expected.ClientIntentId.Word0,
+                        restored.ClientIntentId.Word0);
+                    AssertEx.Equal(
+                        expected.ClientIntentId.Word1,
+                        restored.ClientIntentId.Word1);
+                    AssertEx.Equal(
+                        expected.ClientIntentId.Word2,
+                        restored.ClientIntentId.Word2);
+                    AssertEx.Equal(
+                        expected.ClientIntentId.Word3,
+                        restored.ClientIntentId.Word3);
+                    AssertEx.Equal(
+                        expected.AxisReference,
+                        restored.AxisReference);
+                    AssertEx.Equal(
+                        expected.Parameters.HomingMethod,
+                        restored.Parameters.HomingMethod);
+                    AssertEx.Equal(
+                        expected.Parameters.Position,
+                        restored.Parameters.Position);
+                    AssertEx.Equal(
+                        expected.Parameters.Velocity,
+                        restored.Parameters.Velocity);
+                    AssertEx.Equal(
+                        expected.Parameters.Acceleration,
+                        restored.Parameters.Acceleration);
+                    AssertEx.Equal(
+                        expected.Parameters.DistanceLimit,
+                        restored.Parameters.DistanceLimit);
+                    AssertEx.Equal(
+                        expected.Parameters.TorqueLimit,
+                        restored.Parameters.TorqueLimit);
+                    AssertEx.Equal(
+                        expected.Parameters.BufferMode,
+                        restored.Parameters.BufferMode);
+                    AssertEx.Equal(
+                        expected.Parameters.TimeoutMilliseconds,
+                        restored.Parameters.TimeoutMilliseconds);
                 });
         }
 
