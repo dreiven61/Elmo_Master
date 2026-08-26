@@ -1,4 +1,4 @@
-# one-shot repair trigger: 2026-08-26 reserve-ratchets
+# one-shot repair trigger: 2026-08-26 source-first repair
 name: HomeDS402Ex HOMEEX-09 one-shot repair
 
 on:
@@ -42,15 +42,26 @@ jobs:
               br'(replacementTailOffset\s*:=\s*(?:\r?\n[ \t]*)?TO_UDINT\(probeAxisIndex\s*-\s*1\)\s*\*\s*)8(\s*;)',
               re.IGNORECASE,
           )
-          tail_matches = list(tail_pattern.finditer(control_bytes))
-          if len(tail_matches) != 2:
-              raise SystemExit(f'Expected exactly two stale replacementTailOffset * 8 matches, found {len(tail_matches)}')
-          control_bytes = tail_pattern.sub(
-              br'\1LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES\2',
-              control_bytes,
-              count=2,
+          repaired_pattern = re.compile(
+              br'replacementTailOffset\s*:=\s*(?:\r?\n[ \t]*)?TO_UDINT\(probeAxisIndex\s*-\s*1\)\s*\*\s*LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES\s*;',
+              re.IGNORECASE,
           )
-          control.write_bytes(control_bytes)
+          tail_matches = list(tail_pattern.finditer(control_bytes))
+          repaired_matches = list(repaired_pattern.finditer(control_bytes))
+          if len(tail_matches) == 2 and len(repaired_matches) == 0:
+              control_bytes = tail_pattern.sub(
+                  br'\1LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES\2',
+                  control_bytes,
+                  count=2,
+              )
+              control.write_bytes(control_bytes)
+              print('PASS repaired exactly two stale identity-tail strides')
+          elif len(tail_matches) == 0 and len(repaired_matches) == 2:
+              print('PASS identity-tail stride source repair already committed')
+          else:
+              raise SystemExit(
+                  f'Unexpected identity-tail source state: stale={len(tail_matches)}, repaired={len(repaired_matches)}'
+              )
 
           contract_bytes = contract.read_bytes()
           replacements = [
@@ -103,7 +114,6 @@ jobs:
 
           contract.write_bytes(contract_bytes)
 
-          print('PASS repaired exactly two stale identity-tail strides')
           print('PASS re-baselined OwnershipState persisted-read fence 44 -> 47; identity fence remains 12')
           print('PASS re-baselined replacement semantic inventory and rollback-split byte/hash ratchets')
           print('PASS re-baselined publish referenced-macro closure 70/2470 -> 73/2579')
@@ -116,6 +126,24 @@ jobs:
         shell: powershell
         run: |
           & '.\tools\Verify-HomeDs402ExHomeex09Static.ps1'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Commit confirmed LASAL source repair first
+        shell: powershell
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
+          git diff --cached --quiet
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host 'PASS LASAL source repair already committed; no source-only commit needed.'
+            exit 0
+          }
+          git diff --cached --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git commit -m 'fix(homeex): repair per-axis identity tail stride'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git push origin HEAD:codex/home-ds402ex-homeex09-static-qualification
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Run legacy LASAL SourceOnly contract after repair
@@ -131,7 +159,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           git diff --stat
 
-      - name: Commit repair and remove one-shot diagnostics
+      - name: Commit verifier repair and remove one-shot diagnostics
         shell: powershell
         run: |
           git config user.name 'github-actions[bot]'
@@ -142,7 +170,7 @@ jobs:
           git add 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
           git diff --cached --check
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          git commit -m 'fix(homeex): close HOMEEX-09 identity ratchets'
+          git commit -m 'test(homeex): close HOMEEX-09 identity ratchets'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           git push origin HEAD:codex/home-ds402ex-homeex09-static-qualification
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
