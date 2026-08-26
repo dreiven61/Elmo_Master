@@ -139,9 +139,9 @@ Indeterminate/Quarantined로 보존하고 original Start를 재전송하지 않�
 ## 7. 작업 체크리스트
 
 - [x] `H37-01` packet map의 receipt/drain 미완료 문구와 current source 차이 해소
-- [ ] `H37-02` all-OFF/all-ON activation과 mixed-state negative verifier 고정
-- [ ] `H37-03` method37 exact request/terminal/retire PC runner와 packet assertion 작성
-- [ ] `H37-04` ordinary ownership 공통 회귀 Stop/Power/Reset/Group/maintenance 추가
+- [x] `H37-02` all-OFF/all-ON activation과 mixed-state negative verifier 고정
+- [x] `H37-03` method37 exact request/terminal/retire PC runner와 packet assertion 작성
+- [x] `H37-04` ordinary ownership 공통 회귀 Stop/Power/Reset/Group/maintenance 추가
 - [ ] `H37-05` activation candidate SourceOnly/method-size PASS
 - [ ] `H37-06` C78 Rebuild/Link, method direct-open와 Network smoke PASS
 - [ ] `H37-07` Axis1 normal/timeout/fault/disconnect/response-loss matrix PASS
@@ -154,6 +154,24 @@ Indeterminate/Quarantined로 보존하고 original Start를 재전송하지 않�
 `RequestDs402HomeSafetyDrain` bit-4 low/readback, exact dispatch barrier, late-command
 tombstone을 기존 focused verifier와 대조했고 packet map과 delivery README의 과거
 미구현 표현을 정정했다. 이 완료는 C78 build, PLC download 또는 실축 검증을
+의미하지 않는다.
+
+### H37-02/03/04 source/PC qualification — 2026-08-26
+
+- H37-02 atomic activation verifier: workflow `32924160296`, job `98043523551`
+  - current activation mask `0x0000613F`, 5개 tracked gate 모두 OFF 확인
+  - all-OFF/all-ON 2개만 허용하고 30개 mixed vector 전부 reject
+  - verifier `43 checks PASS`
+- H37-03 method37 PC runner: 동일 workflow에서 exact `0x7D15/16/17` Start/Running/terminal/retire와 no-replay assertion PASS
+- H37-04 ownership regression: workflow `32924573097`, job `98044740310`
+  - HomeDS402 OwnerKind 4 / ResourceKind 3 / active state 6 / lifecycle command `0x7D15` 고정
+  - Stop/Power safety preemption, Axis/Group Reset, Group/non-group collision, encoder maintenance `0x7E53` regression 검증
+  - ownership verifier `21 checks PASS`
+- H37-02/03 workflow Debug/Release full API suite: 각각 `1194/1194 PASS`, 0 warnings / 0 errors, diff hygiene PASS
+- H37-04 workflow Debug/Release full API suite: 각각 `1194/1194 PASS`, 0 warnings / 0 errors, diff hygiene PASS
+
+이 증거는 Source/static 및 PC contract qualification이다. 5개 activation gate는 계속 OFF이며
+H37-05 full SourceOnly/method-size, H37-06 C78/Network, PLC load/runtime 또는 hardware activation을
 의미하지 않는다.
 
 ## 8. release 경계
