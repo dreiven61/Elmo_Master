@@ -49,14 +49,29 @@ jobs:
         shell: powershell
         run: |
           $knownArtifactBoundary = 'LASAL.UdpCallbackContract blocker: SetPosition-augmented Classes.lcb physical identity drifted.'
-          $output = @(& '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\Verify-LasalContract.ps1' -RepositoryRoot $env:GITHUB_WORKSPACE 2>&1)
-          $code = $LASTEXITCODE
-          $output | ForEach-Object { Write-Host $_ }
+          $captured = New-Object System.Collections.Generic.List[string]
+          $code = 0
+          try {
+            $ErrorActionPreference = 'Continue'
+            & '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\Verify-LasalContract.ps1' -RepositoryRoot $env:GITHUB_WORKSPACE 2>&1 |
+              ForEach-Object {
+                $text = $_ | Out-String
+                [void]$captured.Add($text)
+                Write-Host $_
+              }
+            $code = $LASTEXITCODE
+          }
+          catch {
+            $text = $_ | Out-String
+            [void]$captured.Add($text)
+            Write-Host $text
+            $code = 1
+          }
           if ($code -eq 0) {
             Write-Host 'PASS legacy SourceOnly contract completed fully.'
             exit 0
           }
-          $joined = ($output | Out-String)
+          $joined = [string]::Join("`n", $captured)
           if ($joined.Contains($knownArtifactBoundary)) {
             Write-Host 'PASS HOMEEX-09 source/static ratchets reached the exact known generated-artifact boundary.'
             Write-Host 'NOTE generated Classes.lcb/C78 artifact qualification remains open and is not claimed complete.'
