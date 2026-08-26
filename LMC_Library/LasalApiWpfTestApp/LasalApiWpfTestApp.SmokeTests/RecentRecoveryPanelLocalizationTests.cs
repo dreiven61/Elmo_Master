@@ -62,10 +62,10 @@ namespace LasalMotionControlApiExample
                 var setOperationModeText = CollectText(setOperationModeGroup);
                 AssertEx.True(
                     setOperationModeText.Contains("물리 축 번호 (1..4)"),
-                    "The dynamically created SetOperationMode axis label remained English in Korean UI.");
+                    "The dynamically created SetOperationMode axis label was not found in Korean UI.");
                 AssertEx.True(
                     setOperationModeText.Contains("CSP 위치 동기 모드 (8)"),
-                    "The dynamically created SetOperationMode CSP label remained English in Korean UI.");
+                    "The dynamically created SetOperationMode CSP label was not found in Korean UI.");
 
                 var homeExGroup = window.AxisDs402HomeExRecoveryGroupForTests;
                 AssertEx.NotNull(homeExGroup);
@@ -138,15 +138,17 @@ namespace LasalMotionControlApiExample
         private static HashSet<string> CollectText(DependencyObject root)
         {
             var result = new HashSet<string>(StringComparer.Ordinal);
-            CollectText(root, result);
+            var visited = new HashSet<DependencyObject>();
+            CollectText(root, result, visited);
             return result;
         }
 
         private static void CollectText(
             DependencyObject current,
-            ISet<string> result)
+            ISet<string> result,
+            ISet<DependencyObject> visited)
         {
-            if (current == null)
+            if (current == null || !visited.Add(current))
             {
                 return;
             }
@@ -157,12 +159,38 @@ namespace LasalMotionControlApiExample
                 result.Add(textBlock.Text);
             }
 
+            var contentControl = current as ContentControl;
+            if (contentControl != null)
+            {
+                var stringContent = contentControl.Content as string;
+                if (!string.IsNullOrEmpty(stringContent))
+                {
+                    result.Add(stringContent);
+                }
+
+                var dependencyContent =
+                    contentControl.Content as DependencyObject;
+                if (dependencyContent != null)
+                {
+                    CollectText(dependencyContent, result, visited);
+                }
+            }
+
+            var panel = current as Panel;
+            if (panel != null)
+            {
+                foreach (UIElement child in panel.Children)
+                {
+                    CollectText(child, result, visited);
+                }
+            }
+
             foreach (var child in LogicalTreeHelper.GetChildren(current))
             {
                 var dependencyChild = child as DependencyObject;
                 if (dependencyChild != null)
                 {
-                    CollectText(dependencyChild, result);
+                    CollectText(dependencyChild, result, visited);
                 }
             }
         }
