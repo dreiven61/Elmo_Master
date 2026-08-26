@@ -74,7 +74,9 @@ offset을 변경하지 않는다.
 | `LMCControlCommandService.st` | `LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED` |
 | `LMCDiagnosticsService.st` | `LMC_DIAG_DS402_HOME_ENABLED` |
 | `LMCEcatInputLatch.st` | `LMC_DS402_HOME_STARTUP_SWEEP_ENABLED` |
-| Admin response | Feature mask `0x00000017 -> 0x00000057` |
+| Admin response | operational feature mask `0x0000613F -> 0x0000617F` (bit 6 only) |
+
+현재 `dev`의 non-Home operational feature mask는 `0x0000613F`이며 HomeDS402 activation은 다른 feature bit를 바꾸지 않고 bit 6(`0x40`)만 추가한 `0x0000617F`이어야 한다. 이 값은 과거 `0x17/0x57` 예시를 current source에 맞춰 교정한 것이다.
 
 activation verifier는 혼합 상태를 거부해야 한다. ordinary ownership은 Home 전용이 아니므로
 Stop, PowerOff, Reset, SetPosition, encoder maintenance와 Group preemption 회귀도 같은 gate에

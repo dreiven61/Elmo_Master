@@ -47,6 +47,7 @@
     <Compile Include="AdminSetOperationModeContractTests.cs" />
     <Compile Include="AdminLmcHomeContractTests.cs" />
     <Compile Include="AdminDs402HomeCurrentPositionZeroContractTests.cs" />
+    <Compile Include="AdminDs402HomeH37QualificationTests.cs" />
     <Compile Include="AxisDs402HomeExParameterContractTests.cs" />
     <Compile Include="AdminDs402HomeExOutcomeContractTests.cs" />
     <Compile Include="AdminDs402HomeExCapabilityContractTests.cs" />
