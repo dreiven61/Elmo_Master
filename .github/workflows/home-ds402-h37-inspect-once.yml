@@ -1,0 +1,35 @@
+name: HomeDS402 H37 activation inspect once
+
+on:
+  push:
+    branches:
+      - codex/home-ds402-h37-source-qualification
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect activation gates and capability response
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=(
+            "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st"
+            "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st"
+            "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st"
+            "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCEcatInputLatch/LMCEcatInputLatch.st"
+          )
+          echo '=== gate definitions ==='
+          grep -nH -E 'LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED|LMC_DIAG_DS402_HOME_ENABLED|LMC_DS402_HOME_STARTUP_SWEEP_ENABLED' "${files[@]}" || true
+          echo '=== capability literals / bit-six references ==='
+          grep -nH -E '00000017|00000057|0x17|0x57|feature|Feature|capabil|Capabil|0x00000040|0x40' "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st" | head -n 120 || true
+          echo '=== HandleDiagnosticsCapabilities ==='
+          awk '
+            /FUNCTION LMCDiagnosticsService::HandleDiagnosticsCapabilities/ {show=1}
+            show {print NR ":" $0}
+            show && /END_FUNCTION/ {exit}
+          ' "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st"
