@@ -1,10 +1,15 @@
-# one-shot repair trigger: 2026-08-26 helper-ratchet-retrigger-0901
+# one-shot repair trigger: 2026-08-26 pr-synchronize-repair
 name: HomeDS402Ex HOMEEX-09 one-shot repair
 
 on:
   push:
     branches:
       - codex/home-ds402ex-homeex09-static-qualification
+    paths:
+      - '.github/workflows/home-ds402ex-homeex09-repair-once.yml'
+  pull_request:
+    branches:
+      - codex/home-ds402ex-homeex01-02-profile-gate
     paths:
       - '.github/workflows/home-ds402ex-homeex09-repair-once.yml'
 
