@@ -1,8 +1,8 @@
 # HomeDS402Ex 최우선 개발 설계
 
 - 대상: No.22 `MMC_HomeDS402ExCmd`
-- 현재 진행 상태: SDK wire/lifecycle + WPF durable no-replay recovery + HOMEEX-06 LASAL gate-OFF parser/state/outcome scaffold qualification 완료, ownership/runtime 미구현
-- current C#: frozen wire contract, strict Start/Outcome/Retire parser, one-shot lifecycle facade, read-only recovery rehydrate 구현
+- 현재 진행 상태: SDK/WPF + HOMEEX-06 scaffold + HOMEEX-07 full-identity ownership + HOMEEX-01/02 profile gate + HOMEEX-09 source/static + HOMEEX-08 approved-plan preparation을 `dev`에 통합; actual SDO/homing runtime과 hardware qualification은 미개방
+- current C#: frozen wire/lifecycle + read-only recovery + approved axis profile를 checked frozen DINT execution plan으로 만드는 internal preparation gate 구현
 - current WPF: pre-dispatch durable journal, startup interlock, read-only exact-key recovery와 exact-generation retire 구현; Start UI는 닫힘
 - 신규 command: `0x7D1B Start`, `0x7D1C ReadOutcome`, `0x7D1D Retire`
 - activation: independent Admin feature bit 11, PLC advertisement/current runtime OFF
@@ -18,9 +18,10 @@ current C#에는 `LMCAxisDs402HomeExParameters` 입력 model에 더해 frozen DI
 read-only durable recovery-key rehydrate가 구현되어 있다. engineering-unit public Prepare는
 axis별 scale/profile 승인 전까지 의도적으로 닫혀 있다. WPF에는 Start를 재구성하지 않는
 pre-dispatch durable journal과 startup interlock, exact-key outcome query 및 exact-generation retire
-recovery만 구현되어 있다. LASAL에는 `0x7D1B/1C/1D` diagnostics route, dedicated scaffold state와
-strict fail-closed handlers가 HOMEEX-06으로 들어왔지만 ownership admission과 실제 homing runtime은
-아직 구현하지 않았다.
+recovery만 구현되어 있다. LASAL에는 `0x7D1B/1C/1D` diagnostics route와 dedicated scaffold state뿐 아니라 OwnerKind 7,
+shared ResourceKind 3, full 116-byte identity admission/validation/rollback까지 HOMEEX-07로 통합됐다.
+HOMEEX-09 source/static identity qualification도 통합됐지만 actual parameter SDO와 homing runtime은
+아직 열지 않았다.
 
 ## 2. v1 범위
 
@@ -53,9 +54,10 @@ axis별 scale, rounding, min/max와 overflow를 적용해 wire용 DINT plan을 �
 - Maestro 완료 위치 의미는 `ActualPosition == -Position`
 - scale/allowlist 변경은 Diagnostics MapRevision과 paired update한다.
 
-current SDK frozen-plan constructor는 `Position == Int32.MinValue`를 Start intent 생성 전에
-거부한다. engineering-unit scale/rounding/range 자체는 HOMEEX-01/02 승인 전까지 public Prepare로
-노출하지 않는다.
+current SDK는 approved axis profile + engineering parameters를 checked frozen DINT plan으로
+변환하는 internal preparation gate를 가진다. `Position == Int32.MinValue`, MapRevision mismatch,
+non-allowlisted method, converted range overflow와 disabled vendor-specific nonzero field를 Start intent
+생성 전에 거부한다. engineering-unit public Prepare는 HOMEEX-01/02 실제 승인 전까지 계속 닫는다.
 
 scale과 wiring은 코드에 숨은 상수로 두지 않고 axis homing profile 표로 관리한다. profile은
 Home switch, positive/negative limit, index/block source, active level, debounce, travel direction,
@@ -206,11 +208,12 @@ WPF durable recovery journal은 future Start integration이 write boundary를 �
 terminal outcome은 durable proof로 먼저 기록한 뒤 exact-generation retirement가 성공해야만
 Resolved가 된다. BootId를 포함한 recovery identity가 달라지면 자동 복구/해제를 하지 않는다.
 
-HOMEEX-06에서는 ownership source를 일부만 열지 않았다. current non-group owner identity bank는
-64-byte prefix + 최대 8-byte tail만 보존하므로 116-byte HomeDS402Ex Start identity 전체를 담지 못한다.
-따라서 OwnerKind 7 / ResourceKind 3 admission과 owner identity 확장은 HOMEEX-07에서 한 번에 paired
-변경한다. HOMEEX-06 handler는 unexpected admission token/generation을 거부하고 owner reservation을
-만들지 않는다.
+HOMEEX-07에서 owner identity bank를 64-byte common prefix + 52-byte per-axis identity tail로
+확장해 116-byte HomeDS402Ex Start identity를 exact하게 보존한다. OwnerKind 7 / active state 13을
+ResourceKind 3 DS402 Home engine에 admission하고 Diagnostics exact identity를 검증한다. runtime gate가
+OFF인 current build에서는 admission 이후 mutation을 시작하지 않고 reservation을 deterministic rollback
+한다. HOMEEX-09에서 남아 있던 literal 8-byte per-axis stride 두 곳과 legacy compact-identity ratchet도
+52-byte macro 계약으로 정합시켰다.
 
 ## 7. capability
 
@@ -220,7 +223,8 @@ SetOpMode가 예약한 bits 8..10과 충돌하지 않는다. SDK parser는 bit 1
 physical axis count 범위 위반과 unknown feature bit를 fail-closed한다.
 
 PLC/LASAL capability advertisement와 runtime execution은 physical qualification 전까지 OFF다.
-HOMEEX-06은 route/parser scaffold만 추가했고 feature mask `0x00000017`을 유지한다.
+HOMEEX-06/07/09와 approved-plan preparation이 통합된 current `dev`도 feature mask `0x00000017`과
+`LMC_DIAG_DS402_HOME_EX_ENABLED FALSE`를 유지한다.
 
 ## 8. 변경 대상과 current SDK implementation
 
@@ -246,21 +250,24 @@ HOMEEX-06은 route/parser scaffold만 추가했고 feature mask `0x00000017`을 
 
 두 surface는 HOMEEX-01/02 axis profile, scale, rounding, range, wiring 승인이 끝난 뒤에만 연다.
 
-### LASAL HOMEEX-06 구현됨
+### LASAL HOMEEX-06/07/09 software-side 구현됨
 
 - `TCPMotionInterface.st`: `0x7D1B/1C/1D` diagnostics lifecycle route
 - `LMCDiagnosticsService.st`: independent `Ds402HomeExState[0..255]`, strict Start/Outcome/Retire scaffold handlers, no-op processor
 - `Verify-HomeDs402ExLasalScaffold.ps1`: `SCAFFOLD_OFF` source/static qualification
+- `LMCControlCommandService.st`: OwnerKind 7 / active state 13 / ResourceKind 3 admission, 64-byte prefix + 52-byte per-axis identity tail
+- HOMEEX-09: stale literal 8-byte tail stride 제거, persisted-read/Reserved-state legacy SourceOnly ratchet 정합
+- dedicated HOMEEX-09 static verifier: `37/37 PASS`
 - runtime gate `LMC_DIAG_DS402_HOME_EX_ENABLED FALSE`
 - Admin bit 11 OFF / feature mask `0x00000017`
 
 ### LASAL 후속 미구현
 
-- `TCPMotionInterface.st`: OwnerKind 7 two-phase owner admission과 full 116-byte identity preservation
-- `LMCEcatInputLatch.st`: Ex RT mailbox 또는 shared Home mailbox versioning
-- `LMCControlCommandService.st`: OwnerKind 7 / ResourceKind 3 shared Home conflict/preemption와 full identity bank
-- `LMCDiagnosticsService.st`: actual outcome record writes, SDO/runtime state machine, cleanup proof
-- `Verify-LasalContract.ps1`: later active atomic gate와 mutation fixtures
+- `LMCEcatInputLatch.st`: actual Ex RT mailbox 또는 shared Home mailbox versioning
+- `LMCDiagnosticsService.st`: parameter snapshot/program/restore, mode 6/controlword bit 4, actual outcome record writes와 cleanup proof
+- RT control owner acquisition/release와 physical homing observation
+- terminal 3-fresh-cycle / ActualPosition == -Position physical proof
+- active capability atomic gate와 hardware/fault mutation fixtures
 
 ### WPF recovery 구현됨
 
@@ -285,15 +292,33 @@ HomeDS402Ex Start UI와 engineering-unit confirmation surface는 HOMEEX-13 paire
   - SDK golden/malformed/overflow/start-response-loss/reconnect-read-only/exact-retire-retry/public-surface tests는 PASS
   - duplicate-intent retained-store behavior는 LASAL outcome store가 없으므로 아직 미검증
 - [x] `HOMEEX-06` LASAL parser/state/outcome scaffold를 gate OFF로 구현하고 67-check `SCAFFOLD_OFF` qualification PASS
-- [ ] `HOMEEX-07` full 116-byte owner identity bank + OwnerKind 7/ResourceKind 3 shared Home/mode/SDO/axis ownership과 startup reconciliation 구현
-- [ ] `HOMEEX-08` parameter snapshot/program/restore와 CleanupProofFlags 구현
-- [ ] `HOMEEX-09` SourceOnly, method-size, C78와 generated artifact PASS
+- [x] `HOMEEX-07` full 116-byte identity preservation + OwnerKind 7/ResourceKind 3 ownership admission, exact Diagnostics validation과 gate-OFF rollback 구현
+- [ ] `HOMEEX-08` approved-profile -> frozen DINT preparation gate는 구현 완료; actual parameter snapshot/program/restore와 CleanupProofFlags runtime은 미구현
+- [ ] `HOMEEX-09` source/static identity qualification `37/37 PASS`; method-size/C78/generated artifact는 미완료
 - [ ] `HOMEEX-10` Axis1 normal/timeout/limit/SDO abort/preempt/reconnect/retire matrix PASS
 - [ ] `HOMEEX-11` Axis2~4와 승인 method matrix PASS
 - [x] `HOMEEX-12` WPF pre-dispatch journal/startup no-replay recovery와 smoke test PASS
 - [ ] `HOMEEX-13` capability bit 11과 WPF UI paired activation
 
 ## 10. current software qualification evidence
+
+### 10.1 2026-08-26 integrated `dev` checkpoint
+
+- PR #26 HOMEEX-07 merge `2fc9bb208762b8f8c8e8ffad8be3e48e13103a2f`
+- PR #27 HOMEEX-01/02 profile gate merge `003e82c5eadbca5256b1066785d7017e3e2fb9ce`
+- PR #29 HOMEEX-09 merge `2b32920ec563e793f3d59ba21d8df2707d91e654`
+  - final `dev`-based workflow `32921289354`: SUCCESS
+  - dedicated source/static verifier: `37/37 PASS`
+  - legacy SourceOnly은 source/static ratchet을 통과한 뒤 known `Classes.lcb` physical identity boundary에서 STOP
+- PR #30 approved-profile execution-plan gate merge `64bfe52ae5f28120dd61536db24a12f8f62ca28a`
+  - approved-plan workflow `32921714514` rerun: Debug/Release full tests + diff hygiene PASS
+  - SDK wire workflow `32921714525`: Debug/Release full tests + diff hygiene PASS
+  - WPF recovery workflow `32921714585`: Debug/Release full tests + diff hygiene PASS
+
+이 checkpoint는 software/source-safe preparation 통합 증거다. issue #28 hardware profile approval, fresh
+C78/generated artifact, PLC runtime, EtherCAT packet과 physical homing qualification을 대신하지 않는다.
+
+### 10.2 historical tranche evidence
 
 PR #20 SDK qualification rerun on the current code tranche passed:
 

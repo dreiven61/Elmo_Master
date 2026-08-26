@@ -8,7 +8,7 @@
 - 1차 activation 범위: physical axis 1..4, Immediate, CSP mode 8만
 - activation 상태: `LMC_DIAG_SET_OPERATION_MODE_ENABLED = FALSE`, capability bits 8/9/10 OFF
 - 진행 판정: MODE-02/06/07/08/09 source 완료, MODE-10 source/static PASS, MODE-13 PC/WPF PASS; fresh C78/PLC/hardware는 미완료
-- 문서 checkpoint: 2026-08-25, `dev@95333356f78a` 이후 MODE-13 evidence 반영
+- 문서 checkpoint: 2026-08-26, `dev@c14a3d3a4138` integrated baseline; MODE-10 source/static와 MODE-13 PC/WPF 상태는 유지, PR #18 bench qualification branch와 PR #14 C78 history branch만 의도적으로 보존
 
 ## 1. 정확한 API 의미
 

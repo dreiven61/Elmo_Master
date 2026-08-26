@@ -1,11 +1,11 @@
 # 최우선 API 개발 설계
 
-- 기준일: 2026-08-25
+- 기준일: 2026-08-26
 - 범위: 개발 진행표의 우선순위 `상`이면서 진행도 75% 미만인 4개 API
 - 상태: source 구현과 qualification을 병행하되 production 활성화는 각 문서의 최종 gate 통과 전까지 금지
 - active development branch: `dev`
 
-이 폴더는 아래 4개 API의 current 설계와 실행 순서를 한곳에서 관리한다. 실제 구현된
+이 폴더는 아래 4개 API의 current 설계와 실행 순서를 한곳에서 관리한다. 2026-08-26 통합 상태 요약은 [DEVELOPMENT_STATUS_20260826.md](DEVELOPMENT_STATUS_20260826.md)를 따른다. 실제 구현된
 byte offset은 `LMC_Library/LMC_API_Delivery/docs/DINT_PACKET_MAP.txt`가 정본이며, 이 폴더의
 신규 command offset은 source와 packet map에 반영되기 전까지 설계 예약값이다.
 
@@ -15,14 +15,16 @@ byte offset은 `LMC_Library/LMC_API_Delivery/docs/DINT_PACKET_MAP.txt`가 정본
 |---:|---|---:|---|---|
 | 1 | `HomeDS402` | 50% | 기존 `0x7D15/16/17` 경로의 activation·실축 적격화 | [HOME_DS402_DESIGN.md](HOME_DS402_DESIGN.md) |
 | 2 | `SetOpMode` | 60% | owner/SDO/no-replay/preemption/D5 deny source와 MODE-10 static, MODE-13 PC/WPF recovery PASS; fresh C78/PLC/hardware 남음 | [SET_OPERATION_MODE_DESIGN.md](SET_OPERATION_MODE_DESIGN.md) |
-| 3 | `HomeDS402Ex` | 0% | HOMEEX-06 `SCAFFOLD_OFF` source/static PASS; full-identity ownership/runtime 후속 | [HOME_DS402_EX_DESIGN.md](HOME_DS402_EX_DESIGN.md) |
+| 3 | `HomeDS402Ex` | 40% | HOMEEX-07 ownership + profile gate + HOMEEX-09 source/static + approved-plan preparation 통합; runtime/hardware 후속 | [HOME_DS402_EX_DESIGN.md](HOME_DS402_EX_DESIGN.md) |
 | 4 | `SetPosition` | 25% | P1 async lifecycle/volatile Store까지 완료; durable backend와 RT exactly-once 후속 구현 | [SET_POSITION_DESIGN.md](SET_POSITION_DESIGN.md) |
 
 순서는 단순한 중요도 순위가 아니라 의존성 순서다. `HomeDS402`는 이미 존재하는 가장 짧은
 실축 완료 경로다. `SetOpMode`의 owner/resource와 SDO lifecycle source가 `dev`에 들어왔고
-MODE-13 PC/WPF durable recovery도 PASS했으므로 `HomeDS402Ex`는 이 공유 규칙을 후속 설계
-입력으로 사용할 수 있다. 다만 SetOpMode activation은 latest source의 C78/PLC/hardware proof
-전까지 닫아 둔다. `SetPosition`은 별도 작업 흐름으로 내구 저장소와 RT task 증거를 준비한다.
+MODE-13 PC/WPF durable recovery도 PASS했고, `HomeDS402Ex`는 이 공유 규칙을 사용해 HOMEEX-07
+ownership, HOMEEX-01/02 fail-closed profile gate, HOMEEX-09 source/static과 HOMEEX-08 approved-plan
+preparation까지 `dev`에 통합했다. 다만 SetOpMode와 HomeDS402Ex 모두 latest source의 C78/PLC/hardware
+proof 전에는 activation을 닫아 둔다. `SetPosition`은 별도 작업 흐름으로 내구 저장소와 RT task
+증거를 준비한다.
 
 ## 2. command ID 예약
 
@@ -44,7 +46,7 @@ packet map과 golden-byte test를 한 변경 단위로 반영한다.
 1. current source/static, method-size, C78, generated artifact와 PLC load tuple을 분리 기록한다.
 2. 시험축, E-stop, software/hardware limit, encoder scale와 정지 상태를 확인한다.
 3. axis mutation ownership과 no-auto-replay 규칙을 공통 계약으로 유지한다.
-4. `codex/*` 임시 branch의 unique diff/evidence는 개발 완료 전까지 보존한다.
+4. current `codex/*`는 PR #14 C78 history/review와 PR #18 physical bench qualification만 보존하며, 새 개발은 `dev`에서 새 branch로 시작한다.
 
 ### Wave 1 - current 병렬 작업
 
@@ -59,7 +61,7 @@ packet map과 golden-byte test를 한 변경 단위로 반영한다.
 
 - HomeDS402: C78 candidate와 method 37 normal/fault/recovery matrix를 닫는다.
 - SetOpMode: MODE-13 PC/WPF gate는 닫혔다. compile gate와 capability는 OFF 유지하고 MODE-11/12 장비 증거를 준비한다.
-- HomeDS402Ex: HOMEEX-06 dormant parser/state/outcome scaffold는 완료했다. HOMEEX-07에서 full 116-byte owner identity bank와 OwnerKind 7/ResourceKind 3 admission을 paired 구현한다.
+- HomeDS402Ex: HOMEEX-06/07과 HOMEEX-01/02 profile gate, HOMEEX-09 source/static, HOMEEX-08 approved-plan preparation까지 통합했다. 다음 gate는 issue #28 hardware profile 승인 + fresh C78/generated artifact이며, 그 전에는 actual SDO/homing runtime을 열지 않는다.
 - SetPosition: durable A/B journal과 RT claim/native/stable-3 observer를 구현한다.
 
 ### Wave 3 - 장비 적격화와 paired activation
@@ -129,11 +131,10 @@ full SourceOnly는 source gate 이후 기존 `Classes.lcb` physical identity rat
 ## 7. 진행 관리 규칙
 
 - current 개발 기준은 `dev` branch다. 기능 구현과 문서 업데이트는 원칙적으로 `dev`에 모은다.
-- `codex/*` 작업 branch는 구현·시험용 임시 branch로 보고 current 상태 판정이나 정본 링크에
-  사용하지 않는다.
-- 개발 중인 임시 branch는 unique diff와 시험 흔적을 보존하기 위해 유지한다. 개발 완료 후
-  해당 변경이 `dev`에 반영되었거나 폐기되었고 필요한 증거가 보존된 것을 확인한 뒤 stale
-  branch를 일괄 정리한다.
+- `codex/*` 작업 branch는 current 상태 판정이나 정본 링크에 사용하지 않는다.
+- 2026-08-26 cleanup 이후 PR #14/#18 두 branch만 의도적으로 보존한다. #18은 `DO NOT MERGE`
+  physical qualification branch이고 #14는 C78 history/review branch다. 새 기능은 current `dev`에서
+  새 branch를 생성해 진행한다.
 - 작업 ID는 각 설계문서의 체크리스트 ID를 그대로 issue/commit 제목에 사용한다.
 - capability와 compile-time gate 변경은 별도 activation commit으로 분리한다.
 - source 구현 완료와 hardware qualification 완료를 같은 진행률로 기록하지 않는다.

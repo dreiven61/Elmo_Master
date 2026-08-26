@@ -1,9 +1,9 @@
 # LASAL Motion Control API 개발 진척도
 
-- 문서 버전: 1.0-current
-- 기준일: 2026-08-25
+- 문서 버전: 1.1-current
+- 기준일: 2026-08-26
 - API: `LasalMotionControlLib 0.9.1-preview`
-- 기준 branch/HEAD: `dev@5a98162b5d48` + HOMEEX-06 current-progress 동기화
+- 기준 branch/HEAD: `dev@c14a3d3a4138` — HomeDS402Ex software-side integration 및 branch cleanup 완료 기준
 - 릴리스 판정: **production NO-GO**
 
 이 문서는 API 구현률, 최신 검증 결과, artifact identity, 제한과 다음 작업의 단일 current
@@ -12,10 +12,11 @@
 설계 이유와 과거 실험은 architecture/history 문서에 남기고 이 문서에 override를 누적하지
 않는다.
 
-현재 active development 기준은 `dev` branch다. `codex/*` 작업 branch는 구현·시험 과정의
-임시 branch이며 current source of truth로 사용하지 않는다. 개발이 끝날 때까지 unique diff와
-시험 흔적 보존을 위해 유지하고, `dev` 반영 또는 명시적 폐기와 증거 보존을 확인한 뒤 stale
-branch를 일괄 정리한다.
+현재 active development 기준은 `dev` branch다. 2026-08-26 cleanup 이후 임시 `codex/*` branch는
+PR #14 `mode-10-c78-finalize`와 PR #18 `setopmode-mode11-bench-activation` 두 개만 의도적으로
+보존한다. #14는 C78 qualification history/review용이며 그대로 merge하는 branch가 아니고, #18은
+physical bench qualification 전용 `DO NOT MERGE` branch다. 새 기능 개발은 current `dev`에서 새
+branch를 만들어 진행한다.
 
 ## 1. 판정 기준
 
@@ -55,7 +56,7 @@ branch를 일괄 정리한다.
   57 checks PASS했고 common ownership/source gate도 통과했다. 해당 canonical source/verifier를
   `dev`에 복구했다. 그러나 이 최종 source의 fresh C78/ARM Rebuild/Link, PLC download/runtime,
   hardware/packet proof는 아직 없다.
-- HomeDS402Ex `0x7D1B/0x7D1C/0x7D1D`는 HOMEEX-06에서 LASAL diagnostics route, 전용 scaffold state와 strict Start/Outcome/Retire parser를 구현했고 67-check `SCAFFOLD_OFF` source/static qualification을 통과했다. runtime gate와 Admin bit 11은 OFF이며 OwnerKind 7/full 116-byte owner identity, SDO/RT/motion execution은 HOMEEX-07 이후로 닫혀 있다.
+- HomeDS402Ex `0x7D1B/0x7D1C/0x7D1D`는 HOMEEX-06 scaffold에 더해 HOMEEX-07 full-identity ownership admission, HOMEEX-01/02 fail-closed profile approval gate, HOMEEX-09 source/static identity qualification과 HOMEEX-08 approved-profile -> frozen DINT plan preparation gate까지 `dev`에 통합됐다. runtime gate와 Admin bit 11은 계속 OFF이며 실제 parameter SDO/homing runtime, hardware profile 승인, fresh C78/generated artifact와 실축 proof는 아직 없다.
 - SetOperationMode MODE-13 PC/WPF recovery는 current Windows PR qualification에서
   Debug/Release 각각 `12/12 PASS`, build `0 warnings / 0 errors`, diff hygiene PASS다.
   Start 전 durable exact identity, startup/reconnect no-replay, terminal generation 저장 후
@@ -94,7 +95,7 @@ branch를 일괄 정리한다.
 | LMC Home | `0x7D13/7D18/7D19` | Active/Limited | Admin bit 4 ON; no-motion CurrentPositionZero이며 switch-search Home이 아님 |
 | SetPosition | `0x7D12/7D14/7D1A` | Dormant | Store/ownership FALSE, max-jump 0, bits 3/5/7 OFF, volatile backing, native call 0, detail 24 |
 | DS402 Home | `0x7D15/7D16/7D17` | Dormant | method 37 source, gate FALSE, Admin bit 6 OFF |
-| HomeDS402Ex | `0x7D1B/7D1C/7D1D` | Dormant | HOMEEX-06 diagnostics route + dedicated scaffold state + strict Start/Outcome/Retire parser; 67-check `SCAFFOLD_OFF` PASS; runtime gate/bit 11 OFF, owner/SDO/RT/motion 미구현 |
+| HomeDS402Ex | `0x7D1B/7D1C/7D1D` | Dormant | full 116-byte identity ownership admission + pending profile gate + HOMEEX-09 source/static + approved-profile frozen-plan preparation 통합; runtime gate/bit 11 OFF, actual SDO/RT/homing/hardware qualification 미개방 |
 | SetOperationMode | `0x7D23/7D24/7D25` | Dormant | owner kind 6/resource 4, SDO lifecycle, no-replay recovery, preemption, outcome, D5 `0x6060` deny와 MODE-13 WPF durable recovery 구현; compile gate/bits 8/9/10 OFF; fresh C78/PLC/hardware 미검증 |
 | Diagnostics capability | `0x7E00` | Active | 매 connection에서 fresh `BootId`, `MapRevision`, mask를 읽어야 함 |
 | D1/D2 | `0x7E01/02/10/20`, `0x7E30-33` | Active/Limited | typed catalog/PI/Bulk 경로; fault/partial/soak 확대 필요 |
@@ -196,6 +197,22 @@ PR #15 / squash commit `01bc9ed80b77a901b57afc8ee32a7b446a1f7f85`에서 다음�
 상세 checkpoint는
 [MODE-13 WPF recovery evidence](design/evidence/SET_OPERATION_MODE_MODE13_WPF_RECOVERY_20260825.md)에 기록했다.
 
+### 5.6 HomeDS402Ex HOMEEX-07 / HOMEEX-01/02 / HOMEEX-09 / HOMEEX-08 통합
+
+2026-08-26 `dev`에는 다음 software-side tranche가 순서대로 통합됐다.
+
+- PR #26 / HOMEEX-07: OwnerKind 7, active state 13, shared ResourceKind 3와 116-byte Start identity를
+  64-byte prefix + 52-byte per-axis tail로 보존하는 ownership admission
+- PR #27 / HOMEEX-01/02: axis 1..4 `Pending`/`Approved` profile manifest와 verifier; 실제 wiring/scale
+  값은 issue #28 승인 전까지 `pending/null`
+- PR #29 / HOMEEX-09: stale per-axis `* 8` identity stride 제거, 52-byte tail geometry와 legacy
+  SourceOnly ownership ratchet 정합; dedicated static `37/37 PASS`
+- PR #30 / HOMEEX-08 preparation: approved profile + engineering parameters를 checked frozen DINT plan으로
+  변환하는 internal gate, method allowlist/MapRevision/range/vendor-specific zero policy 검증
+
+위 통합은 actual HomeDS402Ex parameter snapshot/program/restore, mode 6/controlword bit 4 execution,
+RT owner activation, physical homing 또는 capability bit 11 activation을 열지 않는다.
+
 ## 6. 최신 검증 현황
 
 ### 6.1 PC와 source/static
@@ -212,6 +229,10 @@ PR #15 / squash commit `01bc9ed80b77a901b57afc8ee32a7b446a1f7f85`에서 다음�
 | SetOperationMode static | `57 PASS` | Source/static | final qualified source semantics |
 | SetOperationMode method split | PASS | Source/static | 세 processor 모두 < 32 KiB |
 | SetOperationMode no-replay/D5 deny | PASS | Source/static | recovery 0x6060 write 0, generic D5 0x6060 deny |
+| HomeDS402Ex HOMEEX-09 static | `37/37 PASS` | Source/static current | 52-byte identity tail, Reserved-state classifier, runtime/capability OFF invariant |
+| HomeDS402Ex approved-plan Debug/Release | PASS | PC current | workflow `32921714514` rerun; full tests + diff hygiene PASS |
+| HomeDS402Ex SDK wire Debug/Release | PASS | PC current | workflow `32921714525`; full tests + diff hygiene PASS |
+| HomeDS402Ex WPF recovery Debug/Release | PASS | PC current | workflow `32921714585`; full tests + diff hygiene PASS |
 | Full SourceOnly | **STOP** | Source/artifact | source gate 이후 `Classes.lcb` physical identity mismatch |
 
 focused gate PASS를 full SourceOnly PASS, C78 PASS 또는 hardware PASS로 대신하지 않는다.
@@ -248,6 +269,9 @@ fresh build 결과가 아니다.**
 
 ### 6.4 아직 없는 증거
 
+- HomeDS402Ex issue #28 axis 1..4 wiring/method/scale/range/rounding/vendor mapping/MapRevision 실제 승인
+- HomeDS402Ex current source의 fresh method-size/C78/generated `Classes.lcb` qualification
+- HomeDS402Ex Axis1 -> Axis2~4 normal/fault/timeout/preempt/reconnect/retire hardware matrix
 - latest `dev` source의 fresh C78/ARM Rebuild/Link와 generated `Classes.lcb`
 - fresh artifact identity에 대한 source/generated ABI 검토와 ratchet 승인
 - same image의 fresh `BootId`, `MapRevision`, Diagnostics build tuple
@@ -264,7 +288,7 @@ fresh build 결과가 아니다.**
 |---:|---|---:|---|
 | 1 | [HomeDS402](design/HOME_DS402_DESIGN.md) | 50% | 기존 method 37 lifecycle의 atomic activation과 축 1~4 실기 적격화 |
 | 2 | [SetOpMode](design/SET_OPERATION_MODE_DESIGN.md) | 60% | MODE-13 PC/WPF PASS; fresh C78/ARM Rebuild/Link와 artifact review 후 MODE-11/12 hardware qualification |
-| 3 | [HomeDS402Ex](design/HOME_DS402_EX_DESIGN.md) | 0% | axis profile/scale 승인 후 `0x7D1B/1C/1D` dormant lifecycle |
+| 3 | [HomeDS402Ex](design/HOME_DS402_EX_DESIGN.md) | 40% | software-side ownership/profile/source-static/approved-plan 준비 통합; issue #28 + C78/generated artifact 후 actual SDO/homing runtime |
 | 4 | [SetPosition](design/SET_POSITION_DESIGN.md) | 25% | `_FileSys` dual-file backend, RT claim/native와 terminal durability |
 
 capability와 native mutation activation은 각 설계의 hardware gate 전까지 OFF다.
@@ -289,6 +313,15 @@ capability와 native mutation activation은 각 설계의 hardware gate 전까�
 - Windows Debug/Release focused smoke `12/12`: PASS
 
 MODE-13 PASS는 PLC runtime/hardware PASS가 아니며 capability activation 근거로 사용하지 않는다.
+
+### P1A - HomeDS402Ex software-side integration — source-safe / runtime OFF
+
+1. issue #28에서 axis 1..4 wiring, polarity, method allowlist, scale, range, rounding, vendor mapping과
+   paired MapRevision을 실제 evidence로 승인한다.
+2. current `dev`를 fresh C78/ARM Rebuild/Link해 method-size와 generated `Classes.lcb` identity를 닫는다.
+3. 위 두 gate가 닫히기 전에는 parameter SDO snapshot/program/restore와 homing runtime을 열지 않는다.
+4. 이후 Axis1 HOMEEX-10 matrix를 통과한 뒤 Axis2~4 HOMEEX-11로 확대한다.
+5. HOMEEX-13 전까지 Admin bit 11과 WPF Start UI는 OFF로 유지한다.
 
 ### P2 - SetPosition durable backend와 executor
 
@@ -317,12 +350,14 @@ MODE-13 PASS는 PLC runtime/hardware PASS가 아니며 capability activation 근
 | SetOperationMode source contract | [SetOperationMode 설계](design/SET_OPERATION_MODE_DESIGN.md) |
 | SetOperationMode method split/static evidence | [MODE-10 설계](design/SET_OPERATION_MODE_MODE10_METHOD_SPLIT_DESIGN.md) |
 | SetOperationMode WPF recovery evidence | [MODE-13 evidence](design/evidence/SET_OPERATION_MODE_MODE13_WPF_RECOVERY_20260825.md) |
+| HomeDS402Ex current design | [HomeDS402Ex 설계](design/HOME_DS402_EX_DESIGN.md) |
+| 2026-08-26 integrated checkpoint | [개발 상태 스냅샷](design/DEVELOPMENT_STATUS_20260826.md) |
 | 설계 이유 | `docs/architecture/**` |
 | 원시 작업 이력 | `docs/history/**` |
 
-이 문서만 current 진척도를 가진다. branch cleanup은 current 상태 기록과 분리한다. 개발 중에는
-`codex/*`의 unique diff를 보존하고, 개발 완료 시 각 branch가 `dev`에 포함됐는지 또는 폐기
-가능한지 확인한 뒤 일괄 정리한다.
+이 문서만 current 진척도를 가진다. 2026-08-26 merged/obsolete branch cleanup은 완료됐다.
+현재 보존 `codex/*`는 PR #14 history/review와 PR #18 physical bench qualification뿐이며 둘 다
+current source of truth가 아니다. 새 개발 branch는 반드시 current `dev`에서 시작한다.
 
 ## 9. 직접 근거
 
