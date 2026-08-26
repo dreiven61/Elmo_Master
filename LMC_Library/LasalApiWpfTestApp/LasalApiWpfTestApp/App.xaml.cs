@@ -488,7 +488,9 @@ namespace LasalMotionControlApiExample
                 "실제 드라이브 모드 Write입니다. Start는 0x7D23을 한 번만 전송합니다. Start 성공 응답은 접수만 의미하며 모드 변경 완료를 의미하지 않습니다. Start 결과가 미확정이거나 접수된 뒤에는 0x7D23/0x6060 자동 재전송을 금지합니다.";
             values["Recovery is bound to endpoint + DiagnosticsBuild + BootId + MapRevision + 128-bit ClientIntentId + RequestId + axis + requested CSP mode. Recovery queries 0x7D24 only; terminal proof is persisted before exact-generation 0x7D25 retirement."] =
                 "복구는 endpoint + DiagnosticsBuild + BootId + MapRevision + 128-bit ClientIntentId + RequestId + axis + 요청 CSP mode에 정확히 결합됩니다. 복구 시 0x7D24만 조회하며 terminal 증거를 durable 저장한 뒤 exact-generation 0x7D25 retirement를 수행합니다.";
+            values["Physical axis reference (1..4)"] = "물리 축 번호 (1..4)";
             values["Requested mode"] = "요청 모드";
+            values["CyclicSynchronousPosition (8)"] = "CSP 위치 동기 모드 (8)";
             values["Timeout (ms, nonzero)"] = "Timeout (ms, 0 제외)";
             values["I verified the exact powered drive/axis and understand that this writes DS402 0x6060:0 to CSP=8 once only. If the response or completion is uncertain I will use the durable recovery query and will not send Start again."] =
                 "정확한 powered drive/axis를 확인했으며 DS402 0x6060:0에 CSP=8을 한 번만 Write한다는 점을 이해했습니다. 응답 또는 완료 여부가 미확정이면 durable 복구 조회를 사용하고 Start를 다시 전송하지 않겠습니다.";
