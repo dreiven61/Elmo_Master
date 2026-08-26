@@ -1938,6 +1938,15 @@ non-moving current-position-zero 계약이다.
 current source에는 protocol/state-machine/API가 있지만 `LMC_DIAG_DS402_HOME_ENABLED=FALSE`이고
 Admin feature bit 6도 OFF다. 따라서 current PLC의 지원 API로 실행하지 않는다.
 
+개발 WPF의 DS402 Home recovery는 Start 전 exact endpoint/DiagnosticsBuild/BootId/MapRevision,
+axis, 128-bit ClientIntentId, RequestId와 method-37 zero-parameter semantic을 durable journal에 먼저
+기록한다. process 재실행 시 `ArmedBeforeDispatch`는 `RecoveryRequired`로 승격되고 exact recovery
+key를 즉시 복원한다. 이후 `Read Home Status`는 original Start를 replay하지 않고 `0x7D16`만
+조회한다. Running이면 record를 유지하며, terminal outcome일 때만 exact generation의 `0x7D17`
+retire와 terminal snapshot 일치를 확인한 뒤 journal을 resolve한다. DS402 Home record의 manual
+resolution은 금지된다. 이 WPF recovery 계약은 current runtime gate를 여는 증거가 아니며
+C78/PLC/hardware qualification과 bit 6 activation은 별도다.
+
 ### TW[20] / TW[19] Encoder Maintenance
 
 이 경로는 일반 SDO Write와 분리된 파괴적 유지보수 API다. 허용 payload는 TW[20]

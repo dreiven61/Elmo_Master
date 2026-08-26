@@ -61,8 +61,15 @@ branch를 만들어 진행한다.
   Debug/Release 각각 `12/12 PASS`, build `0 warnings / 0 errors`, diff hygiene PASS다.
   Start 전 durable exact identity, startup/reconnect no-replay, terminal generation 저장 후
   exact `0x7D25` retire와 definitive Start rejection durable archive를 검증했다.
+- HomeDS402 `0x7D15/0x7D16/0x7D17` H37 software qualification은 activation atomicity,
+  exact method-37 packet/lifecycle, shared ownership/preemption, LASAL method-size와 WPF durable
+  no-replay recovery까지 구현했다. WPF는 Start 전 journal을 persist하고 relaunch에서 exact recovery
+  key를 복원하며 terminal `0x7D16` + exact `0x7D17` retirement proof 뒤에만 record를 resolve한다.
+  compile/runtime gate와 Admin bit 6은 계속 OFF다.
 - full SourceOnly의 잔존 blocker는 source semantics가 아니라 기존 `Classes.lcb` physical
   identity ratchet mismatch다. artifact identity는 fresh C78 build와 의미 검토 전 자동 갱신하지 않는다.
+  따라서 H37-05 full SourceOnly와 H37-06 fresh C78/artifact qualification은 아직 미완료이며,
+  H37-07/08 hardware matrix와 H37-09 paired activation도 열지 않는다.
 - RETAIN 할당 실패를 없애기 위해 SetPosition backing은 1,344-byte ordinary volatile
   `VAR_GLOBAL`이다. 2026-08-20 historical image에서는 이전 `alloc for retain var failed`가
   재현되지 않았다.
