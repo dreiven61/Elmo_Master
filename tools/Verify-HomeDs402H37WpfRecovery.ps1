@@ -58,13 +58,16 @@ function Get-CSharpMethodBlock {
         [Parameter(Mandatory = $true)][string]$MethodName
     )
 
-    $nameIndex = $Text.IndexOf($MethodName, [StringComparison]::Ordinal)
-    if ($nameIndex -lt 0) {
-        Add-Failure "C# method exists: $MethodName"
+    $escaped = [regex]::Escape($MethodName)
+    $declarationPattern = '(?m)^[\t ]*(?:private|internal|public|protected)\s+(?:static\s+)?(?:async\s+)?(?:[A-Za-z0-9_<>,\.\[\]\?]+\s+)+' + $escaped + '\s*\('
+    $declarations = [regex]::Matches($Text, $declarationPattern)
+    if ($declarations.Count -ne 1) {
+        Add-Failure "exact C# method declaration $MethodName (count=$($declarations.Count), expected=1)"
         return $null
     }
 
-    $braceStart = $Text.IndexOf('{', $nameIndex)
+    $methodStart = $declarations[0].Index
+    $braceStart = $Text.IndexOf('{', $declarations[0].Index + $declarations[0].Length)
     if ($braceStart -lt 0) {
         Add-Failure "C# method opening brace exists: $MethodName"
         return $null
@@ -107,8 +110,8 @@ function Get-CSharpMethodBlock {
         elseif ($c -eq '}') {
             $depth--
             if ($depth -eq 0) {
-                Add-Pass "C# method block: $MethodName"
-                return $Text.Substring($nameIndex, $i - $nameIndex + 1)
+                Add-Pass "exact C# method block: $MethodName"
+                return $Text.Substring($methodStart, $i - $methodStart + 1)
             }
         }
     }
@@ -139,7 +142,7 @@ Assert-Regex $journal '(?m)^\s*Ds402Home\s*=\s*2\s*,?\s*$' 'DS402 Home durable a
 Assert-Regex $journal '(?m)^\s*ArmedBeforeDispatch\s*=\s*1\s*,?\s*$' 'journal ArmedBeforeDispatch state remains 1' -ExpectedCount 1
 Assert-Regex $journal '(?m)^\s*RecoveryRequired\s*=\s*2\s*,?\s*$' 'journal RecoveryRequired state remains 2' -ExpectedCount 1
 
-$arm = Get-CSharpMethodBlock -Text $journal -MethodName 'ArmBeforeDispatch('
+$arm = Get-CSharpMethodBlock -Text $journal -MethodName 'ArmBeforeDispatch'
 if ($null -ne $arm) {
     Assert-Regex $arm 'action\s*==\s*MaintenanceActionKind\.Ds402Home[\s\S]{0,180}!HasExactDs402HomeSemantic\(actionParameters\)' 'journal rejects non-exact DS402 Home semantics before arming' -ExpectedCount 1
     Assert-Regex $arm 'MaintenanceActionRecoveryState\.ArmedBeforeDispatch' 'journal creates ArmedBeforeDispatch record' -ExpectedCount 1
@@ -148,7 +151,7 @@ if ($null -ne $arm) {
     Assert-True ($persistIndex -ge 0 -and $publishIndex -gt $persistIndex) 'journal persistence precedes in-memory armed publication'
 }
 
-$promoteAtOpen = Get-CSharpMethodBlock -Text $journal -MethodName 'PromoteArmedRecordAtOpen('
+$promoteAtOpen = Get-CSharpMethodBlock -Text $journal -MethodName 'PromoteArmedRecordAtOpen'
 if ($null -ne $promoteAtOpen) {
     Assert-Regex $promoteAtOpen 'currentRecord\.State[\s\S]{0,100}MaintenanceActionRecoveryState\.ArmedBeforeDispatch' 'startup promotion recognizes ArmedBeforeDispatch' -ExpectedCount 1
     Assert-Regex $promoteAtOpen 'TransitionTo\(\s*MaintenanceActionRecoveryState\.RecoveryRequired' 'startup promotion transitions to RecoveryRequired' -ExpectedCount 1
@@ -159,7 +162,7 @@ if ($null -ne $promoteAtOpen) {
 
 Assert-Regex $main 'else if\s*\(active\.Action\s*==\s*MaintenanceActionKind\.Ds402Home\)\s*\{\s*latestDs402HomeRecoveryKey\s*=\s*RecreateDs402RecoveryKey\(active\);\s*\}' 'WPF startup reconstructs DS402 Home recovery key' -ExpectedCount 1
 
-$start = Get-CSharpMethodBlock -Text $main -MethodName 'ButtonDs402Home_Click('
+$start = Get-CSharpMethodBlock -Text $main -MethodName 'ButtonDs402Home_Click'
 if ($null -ne $start) {
     $armIndex = $start.IndexOf('.ArmBeforeDispatch(', [StringComparison]::Ordinal)
     $startRpcIndex = $start.IndexOf('.Ds402HomeAsync(', [StringComparison]::Ordinal)
@@ -169,10 +172,10 @@ if ($null -ne $start) {
     Assert-Regex $start 'catch\s*\{[\s\S]{0,180}PromoteMaintenanceRecovery\(' 'ambiguous Start failure promotes recovery-required state' -ExpectedCount 1
 }
 
-$recover = Get-CSharpMethodBlock -Text $main -MethodName 'ReadExactDs402HomeOutcomeAsync('
+$recover = Get-CSharpMethodBlock -Text $main -MethodName 'ReadExactDs402HomeOutcomeAsync'
 if ($null -ne $recover) {
     Assert-Regex $recover 'ReadDs402HomeOutcomeAsync\(' 'recovery performs exact DS402 Home outcome query' -ExpectedCount 1
-    Assert-Regex $recover 'Ds402HomeAsync\(' 'recovery never replays DS402 Home Start' -ExpectedCount 0
+    Assert-Regex $recover '(?<!Read)Ds402HomeAsync\(' 'recovery never replays DS402 Home Start' -ExpectedCount 0
     Assert-Regex $recover 'if\s*\(!outcome\.IsTerminal\)[\s\S]{0,360}return;' 'Running/nonterminal outcome returns with durable record active' -ExpectedCount 1
     $terminalGuard = $recover.IndexOf('if (!outcome.IsTerminal)', [StringComparison]::Ordinal)
     $retireIndex = $recover.IndexOf('.RetireDs402HomeOutcomeAsync(', [StringComparison]::Ordinal)
@@ -182,7 +185,7 @@ if ($null -ne $recover) {
     Assert-True ($matchIndex -gt $retireIndex -and $resolveIndex -gt $matchIndex) 'terminal retirement snapshot proof precedes durable Resolve'
 }
 
-$recreate = Get-CSharpMethodBlock -Text $main -MethodName 'RecreateDs402RecoveryKey('
+$recreate = Get-CSharpMethodBlock -Text $main -MethodName 'RecreateDs402RecoveryKey'
 if ($null -ne $recreate) {
     Assert-Regex $recreate 'record\.Action\s*!=\s*MaintenanceActionKind\.Ds402Home' 'recovery-key reconstruction rejects other action kinds' -ExpectedCount 1
     Assert-Regex $recreate 'CurrentPositionZeroHomingMethod' 'recovery-key reconstruction pins method 37/current-position-zero' -ExpectedCount 1
