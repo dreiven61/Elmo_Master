@@ -1,5 +1,5 @@
 name: HomeDS402 H37 source qualification
-# Integrated H37-02/H37-03 qualification checkpoint.
+# Integrated H37-02/H37-03/H37-04 qualification checkpoint.
 
 on:
   push:
@@ -8,6 +8,7 @@ on:
       - codex/home-ds402-h37-source-qualification
     paths:
       - 'tools/Verify-HomeDs402H37Activation.ps1'
+      - 'tools/Verify-HomeDs402H37Ownership.ps1'
       - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/AdminDs402HomeH37QualificationTests.cs'
       - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Program.cs'
       - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/LasalMotionControlLib.Tests.csproj'
@@ -22,6 +23,7 @@ on:
       - dev
     paths:
       - 'tools/Verify-HomeDs402H37Activation.ps1'
+      - 'tools/Verify-HomeDs402H37Ownership.ps1'
       - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/AdminDs402HomeH37QualificationTests.cs'
       - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Program.cs'
       - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/LasalMotionControlLib.Tests.csproj'
@@ -50,6 +52,12 @@ jobs:
         shell: powershell
         run: |
           & '.\tools\Verify-HomeDs402H37Activation.ps1' -RepositoryRoot (Get-Location).Path
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify ownership regression contract
+        shell: powershell
+        run: |
+          & '.\tools\Verify-HomeDs402H37Ownership.ps1' -RepositoryRoot (Get-Location).Path
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Locate MSBuild
