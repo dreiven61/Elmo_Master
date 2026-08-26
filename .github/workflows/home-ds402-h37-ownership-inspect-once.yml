@@ -1,0 +1,31 @@
+name: HomeDS402 H37 ownership inspect once
+
+on:
+  push:
+    branches:
+      - codex/home-ds402-h37-source-qualification
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect HomeDS402 ownership and conflicting owners
+        shell: bash
+        run: |
+          set -euo pipefail
+          control='Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
+          diag='Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
+          echo '=== owner constants / states / resources ==='
+          grep -nE 'LMC_OWNER_(KIND|RESOURCE|STATE|ADMISSION).*HOME|DS402|ENCODER|OPERATION_MODE|SET_POSITION' "$control" | head -n 220 || true
+          echo '=== HomeDS402 command 0x7D15 ownership references ==='
+          grep -n -C 6 -E '0x7D15|7D15' "$control" | head -n 260 || true
+          echo '=== safety Stop/Power/Reset ownership references ==='
+          grep -n -C 4 -E '0x2022|0x2023|0x2024|STOP|POWER|RESET|PREEMPT' "$control" | head -n 360 || true
+          echo '=== group ownership references ==='
+          grep -n -C 4 -E '0x2047|0x2048|0x2049|0x204A|0x204B|0x2085|0x20A4|0x20E7|0x7D22|GROUP' "$control" | head -n 300 || true
+          echo '=== encoder maintenance ownership references ==='
+          grep -n -C 5 -E '0x7E53|0x7E54|0x7E55|ENCODER|Tw19|Tw20|MAINTENANCE' "$control" "$diag" | head -n 360 || true
