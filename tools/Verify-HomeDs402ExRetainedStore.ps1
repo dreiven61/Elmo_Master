@@ -74,6 +74,7 @@ Assert-Match $retire 'rawRetiredState.*?retiredState.*?expectedGeneration' 'An e
 Assert-Match $retire 'responseBase\s*:=\s*tombstoneBase' 'Retire retry and first retirement must serialize from the retained full retired outcome.'
 Assert-Match $retire '\(pResponse\s*\+\s*16\)\^\$UINT\s*:=\s*TO_UINT\(retiredState\)' 'Retire success must return the normalized terminal record state.'
 Assert-Match $retire '\(pResponse\s*\+\s*164\)\^\$UDINT\s*:=\s*Ds402HomeExState\[responseBase\s*\+\s*37\]\$UDINT' 'Retire success must echo the exact retired generation.'
+Assert-Match $retire '\(pResponse\s*\+\s*168\)\^\$UDINT\s*:=\s*Ds402HomeExState\[responseBase\s*\+\s*38\]\$UDINT' 'Retire success must echo the retained cleanup proof flags.'
 Assert-Match $retire '\(pResponse\s*\+\s*172\)\^\$UDINT\s*:=\s*Ds402HomeExState\[responseBase\s*\+\s*39\]\$UDINT' 'Retire success must echo the retained SDO executor token.'
 Assert-Match $retire 'ResponseSize\s*:=\s*176\s*;' 'Retire success must be exactly 176 bytes to match the SDK parser contract.'
 
