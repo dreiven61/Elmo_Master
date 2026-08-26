@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace LasalMotionControlLib
 {
@@ -243,6 +244,244 @@ namespace LasalMotionControlLib
                         "HomeDS402Ex spare bytes must all be zero.",
                         "spare");
                 }
+            }
+        }
+    }
+
+    internal enum LMCDs402HomeExApprovedRoundingMode
+    {
+        AwayFromZero = 1,
+        ToEven = 2,
+        TowardZero = 3
+    }
+
+    /// <summary>
+    /// HOMEEX-01/02 software boundary. An instance represents one explicitly
+    /// approved physical-axis profile. It is internal so pending design data
+    /// cannot become a public raw-plan construction surface.
+    /// </summary>
+    internal sealed class LMCAxisDs402HomeExApprovedProfile
+    {
+        private readonly HashSet<int> methodAllowlist;
+
+        internal LMCAxisDs402HomeExApprovedProfile(
+            ushort axisReference,
+            uint mapRevision,
+            IEnumerable<int> methodAllowlist,
+            double positionScale,
+            double velocityScale,
+            double accelerationScale,
+            double torqueScale,
+            LMCDs402HomeExApprovedRoundingMode roundingMode,
+            int convertedMinimum,
+            int convertedMaximum,
+            bool detectionVelocityLimitEnabled,
+            bool distanceLimitEnabled,
+            bool torqueLimitEnabled)
+        {
+            if (axisReference < 1 || axisReference > 4)
+            {
+                throw new ArgumentOutOfRangeException("axisReference");
+            }
+            if (mapRevision == 0)
+            {
+                throw new ArgumentOutOfRangeException("mapRevision");
+            }
+            if (methodAllowlist == null)
+            {
+                throw new ArgumentNullException("methodAllowlist");
+            }
+            if (convertedMinimum > convertedMaximum)
+            {
+                throw new ArgumentOutOfRangeException("convertedMinimum");
+            }
+            if (!Enum.IsDefined(typeof(LMCDs402HomeExApprovedRoundingMode), roundingMode))
+            {
+                throw new ArgumentOutOfRangeException("roundingMode");
+            }
+
+            ValidateScale(positionScale, "positionScale");
+            ValidateScale(velocityScale, "velocityScale");
+            ValidateScale(accelerationScale, "accelerationScale");
+            ValidateScale(torqueScale, "torqueScale");
+
+            this.methodAllowlist = new HashSet<int>();
+            foreach (var method in methodAllowlist)
+            {
+                if (LMCAxisDs402HomeExParameters.ClassifyHomingMethod(method)
+                    != LMCDs402HomeExMethodClassification.StandardCandidate)
+                {
+                    throw new NotSupportedException(
+                        "An approved HomeDS402Ex axis profile may contain only v1 standard-method candidates.");
+                }
+                if (!this.methodAllowlist.Add(method))
+                {
+                    throw new ArgumentException(
+                        "The HomeDS402Ex method allowlist must not contain duplicates.",
+                        "methodAllowlist");
+                }
+            }
+            if (this.methodAllowlist.Count == 0)
+            {
+                throw new ArgumentException(
+                    "An approved HomeDS402Ex axis profile requires a non-empty method allowlist.",
+                    "methodAllowlist");
+            }
+
+            AxisReference = axisReference;
+            MapRevision = mapRevision;
+            PositionScale = positionScale;
+            VelocityScale = velocityScale;
+            AccelerationScale = accelerationScale;
+            TorqueScale = torqueScale;
+            RoundingMode = roundingMode;
+            ConvertedMinimum = convertedMinimum;
+            ConvertedMaximum = convertedMaximum;
+            DetectionVelocityLimitEnabled = detectionVelocityLimitEnabled;
+            DistanceLimitEnabled = distanceLimitEnabled;
+            TorqueLimitEnabled = torqueLimitEnabled;
+        }
+
+        internal ushort AxisReference { get; private set; }
+        internal uint MapRevision { get; private set; }
+        internal double PositionScale { get; private set; }
+        internal double VelocityScale { get; private set; }
+        internal double AccelerationScale { get; private set; }
+        internal double TorqueScale { get; private set; }
+        internal LMCDs402HomeExApprovedRoundingMode RoundingMode { get; private set; }
+        internal int ConvertedMinimum { get; private set; }
+        internal int ConvertedMaximum { get; private set; }
+        internal bool DetectionVelocityLimitEnabled { get; private set; }
+        internal bool DistanceLimitEnabled { get; private set; }
+        internal bool TorqueLimitEnabled { get; private set; }
+
+        internal LMCAxisDs402HomeExExecutionPlan CreateExecutionPlan(
+            LMCAxisDs402HomeExParameters parameters,
+            uint verifiedMapRevision)
+        {
+            if (parameters == null)
+            {
+                throw new ArgumentNullException("parameters");
+            }
+            if (verifiedMapRevision != MapRevision)
+            {
+                throw new InvalidOperationException(
+                    "The approved HomeDS402Ex axis profile MapRevision does not match the verified diagnostics MapRevision.");
+            }
+            if (!methodAllowlist.Contains(parameters.HomingMethod))
+            {
+                throw new NotSupportedException(
+                    "The requested HomeDS402Ex homing method is not approved for this physical axis.");
+            }
+
+            RequireDisabledValue(
+                DetectionVelocityLimitEnabled,
+                parameters.DetectionVelocityLimit,
+                "DetectionVelocityLimit");
+            RequireDisabledValue(
+                DistanceLimitEnabled,
+                parameters.DistanceLimit,
+                "DistanceLimit");
+            RequireDisabledValue(
+                TorqueLimitEnabled,
+                parameters.TorqueLimit,
+                "TorqueLimit");
+
+            var position = ConvertChecked(
+                parameters.Position,
+                PositionScale,
+                "position");
+            if (position == int.MinValue)
+            {
+                throw new OverflowException(
+                    "HomeDS402Ex Position cannot convert to Int32.MinValue because final-position negation must remain representable.");
+            }
+
+            return new LMCAxisDs402HomeExExecutionPlan(
+                parameters.HomingMethod,
+                position,
+                ConvertChecked(
+                    parameters.DetectionVelocityLimit,
+                    VelocityScale,
+                    "detectionVelocityLimit"),
+                ConvertChecked(
+                    parameters.Acceleration,
+                    AccelerationScale,
+                    "acceleration"),
+                ConvertChecked(
+                    parameters.VelocityHigh,
+                    VelocityScale,
+                    "velocityHigh"),
+                ConvertChecked(
+                    parameters.VelocityLow,
+                    VelocityScale,
+                    "velocityLow"),
+                ConvertChecked(
+                    parameters.DistanceLimit,
+                    PositionScale,
+                    "distanceLimit"),
+                ConvertChecked(
+                    parameters.TorqueLimit,
+                    TorqueScale,
+                    "torqueLimit"),
+                parameters.BufferMode,
+                parameters.TimeLimitMilliseconds,
+                parameters.DetectionTimeLimitMilliseconds,
+                parameters.Spare);
+        }
+
+        private int ConvertChecked(double engineeringValue, double scale, string name)
+        {
+            var scaled = engineeringValue * scale;
+            if (double.IsNaN(scaled) || double.IsInfinity(scaled))
+            {
+                throw new OverflowException(
+                    "HomeDS402Ex " + name + " conversion is not finite.");
+            }
+
+            double rounded;
+            switch (RoundingMode)
+            {
+                case LMCDs402HomeExApprovedRoundingMode.AwayFromZero:
+                    rounded = Math.Round(scaled, MidpointRounding.AwayFromZero);
+                    break;
+                case LMCDs402HomeExApprovedRoundingMode.ToEven:
+                    rounded = Math.Round(scaled, MidpointRounding.ToEven);
+                    break;
+                case LMCDs402HomeExApprovedRoundingMode.TowardZero:
+                    rounded = Math.Truncate(scaled);
+                    break;
+                default:
+                    throw new InvalidOperationException(
+                        "Unknown approved HomeDS402Ex rounding mode.");
+            }
+
+            if (rounded < ConvertedMinimum || rounded > ConvertedMaximum
+                || rounded < int.MinValue || rounded > int.MaxValue)
+            {
+                throw new OverflowException(
+                    "HomeDS402Ex " + name + " conversion is outside the approved DINT range.");
+            }
+            return checked((int)rounded);
+        }
+
+        private static void RequireDisabledValue(
+            bool enabled,
+            double value,
+            string name)
+        {
+            if (!enabled && value != 0.0)
+            {
+                throw new NotSupportedException(
+                    "HomeDS402Ex " + name + " is disabled by the approved axis profile and must be zero.");
+            }
+        }
+
+        private static void ValidateScale(double value, string name)
+        {
+            if (double.IsNaN(value) || double.IsInfinity(value) || value <= 0.0)
+            {
+                throw new ArgumentOutOfRangeException(name);
             }
         }
     }
