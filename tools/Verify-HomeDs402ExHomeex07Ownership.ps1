@@ -148,7 +148,7 @@ foreach ($write in $retainedWrites) {
     }
 }
 Require-True $retainedWriteScopeSafe 'HOMEEX-05 retained writes stay inside the per-axis active record or retired tombstone'
-Require-Regex $retireBody 'Ds402HomeExState\[tombstoneBase\]\s*:=\s*TO_DINT\(LMC_DIAG_HOMEEX_RETIRED_MAGIC\)' 'Retire publishes the retired tombstone identity before clearing the active record'
+Require-Regex $retireBody 'Ds402HomeExState\[tombstoneBase\]\s*:=\s*TO_DINT\(TO_UDINT\(recordState\)\s+or\s+LMC_DIAG_HOMEEX_RETIRED_STATE_MASK\)[\s\S]{0,500}?Ds402HomeExState\[recordBase\s*\+\s*recordIndex\]\s*:=\s*0' 'Retire publishes the full retired terminal marker before clearing the active record'
 Require-Regex $retireBody 'Ds402HomeExState\[recordBase\s*\+\s*recordIndex\]\s*:=\s*0' 'Retire clears only the active per-axis record after tombstone publication'
 Require-Regex $processBody 'RETURN;' 'HomeDS402Ex cyclic processor remains a no-op'
 Require-Regex $outcomeBody 'RequestSize\s*<>\s*116' 'Outcome requires exact 116-byte key payload'
