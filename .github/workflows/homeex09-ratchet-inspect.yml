@@ -51,6 +51,11 @@ jobs:
               (b'$semanticTokens.Length -ne 61704', b'$semanticTokens.Length -ne 62026', 1),
               (b'44924A26D9B95E107DED81E8D65D18C8862176C833A2D08D596A8FD2F9A52BEF', b'047F9C6F409867DEC796147EEFC028E2B1C1482AD7F25D5362683A9327354E8A', 1),
               (b'$($semanticTokens.Length)/61704', b'$($semanticTokens.Length)/62026', 1),
+              (b'$lexicalTokens.Count -ne 11986', b'$lexicalTokens.Count -ne 12015', 1),
+              (b'$lexicalInventory.Length -ne 73689', b'$lexicalInventory.Length -ne 74040', 1),
+              (b'962B62140CB69C12743CBA8F27DF14609819A246C2E917D5804BA4077123B899', b'F1F1C9AA83A139E00B19408461594F190E4AA67956E08DC413B9DC7B943B9563', 1),
+              (b'$($lexicalTokens.Count)/11986', b'$($lexicalTokens.Count)/12015', 1),
+              (b'$($lexicalInventory.Length)/73689', b'$($lexicalInventory.Length)/74040', 1),
           ]
           for old, new, count in replacements:
               observed = data.count(old)
@@ -78,7 +83,7 @@ jobs:
               )
 
           contract.write_bytes(data)
-          print('PASS applied confirmed transient ratchets through reserve semantic fence')
+          print('PASS applied confirmed transient ratchets through reserve lexical fence')
           '@ | python -
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
