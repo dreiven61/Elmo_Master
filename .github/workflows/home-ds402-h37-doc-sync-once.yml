@@ -1,0 +1,102 @@
+name: HomeDS402 H37 API docs sync once
+
+on:
+  push:
+    branches:
+      - codex/home-ds402-h37-source-qualification
+    paths:
+      - '.github/workflows/home-ds402-h37-doc-sync-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Sync HomeDS402 recovery contract into current API docs
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $utf8 = New-Object System.Text.UTF8Encoding($false)
+
+          $manualPath = 'docs\api\API_MANUAL.md'
+          $manual = [System.IO.File]::ReadAllText($manualPath).Replace("`r`n", "`n")
+          $manualAnchor = @'
+current source에는 protocol/state-machine/API가 있지만 `LMC_DIAG_DS402_HOME_ENABLED=FALSE`이고
+Admin feature bit 6도 OFF다. 따라서 current PLC의 지원 API로 실행하지 않는다.
+'@
+          $manualReplacement = @'
+current source에는 protocol/state-machine/API가 있지만 `LMC_DIAG_DS402_HOME_ENABLED=FALSE`이고
+Admin feature bit 6도 OFF다. 따라서 current PLC의 지원 API로 실행하지 않는다.
+
+개발 WPF의 DS402 Home recovery는 Start 전 exact endpoint/DiagnosticsBuild/BootId/MapRevision,
+axis, 128-bit ClientIntentId, RequestId와 method-37 zero-parameter semantic을 durable journal에 먼저
+기록한다. process 재실행 시 `ArmedBeforeDispatch`는 `RecoveryRequired`로 승격되고 exact recovery
+key를 즉시 복원한다. 이후 `Read Home Status`는 original Start를 replay하지 않고 `0x7D16`만
+조회한다. Running이면 record를 유지하며, terminal outcome일 때만 exact generation의 `0x7D17`
+retire와 terminal snapshot 일치를 확인한 뒤 journal을 resolve한다. DS402 Home record의 manual
+resolution은 금지된다. 이 WPF recovery 계약은 current runtime gate를 여는 증거가 아니며
+C78/PLC/hardware qualification과 bit 6 activation은 별도다.
+'@
+          $manualCount = ([regex]::Matches($manual, [regex]::Escape($manualAnchor))).Count
+          if ($manualCount -ne 1) { throw "Expected one API manual H37 anchor, found $manualCount." }
+          $manual = $manual.Replace($manualAnchor, $manualReplacement)
+          [System.IO.File]::WriteAllText($manualPath, $manual, $utf8)
+
+          $progressPath = 'docs\api\API_DEVELOPMENT_PROGRESS.md'
+          $progress = [System.IO.File]::ReadAllText($progressPath).Replace("`r`n", "`n")
+          $progressAnchor = @'
+- full SourceOnly의 잔존 blocker는 source semantics가 아니라 기존 `Classes.lcb` physical
+  identity ratchet mismatch다. artifact identity는 fresh C78 build와 의미 검토 전 자동 갱신하지 않는다.
+'@
+          $progressReplacement = @'
+- HomeDS402 `0x7D15/0x7D16/0x7D17` H37 software qualification은 activation atomicity,
+  exact method-37 packet/lifecycle, shared ownership/preemption, LASAL method-size와 WPF durable
+  no-replay recovery까지 구현했다. WPF는 Start 전 journal을 persist하고 relaunch에서 exact recovery
+  key를 복원하며 terminal `0x7D16` + exact `0x7D17` retirement proof 뒤에만 record를 resolve한다.
+  compile/runtime gate와 Admin bit 6은 계속 OFF다.
+- full SourceOnly의 잔존 blocker는 source semantics가 아니라 기존 `Classes.lcb` physical
+  identity ratchet mismatch다. artifact identity는 fresh C78 build와 의미 검토 전 자동 갱신하지 않는다.
+  따라서 H37-05 full SourceOnly와 H37-06 fresh C78/artifact qualification은 아직 미완료이며,
+  H37-07/08 hardware matrix와 H37-09 paired activation도 열지 않는다.
+'@
+          $progressCount = ([regex]::Matches($progress, [regex]::Escape($progressAnchor))).Count
+          if ($progressCount -ne 1) { throw "Expected one API progress H37 anchor, found $progressCount." }
+          $progress = $progress.Replace($progressAnchor, $progressReplacement)
+          [System.IO.File]::WriteAllText($progressPath, $progress, $utf8)
+
+          if (-not ([System.IO.File]::ReadAllText($manualPath).Contains('process 재실행 시 `ArmedBeforeDispatch`는 `RecoveryRequired`로 승격'))) {
+            throw 'API manual H37 recovery text was not written.'
+          }
+          if (-not ([System.IO.File]::ReadAllText($progressPath).Contains('H37-05 full SourceOnly와 H37-06 fresh C78/artifact qualification은 아직 미완료'))) {
+            throw 'API progress H37 boundary text was not written.'
+          }
+
+      - name: Remove one-shot workflow from resulting tree
+        shell: powershell
+        run: |
+          Remove-Item -LiteralPath '.github\workflows\home-ds402-h37-doc-sync-once.yml' -Force
+
+      - name: Diff hygiene
+        shell: powershell
+        run: |
+          git diff --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git diff -- docs/api/API_MANUAL.md docs/api/API_DEVELOPMENT_PROGRESS.md .github/workflows/home-ds402-h37-doc-sync-once.yml
+
+      - name: Commit current API docs
+        shell: powershell
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- docs/api/API_MANUAL.md docs/api/API_DEVELOPMENT_PROGRESS.md .github/workflows/home-ds402-h37-doc-sync-once.yml
+          if (git diff --cached --quiet) { throw 'Expected H37 API doc diff is empty.' }
+          git commit -m 'docs(h37): document durable no-replay recovery boundary'
+          git push origin HEAD:codex/home-ds402-h37-source-qualification
