@@ -3,6 +3,7 @@ name: HomeDS402Ex HOMEEX-08 approved-plan gate
 on:
   push:
     branches:
+      - dev
       - codex/home-ds402ex-homeex08-approved-plan-gate
     paths:
       - 'LMC_Library/LMC_API_Delivery/src/LmcAdminDs402HomeExModels.cs'
@@ -13,7 +14,7 @@ on:
       - '.github/workflows/home-ds402ex-homeex08-approved-plan.yml'
   pull_request:
     branches:
-      - codex/home-ds402ex-homeex01-02-profile-gate
+      - dev
     paths:
       - 'LMC_Library/LMC_API_Delivery/src/LmcAdminDs402HomeExModels.cs'
       - 'LMC_Library/LMC_API_Delivery/src/LmcAdminDs402HomeExWireModels.cs'
