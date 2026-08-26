@@ -1,0 +1,90 @@
+name: HomeDS402Ex HOMEEX-09 C78 evidence collector
+
+on:
+  pull_request:
+    paths:
+      - 'tools/Capture-HomeDs402ExC78Evidence.ps1'
+      - 'tools/Verify-HomeDs402ExHomeex07Ownership.ps1'
+      - 'tools/Verify-HomeDs402ExHomeex09Static.ps1'
+      - 'tools/Verify-HomeDs402ExRetainedStore.ps1'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st'
+      - '.github/workflows/home-ds402ex-homeex09-c78-evidence.yml'
+  push:
+    branches:
+      - dev
+    paths:
+      - 'tools/Capture-HomeDs402ExC78Evidence.ps1'
+      - 'tools/Verify-HomeDs402ExHomeex07Ownership.ps1'
+      - 'tools/Verify-HomeDs402ExHomeex09Static.ps1'
+      - 'tools/Verify-HomeDs402ExRetainedStore.ps1'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st'
+      - '.github/workflows/home-ds402ex-homeex09-c78-evidence.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  evidence-collector:
+    runs-on: windows-2025
+    timeout-minutes: 12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Self-test fresh C78 evidence collector
+        shell: powershell
+        run: |
+          & '.\tools\Capture-HomeDs402ExC78Evidence.ps1' -SelfTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify HOMEEX-05 retained-store regression
+        shell: powershell
+        run: |
+          & '.\tools\Verify-HomeDs402ExRetainedStore.ps1'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify HOMEEX-07 ownership regression
+        shell: powershell
+        run: |
+          & '.\tools\Verify-HomeDs402ExHomeex07Ownership.ps1'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify HOMEEX-09 source/static regression
+        shell: powershell
+        run: |
+          & '.\tools\Verify-HomeDs402ExHomeex09Static.ps1'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify activation remains fail-closed
+        shell: powershell
+        run: |
+          $diagnostics = [IO.File]::ReadAllText('Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st')
+          $control = [IO.File]::ReadAllText('Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st')
+          if (-not [regex]::IsMatch($diagnostics, '(?m)^#define LMC_DIAG_DS402_HOME_EX_ENABLED FALSE$')) {
+            throw 'HomeDS402Ex runtime gate is not FALSE.'
+          }
+          $feature = [regex]::Match($control, '\(pResponseFrame\s*\+\s*24\)\^\$UDINT\s*:=\s*0x([0-9A-Fa-f]{8})\s*;')
+          if (-not $feature.Success) { throw 'Admin feature mask assignment not found.' }
+          $mask = [Convert]::ToUInt32($feature.Groups[1].Value, 16)
+          if (($mask -band 0x00000800) -ne 0) { throw 'HomeDS402Ex Admin capability bit 11 must remain OFF.' }
+          Write-Host ('PASS HOMEEX runtime OFF and Admin bit11 OFF; mask=0x{0:X8}' -f $mask)
+
+      - name: Diff hygiene
+        shell: powershell
+        run: |
+          if ($env:GITHUB_EVENT_NAME -eq 'pull_request') {
+            git diff --check "origin/$env:GITHUB_BASE_REF...HEAD"
+          }
+          elseif ($env:GITHUB_EVENT_NAME -eq 'push') {
+            git diff --check HEAD^ HEAD
+          }
+          else {
+            git diff --check
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
