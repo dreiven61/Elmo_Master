@@ -14946,7 +14946,7 @@ FUNCTION LMCControlCommandService::ValidateAxisOwnershipPreemptionReplacement
 						LMC_OWNER_IDENTITY_PREFIX_BYTES;
 				end_if;
 				replacementTailOffset :=
-					TO_UDINT(probeAxisIndex - 1) * 8;
+					TO_UDINT(probeAxisIndex - 1) * LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES;
 				replacementPackedCommand := TO_UDINT(OldCommand) or
 					(TO_UDINT(probeAxisIndex) shl 16);
 				replacementPackedOwner := TO_UDINT(OldOwnerKind) or
@@ -17076,7 +17076,7 @@ FUNCTION LMCControlCommandService::PrepareAxisOwnershipPublishDecision
 											LMC_OWNER_IDENTITY_PREFIX_BYTES;
 									end_if;
 									replacementTailOffset :=
-										TO_UDINT(probeAxisIndex - 1) * 8;
+										TO_UDINT(probeAxisIndex - 1) * LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES;
 									replacementPackedCommand :=
 										TO_UDINT(preemptCommand) or
 										(TO_UDINT(probeAxisIndex) shl 16);
