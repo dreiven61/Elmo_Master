@@ -18,16 +18,20 @@ jobs:
         with:
           ref: codex/home-ds402ex-homeex09-static-qualification
 
-      - name: Print compact identity packing assertion context
+      - name: Print identity tail source contract
         shell: powershell
         run: |
           @'
           from pathlib import Path
 
-          p = Path(r'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1')
+          p = Path(r'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st')
           text = p.read_bytes().decode('utf-8', errors='replace')
-          needles = ['64-byte prefix', 'tail packing drifted', 'identity/preemption blocker']
-          seen = set()
+          needles = [
+              'LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES',
+              'identityTailOffset :=',
+              'identityTailSize >',
+              'replacementTailOffset :=',
+          ]
           found = False
           for needle in needles:
               start = 0
@@ -36,15 +40,9 @@ jobs:
                   if pos < 0:
                       break
                   start = pos + len(needle)
-                  lo = max(0, pos - 5500)
-                  hi = min(len(text), pos + 3500)
-                  key = (lo, hi)
-                  if key in seen:
-                      continue
-                  seen.add(key)
                   found = True
                   print(f'===== needle={needle!r} pos={pos} =====')
-                  print(text[lo:hi])
+                  print(text[max(0, pos - 900):min(len(text), pos + 1200)])
           if not found:
-              raise SystemExit('compact identity packing assertion context not found')
+              raise SystemExit('identity tail source contract context not found')
           '@ | python -
