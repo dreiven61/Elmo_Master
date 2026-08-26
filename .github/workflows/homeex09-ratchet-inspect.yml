@@ -13,31 +13,60 @@ permissions:
 jobs:
   inspect:
     runs-on: windows-2025
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
           ref: codex/home-ds402ex-homeex09-static-qualification
 
-      - name: Print reserve semantic ratchet context
+      - name: Apply confirmed HOMEEX-09 ratchets transiently
         shell: powershell
         run: |
           @'
           from pathlib import Path
+          import re
 
-          p = Path(r'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1')
-          text = p.read_bytes().decode('utf-8', errors='replace')
-          needle = '61704'
-          positions = []
-          start = 0
-          while True:
-              pos = text.find(needle, start)
-              if pos < 0:
-                  break
-              positions.append(pos)
-              start = pos + len(needle)
-          if not positions:
-              raise SystemExit('61704 reserve semantic baseline not found')
-          for pos in positions:
-              print(f'===== 61704 at {pos} =====')
-              print(text[max(0, pos - 3000):min(len(text), pos + 3000)])
+          control = Path(r'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st')
+          contract = Path(r'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1')
+
+          source = control.read_bytes()
+          tail = re.compile(br'(replacementTailOffset\s*:=\s*(?:\r?\n[ \t]*)?TO_UDINT\(probeAxisIndex\s*-\s*1\)\s*\*\s*)8(\s*;)', re.IGNORECASE)
+          if len(list(tail.finditer(source))) != 2:
+              raise SystemExit('expected exactly two stale identity-tail strides')
+          control.write_bytes(tail.sub(br'\1LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES\2', source, count=2))
+
+          data = contract.read_bytes()
+          replacements = [
+              (b"$replacementBankHistogram['ownershipstate'] -ne 44", b"$replacementBankHistogram['ownershipstate'] -ne 47", 1),
+              (b'expected 44/12.', b'expected 47/12.', 1),
+              (b'6714', b'7015', 2),
+              (b'3386CCD85F63DEE01ABD5C06B82E2F4591179998E07D05B62DF4D816CCFF6D2B', b'2270D6D53A5ACDE045AA830AEE7720DBA4C74BBEADCE19ED281DC8A1A7ABF664', 1),
+              (b"@{ Name = 'adapter'; Fragment = $adapter; LF = 29124; CRLF = 29922; Sha = '8855AEEAE9B617CEAC1D10C7CC4ADB7F4D0536D108592560CE0D39ACF344AFAC' }", b"@{ Name = 'adapter'; Fragment = $adapter; LF = 29184; CRLF = 29981; Sha = '855FA45D910DAFA0EA236807A004E08EFDA080BC57A80FD433BF38F0B3B6BA01' }", 1),
+              (b"@{ Name = 'helper'; Fragment = $helper; LF = 22214; CRLF = 22826; Sha = '9E0A37E0EC0A3AD7FDD194CF8691BF3B492D4E4C6FD10E8C118323571F980BDD' }", b"@{ Name = 'helper'; Fragment = $helper; LF = 22712; CRLF = 23332; Sha = 'EB2E6D61A638DE06B890613D015C0904901318C4EB6B76E63F6D0F7E7A45E527' }", 1),
+              (b'$macroInventory.Count -ne 70', b'$macroInventory.Count -ne 73', 1),
+              (b'$joinedMacros.Length -ne 2470', b'$joinedMacros.Length -ne 2579', 1),
+              (b'367C87E07AF2C33D60F32F3E94AECF73BA052C6F3155DA909DB9EAD1BB9EAB85', b'EE120E84ED15E12CDF127EB5CC2D6438985BC4649A640686F02EA7832E16B742', 1),
+              (b'$($macroInventory.Count)/70', b'$($macroInventory.Count)/73', 1),
+              (b'$($joinedMacros.Length)/2470', b'$($joinedMacros.Length)/2579', 1),
+              (b"Lexical = @(4181, 25399,\r\n\r\n                '19E0C93B5538A8E9C361401CFAE85E23CDFFE0831422EF8174B735C57471FD50')", b"Lexical = @(4181, 25498,\r\n\r\n                '9E575F9EB8826780E7BBA7592D02566D342460A2DB90CB7551EFD17E8B9CC92D')", 1),
+              (b"Lexical = @(2491, 14812,\r\n\r\n                'E0A83B3502A850E0DA66DDDDFE10BBCE0F158D851292369B92A7096F3DF597E8')", b"Lexical = @(2491, 14845,\r\n\r\n                '2ACCA85E9D1DB42390D0BFF3A5199DAF9C522F4E4C6F1B3439F3AEBD7D88701D')", 1),
+              (b"Lexical = @(3451, 22781,\r\n\r\n                'C047EEB0042EEC4CEB2D3840E5226C1FAD420560EC90A058DAFE361546CC51F2')", b"Lexical = @(3530, 23463,\r\n\r\n                '5C96D4E69C712AEFF2B02F285C2A4C135B6BA236B45E8BF124576C52203060A3')", 1),
+              (b'$semanticTokens.Length -ne 61704', b'$semanticTokens.Length -ne 62026', 1),
+              (b'44924A26D9B95E107DED81E8D65D18C8862176C833A2D08D596A8FD2F9A52BEF', b'047F9C6F409867DEC796147EEFC028E2B1C1482AD7F25D5362683A9327354E8A', 1),
+              (b'$($semanticTokens.Length)/61704', b'$($semanticTokens.Length)/62026', 1),
+          ]
+          for old, new, count in replacements:
+              observed = data.count(old)
+              if observed != count:
+                  raise SystemExit(f'precondition failed: {old[:80]!r}, found {observed}, expected {count}')
+              data = data.replace(old, new, count)
+          contract.write_bytes(data)
+          print('PASS applied confirmed transient ratchets through reserve semantic fence')
           '@ | python -
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run legacy SourceOnly to expose next ratchet
+        shell: powershell
+        run: |
+          & '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\Verify-LasalContract.ps1' -RepositoryRoot $env:GITHUB_WORKSPACE
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
