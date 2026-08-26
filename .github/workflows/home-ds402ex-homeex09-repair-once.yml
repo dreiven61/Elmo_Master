@@ -1,4 +1,4 @@
-# one-shot repair trigger: 2026-08-26 helper-ratchet-final
+# one-shot repair trigger: 2026-08-26 helper-ratchet-retrigger-0901
 name: HomeDS402Ex HOMEEX-09 one-shot repair
 
 on:
