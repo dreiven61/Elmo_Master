@@ -290,13 +290,24 @@ namespace LasalMotionControlApiExample
                 ApplyTextBlock(textBlock);
             }
 
-            var button = current as Button;
-            if (button != null && button.Content is string)
+            var contentControl = current as ContentControl;
+            if (contentControl != null)
             {
-                ApplyStringValue(
-                    button,
-                    (string)button.Content,
-                    value => button.Content = value);
+                var stringContent = contentControl.Content as string;
+                if (stringContent != null)
+                {
+                    ApplyStringValue(
+                        contentControl,
+                        stringContent,
+                        value => contentControl.Content = value);
+                }
+
+                var dependencyContent =
+                    contentControl.Content as DependencyObject;
+                if (dependencyContent != null)
+                {
+                    ApplyRecursive(dependencyContent, visited);
+                }
             }
 
             var groupBox = current as GroupBox;
@@ -306,6 +317,15 @@ namespace LasalMotionControlApiExample
                     groupBox,
                     (string)groupBox.Header,
                     value => groupBox.Header = value);
+            }
+
+            var panel = current as Panel;
+            if (panel != null)
+            {
+                foreach (UIElement child in panel.Children)
+                {
+                    ApplyRecursive(child, visited);
+                }
             }
 
             foreach (var child in LogicalTreeHelper.GetChildren(current))
