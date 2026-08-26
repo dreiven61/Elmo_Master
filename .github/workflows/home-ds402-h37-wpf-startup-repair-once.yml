@@ -33,7 +33,7 @@ jobs:
                             RecreateLmcHomeRecoveryKey(active);
                     }
                     else if (IsEncoderMaintenanceAction(active.Action))
-"@
+          "@
           $new = @"
                     if (active.Action == MaintenanceActionKind.LmcHome)
                     {
@@ -46,7 +46,7 @@ jobs:
                             RecreateDs402RecoveryKey(active);
                     }
                     else if (IsEncoderMaintenanceAction(active.Action))
-"@
+          "@
           $normalized = $text.Replace("`r`n", "`n")
           $oldNormalized = $old.Replace("`r`n", "`n")
           $newNormalized = $new.Replace("`r`n", "`n")
