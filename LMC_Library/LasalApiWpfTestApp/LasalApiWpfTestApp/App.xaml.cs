@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using System.Windows.Threading;
 
 namespace LasalMotionControlApiExample
@@ -265,7 +266,8 @@ namespace LasalMotionControlApiExample
             applying = true;
             try
             {
-                ApplyRecursive(window);
+                var visited = new HashSet<DependencyObject>();
+                ApplyRecursive(window, visited);
             }
             finally
             {
@@ -273,9 +275,11 @@ namespace LasalMotionControlApiExample
             }
         }
 
-        private void ApplyRecursive(DependencyObject current)
+        private void ApplyRecursive(
+            DependencyObject current,
+            ISet<DependencyObject> visited)
         {
-            if (current == null)
+            if (current == null || !visited.Add(current))
             {
                 return;
             }
@@ -309,8 +313,22 @@ namespace LasalMotionControlApiExample
                 var dependencyChild = child as DependencyObject;
                 if (dependencyChild != null)
                 {
-                    ApplyRecursive(dependencyChild);
+                    ApplyRecursive(dependencyChild, visited);
                 }
+            }
+
+            var visual = current as Visual;
+            if (visual == null)
+            {
+                return;
+            }
+
+            var visualChildCount = VisualTreeHelper.GetChildrenCount(visual);
+            for (var index = 0; index < visualChildCount; index++)
+            {
+                ApplyRecursive(
+                    VisualTreeHelper.GetChild(visual, index),
+                    visited);
             }
         }
 
