@@ -1,0 +1,129 @@
+{
+  "schemaVersion": 1,
+  "approvalState": "pending",
+  "currentMapRevision": 1,
+  "approvedMapRevision": null,
+  "notes": "HOMEEX-01/02 activation input. Values must come from axis wiring/profile approval; do not infer or auto-fill hardware-dependent fields.",
+  "axes": [
+    {
+      "axis": 1,
+      "approved": false,
+      "wiring": {
+        "homeSwitchSource": null,
+        "positiveLimitSource": null,
+        "negativeLimitSource": null,
+        "indexSource": null,
+        "blockSource": null,
+        "activeLevel": null,
+        "debounceMilliseconds": null,
+        "travelDirection": null,
+        "maxTravel": null
+      },
+      "methodAllowlist": [],
+      "scale": {
+        "position": null,
+        "velocity": null,
+        "acceleration": null,
+        "torque": null,
+        "rounding": null,
+        "dintMin": null,
+        "dintMax": null
+      },
+      "vendorSpecific": {
+        "detectionVelocityLimit": { "approved": false, "objectMapping": null },
+        "distanceLimit": { "approved": false, "objectMapping": null },
+        "torqueLimit": { "approved": false, "objectMapping": null }
+      }
+    },
+    {
+      "axis": 2,
+      "approved": false,
+      "wiring": {
+        "homeSwitchSource": null,
+        "positiveLimitSource": null,
+        "negativeLimitSource": null,
+        "indexSource": null,
+        "blockSource": null,
+        "activeLevel": null,
+        "debounceMilliseconds": null,
+        "travelDirection": null,
+        "maxTravel": null
+      },
+      "methodAllowlist": [],
+      "scale": {
+        "position": null,
+        "velocity": null,
+        "acceleration": null,
+        "torque": null,
+        "rounding": null,
+        "dintMin": null,
+        "dintMax": null
+      },
+      "vendorSpecific": {
+        "detectionVelocityLimit": { "approved": false, "objectMapping": null },
+        "distanceLimit": { "approved": false, "objectMapping": null },
+        "torqueLimit": { "approved": false, "objectMapping": null }
+      }
+    },
+    {
+      "axis": 3,
+      "approved": false,
+      "wiring": {
+        "homeSwitchSource": null,
+        "positiveLimitSource": null,
+        "negativeLimitSource": null,
+        "indexSource": null,
+        "blockSource": null,
+        "activeLevel": null,
+        "debounceMilliseconds": null,
+        "travelDirection": null,
+        "maxTravel": null
+      },
+      "methodAllowlist": [],
+      "scale": {
+        "position": null,
+        "velocity": null,
+        "acceleration": null,
+        "torque": null,
+        "rounding": null,
+        "dintMin": null,
+        "dintMax": null
+      },
+      "vendorSpecific": {
+        "detectionVelocityLimit": { "approved": false, "objectMapping": null },
+        "distanceLimit": { "approved": false, "objectMapping": null },
+        "torqueLimit": { "approved": false, "objectMapping": null }
+      }
+    },
+    {
+      "axis": 4,
+      "approved": false,
+      "wiring": {
+        "homeSwitchSource": null,
+        "positiveLimitSource": null,
+        "negativeLimitSource": null,
+        "indexSource": null,
+        "blockSource": null,
+        "activeLevel": null,
+        "debounceMilliseconds": null,
+        "travelDirection": null,
+        "maxTravel": null
+      },
+      "methodAllowlist": [],
+      "scale": {
+        "position": null,
+        "velocity": null,
+        "acceleration": null,
+        "torque": null,
+        "rounding": null,
+        "dintMin": null,
+        "dintMax": null
+      },
+      "vendorSpecific": {
+        "detectionVelocityLimit": { "approved": false, "objectMapping": null },
+        "distanceLimit": { "approved": false, "objectMapping": null },
+        "torqueLimit": { "approved": false, "objectMapping": null }
+      }
+    }
+  ]
+}
