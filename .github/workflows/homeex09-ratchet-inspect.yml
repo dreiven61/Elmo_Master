@@ -26,9 +26,18 @@ jobs:
 
           p = Path(r'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1')
           text = p.read_bytes().decode('utf-8', errors='replace')
-          needle = 'normalized semantic token inventory drifted'
-          pos = text.find(needle)
-          if pos < 0:
-              raise SystemExit('reserve semantic ratchet marker not found')
-          print(text[max(0, pos - 5000):min(len(text), pos + 2500)])
+          needle = '61704'
+          positions = []
+          start = 0
+          while True:
+              pos = text.find(needle, start)
+              if pos < 0:
+                  break
+              positions.append(pos)
+              start = pos + len(needle)
+          if not positions:
+              raise SystemExit('61704 reserve semantic baseline not found')
+          for pos in positions:
+              print(f'===== 61704 at {pos} =====')
+              print(text[max(0, pos - 3000):min(len(text), pos + 3000)])
           '@ | python -
