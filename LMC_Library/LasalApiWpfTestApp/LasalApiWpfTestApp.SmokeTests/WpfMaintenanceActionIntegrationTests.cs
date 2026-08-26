@@ -58,6 +58,9 @@ namespace LasalApiWpfTestApp.SmokeTests
                 "Wpf.MaintenanceUi.Ds402HomeFixedMethod37ZeroOffset",
                 Ds402HomeUsesFixedMethod37ZeroOffset);
             tests.Add(
+                "Wpf.MaintenanceUi.Ds402HomeRestartRestoresRecoveryKeyImmediately",
+                Ds402HomeRestartRestoresRecoveryKeyImmediately);
+            tests.Add(
                 "Wpf.MaintenanceUi.LmcHomeButtonTerminalRetiresBeforeJournalResolveAndLogsOutcome",
                 LmcHomeButtonTerminalRetiresBeforeJournalResolveAndLogsOutcome);
             tests.Add(
@@ -748,6 +751,65 @@ namespace LasalApiWpfTestApp.SmokeTests
                     window.TextLmcHomeTimeout.Text = "99";
                     AssertEx.Throws<ArgumentOutOfRangeException>(
                         () => window.ReadLmcHomeParameters(-123));
+                });
+        }
+
+        private static void
+            Ds402HomeRestartRestoresRecoveryKeyImmediately()
+        {
+            var expected = CreateDs402HomeRecoveryKey();
+            WithTemporaryWindow(
+                LasalMotionControlApiExample.UiLanguage.English,
+                root =>
+                {
+                    var journalDirectory = Path.Combine(
+                        root,
+                        "MaintenanceActionRecovery");
+                    using (var journal =
+                        LasalMotionControlApiExample
+                            .MaintenanceActionRecoveryJournal.Open(
+                                journalDirectory))
+                    {
+                        journal.ArmBeforeDispatch(
+                            LasalMotionControlApiExample
+                                .MaintenanceActionKind.Ds402Home,
+                            "127.0.0.1",
+                            4000,
+                            expected.DiagnosticsBuild,
+                            expected.DiagnosticsBootId,
+                            expected.MapRevision,
+                            "_LMCAxis2",
+                            expected.AxisReference,
+                            expected.ClientIntentId.Word0,
+                            expected.ClientIntentId.Word1,
+                            expected.ClientIntentId.Word2,
+                            expected.ClientIntentId.Word3,
+                            expected.RequestId,
+                            "Schema=1;Method=37;HomeOffset=0;Velocity=0;Acceleration=0;DistanceLimit=0;TorqueLimit=0;BufferMode=Aborting;TimeoutMs=60000",
+                            DateTime.UtcNow);
+                    }
+                },
+                window =>
+                {
+                    var record = window
+                        .ActiveMaintenanceActionRecoveryRecordForTests;
+                    AssertEx.NotNull(record);
+                    AssertEx.Equal(
+                        LasalMotionControlApiExample
+                            .MaintenanceActionRecoveryState.RecoveryRequired,
+                        record.State);
+                    AssertEx.Equal(
+                        LasalMotionControlApiExample
+                            .MaintenanceActionKind.Ds402Home,
+                        record.Action);
+                    var restored = GetPrivateField(
+                        window,
+                        "latestDs402HomeRecoveryKey")
+                        as LMCAxisDs402HomeRecoveryKey;
+                    AssertEx.NotNull(restored);
+                    AssertEx.True(
+                        expected.Equals(restored),
+                        "DS402 Home relaunch did not restore the exact recovery key before the first outcome query.");
                 });
         }
 
