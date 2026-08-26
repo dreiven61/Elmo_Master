@@ -113,6 +113,11 @@ namespace LasalMotionControlApiExample
                         latestLmcHomeRecoveryKey =
                             RecreateLmcHomeRecoveryKey(active);
                     }
+                    else if (active.Action == MaintenanceActionKind.Ds402Home)
+                    {
+                        latestDs402HomeRecoveryKey =
+                            RecreateDs402RecoveryKey(active);
+                    }
                     else if (IsEncoderMaintenanceAction(active.Action))
                     {
                         latestEncoderMaintenanceRecoveryKey =
