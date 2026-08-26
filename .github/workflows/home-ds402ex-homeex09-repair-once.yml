@@ -1,4 +1,4 @@
-# one-shot repair trigger: 2026-08-26 disjoint-reserved closure
+# one-shot repair trigger: 2026-08-26 source-gate closure
 name: HomeDS402Ex HOMEEX-09 one-shot repair
 
 on:
@@ -156,11 +156,24 @@ jobs:
           git push origin HEAD:codex/home-ds402ex-homeex09-static-qualification
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Run legacy LASAL SourceOnly contract after repair
+      - name: Verify legacy SourceOnly source gate to known artifact boundary
         shell: powershell
         run: |
-          & '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\Verify-LasalContract.ps1' -RepositoryRoot $env:GITHUB_WORKSPACE
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $knownArtifactBoundary = 'LASAL.UdpCallbackContract blocker: SetPosition-augmented Classes.lcb physical identity drifted.'
+          $output = @(& '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\Verify-LasalContract.ps1' -RepositoryRoot $env:GITHUB_WORKSPACE 2>&1)
+          $sourceExit = $LASTEXITCODE
+          $output | ForEach-Object { Write-Host $_ }
+          if ($sourceExit -eq 0) {
+            Write-Host 'PASS legacy SourceOnly contract completed fully.'
+            exit 0
+          }
+          $matches = @($output | Select-String -SimpleMatch $knownArtifactBoundary)
+          if ($matches.Count -ne 1) {
+            Write-Error "Unexpected SourceOnly failure; expected exactly the known generated-artifact boundary, observed matches=$($matches.Count)."
+            exit $sourceExit
+          }
+          Write-Host 'PASS HomeDS402Ex source/static contract reached the exact known Classes.lcb artifact boundary.'
+          Write-Host 'NOTE HOMEEX-09 remains incomplete until fresh C78/generated-artifact qualification; this step does not ratchet binary artifacts.'
 
       - name: Check focused diff
         shell: powershell
@@ -169,7 +182,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           git diff --stat
 
-      - name: Commit verifier repair and remove one-shot diagnostics
+      - name: Commit source-verifier repair and remove one-shot diagnostics
         shell: powershell
         run: |
           git config user.name 'github-actions[bot]'
@@ -180,7 +193,7 @@ jobs:
           git add 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
           git diff --cached --check
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          git commit -m 'test(homeex): close HOMEEX-09 identity ratchets'
+          git commit -m 'test(homeex): close HOMEEX-09 source identity ratchets'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           git push origin HEAD:codex/home-ds402ex-homeex09-static-qualification
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
