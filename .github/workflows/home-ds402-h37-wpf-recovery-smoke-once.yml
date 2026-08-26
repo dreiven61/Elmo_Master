@@ -1,0 +1,141 @@
+name: HomeDS402 H37 WPF recovery smoke patch once
+
+on:
+  push:
+    branches:
+      - codex/home-ds402-h37-source-qualification
+    paths:
+      - '.github/workflows/home-ds402-h37-wpf-recovery-smoke-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Add exact relaunch recovery-key smoke
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $path = 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/WpfMaintenanceActionIntegrationTests.cs'
+          $text = [IO.File]::ReadAllText($path).Replace("`r`n", "`n")
+          $lf = "`n"
+
+          $registrationAnchor = [string]::Join($lf, @(
+            '            tests.Add(',
+            '                "Wpf.MaintenanceUi.Ds402HomeFixedMethod37ZeroOffset",',
+            '                Ds402HomeUsesFixedMethod37ZeroOffset);'
+          ))
+          $registrationReplacement = [string]::Join($lf, @(
+            $registrationAnchor,
+            '            tests.Add(',
+            '                "Wpf.MaintenanceUi.Ds402HomeRestartRestoresRecoveryKeyImmediately",',
+            '                Ds402HomeRestartRestoresRecoveryKeyImmediately);'
+          ))
+          $registrationCount = ([regex]::Matches($text, [regex]::Escape($registrationAnchor))).Count
+          if ($registrationCount -ne 1) { throw "Expected one DS402 Home registration anchor, found $registrationCount." }
+          $text = $text.Replace($registrationAnchor, $registrationReplacement)
+
+          $methodAnchor = [string]::Join($lf, @(
+            '        private static void',
+            '            LmcHomeButtonTerminalRetiresBeforeJournalResolveAndLogsOutcome()'
+          ))
+          $newMethod = [string]::Join($lf, @(
+            '        private static void',
+            '            Ds402HomeRestartRestoresRecoveryKeyImmediately()',
+            '        {',
+            '            var expected = CreateDs402HomeRecoveryKey();',
+            '            WithTemporaryWindow(',
+            '                LasalMotionControlApiExample.UiLanguage.English,',
+            '                root =>',
+            '                {',
+            '                    var journalDirectory = Path.Combine(',
+            '                        root,',
+            '                        "MaintenanceActionRecovery");',
+            '                    using (var journal =',
+            '                        LasalMotionControlApiExample',
+            '                            .MaintenanceActionRecoveryJournal.Open(',
+            '                                journalDirectory))',
+            '                    {',
+            '                        journal.ArmBeforeDispatch(',
+            '                            LasalMotionControlApiExample',
+            '                                .MaintenanceActionKind.Ds402Home,',
+            '                            "127.0.0.1",',
+            '                            4000,',
+            '                            expected.DiagnosticsBuild,',
+            '                            expected.DiagnosticsBootId,',
+            '                            expected.MapRevision,',
+            '                            "_LMCAxis2",',
+            '                            expected.AxisReference,',
+            '                            expected.ClientIntentId.Word0,',
+            '                            expected.ClientIntentId.Word1,',
+            '                            expected.ClientIntentId.Word2,',
+            '                            expected.ClientIntentId.Word3,',
+            '                            expected.RequestId,',
+            '                            "Schema=1;Method=37;HomeOffset=0;Velocity=0;Acceleration=0;DistanceLimit=0;TorqueLimit=0;BufferMode=Aborting;TimeoutMs=60000",',
+            '                            DateTime.UtcNow);',
+            '                    }',
+            '                },',
+            '                window =>',
+            '                {',
+            '                    var record = window',
+            '                        .ActiveMaintenanceActionRecoveryRecordForTests;',
+            '                    AssertEx.NotNull(record);',
+            '                    AssertEx.Equal(',
+            '                        LasalMotionControlApiExample',
+            '                            .MaintenanceActionRecoveryState.RecoveryRequired,',
+            '                        record.State);',
+            '                    AssertEx.Equal(',
+            '                        LasalMotionControlApiExample',
+            '                            .MaintenanceActionKind.Ds402Home,',
+            '                        record.Action);',
+            '                    var restored = GetPrivateField(',
+            '                        window,',
+            '                        "latestDs402HomeRecoveryKey")',
+            '                        as LMCAxisDs402HomeRecoveryKey;',
+            '                    AssertEx.NotNull(restored);',
+            '                    AssertEx.True(',
+            '                        expected.Equals(restored),',
+            '                        "DS402 Home relaunch did not restore the exact recovery key before the first outcome query.");',
+            '                });',
+            '        }',
+            '',
+            $methodAnchor
+          ))
+          $methodCount = ([regex]::Matches($text, [regex]::Escape($methodAnchor))).Count
+          if ($methodCount -ne 1) { throw "Expected one LMC Home method anchor, found $methodCount." }
+          $text = $text.Replace($methodAnchor, $newMethod)
+
+          if (([regex]::Matches($text, 'Ds402HomeRestartRestoresRecoveryKeyImmediately')).Count -ne 2) {
+            throw 'Expected one registration and one DS402 relaunch smoke method.'
+          }
+          [IO.File]::WriteAllText($path, $text, [Text.UTF8Encoding]::new($false))
+
+      - name: Remove one-shot workflow
+        shell: pwsh
+        run: |
+          Remove-Item -LiteralPath '.github/workflows/home-ds402-h37-wpf-recovery-smoke-once.yml' -Force
+
+      - name: Diff hygiene
+        shell: pwsh
+        run: |
+          git diff --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git diff -- LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/WpfMaintenanceActionIntegrationTests.cs .github/workflows/home-ds402-h37-wpf-recovery-smoke-once.yml
+
+      - name: Commit smoke test
+        shell: pwsh
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/WpfMaintenanceActionIntegrationTests.cs .github/workflows/home-ds402-h37-wpf-recovery-smoke-once.yml
+          if (git diff --cached --quiet) { throw 'Expected H37 WPF smoke patch is empty.' }
+          git commit -m 'test(h37): cover immediate DS402 recovery-key restore'
+          git push origin HEAD:codex/home-ds402-h37-source-qualification
