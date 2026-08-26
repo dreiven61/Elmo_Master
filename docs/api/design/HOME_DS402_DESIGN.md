@@ -147,7 +147,7 @@ Indeterminate/Quarantined로 보존하고 original Start를 재전송하지 않�
 - [ ] `H37-07` Axis1 normal/timeout/fault/disconnect/response-loss matrix PASS
 - [ ] `H37-08` Axis2~4 동일 matrix PASS
 - [ ] `H37-09` 5개 gate와 global capability bit 6 paired activation
-- [ ] `H37-10` WPF recovery journal과 API manual/progress 갱신
+- [x] `H37-10` WPF recovery journal과 API manual/progress 갱신
 
 `H37-01` source/static 대조는 2026-08-20에 완료했다. current source의 staged
 `PublishAxisOwnershipDs402Receipt` owner-release/rollback receipt와
@@ -173,6 +173,24 @@ tombstone을 기존 focused verifier와 대조했고 packet map과 delivery READ
 이 증거는 Source/static 및 PC contract qualification이다. 5개 activation gate는 계속 OFF이며
 H37-05 full SourceOnly/method-size, H37-06 C78/Network, PLC load/runtime 또는 hardware activation을
 의미하지 않는다.
+
+### H37-10 WPF durable recovery qualification — 2026-08-26
+
+- functional source는 `MainWindow.MaintenanceActions.cs` startup에서 active `Ds402Home` durable
+  record를 발견하면 첫 outcome query 전에 `latestDs402HomeRecoveryKey`를 즉시 재구성한다.
+- `Verify-HomeDs402H37WpfRecovery.ps1`은 journal persist-before-Start, relaunch promotion,
+  exact-key reconstruction, recovery의 `0x7D15` replay 0회, Running record 유지,
+  terminal `0x7D16` 뒤 exact `0x7D17` retirement와 snapshot proof 후 journal resolve 순서를 고정한다.
+- runtime WPF smoke `Wpf.MaintenanceUi.Ds402HomeRestartRestoresRecoveryKeyImmediately`는 복원 key의
+  Schema/RequestId/Diagnostics identity/128-bit ClientIntentId/AxisReference/method37 zero-parameter
+  전 필드를 exact value로 검증한다. test commit은 `954db46d74567f17cafdaec594f2b2bc56da1736`이다.
+- qualification workflow `32932879122`, job `98068349746`에서 activation/ownership/method-size/WPF
+  source verifier와 API Debug/Release가 PASS했고, H37 WPF recovery smoke Debug/Release도 모두 PASS했다.
+- API manual/progress의 no-replay recovery 경계는 commit `031e6f334065f1840987dd8df55ff9e3c6cce5dd`에 동기화했다.
+
+H37-10 완료는 WPF/PC software recovery 계약에 한정한다. H37-05 full SourceOnly의 기존
+`Classes.lcb` physical-identity ratchet, H37-06 fresh C78/ARM Rebuild/Link와 generated artifact,
+PLC load/runtime, H37-07/08 hardware matrix 및 H37-09 activation을 승인하지 않는다.
 
 ## 8. release 경계
 
