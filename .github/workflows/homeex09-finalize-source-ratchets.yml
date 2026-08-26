@@ -1,0 +1,98 @@
+name: HOMEEX-09 finalize validated source ratchets
+
+on:
+  push:
+    branches:
+      - codex/home-ds402ex-homeex09-static-qualification
+    paths:
+      - '.github/workflows/homeex09-finalize-source-ratchets.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/home-ds402ex-homeex09-static-qualification
+          fetch-depth: 0
+
+      - name: Apply previously validated verifier ratchets
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          contract = Path('LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1')
+          data = contract.read_bytes()
+
+          replacements = [
+              (b"$replacementBankHistogram['ownershipstate'] -ne 44", b"$replacementBankHistogram['ownershipstate'] -ne 47", 1),
+              (b'expected 44/12.', b'expected 47/12.', 1),
+              (b'6714', b'7015', 2),
+              (b'3386CCD85F63DEE01ABD5C06B82E2F4591179998E07D05B62DF4D816CCFF6D2B', b'2270D6D53A5ACDE045AA830AEE7720DBA4C74BBEADCE19ED281DC8A1A7ABF664', 1),
+              (b"@{ Name = 'adapter'; Fragment = $adapter; LF = 29124; CRLF = 29922; Sha = '8855AEEAE9B617CEAC1D10C7CC4ADB7F4D0536D108592560CE0D39ACF344AFAC' }", b"@{ Name = 'adapter'; Fragment = $adapter; LF = 29184; CRLF = 29981; Sha = '855FA45D910DAFA0EA236807A004E08EFDA080BC57A80FD433BF38F0B3B6BA01' }", 1),
+              (b"@{ Name = 'helper'; Fragment = $helper; LF = 22214; CRLF = 22826; Sha = '9E0A37E0EC0A3AD7FDD194CF8691BF3B492D4E4C6FD10E8C118323571F980BDD' }", b"@{ Name = 'helper'; Fragment = $helper; LF = 22712; CRLF = 23332; Sha = 'EB2E6D61A638DE06B890613D015C0904901318C4EB6B76E63F6D0F7E7A45E527' }", 1),
+              (b'$macroInventory.Count -ne 70', b'$macroInventory.Count -ne 73', 1),
+              (b'$joinedMacros.Length -ne 2470', b'$joinedMacros.Length -ne 2579', 1),
+              (b'367C87E07AF2C33D60F32F3E94AECF73BA052C6F3155DA909DB9EAD1BB9EAB85', b'EE120E84ED15E12CDF127EB5CC2D6438985BC4649A640686F02EA7832E16B742', 1),
+              (b'$($macroInventory.Count)/70', b'$($macroInventory.Count)/73', 1),
+              (b'$($joinedMacros.Length)/2470', b'$($joinedMacros.Length)/2579', 1),
+              (b'$semanticTokens.Length -ne 61704', b'$semanticTokens.Length -ne 62026', 1),
+              (b'44924A26D9B95E107DED81E8D65D18C8862176C833A2D08D596A8FD2F9A52BEF', b'047F9C6F409867DEC796147EEFC028E2B1C1482AD7F25D5362683A9327354E8A', 1),
+              (b'$($semanticTokens.Length)/61704', b'$($semanticTokens.Length)/62026', 1),
+              (b'$lexicalTokens.Count -ne 11986', b'$lexicalTokens.Count -ne 12015', 1),
+              (b'$lexicalInventory.Length -ne 73689', b'$lexicalInventory.Length -ne 74040', 1),
+              (b'962B62140CB69C12743CBA8F27DF14609819A246C2E917D5804BA4077123B899', b'F1F1C9AA83A139E00B19408461594F190E4AA67956E08DC413B9DC7B943B9563', 1),
+              (b'$($lexicalTokens.Count)/11986', b'$($lexicalTokens.Count)/12015', 1),
+              (b'$($lexicalInventory.Length)/73689', b'$($lexicalInventory.Length)/74040', 1),
+              (b"'Reference\\s*-\\s*1(\\)\\s*\\*\\s*8\\s*;)')", b"'Reference\\s*-\\s*1(\\)\\s*\\*\\s*LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES\\s*;)')", 1),
+              (b"'identityTailOffset\\s*:=\\s*TO_UDINT\\(Reference\\s*-\\s*1\\)\\s*\\*\\s*8\\s*;.*?' +", b"'identityTailOffset\\s*:=\\s*TO_UDINT\\(Reference\\s*-\\s*1\\)\\s*\\*\\s*LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES\\s*;.*?' +", 1),
+              (b"'if\\s+identityTailSize\\s*>\\s*8\\s+then\\s*RETURN\\s*;') (", b"'if\\s+identityTailSize\\s*>\\s*LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES\\s+then\\s*RETURN\\s*;') (", 1),
+              (b'exact 64-byte prefix and per-axis 8-byte tail packing drifted.', b'exact 64-byte prefix and per-axis identity-tail packing drifted.', 1),
+              (b"Pattern = 'identityTailOffset\\s*:=\\s*TO_UDINT\\(Reference\\s*-\\s*1\\)\\s*\\*\\s*8\\s*;'; Replacement = 'identityTailOffset := TO_UDINT(Reference) * 8;' }", b"Pattern = 'identityTailOffset\\s*:=\\s*TO_UDINT\\(Reference\\s*-\\s*1\\)\\s*\\*\\s*LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES\\s*;'; Replacement = 'identityTailOffset := TO_UDINT(Reference) * LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES;' }", 1),
+              (b'$reservedDisjointStates.Count -ne 1', b'$reservedDisjointStates.Count -ne 2', 1),
+              (b'disjoint proof Reserved state must appear exactly once for SetOperationMode.', b'disjoint proof Reserved state must appear exactly twice for SetOperationMode and HomeDS402Ex.', 1),
+              (b"'LMC_OWNER_STATE_AXIS_OPERATION_MODE_ACTIVE') (", b"'LMC_OWNER_STATE_AXIS_OPERATION_MODE_ACTIVE.*?' +\r\n        'LMC_OWNER_KIND_DS402_HOME_EX\\s*:\\s*currentStateValid\\s*:=.*?' +\r\n        'LMC_OWNER_STATE_RESERVED.*?' +\r\n        'LMC_OWNER_STATE_DS402_HOME_EX_ACTIVE') (", 1),
+          ]
+          for old, new, count in replacements:
+              observed = data.count(old)
+              if observed != count:
+                  raise SystemExit(f'precondition failed: {old[:100]!r}, found={observed}, expected={count}')
+              data = data.replace(old, new, count)
+
+          lexical_specs = [
+              (4181, 25399, b'19E0C93B5538A8E9C361401CFAE85E23CDFFE0831422EF8174B735C57471FD50', 4181, 25498, b'9E575F9EB8826780E7BBA7592D02566D342460A2DB90CB7551EFD17E8B9CC92D'),
+              (2491, 14812, b'E0A83B3502A850E0DA66DDDDFE10BBCE0F158D851292369B92A7096F3DF597E8', 2491, 14845, b'2ACCA85E9D1DB42390D0BFF3A5199DAF9C522F4E4C6F1B3439F3AEBD7D88701D'),
+              (3451, 22781, b'C047EEB0042EEC4CEB2D3840E5226C1FAD420560EC90A058DAFE361546CC51F2', 3530, 23463, b'5C96D4E69C712AEFF2B02F285C2A4C135B6BA236B45E8BF124576C52203060A3'),
+          ]
+          for old_count, old_len, old_sha, new_count, new_len, new_sha in lexical_specs:
+              pattern = re.compile(
+                  rb'(Lexical\s*=\s*@\(\s*)' + str(old_count).encode() + rb'(\s*,\s*)' + str(old_len).encode() + rb'(\s*,\s*[\r\n\t ]*[\'\"])' + old_sha + rb'([\'\"]\s*\))',
+                  re.IGNORECASE,
+              )
+              matches = list(pattern.finditer(data))
+              if len(matches) != 1:
+                  raise SystemExit(f'lexical precondition failed for {old_count}/{old_len}: {len(matches)}')
+              data = pattern.sub(lambda m: m.group(1) + str(new_count).encode() + m.group(2) + str(new_len).encode() + m.group(3) + new_sha + m.group(4), data, count=1)
+
+          contract.write_bytes(data)
+          print('PASS applied ratchets previously validated by Windows run 32919844529 through the known Classes.lcb artifact boundary')
+          PY
+          git diff --check
+
+      - name: Commit verifier and remove temporary workflows
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm '.github/workflows/home-ds402ex-homeex09-repair-once.yml'
+          git rm '.github/workflows/homeex09-ratchet-inspect.yml'
+          git rm '.github/workflows/homeex09-finalize-source-ratchets.yml'
+          git add 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
+          git diff --cached --check
+          git commit -m 'test(homeex): persist validated HOMEEX-09 source ratchets'
+          git push origin HEAD:codex/home-ds402ex-homeex09-static-qualification
