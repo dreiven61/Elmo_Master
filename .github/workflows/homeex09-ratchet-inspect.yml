@@ -18,63 +18,19 @@ jobs:
         with:
           ref: codex/home-ds402ex-homeex09-static-qualification
 
-      - name: Compute repaired publish-split lexical ratchets
+      - name: Print exact verifier fragment extraction
         shell: powershell
         run: |
           @'
           from pathlib import Path
-          import re
 
-          p = Path(r'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st')
-          data = p.read_bytes()
-          pattern = re.compile(
-              br'(replacementTailOffset\s*:=\s*(?:\r?\n[ \t]*)?TO_UDINT\(probeAxisIndex\s*-\s*1\)\s*\*\s*)8(\s*;)',
-              re.IGNORECASE,
-          )
-          matches = list(pattern.finditer(data))
-          if len(matches) != 2:
-              raise SystemExit(f'Expected exactly two stale replacementTailOffset * 8 matches, found {len(matches)}')
-          data = pattern.sub(br'\1LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES\2', data, count=2)
-          p.write_bytes(data)
-          print('PASS transiently repaired exactly two identity-tail strides')
+          p = Path(r'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1')
+          text = p.read_bytes().decode('utf-8', errors='replace')
+          needle = '$fragmentContracts = @('
+          pos = text.find(needle)
+          if pos < 0:
+              raise SystemExit('fragmentContracts marker not found')
+          lo = max(0, pos - 14000)
+          hi = min(len(text), pos + 5000)
+          print(text[lo:hi])
           '@ | python -
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-          $sourcePath = 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
-          $sourceText = [IO.File]::ReadAllText((Resolve-Path $sourcePath))
-          $commandStart = $sourceText.IndexOf('ACTION LMCControlCommandService.Methods:', [StringComparison]::Ordinal)
-          if ($commandStart -lt 0) { throw 'Methods action marker not found' }
-          $commandEnd = $sourceText.IndexOf('ACTION LMCControlCommandService.GetDefaultAccelTicks:', $commandStart, [StringComparison]::Ordinal)
-          if ($commandEnd -lt 0) { throw 'GetDefaultAccelTicks action marker not found' }
-          $commandBlock = $sourceText.Substring($commandStart, $commandEnd - $commandStart)
-
-          $adapterStart = $commandBlock.IndexOf('CASE command OF', [StringComparison]::Ordinal)
-          if ($adapterStart -lt 0) { throw 'adapter CASE command OF marker not found' }
-          $helperStart = $commandBlock.IndexOf('CASE command OF', $adapterStart + 1, [StringComparison]::Ordinal)
-          if ($helperStart -lt 0) { throw 'helper CASE command OF marker not found' }
-          $wrapperStart = $commandBlock.IndexOf('CASE command OF', $helperStart + 1, [StringComparison]::Ordinal)
-          if ($wrapperStart -lt 0) { throw 'wrapper CASE command OF marker not found' }
-
-          $adapter = $commandBlock.Substring($adapterStart, $helperStart - $adapterStart)
-          $helper = $commandBlock.Substring($helperStart, $wrapperStart - $helperStart)
-          $wrapper = $commandBlock.Substring($wrapperStart)
-
-          $fragments = @(
-              @{ Name = 'adapter'; Fragment = $adapter },
-              @{ Name = 'helper'; Fragment = $helper },
-              @{ Name = 'wrapper'; Fragment = $wrapper }
-          )
-
-          foreach ($fragmentContract in $fragments) {
-              $lexicalMatches = [regex]::Matches(
-                  $fragmentContract.Fragment,
-                  '(?is)\b16#[0-9a-f_]+\b|\b(?:true|false)\b|\b[a-z_][a-z0-9_]*\b|<>|<=|>=|:=|=>|\*\*|[+\-*/=<>();,\.\[\]:]'
-              )
-              $lexicalTokens = New-Object 'System.Collections.Generic.List[string]'
-              foreach ($match in $lexicalMatches) {
-                  $lexicalTokens.Add($match.Value.ToLowerInvariant())
-              }
-              $lexicalRaw = [Text.Encoding]::UTF8.GetBytes(($lexicalTokens -join "`n"))
-              $lexicalSha = [BitConverter]::ToString(([Security.Cryptography.SHA256]::Create()).ComputeHash($lexicalRaw)).Replace('-', '')
-              Write-Host ("RATCHET {0} TokenCount={1} TokenSha={2}" -f $fragmentContract.Name, $lexicalTokens.Count, $lexicalSha)
-          }
