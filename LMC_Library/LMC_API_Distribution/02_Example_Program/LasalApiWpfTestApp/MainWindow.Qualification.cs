@@ -31,6 +31,9 @@ namespace LasalMotionControlApiExample
         private string qualificationScenario;
         private int qualificationStep;
         private string qualificationExternalSafetyOperation;
+        private AxisQualificationExternalSafetyKind
+            qualificationExternalAxisSafetyKind;
+        private long qualificationExternalAxisSafetyGeneration;
         private bool qualificationExternalGroupSafety;
         private int qualificationProgress;
         private long qualificationSafetyGeneration;
@@ -93,8 +96,9 @@ namespace LasalMotionControlApiExample
 
             var dialog = new SaveFileDialog
             {
-                Title = "Save qualification log",
-                Filter = "Text file (*.txt)|*.txt|Qualification log (*.log)|*.log|All files (*.*)|*.*",
+                Title = TranslateUiText("Save qualification log"),
+                Filter = TranslateUiText(
+                    "Text file (*.txt)|*.txt|Qualification log (*.log)|*.log|All files (*.*)|*.*"),
                 FileName = DateTime.Now.ToString(
                         "yyyyMMdd_HHmmss",
                         CultureInfo.InvariantCulture)
@@ -224,6 +228,9 @@ namespace LasalMotionControlApiExample
             qualificationScenario = scenario;
             qualificationStep = 0;
             qualificationExternalSafetyOperation = null;
+            qualificationExternalAxisSafetyKind =
+                AxisQualificationExternalSafetyKind.None;
+            qualificationExternalAxisSafetyGeneration = 0;
             qualificationExternalGroupSafety = false;
             qualificationSafetyGeneration = safetyRequestGeneration;
             Interlocked.Exchange(
@@ -349,6 +356,9 @@ namespace LasalMotionControlApiExample
                 qualificationCancellation = null;
                 qualificationRunning = false;
                 qualificationExternalSafetyOperation = null;
+                qualificationExternalAxisSafetyKind =
+                    AxisQualificationExternalSafetyKind.None;
+                qualificationExternalAxisSafetyGeneration = 0;
                 qualificationExternalGroupSafety = false;
                 Interlocked.Exchange(
                     ref qualificationIrreversibleCommitState,
@@ -684,80 +694,134 @@ namespace LasalMotionControlApiExample
                 "samples=" + QualificationStableSamples,
                 "verdict=PASS");
 
-            SetQualificationProgress(30, "Sending one Group Enable request");
-            var acknowledgement = await SendQualificationCommandAsync(
-                "Qualification Group Enable",
-                cancellationToken,
-                () => currentGroup.GroupEnableAsync(CancellationToken.None));
-            EnsureResponseSuccess(
-                "Qualification Group Enable",
-                acknowledgement);
-            groupProfileLockVerificationPending = true;
-            groupProfileLocked = false;
-            WriteQualificationLog(
-                "event=ACK",
-                "cmd=0x2047",
-                "frameValid=" + acknowledgement.IsFrameValid,
-                "errorId=" + acknowledgement.ErrorId,
-                "verdict=PASS");
-
-            SetQualificationProgress(55, "Polling 0x2045 until lock ready");
-            var deadline = DateTime.UtcNow.AddSeconds(5);
-            var stable = 0;
-            LMCGroupReadStatusResult latest = null;
-            while (DateTime.UtcNow < deadline)
+            EnsureGroupProfileLockRecoveryJournalCanArm(
+                "Group Enable qualification");
+            await ArmGroupProfileLockRecoveryBeforeEnableAsync(currentGroup);
+            var freshEnableAttempt = true;
+            try
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                latest = await ReadQualificationGroupStatusAsync(
-                    currentGroup,
-                    cancellationToken);
-                EnsureGroupStatusSuccess(
-                    "Group Enable lock verification",
-                    latest);
-                WriteQualificationLog(
-                    "event=POLL",
-                    "cmd=0x2045",
-                    "state=0x" + latest.State.ToString("X8"),
-                    "standby=" + latest.IsStandby);
+                SetQualificationProgress(
+                    30,
+                    "Sending one accepted-once Group Enable request");
+                var result = await SendQualificationCommandAsync(
+                    "Qualification Group Enable accepted-once",
+                    cancellationToken,
+                    () => currentGroup
+                        .GroupEnableAndWaitForLockedStandbyAsync(
+                            new LMCGroupEnableWaitOptions
+                            {
+                                TimeoutMilliseconds = 5000,
+                                PollIntervalMilliseconds =
+                                    QualificationPollMilliseconds,
+                                StableSampleCount =
+                                    QualificationStableSamples
+                            },
+                            accepted => MarkGroupProfileLockAccepted(
+                                currentGroup,
+                                accepted,
+                                "Qualification Group Enable ACK accepted"),
+                            cancellationToken));
 
-                if (latest.IsPowerOn && latest.IsStandby)
+                EnsureNoNewSafetyRequestBeforeResultApplication(
+                    qualificationSafetyGeneration,
+                    "Qualification Group Enable completion");
+                await EnsureGroupProfileLockRecoveryIdentityAsync(
+                    currentGroup,
+                    "Qualification Group Enable final identity",
+                    true);
+                EnsureNoNewSafetyRequestBeforeResultApplication(
+                    qualificationSafetyGeneration,
+                    "Qualification Group Enable final identity");
+                CompleteGroupEnableWaitUi(result);
+
+                var acknowledgement = result.Acknowledgement;
+                EnsureResponseSuccess(
+                    "Qualification Group Enable",
+                    acknowledgement);
+                WriteQualificationLog(
+                    "event=ACK",
+                    "cmd=0x2047",
+                    "frameValid=" + acknowledgement.IsFrameValid,
+                    "errorId=" + acknowledgement.ErrorId,
+                    "requests=1",
+                    "durableAccepted=true",
+                    "verdict=PASS");
+                WriteQualificationLog(
+                    "event=ASSERT",
+                    "name=AcceptedThenLocked",
+                    "expected=one_ACK_then_3_stable_powered_standby",
+                    "actual=one_ACK_and_"
+                        + result.StableSampleCount.ToString(
+                            CultureInfo.InvariantCulture)
+                        + "_stable_powered_standby",
+                    "statusPolls="
+                        + result.PollCount.ToString(
+                            CultureInfo.InvariantCulture),
+                    "finalState=0x"
+                        + result.FinalStatus.State.ToString("X8"),
+                    "reusedAck=" + result.ReusedAcceptedAcknowledgement,
+                    "durableResolved=true",
+                    "verdict=PASS");
+                SetQualificationProgress(
+                    95,
+                    "Group lock ready verified through durable accepted-once path");
+            }
+            catch (Exception error)
+            {
+                if (qualificationSafetyGeneration != safetyRequestGeneration
+                    && HasActiveGroupProfileLockRecoveryJournalRecord)
                 {
-                    stable++;
-                    if (stable >= QualificationStableSamples)
+                    MarkGroupProfileLockResultDiscarded(
+                        "Qualification Group Enable safety preemption");
+                }
+
+                var acceptedContinuation = currentGroup
+                    .PendingGroupEnableWaitContinuation;
+                if (acceptedContinuation == null
+                    && HasActiveGroupProfileLockRecoveryJournalRecord)
+                {
+                    if (!(freshEnableAttempt
+                        && TryResolveGroupProfileLockRecoveryForKnownNoDispatch(
+                            error,
+                            "Qualification Group Enable")))
                     {
-                        groupProfileLockVerificationPending = false;
-                        groupProfileLocked = true;
-                        DisplayGroupStatus(latest);
-                        SetQualificationProgress(
-                            95,
-                            "Group lock ready verified");
-                        WriteQualificationLog(
-                            "event=ASSERT",
-                            "name=AcceptedThenLocked",
-                            "expected=ACK0_then_3_stable_standby",
-                            "actual=ACK0_and_3_stable_standby",
-                            "verdict=PASS");
-                        return;
+                        MarkGroupProfileLockCompletionOutcomeUncertain(
+                            "Qualification Group Enable");
                     }
                 }
-                else
+
+                if (!groupProfileLockRecoveryRequired)
                 {
-                    stable = 0;
+                    if (acceptedContinuation != null)
+                    {
+                        PreservePendingGroupEnableWaitUi(
+                            currentGroup,
+                            acceptedContinuation,
+                            error.Message);
+                        WriteQualificationLog(
+                            "event=ACK_PRESERVED",
+                            "cmd=0x2047",
+                            "requests=1",
+                            "statusPolls="
+                                + acceptedContinuation.PollCount.ToString(
+                                    CultureInfo.InvariantCulture),
+                            "stableSamples="
+                                + acceptedContinuation.StableSampleCount
+                                    .ToString(CultureInfo.InvariantCulture),
+                            "resume=status_only",
+                            "replay=FORBIDDEN");
+                    }
+                    else
+                    {
+                        pendingGroupEnableWaitContinuation = null;
+                        groupProfileLockVerificationPending =
+                            groupProfileLockAcceptedRestartRecovery;
+                        groupProfileLocked = false;
+                    }
                 }
 
-                await Task.Delay(
-                    QualificationPollMilliseconds,
-                    cancellationToken);
+                throw;
             }
-
-            groupProfileLockVerificationPending = true;
-            groupProfileLocked = false;
-            throw new TimeoutException(
-                "Group Enable was accepted, but stable locked Standby was not observed within 5 seconds. LastState="
-                + (latest == null
-                    ? "none"
-                    : "0x" + latest.State.ToString("X8"))
-                + ".");
         }
 
         private async Task RunGroupBufferedQualificationAsync(
@@ -2230,6 +2294,41 @@ namespace LasalMotionControlApiExample
 
         private void UpdateQualificationUiState(bool connected, bool idle)
         {
+            if (ButtonRunAxisQualification != null)
+            {
+                var axisInputReady = connected
+                    && idle
+                    && axis != null
+                    && !motionMayBeActive
+                    && !HasUnresolvedAxisQualificationState()
+                    && !HasDiagnosticsMutationCommandInterlock;
+                var axisQualificationReady = axisInputReady
+                    && MotionUncertaintyJournalCanArm
+                    && AxisPowerOnRecoveryJournalCanArm
+                    && AxisCommandRecoveryJournalCanArm
+                    && AxisQualificationRecoveryJournalCanArm
+                    && AreAxisQualificationSafetyConfirmationsChecked();
+                ButtonRunAxisQualification.IsEnabled = axisQualificationReady;
+                ButtonCancelAxisQualification.IsEnabled = qualificationRunning
+                    && string.Equals(
+                        qualificationScenario,
+                        "SingleAxisPowerMoveStopPowerOff",
+                        StringComparison.Ordinal)
+                    && Volatile.Read(
+                        ref qualificationIrreversibleCommitState) == 0;
+                ButtonSaveAxisQualificationLog.IsEnabled =
+                    qualificationLogLines.Count > 0;
+                TextAxisQualificationDelta.IsEnabled = axisInputReady;
+                TextAxisQualificationVelocity.IsEnabled = axisInputReady;
+                TextAxisQualificationAcceleration.IsEnabled = axisInputReady;
+                TextAxisQualificationDeceleration.IsEnabled = axisInputReady;
+                TextAxisQualificationJerk.IsEnabled = axisInputReady;
+                TextAxisQualificationTolerance.IsEnabled = axisInputReady;
+                CheckAxisQualificationTravelSafe.IsEnabled = axisInputReady;
+                CheckAxisQualificationIdentitySafe.IsEnabled = axisInputReady;
+                CheckAxisQualificationExclusiveOwner.IsEnabled = axisInputReady;
+            }
+
             var groupReady = connected && group != null;
             var canRunGroup = groupReady
                 && idle
@@ -2251,6 +2350,8 @@ namespace LasalMotionControlApiExample
             ButtonRunGroupEnableQualification.IsEnabled = canRunGroup
                 && groupActiveVerified
                 && groupIdentityConfigured
+                && GroupProfileLockRecoveryJournalCanArm
+                && !HasActiveGroupProfileLockRecoveryJournalRecord
                 && !groupProfileLockVerificationPending
                 && !groupProfileLocked;
             ButtonRunBufferedQualification.IsEnabled = motionReady;
@@ -2516,6 +2617,26 @@ namespace LasalMotionControlApiExample
             string operation,
             bool establishesGroupSafety)
         {
+            if (string.Equals(
+                operation,
+                "Axis Stop",
+                StringComparison.Ordinal))
+            {
+                qualificationExternalAxisSafetyKind =
+                    AxisQualificationExternalSafetyKind.Stop;
+                qualificationExternalAxisSafetyGeneration =
+                    safetyRequestGeneration;
+            }
+            else if (string.Equals(
+                operation,
+                "Axis Power Off",
+                StringComparison.Ordinal))
+            {
+                qualificationExternalAxisSafetyKind =
+                    AxisQualificationExternalSafetyKind.PowerOff;
+                qualificationExternalAxisSafetyGeneration =
+                    safetyRequestGeneration;
+            }
             CancelQualification(operation, establishesGroupSafety);
         }
 
@@ -2593,6 +2714,11 @@ namespace LasalMotionControlApiExample
             ProgressQualification.Value = qualificationProgress;
             ProgressBulkQualification.Value = qualificationProgress;
             ProgressRecorderQualification.Value = qualificationProgress;
+            if (ProgressAxisQualification != null)
+            {
+                ProgressAxisQualification.Value = qualificationProgress;
+                TextAxisQualificationProgress.Text = summary;
+            }
             TextQualificationProgress.Text = summary;
             TextBulkQualificationProgress.Text = summary;
             TextRecorderQualificationProgress.Text = summary;
@@ -2643,6 +2769,11 @@ namespace LasalMotionControlApiExample
             TextBulkQualificationSummary.Text = TextQualificationSummary.Text;
             TextRecorderQualificationSummary.Text =
                 TextQualificationSummary.Text;
+            if (TextAxisQualificationSummary != null)
+            {
+                TextAxisQualificationSummary.Text =
+                    TextQualificationSummary.Text;
+            }
         }
 
         private static int ParseQualificationInt32(

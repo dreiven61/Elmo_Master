@@ -885,6 +885,71 @@ namespace LasalMotionControlApiExample
                 0);
         }
 
+        internal RecoveryJournalSourceEvidence
+            CaptureLegacyEndpointBoundRetirementEvidence(
+                string operatorClassifiedEndpointIp,
+                int operatorClassifiedEndpointPort)
+        {
+            lock (sync)
+            {
+                ThrowIfDisposed();
+                return CaptureLegacyEndpointBoundRetirementEvidenceCore(
+                    operatorClassifiedEndpointIp,
+                    operatorClassifiedEndpointPort);
+            }
+        }
+
+        internal DiagnosticsMutationRecord ResolveOperatorRetirement(
+            RecoveryJournalSourceEvidence expectedEvidence,
+            RecoveryRecordRetirementDecision committedDecision,
+            DateTime updatedUtc)
+        {
+            if (expectedEvidence == null)
+            {
+                throw new ArgumentNullException("expectedEvidence");
+            }
+            if (committedDecision == null)
+            {
+                throw new ArgumentNullException("committedDecision");
+            }
+            if (!committedDecision.IsDurablyCommitted)
+            {
+                throw new InvalidOperationException(
+                    "Diagnostics mutation retirement requires a durably committed ledger decision.");
+            }
+
+            lock (sync)
+            {
+                ThrowIfDisposed();
+                if (!committedDecision.MatchesSourceEvidence(
+                    expectedEvidence))
+                {
+                    throw new InvalidOperationException(
+                        "The committed retirement decision does not match the expected diagnostics mutation source evidence.");
+                }
+
+                var currentEvidence =
+                    CaptureLegacyEndpointBoundRetirementEvidenceCore(
+                        expectedEvidence.EndpointIp,
+                        expectedEvidence.EndpointPort);
+                if (!expectedEvidence.ExactSourceEquals(currentEvidence)
+                    || !committedDecision.MatchesSourceEvidence(
+                        currentEvidence))
+                {
+                    throw new InvalidOperationException(
+                        "Diagnostics mutation recovery changed after operator confirmation; retirement was not applied.");
+                }
+
+                var resolved = currentRecord.TransitionTo(
+                    DiagnosticsMutationState.Resolved,
+                    updatedUtc,
+                    0);
+                PersistRecord(resolved);
+                currentRecord = resolved;
+                return resolved;
+            }
+        }
+
         internal bool TryTransitionExpected(
             DiagnosticsMutationRecord expectedRecord,
             DiagnosticsMutationState expectedState,
@@ -953,6 +1018,142 @@ namespace LasalMotionControlApiExample
             }
 
             return currentRecord;
+        }
+
+        private RecoveryJournalSourceEvidence
+            CaptureLegacyEndpointBoundRetirementEvidenceCore(
+                string operatorClassifiedEndpointIp,
+                int operatorClassifiedEndpointPort)
+        {
+            if (currentRecord == null
+                || !currentRecord.IsActive
+                || currentRecord.Kind != DiagnosticsMutationKind.SdoWrite
+                || currentRecord.State
+                    != DiagnosticsMutationState.OutcomeUnverified
+                || !currentRecord.HasTypedSdoWriteMetadata)
+            {
+                throw new InvalidOperationException(
+                    "Only an active typed SDO Write OutcomeUnverified record can use legacy endpoint-bound operator retirement.");
+            }
+
+            var originalBytes = ReadRetirementSourceBytes();
+            var diskRecord = DeserializeRecord(originalBytes);
+            if (!RecordsEqual(currentRecord, diskRecord))
+            {
+                throw new InvalidDataException(
+                    "Diagnostics mutation memory state does not match the exact durable source bytes.");
+            }
+
+            var metadata = diskRecord.SdoWriteMetadata;
+            return new RecoveryJournalSourceEvidence(
+                RecoveryRecordOwner.DiagnosticsMutation,
+                diskRecord.Identity,
+                (int)diskRecord.State,
+                diskRecord.CreatedUtc,
+                diskRecord.UpdatedUtc,
+                operatorClassifiedEndpointIp,
+                operatorClassifiedEndpointPort,
+                0,
+                diskRecord.DiagnosticsBootId,
+                diskRecord.IdentityRevision,
+                "DiagnosticsMutationLegacyEndpointUnbound",
+                diskRecord.TargetText,
+                metadata.SlaveReference,
+                "SdoWrite/OutcomeUnverified",
+                "EndpointBinding=OperatorClassifiedCurrentQuarantineEndpoint;"
+                    + "Expected="
+                    + diskRecord.ExpectedText
+                    + ";Ticket="
+                    + diskRecord.TicketId
+                    + ";SessionGeneration="
+                    + diskRecord.SessionGeneration,
+                originalBytes,
+                RecoveryEndpointEvidenceKind
+                    .OperatorClassifiedLegacyEndpoint);
+        }
+
+        private byte[] ReadRetirementSourceBytes()
+        {
+            using (var stream = new FileStream(
+                journalFilePath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read))
+            {
+                if (stream.Length < 1 || stream.Length > MaximumFileLength)
+                {
+                    throw new InvalidDataException(
+                        "Diagnostics mutation retirement source length is invalid.");
+                }
+
+                var bytes = new byte[checked((int)stream.Length)];
+                var offset = 0;
+                while (offset < bytes.Length)
+                {
+                    var read = stream.Read(
+                        bytes,
+                        offset,
+                        bytes.Length - offset);
+                    if (read == 0)
+                    {
+                        throw new EndOfStreamException(
+                            "Diagnostics mutation retirement source is incomplete.");
+                    }
+                    offset += read;
+                }
+                return bytes;
+            }
+        }
+
+        private static bool RecordsEqual(
+            DiagnosticsMutationRecord left,
+            DiagnosticsMutationRecord right)
+        {
+            if (left == null || right == null)
+            {
+                return left == right;
+            }
+
+            return left.Identity == right.Identity
+                && left.Kind == right.Kind
+                && left.State == right.State
+                && left.CreatedUtc == right.CreatedUtc
+                && left.UpdatedUtc == right.UpdatedUtc
+                && left.DiagnosticsBootId == right.DiagnosticsBootId
+                && left.IdentityRevision == right.IdentityRevision
+                && left.SessionGeneration == right.SessionGeneration
+                && left.TicketId == right.TicketId
+                && string.Equals(
+                    left.TargetText,
+                    right.TargetText,
+                    StringComparison.Ordinal)
+                && string.Equals(
+                    left.ExpectedText,
+                    right.ExpectedText,
+                    StringComparison.Ordinal)
+                && SdoWriteMetadataEqual(
+                    left.SdoWriteMetadata,
+                    right.SdoWriteMetadata);
+        }
+
+        private static bool SdoWriteMetadataEqual(
+            DiagnosticsSdoWriteMutationMetadata left,
+            DiagnosticsSdoWriteMutationMetadata right)
+        {
+            if (left == null || right == null)
+            {
+                return left == right;
+            }
+
+            return left.SlaveReference == right.SlaveReference
+                && left.ObjectIndex == right.ObjectIndex
+                && left.SubIndex == right.SubIndex
+                && left.ValueType == right.ValueType
+                && left.DataLength == right.DataLength
+                && left.TimeoutCycles == right.TimeoutCycles
+                && ByteArraysEqual(
+                    left.ExpectedWriteData,
+                    right.ExpectedWriteData);
         }
 
         private void PersistRecord(DiagnosticsMutationRecord record)

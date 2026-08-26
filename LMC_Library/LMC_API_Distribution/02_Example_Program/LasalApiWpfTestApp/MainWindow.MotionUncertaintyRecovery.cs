@@ -72,6 +72,8 @@ namespace LasalMotionControlApiExample
                 motionUncertaintyJournalOpenError = null;
                 motionUncertaintyJournalRuntimeError = null;
 
+                TryFinalizeCommittedMotionRetirementAtStartup();
+
                 var record = motionUncertaintyJournal.CurrentRecord;
                 motionUncertaintyRecoveredAtStartup =
                     record != null && record.IsActive;
@@ -194,7 +196,8 @@ namespace LasalMotionControlApiExample
             ushort targetReference,
             string operation,
             Action<int> captureTrackingGeneration,
-            Func<Task<LMC_Response>> send)
+            Func<Task<LMC_Response>> send,
+            Func<Task> validateImmediatelyBeforeTracking = null)
         {
             return await SendLiveCommandAsync(
                 expectedSafetyGeneration,
@@ -207,6 +210,10 @@ namespace LasalMotionControlApiExample
                         targetName,
                         targetReference,
                         operation);
+                    if (validateImmediatelyBeforeTracking != null)
+                    {
+                        await validateImmediatelyBeforeTracking();
+                    }
                     var trackingGeneration = MarkMotionUncertain(
                         targetKind,
                         targetName,
@@ -505,7 +512,8 @@ namespace LasalMotionControlApiExample
         private async Task ClearMotionWarningAfterVerifiedStateAsync(
             string reason,
             int? expectedTrackingGeneration = null,
-            Action afterMotionJournalResolvedBeforeVolatileClear = null)
+            Action afterMotionJournalResolvedBeforeVolatileClear = null,
+            Action validateFinalIdentityBeforeJournalResolve = null)
         {
             if (!motionMayBeActive
                 || (expectedTrackingGeneration.HasValue
@@ -564,6 +572,23 @@ namespace LasalMotionControlApiExample
                         + "MapRevision changed before final safe-state proof.");
                 }
 
+                if (validateFinalIdentityBeforeJournalResolve != null)
+                {
+                    validateFinalIdentityBeforeJournalResolve();
+                }
+                var axisCommandRecord =
+                    GetActiveAxisCommandRecoveryRecord();
+                if (HasActiveAxisQualificationRecoveryRecord
+                    && record.TargetKind
+                        == MotionUncertaintyTargetKind.Axis
+                    && axisCommandRecord != null
+                    && axisCommandRecord.Operation
+                        == AxisCommandRecoveryOperation.Stop)
+                {
+                    CheckpointAxisQualificationStopStableBeforeChildResolve(
+                        axis,
+                        reason + " pre-motion-journal sequence checkpoint");
+                }
                 identityVerified = true;
                 ClearMotionWarningCore(
                     reason,

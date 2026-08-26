@@ -119,6 +119,16 @@ namespace LasalMotionControlApiExample
                 guidance.Append(GetGroupPowerRecoveryGuidance());
             }
 
+            if (GroupResetRecoveryJournalUnavailable)
+            {
+                if (guidance.Length != 0)
+                {
+                    guidance.Append(' ');
+                }
+
+                guidance.Append(GetGroupResetRecoveryGuidance());
+            }
+
             return guidance.ToString();
         }
 

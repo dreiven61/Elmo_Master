@@ -1,6 +1,8 @@
 using System;
 using System.Globalization;
 using System.IO;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -12,6 +14,8 @@ namespace LasalMotionControlApiExample
     public partial class MainWindow
     {
         private const ushort AdminGroupReference = 0x0100;
+        private const string AxisSetOperationModeRejectEvidenceMagic =
+            "ELMOASOMREJECT1";
         private LMCAdminCapabilities adminCapabilities;
 
         private void InitializeReadOnlyApiUi()
@@ -43,6 +47,13 @@ namespace LasalMotionControlApiExample
             };
             ComboAdminGroupSelection.SelectedItem =
                 LMCGroupParameterSelection.All;
+
+            InitializeAxisSetOperationModeRecoveryUi(
+                physicalAxisReferences);
+            buttonStartAxisSetOperationMode.Click -=
+                ButtonStartAxisSetOperationMode_Click;
+            buttonStartAxisSetOperationMode.Click +=
+                ButtonStartAxisSetOperationModeWithRejectResolution_Click;
         }
 
         private void ClearReadOnlyApiState()
@@ -104,6 +115,10 @@ namespace LasalMotionControlApiExample
             ComboAdminAxisParameter.IsEnabled = idle;
             ComboAdminGroupSelection.IsEnabled = idle;
             ComboDriveReadAxisReference.IsEnabled = idle;
+
+            UpdateAxisSetOperationModeRecoveryUiState(
+                connected,
+                idle);
         }
 
         private async void ButtonAdminCapabilities_Click(
@@ -275,6 +290,298 @@ namespace LasalMotionControlApiExample
                             CancellationToken.None));
                     TextDriveReadResult.Text = FormatDriveErrorCode(result);
                 });
+        }
+
+        private async void
+            ButtonStartAxisSetOperationModeWithRejectResolution_Click(
+                object sender,
+                RoutedEventArgs e)
+        {
+            await RunOperationAsync(
+                "Set Operation Mode CSP Once",
+                async () =>
+                {
+                    try
+                    {
+                        await StartAxisSetOperationModeOnceAsync();
+                    }
+                    catch (LMCAxisSetOperationModeRejectedException error)
+                    {
+                        var record =
+                            RequireActiveAxisSetOperationModeRecoveryRecord(
+                                "definitive SetOperationMode Start rejection");
+                        var evidencePath =
+                            ResolveDefinitiveAxisSetOperationModeStartRejection(
+                                record,
+                                error.Acknowledgement.PreparedCommand.RecoveryKey,
+                                error.Response.SchemaVersion,
+                                error.Response.CommandStatus,
+                                error.Response.ErrorId,
+                                error.Response.RequestId,
+                                error.Response.DetailCodeValue,
+                                error.Response.IsSuccess,
+                                DateTime.UtcNow);
+                        RefreshAxisSetOperationModeRecoveryUi(
+                            "START REJECTED DEFINITIVELY: "
+                            + error.Response.DetailCode
+                            + ". PLC rejected the request before creating a retained SetOperationMode outcome. "
+                            + "The rejection and original pre-dispatch journal were archived durably at "
+                            + evidencePath
+                            + "; the recovery interlock is cleared. A future Start requires a new explicit confirmation and new identity.");
+                        UpdateUiState();
+                        throw;
+                    }
+                });
+        }
+
+        internal string ResolveAxisSetOperationModeDefinitiveRejectionForTests(
+            AxisSetOperationModeRecoveryRecord captured,
+            LMCAxisSetOperationModeRecoveryKey rejectedKey,
+            ushort responseSchemaVersion,
+            ushort commandStatus,
+            short errorId,
+            uint responseRequestId,
+            uint detailCode,
+            bool responseIsSuccess)
+        {
+            return ResolveDefinitiveAxisSetOperationModeStartRejection(
+                captured,
+                rejectedKey,
+                responseSchemaVersion,
+                commandStatus,
+                errorId,
+                responseRequestId,
+                detailCode,
+                responseIsSuccess,
+                DateTime.UtcNow);
+        }
+
+        private string ResolveDefinitiveAxisSetOperationModeStartRejection(
+            AxisSetOperationModeRecoveryRecord captured,
+            LMCAxisSetOperationModeRecoveryKey rejectedKey,
+            ushort responseSchemaVersion,
+            ushort commandStatus,
+            short errorId,
+            uint responseRequestId,
+            uint detailCode,
+            bool responseIsSuccess,
+            DateTime rejectedUtc)
+        {
+            var journal = axisSetOperationModeRecoveryJournal;
+            if (journal == null || captured == null || rejectedKey == null)
+            {
+                throw new InvalidOperationException(
+                    "Definitive SetOperationMode rejection cannot resolve without the exact durable journal and recovery key.");
+            }
+
+            var current = journal.CurrentRecord;
+            if (current == null
+                || !current.IsActive
+                || current.Identity != captured.Identity
+                || current.Revision != captured.Revision
+                || current.State != captured.State
+                || (current.State
+                        != AxisSetOperationModeRecoveryState.RecoveryRequired
+                    && current.State
+                        != AxisSetOperationModeRecoveryState.ArmedBeforeDispatch))
+            {
+                throw new InvalidOperationException(
+                    "Definitive SetOperationMode rejection cannot resolve a stale or non-preterminal recovery record.");
+            }
+
+            if (!current.MatchesRecoveryKey(rejectedKey)
+                || responseSchemaVersion != current.SchemaVersion
+                || responseRequestId != current.OriginalRequestId
+                || responseIsSuccess
+                || (commandStatus == 0 && errorId == 0 && detailCode == 0))
+            {
+                throw new InvalidOperationException(
+                    "Definitive SetOperationMode rejection proof does not match the exact durable request identity.");
+            }
+
+            if (rejectedUtc.Kind != DateTimeKind.Utc)
+            {
+                throw new ArgumentException(
+                    "SetOperationMode rejection evidence timestamp must be UTC.",
+                    "rejectedUtc");
+            }
+
+            var journalPath = journal.JournalFilePath;
+            var directory = Path.GetDirectoryName(journalPath);
+            if (string.IsNullOrWhiteSpace(directory)
+                || !File.Exists(journalPath))
+            {
+                throw new InvalidOperationException(
+                    "The durable SetOperationMode journal file is unavailable for rejection archival.");
+            }
+
+            var originalJournalBytes = File.ReadAllBytes(journalPath);
+            var evidencePath = Path.Combine(
+                directory,
+                "axis-set-operation-mode-rejected-"
+                    + current.Identity.ToString("N")
+                    + ".evidence");
+            PersistAxisSetOperationModeRejectEvidence(
+                evidencePath,
+                current,
+                rejectedKey,
+                responseSchemaVersion,
+                commandStatus,
+                errorId,
+                responseRequestId,
+                detailCode,
+                rejectedUtc,
+                originalJournalBytes);
+
+            try
+            {
+                File.Delete(journalPath);
+                if (File.Exists(journalPath))
+                {
+                    throw new IOException(
+                        "The active SetOperationMode journal could not be removed after durable rejection archival.");
+                }
+
+                journal.Dispose();
+                axisSetOperationModeRecoveryJournal = null;
+                axisSetOperationModeRecoveryJournal =
+                    AxisSetOperationModeRecoveryJournal.Open(directory);
+                axisSetOperationModeRecoveryJournalError = null;
+                if (axisSetOperationModeRecoveryJournal.HasActiveRecord)
+                {
+                    throw new InvalidDataException(
+                        "The SetOperationMode journal unexpectedly remained active after definitive rejection archival.");
+                }
+            }
+            catch (Exception error)
+            {
+                if (axisSetOperationModeRecoveryJournal != null)
+                {
+                    axisSetOperationModeRecoveryJournal.Dispose();
+                    axisSetOperationModeRecoveryJournal = null;
+                }
+                axisSetOperationModeRecoveryJournalError =
+                    error.GetType().Name + ": " + error.Message;
+                throw;
+            }
+
+            WriteLog(
+                "SetOperationMode definitive Start rejection archived durably; no retained PLC outcome exists and the recovery interlock was cleared. Evidence="
+                + evidencePath
+                + ".");
+            return evidencePath;
+        }
+
+        private static void PersistAxisSetOperationModeRejectEvidence(
+            string evidencePath,
+            AxisSetOperationModeRecoveryRecord record,
+            LMCAxisSetOperationModeRecoveryKey rejectedKey,
+            ushort responseSchemaVersion,
+            ushort commandStatus,
+            short errorId,
+            uint responseRequestId,
+            uint detailCode,
+            DateTime rejectedUtc,
+            byte[] originalJournalBytes)
+        {
+            if (File.Exists(evidencePath))
+            {
+                throw new IOException(
+                    "SetOperationMode definitive-rejection evidence already exists for this journal identity.");
+            }
+
+            var lines = new[]
+            {
+                AxisSetOperationModeRejectEvidenceMagic,
+                "FormatVersion=1",
+                "Identity=" + record.Identity.ToString("N"),
+                "JournalState=" + ((int)record.State).ToString(CultureInfo.InvariantCulture),
+                "JournalRevision=" + record.Revision.ToString(CultureInfo.InvariantCulture),
+                "EndpointIpBase64=" + Convert.ToBase64String(Encoding.UTF8.GetBytes(record.EndpointIp)),
+                "EndpointPort=" + record.EndpointPort.ToString(CultureInfo.InvariantCulture),
+                "AxisNameBase64=" + Convert.ToBase64String(Encoding.UTF8.GetBytes(record.AxisName)),
+                "SchemaVersion=" + record.SchemaVersion.ToString(CultureInfo.InvariantCulture),
+                "OriginalRequestId=" + record.OriginalRequestId.ToString(CultureInfo.InvariantCulture),
+                "DiagnosticsBuild=" + record.DiagnosticsBuild.ToString(CultureInfo.InvariantCulture),
+                "DiagnosticsBootId=" + record.DiagnosticsBootId.ToString(CultureInfo.InvariantCulture),
+                "MapRevision=" + record.MapRevision.ToString(CultureInfo.InvariantCulture),
+                "ClientIntentId0=" + record.ClientIntentId0.ToString(CultureInfo.InvariantCulture),
+                "ClientIntentId1=" + record.ClientIntentId1.ToString(CultureInfo.InvariantCulture),
+                "ClientIntentId2=" + record.ClientIntentId2.ToString(CultureInfo.InvariantCulture),
+                "ClientIntentId3=" + record.ClientIntentId3.ToString(CultureInfo.InvariantCulture),
+                "AxisReference=" + record.AxisReference.ToString(CultureInfo.InvariantCulture),
+                "RequestedModeRaw=" + record.RequestedModeRaw.ToString(CultureInfo.InvariantCulture),
+                "TimeoutMilliseconds=" + record.TimeoutMilliseconds.ToString(CultureInfo.InvariantCulture),
+                "Flags=" + record.Flags.ToString(CultureInfo.InvariantCulture),
+                "RejectedKeyExact=" + record.MatchesRecoveryKey(rejectedKey),
+                "ResponseSchemaVersion=" + responseSchemaVersion.ToString(CultureInfo.InvariantCulture),
+                "ResponseCommandStatus=" + commandStatus.ToString(CultureInfo.InvariantCulture),
+                "ResponseErrorId=" + errorId.ToString(CultureInfo.InvariantCulture),
+                "ResponseRequestId=" + responseRequestId.ToString(CultureInfo.InvariantCulture),
+                "ResponseDetailCode=" + detailCode.ToString(CultureInfo.InvariantCulture),
+                "RejectedUtcTicks=" + rejectedUtc.Ticks.ToString(CultureInfo.InvariantCulture),
+                "OriginalJournalSha256=" + ComputeAxisSetOperationModeRejectSha256Hex(originalJournalBytes),
+                "OriginalJournalBase64=" + Convert.ToBase64String(originalJournalBytes)
+            };
+            var payload = string.Join("\n", lines) + "\n";
+            var payloadBytes = new UTF8Encoding(false).GetBytes(payload);
+            var finalBytes = new UTF8Encoding(false).GetBytes(
+                payload
+                + "SHA256="
+                + ComputeAxisSetOperationModeRejectSha256Hex(payloadBytes)
+                + "\n");
+            var temporaryPath = evidencePath + ".tmp";
+            if (File.Exists(temporaryPath))
+            {
+                File.Delete(temporaryPath);
+            }
+
+            var temporaryExists = false;
+            try
+            {
+                using (var stream = new FileStream(
+                    temporaryPath,
+                    FileMode.CreateNew,
+                    FileAccess.Write,
+                    FileShare.None,
+                    4096,
+                    FileOptions.WriteThrough))
+                {
+                    temporaryExists = true;
+                    stream.Write(finalBytes, 0, finalBytes.Length);
+                    stream.Flush(true);
+                }
+                File.Move(temporaryPath, evidencePath);
+                temporaryExists = false;
+            }
+            finally
+            {
+                if (temporaryExists && File.Exists(temporaryPath))
+                {
+                    try
+                    {
+                        File.Delete(temporaryPath);
+                    }
+                    catch
+                    {
+                    }
+                }
+            }
+        }
+
+        private static string ComputeAxisSetOperationModeRejectSha256Hex(
+            byte[] bytes)
+        {
+            using (var sha256 = SHA256.Create())
+            {
+                var hash = sha256.ComputeHash(bytes ?? new byte[0]);
+                var builder = new StringBuilder(hash.Length * 2);
+                foreach (var value in hash)
+                {
+                    builder.Append(value.ToString("x2", CultureInfo.InvariantCulture));
+                }
+                return builder.ToString();
+            }
         }
 
         private LMCAdminCapabilities RequireAdminCapabilities()

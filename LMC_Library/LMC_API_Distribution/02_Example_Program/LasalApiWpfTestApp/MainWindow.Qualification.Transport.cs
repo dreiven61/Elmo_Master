@@ -42,8 +42,10 @@ namespace LasalMotionControlApiExample
 
             var dialog = new SaveFileDialog
             {
-                Title = "Save Phase 5 read-only API RPC samples",
-                Filter = "CSV files (*.csv)|*.csv|All files (*.*)|*.*",
+                Title = TranslateUiText(
+                    "Save Phase 5 read-only API RPC samples"),
+                Filter = TranslateUiText(
+                    "CSV files (*.csv)|*.csv|All files (*.*)|*.*"),
                 FileName = DateTime.Now.ToString(
                         "yyyyMMdd_HHmmss",
                         CultureInfo.InvariantCulture)

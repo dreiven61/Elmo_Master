@@ -49,6 +49,7 @@ namespace LasalMotionControlApiExample
         private LMCRecorderData recorderData;
         private CancellationTokenSource recorderDownloadCancellation;
         private LMCOperationTicket diagnosticOperationTicket;
+        private LMCOperationTicket callbackDiagnosticRefreshTicket;
         private LMCOperationStatus diagnosticOperationStatus;
         private byte[] diagnosticOperationResult;
         private bool diagnosticOperationCancelAccepted;
@@ -60,6 +61,8 @@ namespace LasalMotionControlApiExample
         private SdoEditorDraftSnapshot pendingSdoEditorDraftSnapshot;
         private readonly SdoWriteConfirmationState sdoWriteConfirmationState =
             new SdoWriteConfirmationState();
+        private SdoWriteActivationQualificationProof
+            sdoWriteActivationQualificationProof;
 
         private sealed class SdoEditorDraftSnapshot
         {
@@ -963,14 +966,15 @@ namespace LasalMotionControlApiExample
             {
                 AddExtension = true,
                 DefaultExt = ".csv",
-                Filter = "CSV files (*.csv)|*.csv|All files (*.*)|*.*",
+                Filter = TranslateUiText(
+                    "CSV files (*.csv)|*.csv|All files (*.*)|*.*"),
                 FileName = "lasal-recorder-"
                     + DateTime.Now.ToString(
                         "yyyyMMdd-HHmmss",
                         CultureInfo.InvariantCulture)
                     + ".csv",
                 OverwritePrompt = true,
-                Title = "Export LASAL Recorder CSV"
+                Title = TranslateUiText("Export LASAL Recorder CSV")
             };
 
             if (dialog.ShowDialog(this) != true)
@@ -1237,7 +1241,21 @@ namespace LasalMotionControlApiExample
                 && mode == SdoOperationMode.Write
                 && !HasPendingD5SdoWriteReadback)
             {
-                ButtonSubmitSdo.Content = "Arm SDO Write";
+                var selectedTarget = ComboSdoWriteTarget == null
+                    ? null
+                    : ComboSdoWriteTarget.SelectedItem
+                        as LMCSdoWriteTarget;
+                var englishCaption =
+                    HasCurrentSdoWriteActivationQualificationProof(
+                        connection,
+                        diagnosticCapabilities,
+                        selectedTarget)
+                        ? "Arm SDO Write"
+                        : "Run Same-Value Qualification First";
+                ButtonSubmitSdo.Content = englishCaption;
+                UiLocalizationService.Apply(
+                    ButtonSubmitSdo,
+                    currentUiLanguage);
             }
         }
 
@@ -1625,6 +1643,7 @@ namespace LasalMotionControlApiExample
                             isRequiredWriteReadback
                                 || RequiresGeneralInlineSdoRead(request));
                     D5SdoQuarantineHandle submissionGuard;
+                    LMCSdoWriteTarget pinnedWriteTarget = null;
                     try
                     {
                         if (isRequiredWriteReadback
@@ -1642,6 +1661,22 @@ namespace LasalMotionControlApiExample
                             request);
                         if (request.IsWrite)
                         {
+                            var currentApprovedTarget =
+                                FindApprovedSdoWriteTargetForRequest(
+                                    currentConnection.Diagnostics
+                                        .GetApprovedSdoWriteTargets(),
+                                    request);
+                            if (!HasCurrentSdoWriteActivationQualificationProof(
+                                    currentConnection,
+                                    capabilities,
+                                    currentApprovedTarget))
+                            {
+                                throw new InvalidOperationException(
+                                    "Manual SDO Write is blocked until the exact current connection session, DiagnosticsBuild, BootId, MapRevision, and approved target pass the four-ticket Same-Value SDO Write qualification. No Write was submitted.");
+                            }
+
+                            pinnedWriteTarget = currentApprovedTarget;
+
                             await VerifyD5SdoQualificationSafeAxisAsync(
                                 currentConnection,
                                 request.SlaveReference,
@@ -1678,6 +1713,14 @@ namespace LasalMotionControlApiExample
                                     + request.SlaveReference.ToString(
                                         CultureInfo.InvariantCulture),
                                 CancellationToken.None);
+                            if (!HasCurrentSdoWriteActivationQualificationProof(
+                                    currentConnection,
+                                    capabilities,
+                                    pinnedWriteTarget))
+                            {
+                                throw new InvalidOperationException(
+                                    "The manual SDO Write activation proof changed or was retired during final axis verification. No Write was submitted.");
+                            }
                         }
 
                         submissionGuard =
@@ -1715,15 +1758,27 @@ namespace LasalMotionControlApiExample
                         submittedTicket = isRequiredWriteReadback
                             ? await requiredWriteReadback
                                 .SubmitReadbackAsync(
-                                    request,
-                                    CancellationToken.None)
-                            : await currentConnection.Diagnostics
-                                .SubmitSdoAsync(
-                                    request,
-                                    CancellationToken.None);
+                                     request,
+                                     CancellationToken.None)
+                            : request.IsWrite
+                                ? await currentConnection.Diagnostics
+                                    .SubmitSdoWriteIdentityPinnedAsync(
+                                        request,
+                                        capabilities,
+                                        pinnedWriteTarget,
+                                        CancellationToken.None)
+                                : await currentConnection.Diagnostics
+                                    .SubmitSdoAsync(
+                                        request,
+                                        CancellationToken.None);
                     }
                     catch (Exception error)
                     {
+                        if (request.IsWrite)
+                        {
+                            RetireSdoWriteActivationQualificationProof();
+                        }
+
                         try
                         {
                             D5ExternalReadFailureOrchestrator
@@ -1824,108 +1879,149 @@ namespace LasalMotionControlApiExample
                 {
                     var ticket = RequireDiagnosticOperationTicket();
                     var currentConnection = RequireConnection();
-                    var pendingWriteReadback =
-                        d5SdoPendingWriteReadback;
-                    if (pendingWriteReadback != null
-                        && ticket.OperationKind
-                            == LMCOperationKind.SDORead
-                        && !pendingWriteReadback
-                            .MatchesOwnerCurrentSession(
-                                currentConnection))
-                    {
-                        throw new InvalidOperationException(
-                            "The pending SDO Write readback belongs to another or stale connection session. Its ticket was not queried and the interlock remains active.");
-                    }
-
-                    diagnosticOperationStatus =
-                        await currentConnection.Diagnostics
-                            .GetOperationStatusAsync(
-                                ticket,
-                                CancellationToken.None);
-                    LMCDiagnosticCapabilities
-                        readbackTerminalCapabilities = null;
-                    if (pendingWriteReadback != null
-                        && ticket.OperationKind
-                            == LMCOperationKind.SDORead
-                        && diagnosticOperationStatus.IsTerminal)
-                    {
-                        readbackTerminalCapabilities =
-                            await ReadExternalD5TrackingCapabilitiesAsync(
-                                currentConnection,
-                                "manual-sdo-write-readback-terminal",
-                                pendingWriteReadback.DataLength,
-                                true);
-                    }
-
-                    var completedWriteRequest = ticket.OperationKind
-                            == LMCOperationKind.SDOWrite
-                        ? d5SdoQualificationActiveRequest
-                        : null;
-                    var hadPendingWriteReadback =
-                        HasPendingD5SdoWriteReadback;
-                    CompleteExternalD5TicketIfTerminal(
-                        ticket,
-                        diagnosticOperationStatus,
-                        "manual-sdo-status",
+                    await RefreshDiagnosticOperationCoreAsync(
                         currentConnection,
-                        readbackTerminalCapabilities);
-                    var digitalOutputWriteReadbackSummary =
-                        await VerifyDigitalOutputWriteReadbackAsync(
-                            ticket,
-                            diagnosticOperationStatus,
-                            CancellationToken.None);
-                    if (!IsSameDiagnosticOperationTicket(
-                            ticket,
-                            diagnosticOperationTicket))
-                    {
-                        return;
-                    }
-
-                    if (diagnosticOperationStatus.IsSuccessful
-                        && ticket.OperationKind == LMCOperationKind.SDORead)
-                    {
-                        if (!ticket.UsesExtendedResultChunks)
-                        {
-                            diagnosticOperationResult =
-                                diagnosticOperationStatus.ResultData;
-                        }
-                    }
-                    else
-                    {
-                        diagnosticOperationResult = null;
-                    }
-                    TextDiagnosticOperationSummary.Text = FormatOperationStatus(
-                        diagnosticOperationStatus)
-                        + (diagnosticOperationStatus.IsSuccessful
-                            && ticket.OperationKind
-                                == LMCOperationKind.SDOWrite
-                            ? FormatSdoWriteManualReadbackWarning(
-                                completedWriteRequest)
-                            : string.Empty)
-                        + digitalOutputWriteReadbackSummary
-                        + (hadPendingWriteReadback
-                            && ticket.OperationKind
-                                == LMCOperationKind.SDORead
-                            && diagnosticOperationStatus.IsTerminal
-                            ? HasPendingD5SdoWriteReadback
-                                ? Environment.NewLine
-                                    + "Exact SDO Write readback NOT VERIFIED; the mutation/Close interlock remains active. Retry only the auto-filled exact Read."
-                                : Environment.NewLine
-                                    + "Exact SDO Write target readback VERIFIED; the mutation/Close interlock is cleared."
-                            : string.Empty)
-                        + (diagnosticOperationStatus.IsSuccessful
-                            && ticket.UsesExtendedResultChunks
-                            ? Environment.NewLine
-                                + (diagnosticOperationResult == null
-                                    ? "Extended result is ready. Click Download Result to read validated 0x7E51 chunks."
-                                    : "Extended result remains downloaded: "
-                                        + diagnosticOperationResult.Length
-                                        + " bytes, preview="
-                                        + FormatBytePreview(
-                                            diagnosticOperationResult,
-                                            128))
-                            : string.Empty);
+                        ticket,
+                        CancellationToken.None,
+                        "manual-sdo-status");
                 });
+        }
+
+        private async Task<bool> RefreshDiagnosticOperationCoreAsync(
+            LMCConnection currentConnection,
+            LMCOperationTicket ticket,
+            CancellationToken cancellationToken,
+            string source)
+        {
+            if (currentConnection == null)
+            {
+                throw new ArgumentNullException(nameof(currentConnection));
+            }
+
+            if (ticket == null)
+            {
+                throw new ArgumentNullException(nameof(ticket));
+            }
+
+            if (!ReferenceEquals(connection, currentConnection)
+                || !ReferenceEquals(diagnosticOperationTicket, ticket)
+                || !ticket.BelongsToCurrentSession(currentConnection))
+            {
+                throw new InvalidOperationException(
+                    "The retained D5 operation ticket does not belong to the current connection session.");
+            }
+
+            var pendingWriteReadback = d5SdoPendingWriteReadback;
+            if (pendingWriteReadback != null
+                && ticket.OperationKind == LMCOperationKind.SDORead
+                && !pendingWriteReadback.MatchesOwnerCurrentSession(
+                    currentConnection))
+            {
+                throw new InvalidOperationException(
+                    "The pending SDO Write readback belongs to another or stale connection session. Its ticket was not queried and the interlock remains active.");
+            }
+
+            var operationStatus = await currentConnection.Diagnostics
+                .GetOperationStatusAsync(ticket, cancellationToken);
+            if (!ReferenceEquals(connection, currentConnection)
+                || !ReferenceEquals(diagnosticOperationTicket, ticket)
+                || !ticket.BelongsToCurrentSession(currentConnection))
+            {
+                return false;
+            }
+
+            LMCDiagnosticCapabilities readbackTerminalCapabilities = null;
+            if (pendingWriteReadback != null
+                && ticket.OperationKind == LMCOperationKind.SDORead
+                && operationStatus.IsTerminal)
+            {
+                readbackTerminalCapabilities =
+                    await ReadExternalD5TrackingCapabilitiesAsync(
+                        currentConnection,
+                        source + "-write-readback-terminal",
+                        pendingWriteReadback.DataLength,
+                        true,
+                        ticket);
+                if (!ReferenceEquals(connection, currentConnection)
+                    || !ReferenceEquals(diagnosticOperationTicket, ticket)
+                    || !ticket.BelongsToCurrentSession(currentConnection))
+                {
+                    return false;
+                }
+            }
+
+            diagnosticOperationStatus = operationStatus;
+            var completedWriteRequest = ticket.OperationKind
+                    == LMCOperationKind.SDOWrite
+                ? d5SdoQualificationActiveRequest
+                : null;
+            var hadPendingWriteReadback = HasPendingD5SdoWriteReadback;
+            CompleteExternalD5TicketIfTerminal(
+                ticket,
+                operationStatus,
+                source,
+                currentConnection,
+                readbackTerminalCapabilities);
+            var digitalOutputWriteReadbackSummary =
+                await VerifyDigitalOutputWriteReadbackAsync(
+                    currentConnection,
+                    ticket,
+                    operationStatus,
+                    cancellationToken);
+            if (!ReferenceEquals(connection, currentConnection)
+                || !ticket.BelongsToCurrentSession(currentConnection))
+            {
+                return false;
+            }
+
+            if (!ReferenceEquals(ticket, diagnosticOperationTicket))
+            {
+                return true;
+            }
+
+            if (operationStatus.IsSuccessful
+                && ticket.OperationKind == LMCOperationKind.SDORead)
+            {
+                if (!ticket.UsesExtendedResultChunks)
+                {
+                    diagnosticOperationResult = operationStatus.ResultData;
+                }
+            }
+            else
+            {
+                diagnosticOperationResult = null;
+            }
+
+            TextDiagnosticOperationSummary.Text = FormatOperationStatus(
+                operationStatus)
+                + (operationStatus.IsSuccessful
+                    && ticket.OperationKind == LMCOperationKind.SDOWrite
+                    ? FormatSdoWriteManualReadbackWarning(
+                        completedWriteRequest)
+                    : string.Empty)
+                + digitalOutputWriteReadbackSummary
+                + (hadPendingWriteReadback
+                    && ticket.OperationKind == LMCOperationKind.SDORead
+                    && operationStatus.IsTerminal
+                    ? HasPendingD5SdoWriteReadback
+                        ? Environment.NewLine
+                            + "Exact SDO Write readback NOT VERIFIED; the mutation/Close interlock remains active. Retry only the auto-filled exact Read."
+                        : Environment.NewLine
+                            + "Exact SDO Write target readback VERIFIED; the mutation/Close interlock is cleared."
+                    : string.Empty)
+                + (operationStatus.IsSuccessful
+                    && ticket.UsesExtendedResultChunks
+                    ? Environment.NewLine
+                        + (diagnosticOperationResult == null
+                            ? "Extended result is ready. Click Download Result to read validated 0x7E51 chunks."
+                            : "Extended result remains downloaded: "
+                                + diagnosticOperationResult.Length
+                                + " bytes, preview="
+                                + FormatBytePreview(
+                                    diagnosticOperationResult,
+                                    128))
+                    : string.Empty);
+            return true;
         }
 
         private async void ButtonDownloadSdoResult_Click(
@@ -2027,14 +2123,15 @@ namespace LasalMotionControlApiExample
             {
                 AddExtension = true,
                 DefaultExt = ".bin",
-                Filter = "Binary files (*.bin)|*.bin|All files (*.*)|*.*",
+                Filter = TranslateUiText(
+                    "Binary files (*.bin)|*.bin|All files (*.*)|*.*"),
                 FileName = "lasal-sdo-result-"
                     + DateTime.Now.ToString(
                         "yyyyMMdd-HHmmss",
                         CultureInfo.InvariantCulture)
                     + ".bin",
                 OverwritePrompt = true,
-                Title = "Save LASAL SDO Result"
+                Title = TranslateUiText("Save LASAL SDO Result")
             };
 
             if (dialog.ShowDialog(this) != true)
@@ -2422,6 +2519,13 @@ namespace LasalMotionControlApiExample
                 || requiredReadbackSubmissionAvailable;
             var hasApprovedSdoWriteTarget =
                 ComboSdoWriteTarget.SelectedItem is LMCSdoWriteTarget;
+            var selectedSdoWriteTarget = ComboSdoWriteTarget.SelectedItem
+                as LMCSdoWriteTarget;
+            var manualSdoWriteActivationQualified = !isSdoWrite
+                || HasCurrentSdoWriteActivationQualificationProof(
+                    currentConnection,
+                    diagnosticCapabilities,
+                    selectedSdoWriteTarget);
             if (!isSdoWrite
                 && supportsSdoRead
                 && !supportsGeneralSdoRead
@@ -2433,14 +2537,13 @@ namespace LasalMotionControlApiExample
                 ComboSdoDataLength.SelectedItem = (ushort)4;
             }
 
-            var hasSdoEditorContract = supportsSdoRead
-                || supportsSdoWrite
-                || HasPendingD5SdoWriteReadback;
-            ComboSdoOperation.IsEnabled = sdoInputsEnabled
-                && hasSdoEditorContract;
+            // Operation and target selection only edit a local draft. Keep
+            // them independent from the current PLC capability observation;
+            // the Submit/Inline gates below remain capability- and
+            // admission-controlled.
+            ComboSdoOperation.IsEnabled = sdoInputsEnabled;
             ComboSdoWriteTarget.IsEnabled = sdoInputsEnabled
                 && isSdoWrite
-                && supportsSdoWrite
                 && approvedSdoWriteTargets.Count != 0;
             TextSdoSlaveReference.IsEnabled = sdoInputsEnabled;
             TextSdoIndex.IsEnabled = sdoInputsEnabled
@@ -2469,10 +2572,17 @@ namespace LasalMotionControlApiExample
                     ? "Submit Required Exact Readback"
                     : "Readback Session Mismatch"
                 : isSdoWrite
-                    ? sdoWriteConfirmationState.IsArmed
-                        ? "Confirm & Submit SDO Write"
-                        : "Arm SDO Write"
+                    ? !manualSdoWriteActivationQualified
+                        ? "Run Same-Value Qualification First"
+                        : sdoWriteConfirmationState.IsArmed
+                            ? "Confirm & Submit SDO Write"
+                            : "Arm SDO Write"
                     : "Submit SDO Read";
+            ButtonSubmitSdo.ToolTip = isSdoWrite
+                && !HasPendingD5SdoWriteReadback
+                && !manualSdoWriteActivationQualified
+                    ? "Manual SDO Write is fail-closed until this exact connection session, DiagnosticsBuild, BootId, MapRevision, and approved target pass the four-ticket Same-Value SDO Write qualification below."
+                    : "Write mode uses two-click confirmation after the current-session same-value activation proof. Read mode submits one tracked SDO Read.";
             ButtonSubmitSdo.IsEnabled = connected
                 && idle
                 && canSubmitSdoOperation
@@ -2483,6 +2593,7 @@ namespace LasalMotionControlApiExample
                     : isSdoWrite
                     ? supportsSdoWrite
                         && hasApprovedSdoWriteTarget
+                        && manualSdoWriteActivationQualified
                         && DiagnosticsMutationJournalCanArm
                     : supportsSdoRead);
             var inlineReadLength = ComboSdoDataLength.SelectedItem
@@ -2536,7 +2647,7 @@ namespace LasalMotionControlApiExample
         private void ClearDiagnosticsState()
         {
             ResetD5SdoWriteSameValueOperatorConfirmations();
-            sdoWriteConfirmationState.Clear();
+            RetireSdoWriteActivationQualificationProof();
             ClearRecorderDoubleVolatileSessionState();
             var cancellation = recorderDownloadCancellation;
             recorderDownloadCancellation = null;
@@ -2564,6 +2675,12 @@ namespace LasalMotionControlApiExample
             recorderHeader = null;
             recorderData = null;
             diagnosticOperationTicket = null;
+            if (callbackDiagnosticRefreshTicket != null)
+            {
+                operationRunning = false;
+            }
+
+            callbackDiagnosticRefreshTicket = null;
             diagnosticOperationStatus = null;
             diagnosticOperationResult = null;
             diagnosticOperationCancelAccepted = false;
@@ -2595,7 +2712,7 @@ namespace LasalMotionControlApiExample
                     "Load the PI Catalog and check Recordable signals first.";
                 TextRecorderPlotRange.Text = "No downloaded data.";
                 TextDiagnosticOperationSummary.Text =
-                    "SDO Read supports exact 1/2/4-byte typed values. SDO Write requires PLC bit 9 and an exact SDK-approved target; arbitrary object writes remain blocked.";
+                    "SDO Read supports exact 1/2/4-byte typed values. Manual SDO Write additionally requires a four-ticket Same-Value qualification PASS bound to the exact current session and PLC identity; arbitrary object writes remain blocked.";
                 if (HasPendingD5SdoWriteReadback)
                 {
                     ShowPendingD5SdoWriteReadbackStatus();
@@ -2735,6 +2852,66 @@ namespace LasalMotionControlApiExample
                             == previousTarget.MinimumIntegerValue
                         && target.MaximumIntegerValue
                             == previousTarget.MaximumIntegerValue))
+                {
+                    return target;
+                }
+            }
+
+            return null;
+        }
+
+        private bool HasCurrentSdoWriteActivationQualificationProof(
+            LMCConnection currentConnection,
+            LMCDiagnosticCapabilities capabilities,
+            LMCSdoWriteTarget target)
+        {
+            var proof = sdoWriteActivationQualificationProof;
+            if (proof == null)
+            {
+                return false;
+            }
+
+            if (proof.MatchesCurrent(
+                currentConnection,
+                capabilities,
+                target))
+            {
+                return true;
+            }
+
+            RetireSdoWriteActivationQualificationProof();
+            return false;
+        }
+
+        private void RetireSdoWriteActivationQualificationProof()
+        {
+            var proof = sdoWriteActivationQualificationProof;
+            sdoWriteActivationQualificationProof = null;
+            if (proof != null)
+            {
+                proof.Revoke();
+            }
+
+            sdoWriteConfirmationState.Clear();
+        }
+
+        private static LMCSdoWriteTarget FindApprovedSdoWriteTargetForRequest(
+            IReadOnlyList<LMCSdoWriteTarget> targets,
+            LMCSdoRequest request)
+        {
+            if (targets == null || request == null || !request.IsWrite)
+            {
+                return null;
+            }
+
+            foreach (var target in targets)
+            {
+                if (target != null
+                    && target.SlaveReference == request.SlaveReference
+                    && target.ObjectIndex == request.ObjectIndex
+                    && target.SubIndex == request.SubIndex
+                    && target.ValueType == request.ValueType
+                    && target.DataLength == request.DataLength)
                 {
                     return target;
                 }
@@ -3375,9 +3552,20 @@ namespace LasalMotionControlApiExample
             if (mode == SdoOperationMode.Write)
             {
                 ApplySelectedSdoWriteTarget();
-                ButtonSubmitSdo.Content = sdoWriteConfirmationState.IsArmed
-                    ? "Confirm & Submit SDO Write"
-                    : "Arm SDO Write";
+                var selectedTarget = ComboSdoWriteTarget == null
+                    ? null
+                    : ComboSdoWriteTarget.SelectedItem
+                        as LMCSdoWriteTarget;
+                var activationProofCurrent =
+                    HasCurrentSdoWriteActivationQualificationProof(
+                        connection,
+                        diagnosticCapabilities,
+                        selectedTarget);
+                ButtonSubmitSdo.Content = !activationProofCurrent
+                    ? "Run Same-Value Qualification First"
+                    : sdoWriteConfirmationState.IsArmed
+                        ? "Confirm & Submit SDO Write"
+                        : "Arm SDO Write";
                 TextDiagnosticOperationSummary.Text =
                     approvedSdoWriteTargets.Count == 0
                         ? "SDO Write fields may be prepared, but Submit is fail-closed: this SDK build has no approved target. Confirm a reserved drive object before enabling the SDK and PLC allowlists."

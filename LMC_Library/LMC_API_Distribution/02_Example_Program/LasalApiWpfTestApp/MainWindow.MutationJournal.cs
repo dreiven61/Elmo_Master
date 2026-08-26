@@ -54,6 +54,22 @@ namespace LasalMotionControlApiExample
             }
         }
 
+        private bool HasRetirableLegacyDiagnosticsMutationRecord
+        {
+            get
+            {
+                var record = diagnosticsMutationJournal == null
+                    ? null
+                    : diagnosticsMutationJournal.CurrentRecord;
+                return record != null
+                    && record.IsActive
+                    && record.Kind == DiagnosticsMutationKind.SdoWrite
+                    && record.State
+                        == DiagnosticsMutationState.OutcomeUnverified
+                    && record.HasTypedSdoWriteMetadata;
+            }
+        }
+
         private void InitializeDiagnosticsMutationJournal()
         {
             try
@@ -63,6 +79,7 @@ namespace LasalMotionControlApiExample
                         ? DiagnosticsMutationJournal.OpenDefault()
                         : DiagnosticsMutationJournal.Open(
                             diagnosticsMutationJournalDirectoryPath);
+                TryFinalizeCommittedDiagnosticsMutationRetirementAtStartup();
                 diagnosticsMutationRecoveredAtStartup =
                     diagnosticsMutationJournal.HasActiveRecord;
                 diagnosticsMutationJournalOpenError = null;
@@ -70,13 +87,88 @@ namespace LasalMotionControlApiExample
             }
             catch (Exception error)
             {
+                var failedJournal = diagnosticsMutationJournal;
                 diagnosticsMutationJournal = null;
+                var openError = error.GetType().Name + ": " + error.Message;
+                if (failedJournal != null)
+                {
+                    try
+                    {
+                        failedJournal.Dispose();
+                    }
+                    catch (Exception disposeError)
+                    {
+                        openError += "; dispose failed: "
+                            + disposeError.GetType().Name
+                            + ": "
+                            + disposeError.Message;
+                    }
+                }
+
                 diagnosticsMutationRecoveredAtStartup = false;
-                diagnosticsMutationJournalOpenError =
-                    error.GetType().Name + ": " + error.Message;
+                diagnosticsMutationJournalOpenError = openError;
             }
 
             RefreshDiagnosticsMutationJournalUi();
+        }
+
+        private async Task
+            EnsureDiagnosticsMutationRecoveryConnectionIdentityAsync(
+                string operation)
+        {
+            var record = diagnosticsMutationJournal == null
+                ? null
+                : diagnosticsMutationJournal.CurrentRecord;
+            if (record == null
+                || !record.IsActive
+                || record.Kind != DiagnosticsMutationKind.SdoWrite
+                || record.State
+                    != DiagnosticsMutationState.OutcomeUnverified)
+            {
+                return;
+            }
+
+            var currentConnection = RequireConnection();
+            var capabilities = diagnosticCapabilities;
+            if (capabilities == null
+                || capabilities.DiagnosticsBootId == 0
+                || capabilities.MapRevision == 0
+                || !capabilities.IsBoundTo(
+                    currentConnection.Diagnostics,
+                    currentConnection.SessionGeneration))
+            {
+                await RefreshDiagnosticsCapabilitiesAsync(
+                    currentConnection);
+                capabilities = diagnosticCapabilities;
+            }
+
+            if (capabilities == null
+                || capabilities.DiagnosticsBootId == 0
+                || capabilities.MapRevision == 0
+                || !capabilities.IsBoundTo(
+                    currentConnection.Diagnostics,
+                    currentConnection.SessionGeneration))
+            {
+                throw new InvalidOperationException(
+                    operation
+                    + " requires fresh, current-session nonzero "
+                    + "DiagnosticsBootId and MapRevision. No recovery "
+                    + "record was changed.");
+            }
+
+            if (record.DiagnosticsBootId
+                    != capabilities.DiagnosticsBootId
+                || record.IdentityRevision
+                    != capabilities.MapRevision)
+            {
+                throw CreateRecoveryConnectionIdentityMismatch(
+                    operation,
+                    "Diagnostics SDO Write",
+                    record.DiagnosticsBootId,
+                    record.IdentityRevision,
+                    capabilities.DiagnosticsBootId,
+                    capabilities.MapRevision);
+            }
         }
 
         private void DisposeDiagnosticsMutationJournal()
@@ -789,14 +881,15 @@ namespace LasalMotionControlApiExample
                 ? d5SdoPendingWriteReadback
                 : null;
             var confirmation = MessageBox.Show(
-                (staleSdoRecovery
+                TranslateUiText(staleSdoRecovery
                     ? "The exact SDO readback cannot run in the current connection session. Confirm that the SDO target and PLC state were checked independently."
                     : "Confirm that the physical target and PLC state were checked independently.")
                     + Environment.NewLine
                     + FormatDiagnosticsMutationRecord(record)
                     + Environment.NewLine
-                    + "This writes a durable Resolved tombstone. It does not replay the command or prove the previous outcome.",
-                "Acknowledge Recovered Mutation",
+                    + TranslateUiText(
+                        "This writes a durable Resolved tombstone. It does not replay the command or prove the previous outcome."),
+                TranslateUiText("Acknowledge Recovered Mutation"),
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Warning,
                 MessageBoxResult.No);
@@ -879,10 +972,11 @@ namespace LasalMotionControlApiExample
                     "Recovered durable mutation acknowledgement failed: "
                     + error.Message);
                 MessageBox.Show(
-                    "The durable Resolved tombstone could not be written. The interlock remains active."
+                    TranslateUiText(
+                        "The durable Resolved tombstone could not be written. The interlock remains active.")
                         + Environment.NewLine
                         + error.Message,
-                    "Mutation Recovery Failed",
+                    TranslateUiText("Mutation Recovery Failed"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
                 UpdateUiState();
@@ -1220,47 +1314,75 @@ namespace LasalMotionControlApiExample
         {
             try
             {
-                DisposeGroupPowerRecoveryJournal();
+                DisposeMaintenanceActionRecoveryJournal();
             }
             finally
             {
                 try
                 {
-                    DisposeAxisCommandRecoveryJournal();
+                    DisposeAxisQualificationRecoveryJournal();
                 }
                 finally
                 {
                     try
                     {
-                        DisposeAxisPowerOnRecoveryJournal();
+                        DisposeGroupResetRecoveryJournal();
                     }
                     finally
                     {
                         try
                         {
-                            DisposeMotionUncertaintyJournal();
+                            DisposeRecoveryRecordRetirementLedger();
                         }
                         finally
                         {
                             try
                             {
-                                DisposeGroupProfileLockRecoveryJournal();
+                                DisposeGroupPowerRecoveryJournal();
                             }
                             finally
                             {
                                 try
                                 {
-                                    DisposeRecorderDoubleRecoveryJournal();
+                                    DisposeAxisCommandRecoveryJournal();
                                 }
                                 finally
                                 {
                                     try
                                     {
-                                        DisposeDiagnosticsMutationJournal();
+                                        DisposeAxisPowerOnRecoveryJournal();
                                     }
                                     finally
                                     {
-                                        base.OnClosed(e);
+                                        try
+                                        {
+                                            DisposeMotionUncertaintyJournal();
+                                        }
+                                        finally
+                                        {
+                                            try
+                                            {
+                                                DisposeGroupProfileLockRecoveryJournal();
+                                            }
+                                            finally
+                                            {
+                                                try
+                                                {
+                                                    DisposeRecorderDoubleRecoveryJournal();
+                                                }
+                                                finally
+                                                {
+                                                    try
+                                                    {
+                                                        DisposeDiagnosticsMutationJournal();
+                                                    }
+                                                    finally
+                                                    {
+                                                        base.OnClosed(e);
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }

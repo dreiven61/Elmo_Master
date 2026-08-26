@@ -112,6 +112,8 @@ namespace LasalMotionControlApiExample
                 groupProfileLockRecoveryJournalOpenError = null;
                 groupProfileLockRecoveryJournalRuntimeError = null;
 
+                TryFinalizeCommittedGroupProfileRetirementAtStartup();
+
                 var record = groupProfileLockRecoveryJournal.CurrentRecord;
                 groupProfileLockRecoveryRecoveredAtStartup =
                     record != null && record.IsActive;

@@ -2697,7 +2697,9 @@ namespace LasalMotionControlApiExample
                         CultureInfo.InvariantCulture),
                 "resultType=" + status.ResultValueType,
                 "resultLength=" + status.ResultLength.ToString(
-                    CultureInfo.InvariantCulture));
+                    CultureInfo.InvariantCulture),
+                "resultBytes=" + BitConverter.ToString(
+                    status.ResultData ?? new byte[0]));
         }
 
         private async Task<bool> CleanupPendingD5SdoQualificationAsync()
@@ -3456,7 +3458,8 @@ namespace LasalMotionControlApiExample
                 LMCConnection ownerConnection,
                 string stage,
                 ushort requiredDataBytes,
-                bool requireGeneralInline)
+                bool requireGeneralInline,
+                LMCOperationTicket expectedTicket = null)
         {
             if (ownerConnection == null)
             {
@@ -3468,6 +3471,18 @@ namespace LasalMotionControlApiExample
             {
                 var capabilities = await ownerConnection.Diagnostics
                     .GetCapabilitiesAsync(CancellationToken.None);
+                if (expectedTicket != null
+                    && (!ReferenceEquals(connection, ownerConnection)
+                        || !ReferenceEquals(
+                            diagnosticOperationTicket,
+                            expectedTicket)
+                        || !expectedTicket.BelongsToCurrentSession(
+                            ownerConnection)))
+                {
+                    throw new InvalidOperationException(
+                        "The retained D5 operation ticket changed while diagnostics capabilities were being read.");
+                }
+
                 RequireExternalD5TrackingCapabilities(
                     capabilities,
                     requiredDataBytes,
@@ -3495,6 +3510,17 @@ namespace LasalMotionControlApiExample
             }
             catch (Exception error)
             {
+                if (expectedTicket != null
+                    && (!ReferenceEquals(connection, ownerConnection)
+                        || !ReferenceEquals(
+                            diagnosticOperationTicket,
+                            expectedTicket)
+                        || !expectedTicket.BelongsToCurrentSession(
+                            ownerConnection)))
+                {
+                    throw;
+                }
+
                 WriteExternalD5TrackingLog(
                     "event=D5_EXTERNAL_PREFLIGHT",
                     "stage=" + stage,

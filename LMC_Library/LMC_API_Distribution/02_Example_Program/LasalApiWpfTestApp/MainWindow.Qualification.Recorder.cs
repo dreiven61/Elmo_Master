@@ -1286,7 +1286,7 @@ namespace LasalMotionControlApiExample
                         endpoint.RemotePort,
                         endpoint.LocalIp,
                         endpoint.CallbackPort,
-                        LMCConnection.DefaultEventMask,
+                        1u,
                         CancellationToken.None);
                 if (cleanupGate)
                 {

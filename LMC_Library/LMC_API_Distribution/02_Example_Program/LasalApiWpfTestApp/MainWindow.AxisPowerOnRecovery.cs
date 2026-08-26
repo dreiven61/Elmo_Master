@@ -96,6 +96,8 @@ namespace LasalMotionControlApiExample
                 axisPowerDegradedSafetyOffRecord = null;
                 axisPowerDurabilityDegraded = false;
 
+                TryFinalizeCommittedAxisPowerRetirementAtStartup();
+
                 var record = axisPowerOnRecoveryJournal.CurrentRecord;
                 if (record == null || !record.IsActive)
                 {
@@ -255,6 +257,9 @@ namespace LasalMotionControlApiExample
                 verificationRecord,
                 true,
                 operation);
+            CheckpointAxisQualificationPowerOnAccepted(
+                axis,
+                operation + " sequence checkpoint");
         }
 
         private void MarkAxisPowerOnAcceptedForRecord(
@@ -314,6 +319,9 @@ namespace LasalMotionControlApiExample
                 verificationRecord,
                 false,
                 operation);
+            CheckpointAxisQualificationPowerOffAccepted(
+                axis,
+                operation + " sequence checkpoint");
         }
 
         private void MarkAxisPowerOffAcceptedForRecord(
@@ -978,7 +986,8 @@ namespace LasalMotionControlApiExample
             int stableSampleCount,
             int requiredStableSampleCount,
             AxisPowerOnRecoveryRecord verificationRecord,
-            string operation)
+            string operation,
+            Action validateFinalIdentity = null)
         {
             if (verificationRecord == null
                 || verificationRecord.ExpectedPowerOn != expectedPowerOn
@@ -1009,6 +1018,10 @@ namespace LasalMotionControlApiExample
                 currentAxis,
                 verificationRecord,
                 operation + " final identity");
+            if (validateFinalIdentity != null)
+            {
+                validateFinalIdentity();
+            }
             if (expectedPowerOn
                 && current.State
                     == AxisPowerOnRecoveryState.RecoveryRequired)
@@ -1028,6 +1041,19 @@ namespace LasalMotionControlApiExample
                     currentAxis.ResolvePowerOnWaitAfterStablePowerOff(
                         powerOnContinuation);
                 }
+            }
+
+            if (expectedPowerOn)
+            {
+                CheckpointAxisQualificationPowerOnStableBeforeChildResolve(
+                    currentAxis,
+                    operation + " sequence checkpoint");
+            }
+            else
+            {
+                ResolveAxisQualificationAfterStablePowerOffBeforeChildResolve(
+                    currentAxis,
+                    operation + " sequence safe resolve");
             }
 
             ResolveAxisPowerRecoveryJournalForRecord(
