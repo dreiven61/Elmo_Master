@@ -18,7 +18,7 @@ jobs:
         with:
           ref: codex/home-ds402ex-homeex09-static-qualification
 
-      - name: Print exact legacy identity fixture lines
+      - name: Print disjoint Reserved-state self-test context
         shell: powershell
         run: |
           @'
@@ -27,28 +27,17 @@ jobs:
           p = Path(r'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1')
           lines = p.read_bytes().decode('utf-8', errors='replace').splitlines()
           needles = (
-              'per-axis 8-byte tail packing drifted',
-              'identityTailOffset',
-              'identityTailSize',
-              'LMC_OWNER_IDENTITY_STATE_BYTES',
-              'LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES',
-              'baseline compact ownership identity/preemption',
+              'Reserved state must appear exactly once for SetOperationMode',
+              'LMC_OWNER_STATE_RESERVED',
+              'SetOperationMode',
+              'HomeDS402Ex',
           )
-          hits = []
-          for i, line in enumerate(lines, 1):
-              if any(n.lower() in line.lower() for n in needles):
-                  hits.append(i)
-          if not hits:
-              raise SystemExit('legacy identity fixture lines not found')
-          wanted = set()
+          hits = [i for i, line in enumerate(lines, 1) if any(n.lower() in line.lower() for n in needles)]
+          focus = set(range(10790, min(len(lines), 10835) + 1))
           for i in hits:
-              for j in range(max(1, i - 3), min(len(lines), i + 3) + 1):
-                  wanted.add(j)
-          previous = None
-          for i in sorted(wanted):
-              if previous is not None and i != previous + 1:
-                  print('-----')
+              if 10750 <= i <= 10880 or 'Reserved state must appear exactly once' in lines[i-1]:
+                  focus.update(range(max(1, i-4), min(len(lines), i+4)+1))
+          for i in sorted(focus):
               print(f'{i:05d}: {lines[i-1]}')
-              previous = i
           '@ | python -
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
