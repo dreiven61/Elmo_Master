@@ -22,13 +22,26 @@ jobs:
         run: |
           @'
           from pathlib import Path
+
           p = Path(r'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1')
-          data = p.read_bytes()
-          needle = b'axis ownership publish split blocker: referenced macro closure drifted'
-          pos = data.find(needle)
-          if pos < 0:
-              raise SystemExit('needle not found')
-          lo = max(0, pos - 5000)
-          hi = min(len(data), pos + 2500)
-          print(data[lo:hi].decode('utf-8', errors='replace'))
+          text = p.read_bytes().decode('utf-8', errors='replace')
+          needles = ['publish split', 'macro closure', '2470', 'referenced macro']
+          found = False
+          seen = set()
+          for needle in needles:
+              start = 0
+              while True:
+                  pos = text.lower().find(needle.lower(), start)
+                  if pos < 0:
+                      break
+                  start = pos + len(needle)
+                  key = (max(0, pos - 1800), min(len(text), pos + 1800))
+                  if key in seen:
+                      continue
+                  seen.add(key)
+                  found = True
+                  print(f'===== needle={needle!r} pos={pos} =====')
+                  print(text[key[0]:key[1]])
+          if not found:
+              raise SystemExit('no ratchet context needles found')
           '@ | python -
