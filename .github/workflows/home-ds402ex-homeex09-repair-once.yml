@@ -1,4 +1,4 @@
-# one-shot repair trigger: 2026-08-26 publish-macro-closure-ratchet
+# one-shot repair trigger: 2026-08-26 final-publish-macro-sha
 name: HomeDS402Ex HOMEEX-09 one-shot repair
 
 on:
@@ -106,7 +106,7 @@ jobs:
           contract_bytes = contract_bytes.replace(helper_old, helper_new, 1)
 
           macro_hash_old = b'367C87E07AF2C33D60F32F3E94AECF73BA052C6F3155DA909DB9EAD1BB9EAB85'
-          macro_hash_new = b'EE120B0DDC3757546616C32B5C3C4592D4EFACFBF4B6DA2DE24354596EB513DE'
+          macro_hash_new = b'EE120E84ED15E12CDF127EB5CC2D6438985BC4649A640686F02EA7832E16B742'
           if contract_bytes.count(macro_hash_old) != 1 or contract_bytes.count(macro_hash_new) != 0:
               raise SystemExit('Publish referenced-macro closure SHA precondition failed')
           macro_hash_position = contract_bytes.index(macro_hash_old)
