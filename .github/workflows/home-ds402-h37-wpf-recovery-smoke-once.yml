@@ -113,8 +113,8 @@ jobs:
           if ($methodCount -ne 1) { throw "Expected one LMC Home method anchor, found $methodCount." }
           $text = $text.Replace($methodAnchor, $newMethod)
 
-          if (([regex]::Matches($text, 'Ds402HomeRestartRestoresRecoveryKeyImmediately')).Count -ne 2) {
-            throw 'Expected one registration and one DS402 relaunch smoke method.'
+          if (([regex]::Matches($text, 'Ds402HomeRestartRestoresRecoveryKeyImmediately')).Count -ne 3) {
+            throw 'Expected one display name, one registration delegate, and one DS402 relaunch smoke method declaration.'
           }
           [IO.File]::WriteAllText($path, $text, [Text.UTF8Encoding]::new($false))
 
