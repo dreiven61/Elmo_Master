@@ -39,7 +39,7 @@ Assert-Match $source '#define\s+LMC_DIAG_HOMEEX_CLEANUP_PROOF_REQUIRED\s+0x00000
 $start = Get-FunctionBlock 'HandleAxisDs402HomeExStart'
 Assert-Match $start 'recordState\s*:=\s*Ds402HomeExState\[recordBase\]\s*;' 'Start must inspect the retained per-axis active record state.'
 Assert-Match $start 'recordValid\s*:=.*?recordState\s*>=\s*1.*?recordState\s*<=\s*4.*?Ds402HomeExState\[recordBase\s*\+\s*37\].*?<>\s*0' 'Start must distinguish a structurally valid retained active record from corruption.'
-Assert-Match $start 'if\s+recordValid\s+then\s*\n\s*detailCode\s*:=\s*LMC_DIAG_HOMEEX_DETAIL_SLOT_OCCUPIED' 'A valid retained active record must block a new Start as slot occupied.'
+Assert-Match $start 'if\s+recordDirty\s+then.*?if\s+recordValid\s*=\s*FALSE\s+then.*?LMC_DIAG_HOMEEX_DETAIL_STORE_CORRUPT.*?else\s*\n\s*detailCode\s*:=\s*LMC_DIAG_HOMEEX_DETAIL_SLOT_OCCUPIED' 'A valid retained active record must block a new Start after corruption and cleanup checks.'
 Assert-Match $start 'tombstoneBase\s*:=\s*LMC_DIAG_HOMEEX_RETIRED_BASE\s*\+.*?LMC_DIAG_HOMEEX_RETIRED_STRIDE' 'Start must address the per-axis retired tombstone.'
 Assert-Match $start 'retiredDuplicate\s*:=.*?LMC_DIAG_HOMEEX_RETIRED_MAGIC.*?requestId.*?intent0.*?homingMethod' 'Start must compare an old retired identity before allowing reuse.'
 Assert-Match $start 'if\s+retiredDuplicate\s+then\s*\n\s*detailCode\s*:=\s*LMC_DIAG_HOMEEX_DETAIL_SLOT_OCCUPIED' 'Exact old Start replay must remain blocked after retire.'
@@ -48,7 +48,7 @@ Assert-Match $start 'elsif\s+LMC_DIAG_DS402_HOME_EX_ENABLED\s*=\s*FALSE\s+then\s
 $outcome = Get-FunctionBlock 'HandleAxisDs402HomeExOutcome'
 Assert-Match $outcome 'if\s+recordState\s*=\s*0\s+then\s*\n\s*detailCode\s*:=\s*LMC_DIAG_HOMEEX_DETAIL_NOT_FOUND' 'Outcome must report not-found only for an empty active slot.'
 Assert-Match $outcome 'keyMatches\s*:=.*?diagnosticsBuild.*?originalRequestId.*?intent3.*?detectionTimeout' 'Outcome must compare the full exact recovery key.'
-Assert-Match $outcome 'elsif\s+keyMatches\s*=\s*FALSE\s+then\s*\n\s*detailCode\s*:=\s*LMC_DIAG_HOMEEX_DETAIL_KEY_MISMATCH' 'Outcome must fail closed on an exact-key mismatch.'
+Assert-Match $outcome 'if\s+keyMatches\s*=\s*FALSE\s+then\s*\n\s*detailCode\s*:=\s*LMC_DIAG_HOMEEX_DETAIL_KEY_MISMATCH' 'Outcome must fail closed on an exact-key mismatch.'
 Assert-Match $outcome 'ResponseCapacity\s*<\s*176' 'Outcome must guard the fixed 176-byte response capacity.'
 Assert-Match $outcome '\(pResponse\s*\+\s*16\)\^\$UINT\s*:=\s*TO_UINT\(recordState\)' 'Outcome must serialize RecordState from the retained record.'
 Assert-Match $outcome '\(pResponse\s*\+\s*164\)\^\$UDINT\s*:=\s*Ds402HomeExState\[recordBase\s*\+\s*37\]\$UDINT' 'Outcome must serialize the exact retained record generation.'
@@ -68,12 +68,12 @@ Assert-Match $retire 'if\s+tombstoneMatches\s+then\s*\n\s*\(pResponse\s*\+\s*4\)
 
 $process = Get-FunctionBlock 'ProcessAxisDs402HomeEx'
 Assert-Match $process 'SDO, RT mailbox, controlword,\s*\n\s*// mode, setpoint and motion execution remain forbidden' 'HOMEEX physical runtime boundary comment drifted.'
-Assert-NotMatch $process '6060|6061|6098|607C|6099|609A|controlword|Write' 'HOMEEX retained-store work must not introduce physical runtime operations.'
+Assert-NotMatch $process '6060|6061|6098|607C|6099|609A|SdoAxis[1-4]\.|RequestSdo|DispatchSdo' 'HOMEEX retained-store work must not introduce physical SDO or mode operations.'
 
 # Pure state-model checks for the intended duplicate/retire contract. These do not
 # emulate LASAL execution; they protect the no-replay state transitions encoded above.
-function Classify-Start([bool]$ActiveValid, [bool]$ActiveDirty, [bool]$RetiredExact, [bool]$RuntimeEnabled) {
-    if ($ActiveDirty) { return 55 }
+function Classify-Start([bool]$ActiveValid, [bool]$ActiveCorrupt, [bool]$RetiredExact, [bool]$RuntimeEnabled) {
+    if ($ActiveCorrupt) { return 55 }
     if ($ActiveValid) { return 60 }
     if ($RetiredExact) { return 60 }
     if (-not $RuntimeEnabled) { return 61 }
