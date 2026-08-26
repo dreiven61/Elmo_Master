@@ -18,19 +18,85 @@ jobs:
         with:
           ref: codex/home-ds402ex-homeex09-static-qualification
 
-      - name: Print exact verifier fragment extraction
+      - name: Instrument repaired SourceOnly publish-split metrics
         shell: powershell
         run: |
           @'
           from pathlib import Path
+          import re
 
-          p = Path(r'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1')
-          text = p.read_bytes().decode('utf-8', errors='replace')
-          needle = '$fragmentContracts = @('
-          pos = text.find(needle)
-          if pos < 0:
-              raise SystemExit('fragmentContracts marker not found')
-          lo = max(0, pos - 14000)
-          hi = min(len(text), pos + 5000)
-          print(text[lo:hi])
+          control = Path(r'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st')
+          contract = Path(r'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1')
+
+          control_bytes = control.read_bytes()
+          tail_pattern = re.compile(
+              br'(replacementTailOffset\s*:=\s*(?:\r?\n[ \t]*)?TO_UDINT\(probeAxisIndex\s*-\s*1\)\s*\*\s*)8(\s*;)',
+              re.IGNORECASE,
+          )
+          if len(list(tail_pattern.finditer(control_bytes))) != 2:
+              raise SystemExit('Expected exactly two stale identity-tail strides')
+          control_bytes = tail_pattern.sub(br'\1LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES\2', control_bytes, count=2)
+          control.write_bytes(control_bytes)
+
+          data = contract.read_bytes()
+          replacements = [
+              (b"$replacementBankHistogram['ownershipstate'] -ne 44", b"$replacementBankHistogram['ownershipstate'] -ne 47", 1),
+              (b'expected 44/12.', b'expected 47/12.', 1),
+              (b'6714', b'7015', 2),
+              (b'3386CCD85F63DEE01ABD5C06B82E2F4591179998E07D05B62DF4D816CCFF6D2B', b'2270D6D53A5ACDE045AA830AEE7720DBA4C74BBEADCE19ED281DC8A1A7ABF664', 1),
+              (b"@{ Name = 'adapter'; Fragment = $adapter; LF = 29124; CRLF = 29922; Sha = '8855AEEAE9B617CEAC1D10C7CC4ADB7F4D0536D108592560CE0D39ACF344AFAC' }", b"@{ Name = 'adapter'; Fragment = $adapter; LF = 29184; CRLF = 29981; Sha = '855FA45D910DAFA0EA236807A004E08EFDA080BC57A80FD433BF38F0B3B6BA01' }", 1),
+              (b"@{ Name = 'helper'; Fragment = $helper; LF = 22214; CRLF = 22826; Sha = '9E0A37E0EC0A3AD7FDD194CF8691BF3B492D4E4C6FD10E8C118323571F980BDD' }", b"@{ Name = 'helper'; Fragment = $helper; LF = 22712; CRLF = 23332; Sha = 'EB2E6D61A638DE06B890613D015C0904901318C4EB6B76E63F6D0F7E7A45E527' }", 1),
+              (b'$macroInventory.Count -ne 70', b'$macroInventory.Count -ne 73', 1),
+              (b'$joinedMacros.Length -ne 2470', b'$joinedMacros.Length -ne 2579', 1),
+              (b'367C87E07AF2C33D60F32F3E94AECF73BA052C6F3155DA909DB9EAD1BB9EAB85', b'EE120E84ED15E12CDF127EB5CC2D6438985BC4649A640686F02EA7832E16B742', 1),
+              (b'$($macroInventory.Count)/70', b'$($macroInventory.Count)/73', 1),
+              (b'$($joinedMacros.Length)/2470', b'$($joinedMacros.Length)/2579', 1),
+          ]
+          for old, new, expected_count in replacements:
+              if data.count(old) != expected_count:
+                  raise SystemExit(f'Precondition failed for {old!r}: found {data.count(old)}, expected {expected_count}')
+              data = data.replace(old, new, expected_count)
+
+          text = data.decode('utf-8')
+          metric_call = re.compile(
+              r'(\$metrics\s*=\s*Get-LasalAxisOwnershipPublishSplitFragmentMetrics\s*`\s*\r?\n\s*-Fragment\s+\$fragmentContract\.Fragment)'
+          )
+          matches = list(metric_call.finditer(text))
+          if len(matches) != 1:
+              raise SystemExit(f'Expected one fragment metric call, found {len(matches)}')
+          metric_dump = r'''
+              Write-Host ("METRIC name={0} lexical={1}/{2}/{3} locals={4}/{5}/{6}/{7} calls={8} mutations={9}/{10}/{11} flow={12}/{13}/{14}" -f `
+                  $fragmentContract.Name, `
+                  $metrics.LexicalCount, $metrics.LexicalLength, $metrics.LexicalSha256, `
+                  $metrics.LocalBlockCount, $metrics.LocalCount, $metrics.LocalLength, $metrics.LocalSha256, `
+                  $metrics.CallInventory, `
+                  $metrics.MutationCount, $metrics.MutationLength, $metrics.MutationSha256, `
+                  $metrics.ControlFlowCount, $metrics.ControlFlowLength, $metrics.ControlFlowSha256)
+          '''
+          text = metric_call.sub(lambda m: m.group(1) + metric_dump, text, count=1)
+
+          drift_messages = [
+              'lexical token inventory drifted.',
+              'local inventory drifted or is empty.',
+              'call inventory drifted.',
+              'persistent mutation inventory drifted.',
+              'Result/RETURN inventory drifted.',
+          ]
+          for message in drift_messages:
+              old = f'throw "$blocker $($fragmentContract.Name) {message}"'
+              new = f'Write-Host "METRIC-DRIFT $blocker $($fragmentContract.Name) {message}"'
+              if text.count(old) != 1:
+                  raise SystemExit(f'Expected one metric drift throw for {message!r}, found {text.count(old)}')
+              text = text.replace(old, new, 1)
+
+          contract.write_bytes(text.encode('utf-8'))
+          print('PASS instrumented all publish-split fragment metrics')
           '@ | python -
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run instrumented legacy SourceOnly verifier
+        shell: powershell
+        continue-on-error: true
+        run: |
+          & '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\Verify-LasalContract.ps1' -RepositoryRoot $env:GITHUB_WORKSPACE
+          exit $LASTEXITCODE
