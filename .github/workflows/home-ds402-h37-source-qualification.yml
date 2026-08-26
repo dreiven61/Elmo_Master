@@ -1,5 +1,5 @@
 name: HomeDS402 H37 source qualification
-# Integrated H37-02/H37-03/H37-04/H37-05 qualification checkpoint.
+# Integrated H37-02/H37-03/H37-04/H37-05/H37-10 software qualification checkpoint.
 
 on:
   push:
@@ -10,10 +10,13 @@ on:
       - 'tools/Verify-HomeDs402H37Activation.ps1'
       - 'tools/Verify-HomeDs402H37Ownership.ps1'
       - 'tools/Verify-HomeDs402H37MethodSize.ps1'
+      - 'tools/Verify-HomeDs402H37WpfRecovery.ps1'
       - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/AdminDs402HomeH37QualificationTests.cs'
       - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Program.cs'
       - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/LasalMotionControlLib.Tests.csproj'
       - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.MaintenanceActions.cs'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MaintenanceActionRecoveryJournal.cs'
       - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st'
       - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
       - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
@@ -27,10 +30,13 @@ on:
       - 'tools/Verify-HomeDs402H37Activation.ps1'
       - 'tools/Verify-HomeDs402H37Ownership.ps1'
       - 'tools/Verify-HomeDs402H37MethodSize.ps1'
+      - 'tools/Verify-HomeDs402H37WpfRecovery.ps1'
       - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/AdminDs402HomeH37QualificationTests.cs'
       - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Program.cs'
       - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/LasalMotionControlLib.Tests.csproj'
       - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.MaintenanceActions.cs'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MaintenanceActionRecoveryJournal.cs'
       - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st'
       - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
       - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
@@ -68,6 +74,12 @@ jobs:
         shell: powershell
         run: |
           & '.\tools\Verify-HomeDs402H37MethodSize.ps1' -RepositoryRoot (Get-Location).Path
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify WPF durable recovery no-replay contract
+        shell: powershell
+        run: |
+          & '.\tools\Verify-HomeDs402H37WpfRecovery.ps1' -RepositoryRoot (Get-Location).Path
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Locate MSBuild
