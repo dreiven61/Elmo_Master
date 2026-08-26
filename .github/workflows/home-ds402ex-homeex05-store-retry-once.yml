@@ -1,0 +1,77 @@
+name: HomeDS402Ex HOMEEX-05 retained store retry once
+
+on:
+  push:
+    branches:
+      - codex/home-ds402ex-homeex05-retained-store
+    paths:
+      - '.github/workflows/home-ds402ex-homeex05-store-retry-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-qualify:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reapply retained-store source patch from staged workflow
+        shell: python
+        run: |
+          from pathlib import Path
+          workflow = Path('.github/workflows/home-ds402ex-homeex05-store-patch-once.yml').read_text(encoding='utf-8').replace('\r\n', '\n')
+          step = '      - name: Patch retained HomeDS402Ex store\n'
+          start = workflow.index(step)
+          body_start = workflow.index('        run: |\n', start) + len('        run: |\n')
+          body_end = workflow.index('\n      - name: Verify retained store contract', body_start)
+          body = workflow[body_start:body_end]
+          body = '\n'.join(line[10:] if line.startswith('          ') else line for line in body.splitlines())
+          exec(compile(body, '<homeex-retained-store-patch>', 'exec'), {})
+
+      - name: Verify retained store contract
+        shell: pwsh
+        run: |
+          .\tools\Verify-HomeDs402ExRetainedStore.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify method lexical budgets
+        shell: pwsh
+        run: |
+          $text = [IO.File]::ReadAllText('Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st')
+          foreach ($name in @('HandleAxisDs402HomeExStart','HandleAxisDs402HomeExOutcome','HandleAxisDs402HomeExRetire')) {
+            $m = [regex]::Match($text, '(?ms)^FUNCTION\s+LMCDiagnosticsService::' + $name + '\b.*?^END_FUNCTION\s*$')
+            if (-not $m.Success) { throw "Missing $name" }
+            $bytes = [Text.Encoding]::UTF8.GetByteCount($m.Value)
+            Write-Host "$name bytes=$bytes"
+            if ($bytes -ge 32768) { throw "$name exceeds conservative 32KiB source budget: $bytes" }
+          }
+
+      - name: Verify HOMEEX-09 source regression
+        shell: pwsh
+        run: |
+          .\tools\Verify-HomeDs402ExHomeEx09Static.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Diff hygiene
+        shell: pwsh
+        run: |
+          git diff --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git diff -- Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st
+
+      - name: Remove temporary workflows and commit source
+        shell: pwsh
+        run: |
+          Remove-Item -LiteralPath '.github/workflows/home-ds402ex-homeex05-store-patch-once.yml' -Force
+          Remove-Item -LiteralPath '.github/workflows/home-ds402ex-homeex05-store-retry-once.yml' -Force
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st .github/workflows/home-ds402ex-homeex05-store-patch-once.yml .github/workflows/home-ds402ex-homeex05-store-retry-once.yml
+          if (git diff --cached --quiet) { throw 'Expected retained-store source diff is empty.' }
+          git commit -m 'feat(homeex): add retained outcome store semantics'
+          git push origin HEAD:codex/home-ds402ex-homeex05-retained-store
