@@ -135,12 +135,10 @@ $journal = [System.IO.File]::ReadAllText($journalPath)
 Write-Host 'HomeDS402 H37 WPF durable-recovery qualification'
 Write-Host "Repository: $root"
 
-# Stable durable action/state identity.
 Assert-Regex $journal '(?m)^\s*Ds402Home\s*=\s*2\s*,?\s*$' 'DS402 Home durable action kind remains 2' -ExpectedCount 1
 Assert-Regex $journal '(?m)^\s*ArmedBeforeDispatch\s*=\s*1\s*,?\s*$' 'journal ArmedBeforeDispatch state remains 1' -ExpectedCount 1
 Assert-Regex $journal '(?m)^\s*RecoveryRequired\s*=\s*2\s*,?\s*$' 'journal RecoveryRequired state remains 2' -ExpectedCount 1
 
-# Journal admission requires exact method-37 semantic and persists before dispatch.
 $arm = Get-CSharpMethodBlock -Text $journal -MethodName 'ArmBeforeDispatch('
 if ($null -ne $arm) {
     Assert-Regex $arm 'action\s*==\s*MaintenanceActionKind\.Ds402Home[\s\S]{0,180}!HasExactDs402HomeSemantic\(actionParameters\)' 'journal rejects non-exact DS402 Home semantics before arming' -ExpectedCount 1
@@ -150,7 +148,6 @@ if ($null -ne $arm) {
     Assert-True ($persistIndex -ge 0 -and $publishIndex -gt $persistIndex) 'journal persistence precedes in-memory armed publication'
 }
 
-# Relaunch converts ambiguous pre-dispatch state into durable recovery-required state.
 $promoteAtOpen = Get-CSharpMethodBlock -Text $journal -MethodName 'PromoteArmedRecordAtOpen('
 if ($null -ne $promoteAtOpen) {
     Assert-Regex $promoteAtOpen 'currentRecord\.State[\s\S]{0,100}MaintenanceActionRecoveryState\.ArmedBeforeDispatch' 'startup promotion recognizes ArmedBeforeDispatch' -ExpectedCount 1
@@ -160,10 +157,8 @@ if ($null -ne $promoteAtOpen) {
     Assert-True ($persistPromoted -ge 0 -and $publishPromoted -gt $persistPromoted) 'startup RecoveryRequired transition is persisted before publication'
 }
 
-# WPF startup reconstructs the exact DS402 recovery key immediately after opening the journal.
 Assert-Regex $main 'else if\s*\(active\.Action\s*==\s*MaintenanceActionKind\.Ds402Home\)\s*\{\s*latestDs402HomeRecoveryKey\s*=\s*RecreateDs402RecoveryKey\(active\);\s*\}' 'WPF startup reconstructs DS402 Home recovery key' -ExpectedCount 1
 
-# The operator Start path must arm durable recovery before any native Start RPC.
 $start = Get-CSharpMethodBlock -Text $main -MethodName 'ButtonDs402Home_Click('
 if ($null -ne $start) {
     $armIndex = $start.IndexOf('.ArmBeforeDispatch(', [StringComparison]::Ordinal)
@@ -174,7 +169,6 @@ if ($null -ne $start) {
     Assert-Regex $start 'catch\s*\{[\s\S]{0,180}PromoteMaintenanceRecovery\(' 'ambiguous Start failure promotes recovery-required state' -ExpectedCount 1
 }
 
-# Exact outcome recovery is read/retire only: no Start replay, no early resolve.
 $recover = Get-CSharpMethodBlock -Text $main -MethodName 'ReadExactDs402HomeOutcomeAsync('
 if ($null -ne $recover) {
     Assert-Regex $recover 'ReadDs402HomeOutcomeAsync\(' 'recovery performs exact DS402 Home outcome query' -ExpectedCount 1
@@ -188,18 +182,17 @@ if ($null -ne $recover) {
     Assert-True ($matchIndex -gt $retireIndex -and $resolveIndex -gt $matchIndex) 'terminal retirement snapshot proof precedes durable Resolve'
 }
 
-# Recovery-key reconstruction must remain the exact non-moving method-37 semantic.
 $recreate = Get-CSharpMethodBlock -Text $main -MethodName 'RecreateDs402RecoveryKey('
 if ($null -ne $recreate) {
     Assert-Regex $recreate 'record\.Action\s*!=\s*MaintenanceActionKind\.Ds402Home' 'recovery-key reconstruction rejects other action kinds' -ExpectedCount 1
     Assert-Regex $recreate 'CurrentPositionZeroHomingMethod' 'recovery-key reconstruction pins method 37/current-position-zero' -ExpectedCount 1
     foreach ($field in @('HomeOffset', 'Velocity', 'Acceleration', 'DistanceLimit', 'TorqueLimit')) {
-        Assert-Regex $recreate ("ReadParameterInt\(values, \"" + $field + "\"\)\s*!=\s*0") "recovery-key reconstruction requires $field zero" -ExpectedCount 1
+        $fieldPattern = 'ReadParameterInt\(values,\s*"' + [regex]::Escape($field) + '"\)\s*!=\s*0'
+        Assert-Regex $recreate $fieldPattern "recovery-key reconstruction requires $field zero" -ExpectedCount 1
     }
     Assert-Regex $recreate 'LMCDs402HomeBufferMode\.Aborting\.ToString\(\)' 'recovery-key reconstruction requires Aborting buffer mode' -ExpectedCount 1
 }
 
-# Home records cannot be manually waved through by the operator UI.
 Assert-Regex $main 'manualRecoveryResolutionAllowed[\s\S]{0,260}activeRecoveryRecord\.Action\s*!=\s*MaintenanceActionKind\.Ds402Home[\s\S]{0,180}activeRecoveryRecord\.Action\s*!=\s*MaintenanceActionKind\.LmcHome' 'manual recovery resolution excludes DS402 Home and LMC Home' -ExpectedCount 1
 Assert-Regex $main 'DS402 Home requires Read Home Status[\s\S]{0,180}manual record resolution is disabled' 'WPF explicitly communicates DS402 Home manual-resolution prohibition' -ExpectedCount 1
 
