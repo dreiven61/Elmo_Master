@@ -26,43 +26,44 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $path = 'LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp\MainWindow.MaintenanceActions.cs'
           $text = [System.IO.File]::ReadAllText($path)
-          $old = @"
-                    if (active.Action == MaintenanceActionKind.LmcHome)
-                    {
-                        latestLmcHomeRecoveryKey =
-                            RecreateLmcHomeRecoveryKey(active);
-                    }
-                    else if (IsEncoderMaintenanceAction(active.Action))
-          "@
-          $new = @"
-                    if (active.Action == MaintenanceActionKind.LmcHome)
-                    {
-                        latestLmcHomeRecoveryKey =
-                            RecreateLmcHomeRecoveryKey(active);
-                    }
-                    else if (active.Action == MaintenanceActionKind.Ds402Home)
-                    {
-                        latestDs402HomeRecoveryKey =
-                            RecreateDs402RecoveryKey(active);
-                    }
-                    else if (IsEncoderMaintenanceAction(active.Action))
-          "@
-          $normalized = $text.Replace("`r`n", "`n")
-          $oldNormalized = $old.Replace("`r`n", "`n")
-          $newNormalized = $new.Replace("`r`n", "`n")
-          $matches = ([regex]::Matches($normalized, [regex]::Escape($oldNormalized))).Count
-          if ($matches -ne 1) {
-            throw "Expected exactly one H37 WPF startup recovery anchor, found $matches."
+          $newline = if ($text.Contains("`r`n")) { "`r`n" } else { "`n" }
+          $lines = [System.Collections.Generic.List[string]]::new()
+          foreach ($line in ($text -split "`r?`n")) { [void]$lines.Add($line) }
+
+          $candidates = New-Object System.Collections.Generic.List[int]
+          for ($i = 0; $i -lt $lines.Count; $i++) {
+            if ($lines[$i].Trim() -ne 'if (active.Action == MaintenanceActionKind.LmcHome)') { continue }
+            for ($j = $i + 1; $j -lt [Math]::Min($i + 12, $lines.Count); $j++) {
+              if ($lines[$j].Trim() -eq 'else if (IsEncoderMaintenanceAction(active.Action))') {
+                $candidates.Add($j)
+                break
+              }
+            }
           }
-          $updated = $normalized.Replace($oldNormalized, $newNormalized)
+          if ($candidates.Count -ne 1) {
+            throw "Expected exactly one H37 WPF startup recovery insertion point, found $($candidates.Count)."
+          }
+
+          $insertAt = $candidates[0]
+          $indent = ([regex]::Match($lines[$insertAt], '^\s*')).Value
+          $insert = @(
+            ($indent + 'else if (active.Action == MaintenanceActionKind.Ds402Home)'),
+            ($indent + '{'),
+            ($indent + '    latestDs402HomeRecoveryKey ='),
+            ($indent + '        RecreateDs402RecoveryKey(active);'),
+            ($indent + '}')
+          )
+          for ($k = $insert.Count - 1; $k -ge 0; $k--) {
+            $lines.Insert($insertAt, $insert[$k])
+          }
+
+          $updated = [string]::Join($newline, $lines)
           [System.IO.File]::WriteAllText($path, $updated, (New-Object System.Text.UTF8Encoding($false)))
 
           $updatedText = [System.IO.File]::ReadAllText($path)
-          if (-not $updatedText.Contains('latestDs402HomeRecoveryKey =')) {
-            throw 'DS402 Home startup recovery key assignment was not written.'
-          }
-          if (-not $updatedText.Contains('RecreateDs402RecoveryKey(active);')) {
-            throw 'DS402 Home startup recovery key reconstruction was not written.'
+          $startupPattern = '(?ms)if\s*\(active\.Action\s*==\s*MaintenanceActionKind\.LmcHome\).*?else if\s*\(active\.Action\s*==\s*MaintenanceActionKind\.Ds402Home\)\s*\{\s*latestDs402HomeRecoveryKey\s*=\s*RecreateDs402RecoveryKey\(active\);\s*\}\s*else if\s*\(IsEncoderMaintenanceAction\(active\.Action\)\)'
+          if (([regex]::Matches($updatedText, $startupPattern)).Count -ne 1) {
+            throw 'DS402 Home startup recovery reconstruction is not in the exact expected branch sequence.'
           }
 
       - name: Remove one-shot workflow from resulting tree
