@@ -1,0 +1,69 @@
+name: HomeDS402 H37 apply once
+
+on:
+  push:
+    branches:
+      - codex/home-ds402-h37-source-qualification
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Wire H37 test and correct design mask
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected one anchor, found {count}')
+              p.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          replace_once(
+              'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Program.cs',
+              '            AdminDs402HomeCurrentPositionZeroContractTests.Register(tests);\n',
+              '            AdminDs402HomeCurrentPositionZeroContractTests.Register(tests);\n'
+              '            AdminDs402HomeH37QualificationTests.Register(tests);\n')
+
+          replace_once(
+              'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/LasalMotionControlLib.Tests.csproj',
+              '    <Compile Include="AdminDs402HomeCurrentPositionZeroContractTests.cs" />\n',
+              '    <Compile Include="AdminDs402HomeCurrentPositionZeroContractTests.cs" />\n'
+              '    <Compile Include="AdminDs402HomeH37QualificationTests.cs" />\n')
+
+          replace_once(
+              'docs/api/design/HOME_DS402_DESIGN.md',
+              '| Admin response | Feature mask `0x00000017 -> 0x00000057` |',
+              '| Admin response | operational feature mask `0x0000613F -> 0x0000617F` (bit 6 only) |')
+
+          replace_once(
+              'docs/api/design/HOME_DS402_DESIGN.md',
+              'activation verifier는 혼합 상태를 거부해야 한다. ordinary ownership은 Home 전용이 아니므로\n',
+              '현재 `dev`의 non-Home operational feature mask는 `0x0000613F`이며 HomeDS402 activation은 다른 feature bit를 바꾸지 않고 bit 6(`0x40`)만 추가한 `0x0000617F`이어야 한다. 이 값은 과거 `0x17/0x57` 예시를 current source에 맞춰 교정한 것이다.\n\nactivation verifier는 혼합 상태를 거부해야 한다. ordinary ownership은 Home 전용이 아니므로\n')
+
+      - name: Remove temporary workflows and commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/home-ds402-h37-inspect-once.yml
+          rm -f .github/workflows/home-ds402-h37-apply-once.yml
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Program.cs \
+            LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/LasalMotionControlLib.Tests.csproj \
+            docs/api/design/HOME_DS402_DESIGN.md \
+            .github/workflows/home-ds402-h37-inspect-once.yml \
+            .github/workflows/home-ds402-h37-apply-once.yml
+          git commit -m 'test(h37): wire atomic activation and packet qualification'
+          git push origin HEAD:codex/home-ds402-h37-source-qualification
