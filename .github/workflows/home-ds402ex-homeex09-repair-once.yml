@@ -1,4 +1,4 @@
-# one-shot repair trigger: 2026-08-26 legacy-geometry closure
+# one-shot repair trigger: 2026-08-26 disjoint-reserved closure
 name: HomeDS402Ex HOMEEX-09 one-shot repair
 
 on:
@@ -49,19 +49,13 @@ jobs:
           tail_matches = list(tail_pattern.finditer(control_bytes))
           repaired_matches = list(repaired_pattern.finditer(control_bytes))
           if len(tail_matches) == 2 and len(repaired_matches) == 0:
-              control_bytes = tail_pattern.sub(
-                  br'\1LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES\2',
-                  control_bytes,
-                  count=2,
-              )
+              control_bytes = tail_pattern.sub(br'\1LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES\2', control_bytes, count=2)
               control.write_bytes(control_bytes)
               print('PASS repaired exactly two stale identity-tail strides')
           elif len(tail_matches) == 0 and len(repaired_matches) == 2:
               print('PASS identity-tail stride source repair already committed')
           else:
-              raise SystemExit(
-                  f'Unexpected identity-tail source state: stale={len(tail_matches)}, repaired={len(repaired_matches)}'
-              )
+              raise SystemExit(f'Unexpected identity-tail source state: stale={len(tail_matches)}, repaired={len(repaired_matches)}')
 
           contract_bytes = contract.read_bytes()
           replacements = [
@@ -94,29 +88,16 @@ jobs:
               contract_bytes = contract_bytes.replace(old, new, expected_count)
 
           geometry_replacements = [
+              (b"'Reference\\s*-\\s*1(\\)\\s*\\*\\s*8\\s*;)')", b"'Reference\\s*-\\s*1(\\)\\s*\\*\\s*LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES\\s*;)')", 1),
+              (b"'identityTailOffset\\s*:=\\s*TO_UDINT\\(Reference\\s*-\\s*1\\)\\s*\\*\\s*8\\s*;.*?' +", b"'identityTailOffset\\s*:=\\s*TO_UDINT\\(Reference\\s*-\\s*1\\)\\s*\\*\\s*LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES\\s*;.*?' +", 1),
+              (b"'if\\s+identityTailSize\\s*>\\s*8\\s+then\\s*RETURN\\s*;') (", b"'if\\s+identityTailSize\\s*>\\s*LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES\\s+then\\s*RETURN\\s*;') (", 1),
+              (b'exact 64-byte prefix and per-axis 8-byte tail packing drifted.', b'exact 64-byte prefix and per-axis identity-tail packing drifted.', 1),
+              (b"Pattern = 'identityTailOffset\\s*:=\\s*TO_UDINT\\(Reference\\s*-\\s*1\\)\\s*\\*\\s*8\\s*;'; Replacement = 'identityTailOffset := TO_UDINT(Reference) * 8;' }", b"Pattern = 'identityTailOffset\\s*:=\\s*TO_UDINT\\(Reference\\s*-\\s*1\\)\\s*\\*\\s*LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES\\s*;'; Replacement = 'identityTailOffset := TO_UDINT(Reference) * LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES;' }", 1),
+              (b'$reservedDisjointStates.Count -ne 1', b'$reservedDisjointStates.Count -ne 2', 1),
+              (b'disjoint proof Reserved state must appear exactly once for SetOperationMode.', b'disjoint proof Reserved state must appear exactly twice for SetOperationMode and HomeDS402Ex.', 1),
               (
-                  b"'Reference\\s*-\\s*1(\\)\\s*\\*\\s*8\\s*;)')",
-                  b"'Reference\\s*-\\s*1(\\)\\s*\\*\\s*LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES\\s*;)')",
-                  1,
-              ),
-              (
-                  b"'identityTailOffset\\s*:=\\s*TO_UDINT\\(Reference\\s*-\\s*1\\)\\s*\\*\\s*8\\s*;.*?' +",
-                  b"'identityTailOffset\\s*:=\\s*TO_UDINT\\(Reference\\s*-\\s*1\\)\\s*\\*\\s*LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES\\s*;.*?' +",
-                  1,
-              ),
-              (
-                  b"'if\\s+identityTailSize\\s*>\\s*8\\s+then\\s*RETURN\\s*;') (",
-                  b"'if\\s+identityTailSize\\s*>\\s*LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES\\s+then\\s*RETURN\\s*;') (",
-                  1,
-              ),
-              (
-                  b'exact 64-byte prefix and per-axis 8-byte tail packing drifted.',
-                  b'exact 64-byte prefix and per-axis identity-tail packing drifted.',
-                  1,
-              ),
-              (
-                  b"Pattern = 'identityTailOffset\\s*:=\\s*TO_UDINT\\(Reference\\s*-\\s*1\\)\\s*\\*\\s*8\\s*;'; Replacement = 'identityTailOffset := TO_UDINT(Reference) * 8;' }",
-                  b"Pattern = 'identityTailOffset\\s*:=\\s*TO_UDINT\\(Reference\\s*-\\s*1\\)\\s*\\*\\s*LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES\\s*;'; Replacement = 'identityTailOffset := TO_UDINT(Reference) * LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES;' }",
+                  b"'LMC_OWNER_STATE_AXIS_OPERATION_MODE_ACTIVE') (",
+                  b"'LMC_OWNER_STATE_AXIS_OPERATION_MODE_ACTIVE.*?' +\r\n        'LMC_OWNER_KIND_DS402_HOME_EX\\s*:\\s*currentStateValid\\s*:=.*?' +\r\n        'LMC_OWNER_STATE_RESERVED.*?' +\r\n        'LMC_OWNER_STATE_DS402_HOME_EX_ACTIVE') (",
                   1,
               ),
           ]
@@ -125,7 +106,7 @@ jobs:
               if observed != expected_count:
                   raise SystemExit(f'Legacy identity geometry precondition failed: {old[:100]!r}, found {observed}, expected {expected_count}')
               contract_bytes = contract_bytes.replace(old, new, expected_count)
-          print('PASS migrated legacy identity geometry self-tests from literal 8-byte stride to the 52-byte macro contract')
+          print('PASS migrated legacy identity geometry and disjoint reserved-state self-tests to HomeDS402Ex contract')
 
           lexical_specs = [
               (4181, 25399, b'19E0C93B5538A8E9C361401CFAE85E23CDFFE0831422EF8174B735C57471FD50', 4181, 25498, b'9E575F9EB8826780E7BBA7592D02566D342460A2DB90CB7551EFD17E8B9CC92D'),
@@ -140,14 +121,9 @@ jobs:
               matches = list(pattern.finditer(contract_bytes))
               if len(matches) != 1:
                   raise SystemExit(f'Publish-split lexical baseline precondition failed for {old_count}/{old_len}: found {len(matches)}')
-              contract_bytes = pattern.sub(
-                  lambda match: match.group(1) + str(new_count).encode() + match.group(2) + str(new_len).encode() + match.group(3) + new_sha + match.group(4),
-                  contract_bytes,
-                  count=1,
-              )
+              contract_bytes = pattern.sub(lambda match: match.group(1) + str(new_count).encode() + match.group(2) + str(new_len).encode() + match.group(3) + new_sha + match.group(4), contract_bytes, count=1)
 
           contract.write_bytes(contract_bytes)
-
           print('PASS re-baselined OwnershipState persisted-read fence 44 -> 47; identity fence remains 12')
           print('PASS re-baselined replacement semantic inventory and rollback-split byte/hash ratchets')
           print('PASS re-baselined publish referenced-macro closure 70/2470 -> 73/2579')
