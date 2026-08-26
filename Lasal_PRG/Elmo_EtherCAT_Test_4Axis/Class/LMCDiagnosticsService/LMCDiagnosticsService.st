@@ -87,7 +87,7 @@ LMCDiagnosticsService : CLASS
 		D5TerminalWakeLastAttemptOwnerSessionEpoch 	: UDINT;
 		Ds402HomeState : ARRAY [0..127] OF DINT;
 
-		Ds402HomeExState : ARRAY [0..255] OF DINT;
+		Ds402HomeExState : ARRAY [0..319] OF DINT;
 
 		EncoderMaintenanceState : ARRAY [0..191] OF DINT;
 
@@ -531,6 +531,10 @@ END_FUNCTION
 // HomeDS402Ex parser/outcome scaffold is private until HOMEEX-07/08 runtime work.
 #define LMC_DIAG_DS402_HOME_EX_ENABLED FALSE
 #define LMC_DIAG_HOMEEX_RECORD_STRIDE 40
+#define LMC_DIAG_HOMEEX_RETIRED_BASE 160
+#define LMC_DIAG_HOMEEX_RETIRED_STRIDE 40
+#define LMC_DIAG_HOMEEX_RETIRED_STATE_MASK 0x00008000
+#define LMC_DIAG_HOMEEX_CLEANUP_PROOF_REQUIRED 0x0000003F
 #define LMC_DIAG_HOMEEX_EXECUTE_TOKEN 0x58453448
 #define LMC_DIAG_HOMEEX_DETAIL_NOT_FOUND 53
 #define LMC_DIAG_HOMEEX_DETAIL_INDETERMINATE 54
@@ -4540,13 +4544,16 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeExStart
 		requestId, diagnosticsBuild, bootId, mapRevision : UDINT;
 		intent0, intent1, intent2, intent3 : UDINT;
 		overallTimeout, detectionTimeout, currentBootId : UDINT;
+		rawRetiredState : UDINT;
 		detailCode : UDINT;
 		homingMethod : DINT;
 		positionRaw : UDINT;
 		axisMask : UDINT;
-		spareIndex, recordIndex, recordBase : DINT;
+		spareIndex, recordIndex, recordBase, tombstoneBase : DINT;
+		recordState, retiredState : DINT;
 		ownerResult : DINT;
-		spareZero, methodCandidate, recordDirty : BOOL;
+		spareZero, methodCandidate, recordDirty, recordValid : BOOL;
+		retiredDuplicate, tombstoneDirty, tombstoneValid : BOOL;
 	END_VAR
 
 	ResponseSize := -1;
@@ -4650,6 +4657,8 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeExStart
 				detailCode := 42;
 			else
 				recordBase := TO_DINT(Reference - 1) * LMC_DIAG_HOMEEX_RECORD_STRIDE;
+				tombstoneBase := LMC_DIAG_HOMEEX_RETIRED_BASE +
+					TO_DINT(Reference - 1) * LMC_DIAG_HOMEEX_RETIRED_STRIDE;
 				recordDirty := FALSE;
 				recordIndex := 0;
 				while recordIndex < LMC_DIAG_HOMEEX_RECORD_STRIDE do
@@ -4658,13 +4667,140 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeExStart
 					end_if;
 					recordIndex += 1;
 				end_while;
+				recordState := Ds402HomeExState[recordBase];
+				recordValid :=
+					recordDirty & (recordState >= 1) & (recordState <= 4) &
+					(Ds402HomeExState[recordBase + 1]$UDINT <> 0) &
+					(Ds402HomeExState[recordBase + 2]$UDINT <> 0) &
+					(Ds402HomeExState[recordBase + 3]$UDINT <> 0) &
+					(Ds402HomeExState[recordBase + 4]$UDINT <> 0) &
+					((Ds402HomeExState[recordBase + 5] <> 0) |
+					 (Ds402HomeExState[recordBase + 6] <> 0) |
+					 (Ds402HomeExState[recordBase + 7] <> 0) |
+					 (Ds402HomeExState[recordBase + 8] <> 0)) &
+					(Ds402HomeExState[recordBase + 9] = TO_DINT(Reference)) &
+					(Ds402HomeExState[recordBase + 11]$UDINT <> 0x80000000) &
+					(Ds402HomeExState[recordBase + 18] = 1) &
+					(Ds402HomeExState[recordBase + 19]$UDINT <> 0) &
+					(Ds402HomeExState[recordBase + 20]$UDINT <> 0) &
+					(Ds402HomeExState[recordBase + 21] = 0) &
+					(Ds402HomeExState[recordBase + 22] = 0) &
+					(Ds402HomeExState[recordBase + 23] = 0) &
+					(Ds402HomeExState[recordBase + 24] = 0) &
+					(Ds402HomeExState[recordBase + 25] = 0) &
+					(Ds402HomeExState[recordBase + 26] = 0) &
+					(Ds402HomeExState[recordBase + 27] = 0) &
+					(Ds402HomeExState[recordBase + 28] = 0) &
+					(Ds402HomeExState[recordBase + 34]$UDINT <> 0) &
+					(Ds402HomeExState[recordBase + 37]$UDINT <> 0);
+				if recordValid then
+					if recordState = 1 then
+						recordValid := recordValid &
+							(Ds402HomeExState[recordBase + 35] = 0) &
+							(Ds402HomeExState[recordBase + 36] = 0) &
+							(Ds402HomeExState[recordBase + 38] = 0);
+					else
+						recordValid := recordValid &
+							(Ds402HomeExState[recordBase + 35]$UDINT >=
+							 Ds402HomeExState[recordBase + 34]$UDINT) &
+							(Ds402HomeExState[recordBase + 36] = 0) &
+							(Ds402HomeExState[recordBase + 39]$UDINT <> 0);
+					end_if;
+				end_if;
 				if recordDirty then
-					detailCode := LMC_DIAG_HOMEEX_DETAIL_STORE_CORRUPT;
-				elsif LMC_DIAG_DS402_HOME_EX_ENABLED = FALSE then
-					detailCode := LMC_DIAG_HOMEEX_DETAIL_INVALID_PROFILE;
+					if recordValid = FALSE then
+						detailCode := LMC_DIAG_HOMEEX_DETAIL_STORE_CORRUPT;
+					elsif (recordState <> 1) &
+						(Ds402HomeExState[recordBase + 38]$UDINT <>
+						 LMC_DIAG_HOMEEX_CLEANUP_PROOF_REQUIRED) then
+						detailCode := LMC_DIAG_HOMEEX_DETAIL_CLEANUP_INCOMPLETE;
+					else
+						detailCode := LMC_DIAG_HOMEEX_DETAIL_SLOT_OCCUPIED;
+					end_if;
 				else
-					// HOMEEX-07 proves ownership only. HOMEEX-08 adds execution.
-					detailCode := LMC_DIAG_HOMEEX_DETAIL_STORAGE;
+					tombstoneDirty := FALSE;
+					recordIndex := 0;
+					while recordIndex < LMC_DIAG_HOMEEX_RETIRED_STRIDE do
+						if Ds402HomeExState[tombstoneBase + recordIndex] <> 0 then
+							tombstoneDirty := TRUE;
+						end_if;
+						recordIndex += 1;
+					end_while;
+					if tombstoneDirty then
+						rawRetiredState := Ds402HomeExState[tombstoneBase]$UDINT;
+						retiredState := TO_DINT(rawRetiredState and 0x00007FFF);
+						tombstoneValid :=
+							((rawRetiredState = 0x00008002) |
+							 (rawRetiredState = 0x00008003) |
+							 (rawRetiredState = 0x00008004)) &
+							(Ds402HomeExState[tombstoneBase + 1]$UDINT <> 0) &
+							(Ds402HomeExState[tombstoneBase + 2]$UDINT <> 0) &
+							(Ds402HomeExState[tombstoneBase + 3]$UDINT <> 0) &
+							(Ds402HomeExState[tombstoneBase + 4]$UDINT <> 0) &
+							((Ds402HomeExState[tombstoneBase + 5] <> 0) |
+							 (Ds402HomeExState[tombstoneBase + 6] <> 0) |
+							 (Ds402HomeExState[tombstoneBase + 7] <> 0) |
+							 (Ds402HomeExState[tombstoneBase + 8] <> 0)) &
+							(Ds402HomeExState[tombstoneBase + 9] = TO_DINT(Reference)) &
+							(Ds402HomeExState[tombstoneBase + 11]$UDINT <> 0x80000000) &
+							(Ds402HomeExState[tombstoneBase + 18] = 1) &
+							(Ds402HomeExState[tombstoneBase + 19]$UDINT <> 0) &
+							(Ds402HomeExState[tombstoneBase + 20]$UDINT <> 0) &
+							(Ds402HomeExState[tombstoneBase + 21] = 0) &
+							(Ds402HomeExState[tombstoneBase + 22] = 0) &
+							(Ds402HomeExState[tombstoneBase + 23] = 0) &
+							(Ds402HomeExState[tombstoneBase + 24] = 0) &
+							(Ds402HomeExState[tombstoneBase + 25] = 0) &
+							(Ds402HomeExState[tombstoneBase + 26] = 0) &
+							(Ds402HomeExState[tombstoneBase + 27] = 0) &
+							(Ds402HomeExState[tombstoneBase + 28] = 0) &
+							(Ds402HomeExState[tombstoneBase + 34]$UDINT <> 0) &
+							(Ds402HomeExState[tombstoneBase + 35]$UDINT >=
+							 Ds402HomeExState[tombstoneBase + 34]$UDINT) &
+							(Ds402HomeExState[tombstoneBase + 36] = 0) &
+							(Ds402HomeExState[tombstoneBase + 37]$UDINT <> 0) &
+							(Ds402HomeExState[tombstoneBase + 38]$UDINT =
+							 LMC_DIAG_HOMEEX_CLEANUP_PROOF_REQUIRED) &
+							(Ds402HomeExState[tombstoneBase + 39]$UDINT <> 0);
+						if tombstoneValid = FALSE then
+							detailCode := LMC_DIAG_HOMEEX_DETAIL_STORE_CORRUPT;
+						else
+							retiredDuplicate :=
+								(Ds402HomeExState[tombstoneBase + 1]$UDINT = diagnosticsBuild) &
+								(Ds402HomeExState[tombstoneBase + 2]$UDINT = bootId) &
+								(Ds402HomeExState[tombstoneBase + 3]$UDINT = mapRevision) &
+								(Ds402HomeExState[tombstoneBase + 4]$UDINT = requestId) &
+								(Ds402HomeExState[tombstoneBase + 5]$UDINT = intent0) &
+								(Ds402HomeExState[tombstoneBase + 6]$UDINT = intent1) &
+								(Ds402HomeExState[tombstoneBase + 7]$UDINT = intent2) &
+								(Ds402HomeExState[tombstoneBase + 8]$UDINT = intent3) &
+								(Ds402HomeExState[tombstoneBase + 9] = TO_DINT(Reference)) &
+								(Ds402HomeExState[tombstoneBase + 10] = homingMethod) &
+								(Ds402HomeExState[tombstoneBase + 11] = (pRequest + 40)^$DINT) &
+								(Ds402HomeExState[tombstoneBase + 12] = (pRequest + 44)^$DINT) &
+								(Ds402HomeExState[tombstoneBase + 13] = (pRequest + 48)^$DINT) &
+								(Ds402HomeExState[tombstoneBase + 14] = (pRequest + 52)^$DINT) &
+								(Ds402HomeExState[tombstoneBase + 15] = (pRequest + 56)^$DINT) &
+								(Ds402HomeExState[tombstoneBase + 16] = (pRequest + 60)^$DINT) &
+								(Ds402HomeExState[tombstoneBase + 17] = (pRequest + 64)^$DINT) &
+								(Ds402HomeExState[tombstoneBase + 18] = TO_DINT(bufferMode)) &
+								(Ds402HomeExState[tombstoneBase + 19]$UDINT = overallTimeout) &
+								(Ds402HomeExState[tombstoneBase + 20]$UDINT = detectionTimeout);
+							if retiredDuplicate then
+								detailCode := LMC_DIAG_HOMEEX_DETAIL_SLOT_OCCUPIED;
+							elsif LMC_DIAG_DS402_HOME_EX_ENABLED = FALSE then
+								detailCode := LMC_DIAG_HOMEEX_DETAIL_INVALID_PROFILE;
+							else
+								detailCode := LMC_DIAG_HOMEEX_DETAIL_STORAGE;
+							end_if;
+						end_if;
+					else
+						if LMC_DIAG_DS402_HOME_EX_ENABLED = FALSE then
+							detailCode := LMC_DIAG_HOMEEX_DETAIL_INVALID_PROFILE;
+						else
+							detailCode := LMC_DIAG_HOMEEX_DETAIL_STORAGE;
+						end_if;
+					end_if;
 				end_if;
 			end_if;
 		end_if;
@@ -4683,7 +4819,6 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeExStart
 
 END_FUNCTION
 
-
 FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeExOutcome
 	VAR_INPUT
 		Reference 	: UINT;
@@ -4695,7 +4830,7 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeExOutcome
 	END_VAR
 	VAR_OUTPUT
 		ResponseSize 	: DINT;
-	END_VAR
+	END_VAR;
 	VAR
 		schemaVersion, requestFlags, bufferMode, reservedValue : UINT;
 		requestId, diagnosticsBuild, bootId, mapRevision : UDINT;
@@ -4704,8 +4839,9 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeExOutcome
 		detailCode : UDINT;
 		homingMethod : DINT;
 		positionRaw : UDINT;
-		spareIndex, recordIndex, recordBase : DINT;
-		spareZero, methodCandidate, recordDirty : BOOL;
+		spareIndex, recordBase : DINT;
+		recordState : DINT;
+		spareZero, methodCandidate, recordValid, keyMatches : BOOL;
 	END_VAR
 
 	ResponseSize := -1;
@@ -4782,25 +4918,130 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeExOutcome
 			detailCode := 5;
 		else
 			recordBase := TO_DINT(Reference - 1) * LMC_DIAG_HOMEEX_RECORD_STRIDE;
-			recordDirty := FALSE;
-			recordIndex := 0;
-			while recordIndex < LMC_DIAG_HOMEEX_RECORD_STRIDE do
-				if Ds402HomeExState[recordBase + recordIndex] <> 0 then
-					recordDirty := TRUE;
-				end_if;
-				recordIndex += 1;
-			end_while;
-			if recordDirty then
-				detailCode := LMC_DIAG_HOMEEX_DETAIL_STORE_CORRUPT;
-			else
+			recordState := Ds402HomeExState[recordBase];
+			if recordState = 0 then
 				detailCode := LMC_DIAG_HOMEEX_DETAIL_NOT_FOUND;
+			else
+				recordValid :=
+					(recordState >= 1) & (recordState <= 4) &
+					(Ds402HomeExState[recordBase + 1]$UDINT <> 0) &
+					(Ds402HomeExState[recordBase + 2]$UDINT <> 0) &
+					(Ds402HomeExState[recordBase + 3]$UDINT <> 0) &
+					(Ds402HomeExState[recordBase + 4]$UDINT <> 0) &
+					((Ds402HomeExState[recordBase + 5] <> 0) |
+					 (Ds402HomeExState[recordBase + 6] <> 0) |
+					 (Ds402HomeExState[recordBase + 7] <> 0) |
+					 (Ds402HomeExState[recordBase + 8] <> 0)) &
+					(Ds402HomeExState[recordBase + 9] = TO_DINT(Reference)) &
+					(Ds402HomeExState[recordBase + 11]$UDINT <> 0x80000000) &
+					(Ds402HomeExState[recordBase + 18] = 1) &
+					(Ds402HomeExState[recordBase + 19]$UDINT <> 0) &
+					(Ds402HomeExState[recordBase + 20]$UDINT <> 0) &
+					(Ds402HomeExState[recordBase + 21] = 0) &
+					(Ds402HomeExState[recordBase + 22] = 0) &
+					(Ds402HomeExState[recordBase + 23] = 0) &
+					(Ds402HomeExState[recordBase + 24] = 0) &
+					(Ds402HomeExState[recordBase + 25] = 0) &
+					(Ds402HomeExState[recordBase + 26] = 0) &
+					(Ds402HomeExState[recordBase + 27] = 0) &
+					(Ds402HomeExState[recordBase + 28] = 0) &
+					(Ds402HomeExState[recordBase + 34]$UDINT <> 0) &
+					(Ds402HomeExState[recordBase + 37]$UDINT <> 0);
+				if recordValid then
+					if recordState = 1 then
+						recordValid := recordValid &
+							(Ds402HomeExState[recordBase + 35] = 0) &
+							(Ds402HomeExState[recordBase + 36] = 0) &
+							(Ds402HomeExState[recordBase + 38] = 0);
+					else
+						recordValid := recordValid &
+							(Ds402HomeExState[recordBase + 35]$UDINT >=
+							 Ds402HomeExState[recordBase + 34]$UDINT) &
+							(Ds402HomeExState[recordBase + 36] = 0) &
+							(Ds402HomeExState[recordBase + 38]$UDINT =
+							 LMC_DIAG_HOMEEX_CLEANUP_PROOF_REQUIRED) &
+							(Ds402HomeExState[recordBase + 39]$UDINT <> 0);
+					end_if;
+				end_if;
+				if recordValid = FALSE then
+					detailCode := LMC_DIAG_HOMEEX_DETAIL_STORE_CORRUPT;
+				else
+					keyMatches :=
+						(Ds402HomeExState[recordBase + 1]$UDINT = diagnosticsBuild) &
+						(Ds402HomeExState[recordBase + 2]$UDINT = bootId) &
+						(Ds402HomeExState[recordBase + 3]$UDINT = mapRevision) &
+						(Ds402HomeExState[recordBase + 4]$UDINT = originalRequestId) &
+						(Ds402HomeExState[recordBase + 5]$UDINT = intent0) &
+						(Ds402HomeExState[recordBase + 6]$UDINT = intent1) &
+						(Ds402HomeExState[recordBase + 7]$UDINT = intent2) &
+						(Ds402HomeExState[recordBase + 8]$UDINT = intent3) &
+						(Ds402HomeExState[recordBase + 9] = TO_DINT(Reference)) &
+						(Ds402HomeExState[recordBase + 10] = homingMethod) &
+						(Ds402HomeExState[recordBase + 11] = (pRequest + 44)^$DINT) &
+						(Ds402HomeExState[recordBase + 12] = (pRequest + 48)^$DINT) &
+						(Ds402HomeExState[recordBase + 13] = (pRequest + 52)^$DINT) &
+						(Ds402HomeExState[recordBase + 14] = (pRequest + 56)^$DINT) &
+						(Ds402HomeExState[recordBase + 15] = (pRequest + 60)^$DINT) &
+						(Ds402HomeExState[recordBase + 16] = (pRequest + 64)^$DINT) &
+						(Ds402HomeExState[recordBase + 17] = (pRequest + 68)^$DINT) &
+						(Ds402HomeExState[recordBase + 18] = TO_DINT(bufferMode)) &
+						(Ds402HomeExState[recordBase + 19]$UDINT = overallTimeout) &
+						(Ds402HomeExState[recordBase + 20]$UDINT = detectionTimeout);
+					if keyMatches = FALSE then
+						detailCode := LMC_DIAG_HOMEEX_DETAIL_KEY_MISMATCH;
+					elsif ResponseCapacity < 176 then
+						ResponseSize := -1;
+						RETURN;
+					else
+						(pResponse + 4)^$UINT := 0;
+						(pResponse + 6)^$INT := 0;
+						(pResponse + 12)^$UDINT := 0;
+						(pResponse + 16)^$UINT := TO_UINT(recordState);
+						(pResponse + 18)^$UINT := 0;
+						(pResponse + 20)^$UDINT := Ds402HomeExState[recordBase + 1]$UDINT;
+						(pResponse + 24)^$UDINT := Ds402HomeExState[recordBase + 2]$UDINT;
+						(pResponse + 28)^$UDINT := Ds402HomeExState[recordBase + 3]$UDINT;
+						(pResponse + 32)^$UDINT := Ds402HomeExState[recordBase + 4]$UDINT;
+						(pResponse + 36)^$UDINT := Ds402HomeExState[recordBase + 5]$UDINT;
+						(pResponse + 40)^$UDINT := Ds402HomeExState[recordBase + 6]$UDINT;
+						(pResponse + 44)^$UDINT := Ds402HomeExState[recordBase + 7]$UDINT;
+						(pResponse + 48)^$UDINT := Ds402HomeExState[recordBase + 8]$UDINT;
+						(pResponse + 52)^$UINT := TO_UINT(Ds402HomeExState[recordBase + 9]);
+						(pResponse + 54)^$UINT := 0;
+						(pResponse + 56)^$DINT := Ds402HomeExState[recordBase + 10];
+						(pResponse + 60)^$DINT := Ds402HomeExState[recordBase + 11];
+						(pResponse + 64)^$DINT := Ds402HomeExState[recordBase + 12];
+						(pResponse + 68)^$DINT := Ds402HomeExState[recordBase + 13];
+						(pResponse + 72)^$DINT := Ds402HomeExState[recordBase + 14];
+						(pResponse + 76)^$DINT := Ds402HomeExState[recordBase + 15];
+						(pResponse + 80)^$DINT := Ds402HomeExState[recordBase + 16];
+						(pResponse + 84)^$DINT := Ds402HomeExState[recordBase + 17];
+						(pResponse + 88)^$UINT := TO_UINT(Ds402HomeExState[recordBase + 18]);
+						(pResponse + 90)^$UINT := 0;
+						(pResponse + 92)^$UDINT := Ds402HomeExState[recordBase + 19]$UDINT;
+						(pResponse + 96)^$UDINT := Ds402HomeExState[recordBase + 20]$UDINT;
+						(pResponse + 132)^$UDINT := Ds402HomeExState[recordBase + 29]$UDINT;
+						(pResponse + 136)^$UDINT := Ds402HomeExState[recordBase + 30]$UDINT;
+						(pResponse + 140)^$UDINT := Ds402HomeExState[recordBase + 31]$UDINT;
+						(pResponse + 144)^$DINT := Ds402HomeExState[recordBase + 32];
+						(pResponse + 148)^$DINT := Ds402HomeExState[recordBase + 33];
+						(pResponse + 152)^$UDINT := Ds402HomeExState[recordBase + 34]$UDINT;
+						(pResponse + 156)^$UDINT := Ds402HomeExState[recordBase + 35]$UDINT;
+						(pResponse + 160)^$UDINT := Ds402HomeExState[recordBase + 36]$UDINT;
+						(pResponse + 164)^$UDINT := Ds402HomeExState[recordBase + 37]$UDINT;
+						(pResponse + 168)^$UDINT := Ds402HomeExState[recordBase + 38]$UDINT;
+						(pResponse + 172)^$UDINT := Ds402HomeExState[recordBase + 39]$UDINT;
+						ResponseSize := 176;
+					end_if;
+				end_if;
 			end_if;
 		end_if;
 	end_if;
-	(pResponse + 12)^$UDINT := detailCode;
+	if ResponseSize = 16 then
+		(pResponse + 12)^$UDINT := detailCode;
+	end_if;
 
 END_FUNCTION
-
 
 FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeExRetire
 	VAR_INPUT
@@ -4813,17 +5054,20 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeExRetire
 	END_VAR
 	VAR_OUTPUT
 		ResponseSize 	: DINT;
-	END_VAR
+	END_VAR;
 	VAR
 		schemaVersion, requestFlags, bufferMode, reservedValue : UINT;
 		requestId, diagnosticsBuild, bootId, mapRevision : UDINT;
 		originalRequestId, intent0, intent1, intent2, intent3 : UDINT;
 		overallTimeout, detectionTimeout, expectedGeneration, currentBootId : UDINT;
+		rawRetiredState : UDINT;
 		detailCode : UDINT;
 		homingMethod : DINT;
 		positionRaw : UDINT;
-		spareIndex, recordIndex, recordBase : DINT;
-		spareZero, methodCandidate, recordDirty : BOOL;
+		spareIndex, recordIndex, recordBase, tombstoneBase, responseBase : DINT;
+		recordState, retiredState : DINT;
+		spareZero, methodCandidate, recordValid, keyMatches : BOOL;
+		tombstoneDirty, tombstoneValid, tombstoneMatches, retireSuccess : BOOL;
 	END_VAR
 
 	ResponseSize := -1;
@@ -4835,6 +5079,9 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeExRetire
 	(pResponse + 4)^$UINT := 1;
 	(pResponse + 6)^$INT := LMC_DIAG_ADMIN_ERROR_ID;
 	requestId := 0;
+	retireSuccess := FALSE;
+	responseBase := -1;
+	retiredState := 0;
 	if (pRequest <> NIL) & (RequestSize >= 8) then
 		requestId := (pRequest + 4)^$UDINT;
 	end_if;
@@ -4901,25 +5148,239 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeExRetire
 			detailCode := 5;
 		else
 			recordBase := TO_DINT(Reference - 1) * LMC_DIAG_HOMEEX_RECORD_STRIDE;
-			recordDirty := FALSE;
-			recordIndex := 0;
-			while recordIndex < LMC_DIAG_HOMEEX_RECORD_STRIDE do
-				if Ds402HomeExState[recordBase + recordIndex] <> 0 then
-					recordDirty := TRUE;
+			tombstoneBase := LMC_DIAG_HOMEEX_RETIRED_BASE +
+				TO_DINT(Reference - 1) * LMC_DIAG_HOMEEX_RETIRED_STRIDE;
+			recordState := Ds402HomeExState[recordBase];
+			if recordState = 0 then
+				tombstoneDirty := FALSE;
+				recordIndex := 0;
+				while recordIndex < LMC_DIAG_HOMEEX_RETIRED_STRIDE do
+					if Ds402HomeExState[tombstoneBase + recordIndex] <> 0 then
+						tombstoneDirty := TRUE;
+					end_if;
+					recordIndex += 1;
+				end_while;
+				if tombstoneDirty = FALSE then
+					detailCode := LMC_DIAG_HOMEEX_DETAIL_NOT_FOUND;
+				else
+					rawRetiredState := Ds402HomeExState[tombstoneBase]$UDINT;
+					retiredState := TO_DINT(rawRetiredState and 0x00007FFF);
+					tombstoneValid :=
+						((rawRetiredState = 0x00008002) |
+						 (rawRetiredState = 0x00008003) |
+						 (rawRetiredState = 0x00008004)) &
+						(Ds402HomeExState[tombstoneBase + 1]$UDINT <> 0) &
+						(Ds402HomeExState[tombstoneBase + 2]$UDINT <> 0) &
+						(Ds402HomeExState[tombstoneBase + 3]$UDINT <> 0) &
+						(Ds402HomeExState[tombstoneBase + 4]$UDINT <> 0) &
+						((Ds402HomeExState[tombstoneBase + 5] <> 0) |
+						 (Ds402HomeExState[tombstoneBase + 6] <> 0) |
+						 (Ds402HomeExState[tombstoneBase + 7] <> 0) |
+						 (Ds402HomeExState[tombstoneBase + 8] <> 0)) &
+						(Ds402HomeExState[tombstoneBase + 9] = TO_DINT(Reference)) &
+						(Ds402HomeExState[tombstoneBase + 11]$UDINT <> 0x80000000) &
+						(Ds402HomeExState[tombstoneBase + 18] = 1) &
+						(Ds402HomeExState[tombstoneBase + 19]$UDINT <> 0) &
+						(Ds402HomeExState[tombstoneBase + 20]$UDINT <> 0) &
+						(Ds402HomeExState[tombstoneBase + 21] = 0) &
+						(Ds402HomeExState[tombstoneBase + 22] = 0) &
+						(Ds402HomeExState[tombstoneBase + 23] = 0) &
+						(Ds402HomeExState[tombstoneBase + 24] = 0) &
+						(Ds402HomeExState[tombstoneBase + 25] = 0) &
+						(Ds402HomeExState[tombstoneBase + 26] = 0) &
+						(Ds402HomeExState[tombstoneBase + 27] = 0) &
+						(Ds402HomeExState[tombstoneBase + 28] = 0) &
+						(Ds402HomeExState[tombstoneBase + 34]$UDINT <> 0) &
+						(Ds402HomeExState[tombstoneBase + 35]$UDINT >=
+						 Ds402HomeExState[tombstoneBase + 34]$UDINT) &
+						(Ds402HomeExState[tombstoneBase + 36] = 0) &
+						(Ds402HomeExState[tombstoneBase + 37]$UDINT <> 0) &
+						(Ds402HomeExState[tombstoneBase + 38]$UDINT =
+						 LMC_DIAG_HOMEEX_CLEANUP_PROOF_REQUIRED) &
+						(Ds402HomeExState[tombstoneBase + 39]$UDINT <> 0);
+					if tombstoneValid = FALSE then
+						detailCode := LMC_DIAG_HOMEEX_DETAIL_STORE_CORRUPT;
+					else
+						tombstoneMatches :=
+							(Ds402HomeExState[tombstoneBase + 1]$UDINT = diagnosticsBuild) &
+							(Ds402HomeExState[tombstoneBase + 2]$UDINT = bootId) &
+							(Ds402HomeExState[tombstoneBase + 3]$UDINT = mapRevision) &
+							(Ds402HomeExState[tombstoneBase + 4]$UDINT = originalRequestId) &
+							(Ds402HomeExState[tombstoneBase + 5]$UDINT = intent0) &
+							(Ds402HomeExState[tombstoneBase + 6]$UDINT = intent1) &
+							(Ds402HomeExState[tombstoneBase + 7]$UDINT = intent2) &
+							(Ds402HomeExState[tombstoneBase + 8]$UDINT = intent3) &
+							(Ds402HomeExState[tombstoneBase + 9] = TO_DINT(Reference)) &
+							(Ds402HomeExState[tombstoneBase + 10] = homingMethod) &
+							(Ds402HomeExState[tombstoneBase + 11] = (pRequest + 44)^$DINT) &
+							(Ds402HomeExState[tombstoneBase + 12] = (pRequest + 48)^$DINT) &
+							(Ds402HomeExState[tombstoneBase + 13] = (pRequest + 52)^$DINT) &
+							(Ds402HomeExState[tombstoneBase + 14] = (pRequest + 56)^$DINT) &
+							(Ds402HomeExState[tombstoneBase + 15] = (pRequest + 60)^$DINT) &
+							(Ds402HomeExState[tombstoneBase + 16] = (pRequest + 64)^$DINT) &
+							(Ds402HomeExState[tombstoneBase + 17] = (pRequest + 68)^$DINT) &
+							(Ds402HomeExState[tombstoneBase + 18] = TO_DINT(bufferMode)) &
+							(Ds402HomeExState[tombstoneBase + 19]$UDINT = overallTimeout) &
+							(Ds402HomeExState[tombstoneBase + 20]$UDINT = detectionTimeout) &
+							(Ds402HomeExState[tombstoneBase + 37]$UDINT = expectedGeneration);
+						if tombstoneMatches then
+							if ResponseCapacity < 176 then
+								ResponseSize := -1;
+								RETURN;
+							end_if;
+							responseBase := tombstoneBase;
+							retireSuccess := TRUE;
+						else
+							detailCode := LMC_DIAG_HOMEEX_DETAIL_KEY_MISMATCH;
+						end_if;
+					end_if;
 				end_if;
-				recordIndex += 1;
-			end_while;
-			if recordDirty then
-				detailCode := LMC_DIAG_HOMEEX_DETAIL_STORE_CORRUPT;
 			else
-				detailCode := LMC_DIAG_HOMEEX_DETAIL_NOT_FOUND;
+				recordValid :=
+					(recordState >= 1) & (recordState <= 4) &
+					(Ds402HomeExState[recordBase + 1]$UDINT <> 0) &
+					(Ds402HomeExState[recordBase + 2]$UDINT <> 0) &
+					(Ds402HomeExState[recordBase + 3]$UDINT <> 0) &
+					(Ds402HomeExState[recordBase + 4]$UDINT <> 0) &
+					((Ds402HomeExState[recordBase + 5] <> 0) |
+					 (Ds402HomeExState[recordBase + 6] <> 0) |
+					 (Ds402HomeExState[recordBase + 7] <> 0) |
+					 (Ds402HomeExState[recordBase + 8] <> 0)) &
+					(Ds402HomeExState[recordBase + 9] = TO_DINT(Reference)) &
+					(Ds402HomeExState[recordBase + 11]$UDINT <> 0x80000000) &
+					(Ds402HomeExState[recordBase + 18] = 1) &
+					(Ds402HomeExState[recordBase + 19]$UDINT <> 0) &
+					(Ds402HomeExState[recordBase + 20]$UDINT <> 0) &
+					(Ds402HomeExState[recordBase + 21] = 0) &
+					(Ds402HomeExState[recordBase + 22] = 0) &
+					(Ds402HomeExState[recordBase + 23] = 0) &
+					(Ds402HomeExState[recordBase + 24] = 0) &
+					(Ds402HomeExState[recordBase + 25] = 0) &
+					(Ds402HomeExState[recordBase + 26] = 0) &
+					(Ds402HomeExState[recordBase + 27] = 0) &
+					(Ds402HomeExState[recordBase + 28] = 0) &
+					(Ds402HomeExState[recordBase + 34]$UDINT <> 0) &
+					(Ds402HomeExState[recordBase + 37]$UDINT <> 0);
+				if recordValid then
+					if recordState = 1 then
+						recordValid := recordValid &
+							(Ds402HomeExState[recordBase + 35] = 0) &
+							(Ds402HomeExState[recordBase + 36] = 0) &
+							(Ds402HomeExState[recordBase + 38] = 0);
+					else
+						recordValid := recordValid &
+							(Ds402HomeExState[recordBase + 35]$UDINT >=
+							 Ds402HomeExState[recordBase + 34]$UDINT) &
+							(Ds402HomeExState[recordBase + 36] = 0) &
+							(Ds402HomeExState[recordBase + 39]$UDINT <> 0);
+					end_if;
+				end_if;
+				if recordValid = FALSE then
+					detailCode := LMC_DIAG_HOMEEX_DETAIL_STORE_CORRUPT;
+				else
+					keyMatches :=
+						(Ds402HomeExState[recordBase + 1]$UDINT = diagnosticsBuild) &
+						(Ds402HomeExState[recordBase + 2]$UDINT = bootId) &
+						(Ds402HomeExState[recordBase + 3]$UDINT = mapRevision) &
+						(Ds402HomeExState[recordBase + 4]$UDINT = originalRequestId) &
+						(Ds402HomeExState[recordBase + 5]$UDINT = intent0) &
+						(Ds402HomeExState[recordBase + 6]$UDINT = intent1) &
+						(Ds402HomeExState[recordBase + 7]$UDINT = intent2) &
+						(Ds402HomeExState[recordBase + 8]$UDINT = intent3) &
+						(Ds402HomeExState[recordBase + 9] = TO_DINT(Reference)) &
+						(Ds402HomeExState[recordBase + 10] = homingMethod) &
+						(Ds402HomeExState[recordBase + 11] = (pRequest + 44)^$DINT) &
+						(Ds402HomeExState[recordBase + 12] = (pRequest + 48)^$DINT) &
+						(Ds402HomeExState[recordBase + 13] = (pRequest + 52)^$DINT) &
+						(Ds402HomeExState[recordBase + 14] = (pRequest + 56)^$DINT) &
+						(Ds402HomeExState[recordBase + 15] = (pRequest + 60)^$DINT) &
+						(Ds402HomeExState[recordBase + 16] = (pRequest + 64)^$DINT) &
+						(Ds402HomeExState[recordBase + 17] = (pRequest + 68)^$DINT) &
+						(Ds402HomeExState[recordBase + 18] = TO_DINT(bufferMode)) &
+						(Ds402HomeExState[recordBase + 19]$UDINT = overallTimeout) &
+						(Ds402HomeExState[recordBase + 20]$UDINT = detectionTimeout);
+					if keyMatches = FALSE then
+						detailCode := LMC_DIAG_HOMEEX_DETAIL_KEY_MISMATCH;
+					elsif recordState = 1 then
+						detailCode := LMC_DIAG_HOMEEX_DETAIL_INDETERMINATE;
+					elsif Ds402HomeExState[recordBase + 38]$UDINT <>
+						LMC_DIAG_HOMEEX_CLEANUP_PROOF_REQUIRED then
+						detailCode := LMC_DIAG_HOMEEX_DETAIL_CLEANUP_INCOMPLETE;
+					elsif expectedGeneration <>
+						Ds402HomeExState[recordBase + 37]$UDINT then
+						detailCode := LMC_DIAG_HOMEEX_DETAIL_KEY_MISMATCH;
+					elsif ResponseCapacity < 176 then
+						ResponseSize := -1;
+						RETURN;
+					else
+						Ds402HomeExState[tombstoneBase] := 0;
+						recordIndex := 1;
+						while recordIndex < LMC_DIAG_HOMEEX_RETIRED_STRIDE do
+							Ds402HomeExState[tombstoneBase + recordIndex] :=
+								Ds402HomeExState[recordBase + recordIndex];
+							recordIndex += 1;
+						end_while;
+						Ds402HomeExState[tombstoneBase] :=
+							TO_DINT(TO_UDINT(recordState) or LMC_DIAG_HOMEEX_RETIRED_STATE_MASK);
+						responseBase := tombstoneBase;
+						retiredState := recordState;
+						retireSuccess := TRUE;
+						recordIndex := 0;
+						while recordIndex < LMC_DIAG_HOMEEX_RECORD_STRIDE do
+							Ds402HomeExState[recordBase + recordIndex] := 0;
+							recordIndex += 1;
+						end_while;
+					end_if;
+				end_if;
 			end_if;
 		end_if;
 	end_if;
-	(pResponse + 12)^$UDINT := detailCode;
+
+	if retireSuccess then
+		(pResponse + 4)^$UINT := 0;
+		(pResponse + 6)^$INT := 0;
+		(pResponse + 12)^$UDINT := 0;
+		(pResponse + 16)^$UINT := TO_UINT(retiredState);
+		(pResponse + 18)^$UINT := 0;
+		(pResponse + 20)^$UDINT := Ds402HomeExState[responseBase + 1]$UDINT;
+		(pResponse + 24)^$UDINT := Ds402HomeExState[responseBase + 2]$UDINT;
+		(pResponse + 28)^$UDINT := Ds402HomeExState[responseBase + 3]$UDINT;
+		(pResponse + 32)^$UDINT := Ds402HomeExState[responseBase + 4]$UDINT;
+		(pResponse + 36)^$UDINT := Ds402HomeExState[responseBase + 5]$UDINT;
+		(pResponse + 40)^$UDINT := Ds402HomeExState[responseBase + 6]$UDINT;
+		(pResponse + 44)^$UDINT := Ds402HomeExState[responseBase + 7]$UDINT;
+		(pResponse + 48)^$UDINT := Ds402HomeExState[responseBase + 8]$UDINT;
+		(pResponse + 52)^$UINT := TO_UINT(Ds402HomeExState[responseBase + 9]);
+		(pResponse + 54)^$UINT := 0;
+		(pResponse + 56)^$DINT := Ds402HomeExState[responseBase + 10];
+		(pResponse + 60)^$DINT := Ds402HomeExState[responseBase + 11];
+		(pResponse + 64)^$DINT := Ds402HomeExState[responseBase + 12];
+		(pResponse + 68)^$DINT := Ds402HomeExState[responseBase + 13];
+		(pResponse + 72)^$DINT := Ds402HomeExState[responseBase + 14];
+		(pResponse + 76)^$DINT := Ds402HomeExState[responseBase + 15];
+		(pResponse + 80)^$DINT := Ds402HomeExState[responseBase + 16];
+		(pResponse + 84)^$DINT := Ds402HomeExState[responseBase + 17];
+		(pResponse + 88)^$UINT := TO_UINT(Ds402HomeExState[responseBase + 18]);
+		(pResponse + 90)^$UINT := 0;
+		(pResponse + 92)^$UDINT := Ds402HomeExState[responseBase + 19]$UDINT;
+		(pResponse + 96)^$UDINT := Ds402HomeExState[responseBase + 20]$UDINT;
+		(pResponse + 132)^$UDINT := Ds402HomeExState[responseBase + 29]$UDINT;
+		(pResponse + 136)^$UDINT := Ds402HomeExState[responseBase + 30]$UDINT;
+		(pResponse + 140)^$UDINT := Ds402HomeExState[responseBase + 31]$UDINT;
+		(pResponse + 144)^$DINT := Ds402HomeExState[responseBase + 32];
+		(pResponse + 148)^$DINT := Ds402HomeExState[responseBase + 33];
+		(pResponse + 152)^$UDINT := Ds402HomeExState[responseBase + 34]$UDINT;
+		(pResponse + 156)^$UDINT := Ds402HomeExState[responseBase + 35]$UDINT;
+		(pResponse + 160)^$UDINT := Ds402HomeExState[responseBase + 36]$UDINT;
+		(pResponse + 164)^$UDINT := Ds402HomeExState[responseBase + 37]$UDINT;
+		(pResponse + 168)^$UDINT := Ds402HomeExState[responseBase + 38]$UDINT;
+		(pResponse + 172)^$UDINT := Ds402HomeExState[responseBase + 39]$UDINT;
+		ResponseSize := 176;
+	else
+		(pResponse + 12)^$UDINT := detailCode;
+	end_if;
 
 END_FUNCTION
-
 
 FUNCTION LMCDiagnosticsService::ProcessAxisDs402HomeEx
 	// HOMEEX-07 adds exact ownership only. SDO, RT mailbox, controlword,

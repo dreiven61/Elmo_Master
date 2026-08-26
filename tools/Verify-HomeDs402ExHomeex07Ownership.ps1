@@ -116,7 +116,7 @@ Require-Regex $tcp 'diagnosticsHomeExStartValid[\s\S]{0,350}?ReserveAxisOwnershi
 Require-Regex $tcp '\(diagnosticsHomeExStartValid\s*=\s*FALSE\)[\s\S]{0,400}?diagnosticsHomeExStartValid\s*&[\s\S]{0,120}?diagnosticsAdmissionResult\s*=\s*0' 'diagnostics dispatch cannot bypass HomeDS402Ex ownership admission'
 Require-Regex $tcp 'elsif CommandID\s*=\s*0x7D1B then[\s\S]{0,520}?diagnosticsExactFailure[\s\S]{0,300}?Sendbuf\[24\]\$DINT\s*=\s*RequestBuf\[44\]\$DINT[\s\S]{0,120}?Sendbuf\[28\]\$UDINT\s*=\s*0' 'TCP recognizes exact HomeDS402Ex deterministic failure with method echo and zero native state'
 
-# Diagnostics validates the exact reservation but remains deliberately non-executable.
+# Diagnostics validates the exact reservation and retained lifecycle while physical execution remains disabled.
 Require-RegexCount $diagnostics '^#define LMC_DIAG_DS402_HOME_EX_ENABLED FALSE$' 1 'HomeDS402Ex runtime gate remains exactly OFF'
 Require-RegexCount $diagnostics '^#define LMC_DIAG_OWNER_KIND_DS402_HOME_EX 7$' 1 'Diagnostics uses frozen HomeDS402Ex OwnerKind 7'
 $startBody = Get-DiagnosticsFunction $diagnostics 'HandleAxisDs402HomeExStart'
@@ -130,17 +130,33 @@ Require-AbsentRegex $startBody 'RollbackAxisOwnership' 'Diagnostics HomeDS402Ex 
 Require-Regex $tcp 'if \(CommandID\s*=\s*0x7D1B\)\s*\|[\s\S]{0,180}?diagnosticsExactFailure\s*=\s*FALSE[\s\S]{0,180}?RollbackAxisOwnership' 'TCP releases every reserved HomeDS402Ex gate-OFF Start before response completion'
 Require-Regex $startBody 'LMC_DIAG_DS402_HOME_EX_ENABLED\s*=\s*FALSE[\s\S]{0,180}?LMC_DIAG_HOMEEX_DETAIL_INVALID_PROFILE' 'validated Start still fails closed while runtime gate is OFF'
 Require-AbsentRegex $startBody 'CommitAxisOwnership' 'HOMEEX-07 Start never commits HomeDS402Ex ownership active'
-Require-AbsentRegex $homeExBodies 'SdoAxis[1-4]\.' 'HOMEEX-07 HomeDS402Ex handlers perform no SDO execution'
-Require-AbsentRegex $homeExBodies 'InputLatch\.' 'HOMEEX-07 HomeDS402Ex handlers consume no RT latch state'
-Require-AbsentRegex $homeExBodies '0x6060|0x6040|0x607A|0x60FF|0x6071' 'HOMEEX-07 HomeDS402Ex handlers contain no motion/mode mutation object'
-Require-AbsentRegex $homeExBodies 'Ds402HomeExState\s*\[[^\]]+\]\s*:=' 'HOMEEX-07 still writes no HomeDS402Ex runtime/outcome record'
+Require-AbsentRegex $homeExBodies 'SdoAxis[1-4]\.' 'HomeDS402Ex handlers perform no SDO execution before HOMEEX-08'
+Require-AbsentRegex $homeExBodies 'InputLatch\.' 'HomeDS402Ex handlers consume no RT latch state before HOMEEX-08'
+Require-AbsentRegex $homeExBodies '0x6060|0x6040|0x607A|0x60FF|0x6071' 'HomeDS402Ex handlers contain no physical motion/mode mutation object before HOMEEX-08'
+Require-AbsentRegex $startBody 'Ds402HomeExState\s*\[[^\]]+\]\s*:=' 'Start remains read-only with respect to retained outcome state'
+Require-AbsentRegex $outcomeBody 'Ds402HomeExState\s*\[[^\]]+\]\s*:=' 'Outcome remains read-only with respect to retained outcome state'
+Require-AbsentRegex $processBody 'Ds402HomeExState\s*\[[^\]]+\]\s*:=' 'Cyclic processor still writes no HomeDS402Ex retained state'
+$retainedWrites = [regex]::Matches($retireBody, 'Ds402HomeExState\s*\[([^\]]+)\]\s*:=' )
+Require-True ($retainedWrites.Count -gt 0) 'Retire contains retained lifecycle writes introduced by HOMEEX-05'
+$retainedWriteScopeSafe = $true
+foreach ($write in $retainedWrites) {
+    $indexExpression = $write.Groups[1].Value.Trim()
+    if (($indexExpression -notmatch '^tombstoneBase(?:\s*\+|$)') -and
+        ($indexExpression -notmatch '^recordBase(?:\s*\+|$)')) {
+        $retainedWriteScopeSafe = $false
+        break
+    }
+}
+Require-True $retainedWriteScopeSafe 'HOMEEX-05 retained writes stay inside the per-axis active record or retired tombstone'
+Require-Regex $retireBody 'Ds402HomeExState\[tombstoneBase\]\s*:=\s*TO_DINT\(TO_UDINT\(recordState\)\s+or\s+LMC_DIAG_HOMEEX_RETIRED_STATE_MASK\)[\s\S]{0,500}?Ds402HomeExState\[recordBase\s*\+\s*recordIndex\]\s*:=\s*0' 'Retire publishes the full retired terminal marker before clearing the active record'
+Require-Regex $retireBody 'Ds402HomeExState\[recordBase\s*\+\s*recordIndex\]\s*:=\s*0' 'Retire clears only the active per-axis record after tombstone publication'
 Require-Regex $processBody 'RETURN;' 'HomeDS402Ex cyclic processor remains a no-op'
 Require-Regex $outcomeBody 'RequestSize\s*<>\s*116' 'Outcome requires exact 116-byte key payload'
-Require-Regex $outcomeBody 'LMC_DIAG_HOMEEX_DETAIL_NOT_FOUND' 'Outcome remains read-only not-found scaffold behavior'
+Require-Regex $outcomeBody 'LMC_DIAG_HOMEEX_DETAIL_NOT_FOUND' 'Outcome retains exact not-found behavior for an empty active record'
 Require-Regex $retireBody 'RequestSize\s*<>\s*120' 'Retire requires exact 120-byte payload'
-Require-Regex $retireBody 'expectedGeneration\s*=\s*0' 'Retire remains generation-checked scaffold behavior'
+Require-Regex $retireBody 'expectedGeneration\s*=\s*0' 'Retire remains generation-checked'
 
-# Capability remains private through HOMEEX-07.
+# Capability remains private through HOMEEX-07/HOMEEX-05 retained-store integration.
 $featureMatches = [regex]::Matches($control, '\(pResponseFrame\s*\+\s*24\)\^\$UDINT\s*:=\s*0x([0-9A-Fa-f]{8})\s*;')
 Require-True ($featureMatches.Count -eq 1) 'Admin feature mask has one canonical assignment'
 $featureMask = [Convert]::ToUInt32($featureMatches[0].Groups[1].Value, 16)
