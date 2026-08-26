@@ -18,67 +18,37 @@ jobs:
         with:
           ref: codex/home-ds402ex-homeex09-static-qualification
 
-      - name: Print identity tail source contract
-        shell: powershell
-        run: |
-          @'
-          from pathlib import Path
-
-          p = Path(r'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st')
-          text = p.read_bytes().decode('utf-8', errors='replace')
-          needles = [
-              'LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES',
-              'identityTailOffset :=',
-              'identityTailSize >',
-              'replacementTailOffset :=',
-          ]
-          found = False
-          for needle in needles:
-              start = 0
-              while True:
-                  pos = text.lower().find(needle.lower(), start)
-                  if pos < 0:
-                      break
-                  start = pos + len(needle)
-                  found = True
-                  print(f'===== needle={needle!r} pos={pos} =====')
-                  print(text[max(0, pos - 900):min(len(text), pos + 1200)])
-          if not found:
-              raise SystemExit('identity tail source contract context not found')
-          '@ | python -
-
-      - name: Print legacy identity tail assertions
+      - name: Print exact legacy identity fixture lines
         shell: powershell
         run: |
           @'
           from pathlib import Path
 
           p = Path(r'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1')
-          text = p.read_bytes().decode('utf-8', errors='replace')
-          needles = [
+          lines = p.read_bytes().decode('utf-8', errors='replace').splitlines()
+          needles = (
               'per-axis 8-byte tail packing drifted',
-              'ValidateAxisOwnershipPreemptionReplacement',
-              'replacementTailOffset',
-              'replacementTailSize',
-              'oldIdentityTailOffset',
-              'oldIdentityTailSize',
-          ]
-          found = False
-          seen = set()
-          for needle in needles:
-              start = 0
-              while True:
-                  pos = text.lower().find(needle.lower(), start)
-                  if pos < 0:
-                      break
-                  start = pos + len(needle)
-                  key = (max(0, pos - 1500), min(len(text), pos + 2200))
-                  if key in seen:
-                      continue
-                  seen.add(key)
-                  found = True
-                  print(f'===== legacy needle={needle!r} pos={pos} =====')
-                  print(text[key[0]:key[1]])
-          if not found:
-              raise SystemExit('legacy identity tail assertion context not found')
+              'identityTailOffset',
+              'identityTailSize',
+              'LMC_OWNER_IDENTITY_STATE_BYTES',
+              'LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES',
+              'baseline compact ownership identity/preemption',
+          )
+          hits = []
+          for i, line in enumerate(lines, 1):
+              if any(n.lower() in line.lower() for n in needles):
+                  hits.append(i)
+          if not hits:
+              raise SystemExit('legacy identity fixture lines not found')
+          wanted = set()
+          for i in hits:
+              for j in range(max(1, i - 3), min(len(lines), i + 3) + 1):
+                  wanted.add(j)
+          previous = None
+          for i in sorted(wanted):
+              if previous is not None and i != previous + 1:
+                  print('-----')
+              print(f'{i:05d}: {lines[i-1]}')
+              previous = i
           '@ | python -
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
