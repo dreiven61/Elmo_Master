@@ -39,6 +39,7 @@
   <ItemGroup>
     <Compile Include="Program.cs" />
     <Compile Include="UiLocalizationTests.cs" />
+    <Compile Include="RecentRecoveryPanelLocalizationTests.cs" />
     <Compile Include="ApplicationInstanceLeaseTests.cs" />
     <Compile Include="RecoveryRecordRetirementTests.cs" />
     <Compile Include="GroupProfileLockRecoveryJournalTests.cs" />
