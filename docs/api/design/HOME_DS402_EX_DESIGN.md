@@ -238,6 +238,7 @@ HOMEEX-06/07/09와 approved-plan preparation이 통합된 current `dev`도 featu
 - `LmcAdminDs402HomeExLifecycleModels.cs`
 - `LmcAdminDs402HomeExRecovery.cs`
 - `LmcAdminDs402HomeEx.cs`
+- `LmcAdminDs402HomeExApprovedProfile.cs`: approved profile -> checked frozen DINT plan internal preparation gate
 - `LmcAxisDs402HomeEx.cs`
 - `LmcProtocol.cs`, `LmcAdminModels.cs`, `LmcAdminProtocol.cs`
 - `LmcErrorCatalog.cs`, response payload limits

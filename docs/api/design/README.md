@@ -31,7 +31,7 @@ proof 전에는 activation을 닫아 둔다. `SetPosition`은 별도 작업 흐�
 | API | Start | ReadOutcome | Retire | 상태 |
 |---|---:|---:|---:|---|
 | HomeDS402 | `0x7D15` | `0x7D16` | `0x7D17` | current source/wire에 존재 |
-| HomeDS402Ex | `0x7D1B` | `0x7D1C` | `0x7D1D` | LASAL diagnostics route/scaffold 존재, runtime gate/capability OFF |
+| HomeDS402Ex | `0x7D1B` | `0x7D1C` | `0x7D1D` | route + full-identity ownership + profile/approved-plan preparation 존재, actual homing runtime gate/capability OFF |
 | SetOpMode | `0x7D23` | `0x7D24` | `0x7D25` | C#/LASAL lifecycle + WPF durable recovery 구현; compile gate/capability OFF |
 | SetPosition | `0x7D12` | `0x7D14` | `0x7D1A` | current source/wire에 존재, runtime fail-closed |
 
