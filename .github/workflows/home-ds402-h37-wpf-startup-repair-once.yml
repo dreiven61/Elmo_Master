@@ -1,0 +1,90 @@
+name: HomeDS402 H37 WPF startup recovery repair once
+
+on:
+  push:
+    branches:
+      - codex/home-ds402-h37-source-qualification
+    paths:
+      - '.github/workflows/home-ds402-h37-wpf-startup-repair-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Restore DS402 Home recovery key at WPF startup
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $path = 'LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp\MainWindow.MaintenanceActions.cs'
+          $text = [System.IO.File]::ReadAllText($path)
+          $old = @"
+                    if (active.Action == MaintenanceActionKind.LmcHome)
+                    {
+                        latestLmcHomeRecoveryKey =
+                            RecreateLmcHomeRecoveryKey(active);
+                    }
+                    else if (IsEncoderMaintenanceAction(active.Action))
+"@
+          $new = @"
+                    if (active.Action == MaintenanceActionKind.LmcHome)
+                    {
+                        latestLmcHomeRecoveryKey =
+                            RecreateLmcHomeRecoveryKey(active);
+                    }
+                    else if (active.Action == MaintenanceActionKind.Ds402Home)
+                    {
+                        latestDs402HomeRecoveryKey =
+                            RecreateDs402RecoveryKey(active);
+                    }
+                    else if (IsEncoderMaintenanceAction(active.Action))
+"@
+          $normalized = $text.Replace("`r`n", "`n")
+          $oldNormalized = $old.Replace("`r`n", "`n")
+          $newNormalized = $new.Replace("`r`n", "`n")
+          $matches = ([regex]::Matches($normalized, [regex]::Escape($oldNormalized))).Count
+          if ($matches -ne 1) {
+            throw "Expected exactly one H37 WPF startup recovery anchor, found $matches."
+          }
+          $updated = $normalized.Replace($oldNormalized, $newNormalized)
+          [System.IO.File]::WriteAllText($path, $updated, (New-Object System.Text.UTF8Encoding($false)))
+
+          $updatedText = [System.IO.File]::ReadAllText($path)
+          if (-not $updatedText.Contains('latestDs402HomeRecoveryKey =')) {
+            throw 'DS402 Home startup recovery key assignment was not written.'
+          }
+          if (-not $updatedText.Contains('RecreateDs402RecoveryKey(active);')) {
+            throw 'DS402 Home startup recovery key reconstruction was not written.'
+          }
+
+      - name: Remove one-shot workflow from resulting tree
+        shell: powershell
+        run: |
+          Remove-Item -LiteralPath '.github\workflows\home-ds402-h37-wpf-startup-repair-once.yml' -Force
+
+      - name: Diff hygiene
+        shell: powershell
+        run: |
+          git diff --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git diff -- 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.MaintenanceActions.cs' '.github/workflows/home-ds402-h37-wpf-startup-repair-once.yml'
+
+      - name: Commit WPF recovery source repair
+        shell: powershell
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.MaintenanceActions.cs' '.github/workflows/home-ds402-h37-wpf-startup-repair-once.yml'
+          if (git diff --cached --quiet) {
+            throw 'Expected H37 WPF recovery source diff is empty.'
+          }
+          git commit -m 'fix(h37): restore DS402 Home recovery key at startup'
+          git push origin HEAD:codex/home-ds402-h37-source-qualification
