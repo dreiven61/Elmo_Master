@@ -1,4 +1,4 @@
-name: HomeDS402Ex LASAL scaffold qualification
+name: HomeDS402Ex LASAL stage qualification
 
 on:
   pull_request:
@@ -9,6 +9,7 @@ on:
       - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
       - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
       - 'tools/Verify-HomeDs402ExLasalScaffold.ps1'
+      - 'tools/Verify-HomeDs402ExHomeex07Ownership.ps1'
       - 'tools/Verify-SetOperationModeDefineOrder.ps1'
       - '.github/workflows/home-ds402ex-lasal-baseline.yml'
       - 'docs/api/design/HOME_DS402_EX_LASAL_SCAFFOLD_READINESS.md'
@@ -16,11 +17,13 @@ on:
   push:
     branches:
       - codex/home-ds402ex-lasal-scaffold
+      - codex/home-ds402ex-homeex07-ownership
     paths:
       - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st'
       - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
       - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
       - 'tools/Verify-HomeDs402ExLasalScaffold.ps1'
+      - 'tools/Verify-HomeDs402ExHomeex07Ownership.ps1'
       - 'tools/Verify-SetOperationModeDefineOrder.ps1'
       - '.github/workflows/home-ds402ex-lasal-baseline.yml'
       - 'docs/api/design/HOME_DS402_EX_LASAL_SCAFFOLD_READINESS.md'
@@ -28,7 +31,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  scaffold-off:
+  lasal-stage:
     runs-on: windows-2025
     timeout-minutes: 15
     steps:
@@ -37,10 +40,30 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify HomeDS402Ex SCAFFOLD_OFF
+      - name: Detect HomeDS402Ex LASAL stage
+        id: stage
+        shell: pwsh
+        run: |
+          $control = Get-Content -LiteralPath '.\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCControlCommandService\LMCControlCommandService.st' -Raw
+          $homeex07 = $control.Contains('#define LMC_OWNER_KIND_DS402_HOME_EX 7')
+          "homeex07=$($homeex07.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          Write-Host "HOMEEX07=$homeex07"
+
+      - name: Verify HomeDS402Ex HOMEEX-06 SCAFFOLD_OFF
+        if: steps.stage.outputs.homeex07 != 'true'
         shell: powershell
         run: |
           powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\tools\Verify-HomeDs402ExLasalScaffold.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify HomeDS402Ex HOMEEX-07 ownership
+        if: steps.stage.outputs.homeex07 == 'true'
+        shell: pwsh
+        run: |
+          if (-not (Test-Path -LiteralPath '.\tools\Verify-HomeDs402ExHomeex07Ownership.ps1')) {
+            throw 'HOMEEX-07 source requires Verify-HomeDs402ExHomeex07Ownership.ps1.'
+          }
+          & .\tools\Verify-HomeDs402ExHomeex07Ownership.ps1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Verify SetOperationMode define order regression
@@ -50,7 +73,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Diff hygiene
-        shell: powershell
+        shell: pwsh
         run: |
           if ($env:GITHUB_EVENT_NAME -eq 'pull_request') {
             git diff --check "origin/$env:GITHUB_BASE_REF...HEAD"

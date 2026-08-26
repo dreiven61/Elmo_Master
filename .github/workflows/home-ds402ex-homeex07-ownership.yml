@@ -1,0 +1,76 @@
+name: HomeDS402Ex HOMEEX-07 ownership qualification
+
+on:
+  push:
+    branches:
+      - codex/home-ds402ex-homeex07-ownership
+    paths:
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
+      - 'LMC_Library/LMC_API_Delivery/src/LmcAdminDs402HomeExProtocol.cs'
+      - 'tools/Verify-HomeDs402ExHomeex07Ownership.ps1'
+      - '.github/workflows/home-ds402ex-homeex07-ownership.yml'
+  pull_request:
+    branches:
+      - dev
+    paths:
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
+      - 'LMC_Library/LMC_API_Delivery/src/LmcAdminDs402HomeExProtocol.cs'
+      - 'tools/Verify-HomeDs402ExHomeex07Ownership.ps1'
+      - '.github/workflows/home-ds402ex-homeex07-ownership.yml'
+  workflow_dispatch:
+
+jobs:
+  ownership-static:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify HOMEEX-07 ownership candidate
+        shell: pwsh
+        run: |
+          & .\tools\Verify-HomeDs402ExHomeex07Ownership.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify Start native-state parser contract
+        shell: pwsh
+        run: |
+          $diagPath = '.\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st'
+          $sdkPath = '.\LMC_Library\LMC_API_Delivery\src\LmcAdminDs402HomeExProtocol.cs'
+          $diag = Get-Content -LiteralPath $diagPath -Raw
+          $start = [regex]::Match($diag, 'FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeExStart(?s).*?END_FUNCTION').Value
+          if ([string]::IsNullOrWhiteSpace($start)) { throw 'HomeDS402Ex Start function not found.' }
+          if ($start -notmatch '\(pResponse \+ 20\)\^\$UDINT\s*:=\s*0;') {
+            throw 'HOMEEX-07 Start must preserve NativeCommandState=0 for the SDK parser.'
+          }
+          $sdk = Get-Content -LiteralPath $sdkPath -Raw
+          if ($sdk -notmatch 'nativeCommandState\s*!=\s*0') {
+            throw 'SDK HomeDS402Ex Start parser no longer rejects nonzero NativeCommandState.'
+          }
+
+      - name: Verify SetOperationMode define order
+        shell: powershell
+        run: |
+          powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\tools\Verify-SetOperationModeDefineOrder.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Diff hygiene
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_EVENT_NAME -eq 'pull_request') {
+            git diff --check "origin/$env:GITHUB_BASE_REF...HEAD"
+          }
+          elseif ($env:GITHUB_EVENT_NAME -eq 'push') {
+            git diff --check HEAD^ HEAD
+          }
+          else {
+            git diff --check
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

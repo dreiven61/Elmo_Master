@@ -668,12 +668,14 @@ END_FUNCTION
 #define LMC_OWNER_STATE_SAFETY_PREEMPTING 10
 #define LMC_OWNER_STATE_QUARANTINED 11
 #define LMC_OWNER_STATE_AXIS_OPERATION_MODE_ACTIVE 12
+#define LMC_OWNER_STATE_DS402_HOME_EX_ACTIVE 13
 #define LMC_OWNER_KIND_DIRECT 1
 #define LMC_OWNER_KIND_GROUP 2
 #define LMC_OWNER_KIND_LMC_HOME 3
 #define LMC_OWNER_KIND_DS402_HOME 4
 #define LMC_OWNER_KIND_ENCODER 5
 #define LMC_OWNER_KIND_AXIS_OPERATION_MODE        6
+#define LMC_OWNER_KIND_DS402_HOME_EX 7
 #define LMC_OWNER_RESOURCE_AXIS 1
 #define LMC_OWNER_RESOURCE_LMC_HOME_ENGINE 2
 #define LMC_OWNER_RESOURCE_DS402_HOME_ENGINE 3
@@ -739,6 +741,7 @@ END_FUNCTION
 #define LMC_OWNER_DS402_OPERATION_ENABLED_STATE 0x00000027
 #define LMC_OWNER_DS402_TARGET_REACHED_MASK 0x00000400
 #define LMC_OWNER_IDENTITY_PREFIX_BYTES 0x00000040
+#define LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES 52
 #define LMC_OWNER_IDENTITY_SUFFIX_DINTS 314
 #define LMC_OWNER_IDENTITY_SUFFIX_BYTES 1256
 #define LMC_OWNER_IDENTITY_AXIS_HEADER_BASE 314
@@ -2743,7 +2746,7 @@ FUNCTION GLOBAL LMCControlCommandService::ReserveAxisOwnership
 	   (CommandId = 0) | (CallerSessionEpoch = 0) |
 	   (RequestSequence = 0) |
 	   (OwnerKind < LMC_OWNER_KIND_DIRECT) |
-	   (OwnerKind > LMC_OWNER_KIND_AXIS_OPERATION_MODE) |
+	   (OwnerKind > LMC_OWNER_KIND_DS402_HOME_EX) |
 	   (ResourceKind < LMC_OWNER_RESOURCE_AXIS) |
 	   (ResourceKind > LMC_OWNER_RESOURCE_DIAGNOSTICS_SDO_ENGINE) |
 	   (AdmissionMode < LMC_OWNER_ADMISSION_ORDINARY) |
@@ -2778,6 +2781,8 @@ FUNCTION GLOBAL LMCControlCommandService::ReserveAxisOwnership
 		identityShapeValid := IdentitySize = 48;
 	elsif CommandId = 0x7D13 then
 		identityShapeValid := IdentitySize = 56;
+	elsif CommandId = 0x7D1B then
+		identityShapeValid := IdentitySize = 116;
 	elsif CommandId = 0x7D23 then
 		identityShapeValid := IdentitySize = 56;
 	elsif (CommandId = 0x7D15) | (CommandId = 0x7E53) then
@@ -2799,8 +2804,8 @@ FUNCTION GLOBAL LMCControlCommandService::ReserveAxisOwnership
 		if (Reference < 1) | (Reference > LMC_OWNER_AXIS_COUNT) then
 			RETURN;
 		end_if;
-		identityTailOffset := TO_UDINT(Reference - 1) * 8;
-		if identityTailSize > 8 then
+		identityTailOffset := TO_UDINT(Reference - 1) * LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES;
+		if identityTailSize > LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES then
 			RETURN;
 		end_if;
 	end_if;
@@ -2911,9 +2916,12 @@ FUNCTION GLOBAL LMCControlCommandService::ReserveAxisOwnership
 			RETURN;
 		end_if;
 	elsif ResourceKind = LMC_OWNER_RESOURCE_DS402_HOME_ENGINE then
-		if (OwnerKind <> LMC_OWNER_KIND_DS402_HOME) |
+		if (((OwnerKind <> LMC_OWNER_KIND_DS402_HOME) |
+		     (CommandId <> 0x7D15)) &
+		    ((OwnerKind <> LMC_OWNER_KIND_DS402_HOME_EX) |
+		     (CommandId <> 0x7D1B))) |
 		   (AdmissionMode <> LMC_OWNER_ADMISSION_LIFECYCLE) |
-		   (CommandId <> 0x7D15) | (referenceAxisMask = 0) |
+		   (referenceAxisMask = 0) |
 		   (referenceAxisMask > 0x00000008) |
 		   (RequestedAxisMask <> referenceAxisMask) then
 			RETURN;
@@ -3414,7 +3422,7 @@ FUNCTION GLOBAL LMCControlCommandService::ReserveAxisOwnership
 					end_while;
 					identityHeaderBase := LMC_OWNER_IDENTITY_AXIS_HEADER_BASE +
 						((axisIndex - 1) * LMC_OWNER_IDENTITY_AXIS_HEADER_STRIDE);
-					identityTailOffset := TO_UDINT(axisIndex - 1) * 8;
+					identityTailOffset := TO_UDINT(axisIndex - 1) * LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES;
 					identityPackedCommand :=
 						TO_UDINT(OwnershipState[recordBase + 3]) or
 						(TO_UDINT(axisIndex) shl 16);
@@ -3952,12 +3960,11 @@ FUNCTION GLOBAL LMCControlCommandService::ReserveAxisOwnership
 					if (OwnershipState[recordBase + 12] < 1) |
 					   (OwnershipState[recordBase + 12] >
 					    LMC_OWNER_AXIS_COUNT) |
-					   (identityTailSize > 8) then
+					   (identityTailSize > LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES) then
 						Result := -3;
 						RETURN;
 					end_if;
-					identityTailOffset :=
-						TO_UDINT(OwnershipState[recordBase + 12] - 1) * 8;
+					identityTailOffset := TO_UDINT(OwnershipState[recordBase + 12] - 1) * LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES;
 					existingIdentityValid :=
 						(OwnershipIdentityState[identityHeaderBase]$UDINT =
 						 (LMC_OWNER_IDENTITY_AXIS_MAGIC + TO_UDINT(axisIndex))) &
@@ -4499,7 +4506,7 @@ FUNCTION GLOBAL LMCControlCommandService::ReserveAxisOwnership
 	end_if;
 	identityTailOffset := 0;
 	if OwnerKind <> LMC_OWNER_KIND_GROUP then
-		identityTailOffset := TO_UDINT(Reference - 1) * 8;
+		identityTailOffset := TO_UDINT(Reference - 1) * LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES;
 	end_if;
 	axisIndex := 1;
 	while axisIndex <= LMC_OWNER_AXIS_COUNT do
@@ -4868,6 +4875,14 @@ FUNCTION GLOBAL LMCControlCommandService::ValidateAxisOwnership
 				(referenceAxisMask <> 0) &
 				(referenceAxisMask <= 0x00000008) &
 				(ExpectedAxisMask = referenceAxisMask);
+		0x7D1B:
+			tupleValid :=
+				(OwnerKind = LMC_OWNER_KIND_DS402_HOME_EX) &
+				(ResourceKind = LMC_OWNER_RESOURCE_DS402_HOME_ENGINE) &
+				(AdmissionMode = LMC_OWNER_ADMISSION_LIFECYCLE) &
+				(referenceAxisMask <> 0) &
+				(referenceAxisMask <= 0x00000008) &
+				(ExpectedAxisMask = referenceAxisMask);
 		0x7D23:
 			tupleValid :=
 				(OwnerKind = LMC_OWNER_KIND_AXIS_OPERATION_MODE) &
@@ -4920,6 +4935,8 @@ FUNCTION GLOBAL LMCControlCommandService::ValidateAxisOwnership
 					expectedState := LMC_OWNER_STATE_TW20_QUEUED;
 				LMC_OWNER_KIND_AXIS_OPERATION_MODE:
 					expectedState := LMC_OWNER_STATE_AXIS_OPERATION_MODE_ACTIVE;
+				LMC_OWNER_KIND_DS402_HOME_EX:
+					expectedState := LMC_OWNER_STATE_DS402_HOME_EX_ACTIVE;
 			else
 				RETURN;
 			end_case;
@@ -5134,6 +5151,8 @@ FUNCTION GLOBAL LMCControlCommandService::CommitAxisOwnership
 				activeState := LMC_OWNER_STATE_TW20_QUEUED;
 			LMC_OWNER_KIND_AXIS_OPERATION_MODE:
 				activeState := LMC_OWNER_STATE_AXIS_OPERATION_MODE_ACTIVE;
+			LMC_OWNER_KIND_DS402_HOME_EX:
+				activeState := LMC_OWNER_STATE_DS402_HOME_EX_ACTIVE;
 		else
 			activeState := LMC_OWNER_STATE_DIRECT_ACTIVE;
 		end_case;
@@ -5800,8 +5819,7 @@ FUNCTION GLOBAL LMCControlCommandService::RollbackAxisOwnership
 						groupHeaderPublished := TRUE;
 					end_if;
 				else
-					identityTailOffset :=
-						TO_UDINT(OwnershipState[recordBase + 12] - 1) * 8;
+					identityTailOffset := TO_UDINT(OwnershipState[recordBase + 12] - 1) * LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES;
 					if restorePreempt then
 						if identityTailSize > 0 then
 							_memset(dest:=#OwnershipIdentityState[
@@ -5922,7 +5940,7 @@ FUNCTION GLOBAL LMCControlCommandService::RollbackAxisOwnership
 		elsif expectedIdentitySize > LMC_OWNER_IDENTITY_PREFIX_BYTES then
 			identityTailSize := expectedIdentitySize -
 				LMC_OWNER_IDENTITY_PREFIX_BYTES;
-			identityTailOffset := TO_UDINT(expectedReference - 1) * 8;
+			identityTailOffset := TO_UDINT(expectedReference - 1) * LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES;
 			_memset(dest:=#OwnershipIdentityState[
 				TO_DINT(identityTailOffset / 4)], usByte:=0,
 				cntr:=identityTailSize);
@@ -6174,9 +6192,9 @@ FUNCTION GLOBAL LMCControlCommandService::PublishAxisOwnership
 		   (expectedReference > LMC_OWNER_AXIS_COUNT) then
 			identityShapeValid := FALSE;
 		else
-			identityTailOffset := TO_UDINT(expectedReference - 1) * 8;
+			identityTailOffset := TO_UDINT(expectedReference - 1) * LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES;
 		end_if;
-		if identityTailSize > 8 then
+		if identityTailSize > LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES then
 			identityShapeValid := FALSE;
 		end_if;
 	end_if;
@@ -6664,7 +6682,7 @@ FUNCTION GLOBAL LMCControlCommandService::PublishAxisOwnership
 			_memset(dest:=#OwnershipIdentityState[
 				LMC_OWNER_IDENTITY_GROUP_HEADER_BASE], usByte:=0, cntr:=40);
 		elsif identityTailSize > 0 then
-			identityTailOffset := TO_UDINT(expectedReference - 1) * 8;
+			identityTailOffset := TO_UDINT(expectedReference - 1) * LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES;
 			_memset(dest:=#OwnershipIdentityState[
 				TO_DINT(identityTailOffset / 4)], usByte:=0,
 				cntr:=identityTailSize);
@@ -12253,6 +12271,14 @@ FUNCTION GLOBAL LMCControlCommandService::ValidateAxisOwnershipIdentity
 				(referenceAxisMask <> 0) &
 				(referenceAxisMask <= 0x00000008) &
 				(ExpectedAxisMask = referenceAxisMask);
+		0x7D1B:
+			tupleValid :=
+				(OwnerKind = LMC_OWNER_KIND_DS402_HOME_EX) &
+				(ResourceKind = LMC_OWNER_RESOURCE_DS402_HOME_ENGINE) &
+				(AdmissionMode = LMC_OWNER_ADMISSION_LIFECYCLE) &
+				(referenceAxisMask <> 0) &
+				(referenceAxisMask <= 0x00000008) &
+				(ExpectedAxisMask = referenceAxisMask);
 		0x7D23:
 			tupleValid :=
 				(OwnerKind = LMC_OWNER_KIND_AXIS_OPERATION_MODE) &
@@ -12305,6 +12331,8 @@ FUNCTION GLOBAL LMCControlCommandService::ValidateAxisOwnershipIdentity
 					expectedState := LMC_OWNER_STATE_TW20_QUEUED;
 				LMC_OWNER_KIND_AXIS_OPERATION_MODE:
 					expectedState := LMC_OWNER_STATE_AXIS_OPERATION_MODE_ACTIVE;
+				LMC_OWNER_KIND_DS402_HOME_EX:
+					expectedState := LMC_OWNER_STATE_DS402_HOME_EX_ACTIVE;
 			else
 				RETURN;
 			end_case;
@@ -12411,8 +12439,8 @@ FUNCTION GLOBAL LMCControlCommandService::ValidateAxisOwnershipIdentity
 	end_if;
 	identityTailOffset := 0;
 	if OwnerKind <> LMC_OWNER_KIND_GROUP then
-		identityTailOffset := TO_UDINT(Reference - 1) * 8;
-		if identityTailSize > 8 then
+		identityTailOffset := TO_UDINT(Reference - 1) * LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES;
+		if identityTailSize > LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES then
 			Result := -1;
 			RETURN;
 		end_if;
@@ -12941,6 +12969,15 @@ FUNCTION GLOBAL LMCControlCommandService::CopyAxisOwnershipPreemption
 				(referenceAxisMask <> 0) &
 				(referenceAxisMask <= 0x00000008) &
 				(oldAxisMask = referenceAxisMask);
+		0x7D1B:
+			identityExpectedSize := 116;
+			identityMetadataValid :=
+				(oldOwnerKind = LMC_OWNER_KIND_DS402_HOME_EX) &
+				(oldResourceKind = LMC_OWNER_RESOURCE_DS402_HOME_ENGINE) &
+				(oldAdmissionMode = LMC_OWNER_ADMISSION_LIFECYCLE) &
+				(referenceAxisMask <> 0) &
+				(referenceAxisMask <= 0x00000008) &
+				(oldAxisMask = referenceAxisMask);
 		0x7D23:
 			identityExpectedSize := 56;
 			identityMetadataValid :=
@@ -12981,6 +13018,10 @@ FUNCTION GLOBAL LMCControlCommandService::CopyAxisOwnershipPreemption
 				identityMetadataValid := identityMetadataValid &
 					((oldState = LMC_OWNER_STATE_RESERVED) |
 					 (oldState = LMC_OWNER_STATE_AXIS_OPERATION_MODE_ACTIVE));
+			LMC_OWNER_KIND_DS402_HOME_EX:
+				identityMetadataValid := identityMetadataValid &
+					((oldState = LMC_OWNER_STATE_RESERVED) |
+					 (oldState = LMC_OWNER_STATE_DS402_HOME_EX_ACTIVE));
 		else
 			identityMetadataValid := FALSE;
 		end_case;
@@ -13006,10 +13047,10 @@ FUNCTION GLOBAL LMCControlCommandService::CopyAxisOwnershipPreemption
 	end_if;
 	identityTailOffset := 0;
 	if oldOwnerKind <> LMC_OWNER_KIND_GROUP then
-		identityTailOffset := TO_UDINT(oldReference - 1) * 8;
+		identityTailOffset := TO_UDINT(oldReference - 1) * LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES;
 	end_if;
 	if ((oldOwnerKind <> LMC_OWNER_KIND_GROUP) &
-	    (identityTailSize > 8)) |
+	    (identityTailSize > LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES)) |
 	   ((identityTailOffset + identityTailSize) >
 	    LMC_OWNER_IDENTITY_SUFFIX_BYTES) then
 		OwnershipState[24] := 1;
@@ -13135,6 +13176,10 @@ FUNCTION GLOBAL LMCControlCommandService::CopyAxisOwnershipPreemption
 						currentStateValid :=
 							(OwnershipState[currentRecordBase + 1] = LMC_OWNER_STATE_RESERVED) |
 							(OwnershipState[currentRecordBase + 1] = LMC_OWNER_STATE_AXIS_OPERATION_MODE_ACTIVE);
+					LMC_OWNER_KIND_DS402_HOME_EX:
+						currentStateValid :=
+							(OwnershipState[currentRecordBase + 1] = LMC_OWNER_STATE_RESERVED) |
+							(OwnershipState[currentRecordBase + 1] = LMC_OWNER_STATE_DS402_HOME_EX_ACTIVE);
 				else
 				end_case;
 				if (OwnershipState[currentRecordBase] <> axisIndex) |
@@ -13712,6 +13757,13 @@ FUNCTION GLOBAL LMCControlCommandService::PublishAxisOwnershipPreemptionCleanup
 				(oldResourceKind = LMC_OWNER_RESOURCE_DIAGNOSTICS_SDO_ENGINE) &
 				(oldAdmissionMode = LMC_OWNER_ADMISSION_LIFECYCLE) &
 				(oldState = LMC_OWNER_STATE_AXIS_OPERATION_MODE_ACTIVE);
+		LMC_OWNER_KIND_DS402_HOME_EX:
+			oldIdentityExpectedSize := 116;
+			oldSpecialValid :=
+				(oldCommand = 0x7D1B) &
+				(oldResourceKind = LMC_OWNER_RESOURCE_DS402_HOME_ENGINE) &
+				(oldAdmissionMode = LMC_OWNER_ADMISSION_LIFECYCLE) &
+				(oldState = LMC_OWNER_STATE_DS402_HOME_EX_ACTIVE);
 	else
 	end_case;
 	oldSpecialValid := oldSpecialValid &
@@ -14879,6 +14931,11 @@ FUNCTION LMCControlCommandService::ValidateAxisOwnershipPreemptionReplacement
 							(OwnershipState[replacementRecordBase + 1] = LMC_OWNER_STATE_RESERVED) |
 							(OwnershipState[replacementRecordBase + 1] = LMC_OWNER_STATE_AXIS_OPERATION_MODE_ACTIVE) |
 							(OwnershipState[replacementRecordBase + 1] = LMC_OWNER_STATE_QUARANTINED);
+					LMC_OWNER_KIND_DS402_HOME_EX:
+						replacementStateValid :=
+							(OwnershipState[replacementRecordBase + 1] = LMC_OWNER_STATE_RESERVED) |
+							(OwnershipState[replacementRecordBase + 1] = LMC_OWNER_STATE_DS402_HOME_EX_ACTIVE) |
+							(OwnershipState[replacementRecordBase + 1] = LMC_OWNER_STATE_QUARANTINED);
 				else
 				end_case;
 				replacementIdentitySize := OldIdentitySize;
@@ -15965,6 +16022,15 @@ FUNCTION LMCControlCommandService::ValidateAxisOwnershipRollbackPreemptBank
 						((snapshotState = LMC_OWNER_STATE_RESERVED) |
 						 (snapshotState = LMC_OWNER_STATE_AXIS_OPERATION_MODE_ACTIVE) |
 						 (snapshotState = LMC_OWNER_STATE_QUARANTINED));
+				LMC_OWNER_KIND_DS402_HOME_EX:
+					snapshotTupleValid :=
+						(snapshotCommand = 0x7D1B) &
+						(snapshotResourceKind = LMC_OWNER_RESOURCE_DS402_HOME_ENGINE) &
+						(snapshotAdmissionMode = LMC_OWNER_ADMISSION_LIFECYCLE) &
+						(snapshotIdentitySize = 116) &
+						((snapshotState = LMC_OWNER_STATE_RESERVED) |
+						 (snapshotState = LMC_OWNER_STATE_DS402_HOME_EX_ACTIVE) |
+						 (snapshotState = LMC_OWNER_STATE_QUARANTINED));
 			else
 			end_case;
 			identityShapeValid :=
@@ -15990,11 +16056,10 @@ FUNCTION LMCControlCommandService::ValidateAxisOwnershipRollbackPreemptBank
 			if snapshotOwnerKind <> LMC_OWNER_KIND_GROUP then
 				if (snapshotReference < 1) |
 				   (snapshotReference > LMC_OWNER_AXIS_COUNT) |
-				   (identityTailSize > 8) then
+				   (identityTailSize > LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES) then
 					identityShapeValid := FALSE;
 				else
-					identityTailOffset :=
-						TO_UDINT(snapshotReference - 1) * 8;
+					identityTailOffset := TO_UDINT(snapshotReference - 1) * LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES;
 				end_if;
 			end_if;
 			if (identityTailOffset + identityTailSize) >
@@ -16374,7 +16439,7 @@ FUNCTION LMCControlCommandService::HandleAxisOwnershipPublishHomeReceipt
 			(TO_UDINT(LMC_OWNER_RESOURCE_LMC_HOME_ENGINE) shl 8) or
 			(TO_UDINT(LMC_OWNER_ADMISSION_LIFECYCLE) shl 16);
 		identitySize := OwnershipState[recordBase + 15]$UDINT;
-		identityTailOffset := TO_UDINT(axisIndex - 1) * 8;
+		identityTailOffset := TO_UDINT(axisIndex - 1) * LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES;
 		identityTailSize := 0;
 		if identitySize > LMC_OWNER_IDENTITY_PREFIX_BYTES then
 			identityTailSize := identitySize - LMC_OWNER_IDENTITY_PREFIX_BYTES;
@@ -16847,6 +16912,14 @@ FUNCTION LMCControlCommandService::PrepareAxisOwnershipPublishDecision
 							((preemptState = LMC_OWNER_STATE_RESERVED) |
 							 (preemptState = LMC_OWNER_STATE_AXIS_OPERATION_MODE_ACTIVE)) &
 							(preemptIdentitySize = 56);
+					LMC_OWNER_KIND_DS402_HOME_EX:
+						preemptSpecialValid :=
+							(preemptCommand = 0x7D1B) &
+							(preemptResourceKind = LMC_OWNER_RESOURCE_DS402_HOME_ENGINE) &
+							(preemptAdmission = LMC_OWNER_ADMISSION_LIFECYCLE) &
+							((preemptState = LMC_OWNER_STATE_RESERVED) |
+							 (preemptState = LMC_OWNER_STATE_DS402_HOME_EX_ACTIVE)) &
+							(preemptIdentitySize = 116);
 				else
 				end_case;
 				if preemptSpecialValid then
@@ -16987,6 +17060,11 @@ FUNCTION LMCControlCommandService::PrepareAxisOwnershipPublishDecision
 											replacementStateValid :=
 												(OwnershipState[replacementRecordBase + 1] = LMC_OWNER_STATE_RESERVED) |
 												(OwnershipState[replacementRecordBase + 1] = LMC_OWNER_STATE_AXIS_OPERATION_MODE_ACTIVE) |
+												(OwnershipState[replacementRecordBase + 1] = LMC_OWNER_STATE_QUARANTINED);
+										LMC_OWNER_KIND_DS402_HOME_EX:
+											replacementStateValid :=
+												(OwnershipState[replacementRecordBase + 1] = LMC_OWNER_STATE_RESERVED) |
+												(OwnershipState[replacementRecordBase + 1] = LMC_OWNER_STATE_DS402_HOME_EX_ACTIVE) |
 												(OwnershipState[replacementRecordBase + 1] = LMC_OWNER_STATE_QUARANTINED);
 									else
 									end_case;
