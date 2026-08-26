@@ -21,7 +21,7 @@ jobs:
           fetch-depth: 0
 
       - name: Sync HomeDS402 recovery contract into current API docs
-        shell: powershell
+        shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $utf8 = New-Object System.Text.UTF8Encoding($false)
@@ -87,19 +87,19 @@ jobs:
           }
 
       - name: Remove one-shot workflow from resulting tree
-        shell: powershell
+        shell: pwsh
         run: |
           Remove-Item -LiteralPath '.github\workflows\home-ds402-h37-doc-sync-once.yml' -Force
 
       - name: Diff hygiene
-        shell: powershell
+        shell: pwsh
         run: |
           git diff --check
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           git diff -- docs/api/API_MANUAL.md docs/api/API_DEVELOPMENT_PROGRESS.md .github/workflows/home-ds402-h37-doc-sync-once.yml
 
       - name: Commit current API docs
-        shell: powershell
+        shell: pwsh
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
