@@ -1,5 +1,6 @@
 name: HomeDS402 H37 source qualification
 # Integrated H37-02/H37-03/H37-04/H37-05/H37-10 software qualification checkpoint.
+# H37-10 checkpoint includes exact-value relaunch recovery-key smoke coverage.
 
 on:
   push:
