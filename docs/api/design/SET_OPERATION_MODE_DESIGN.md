@@ -2,13 +2,15 @@
 
 - 대상: No.33 `MMC_ChngOpMode`
 - 현재 진행도: 60%
+- current baseline: `dev@52bd4cc120812c2510f8ac99d2d6a42576133d67`
 - current 상태: `Dormant runtime source`; PC/SDK contract, owner/runtime, no-replay recovery, safety preemption, generic D5 0x6060 차단과 MODE-13 WPF durable recovery 구현
 - 구현된 SDK command: `0x7D23 Start`, `0x7D24 ReadOutcome`, `0x7D25 Retire`
 - 구현된 PLC route/runtime: Diagnostics route, owner kind/resource, `6061 -> 6060 -> 6061`, outcome lifecycle, write-dispatch 이후 read-only recovery, safety-preemption cleanup
 - 1차 activation 범위: physical axis 1..4, Immediate, CSP mode 8만
 - activation 상태: `LMC_DIAG_SET_OPERATION_MODE_ENABLED = FALSE`, capability bits 8/9/10 OFF
-- 진행 판정: MODE-02/06/07/08/09 source 완료, MODE-10 source/static PASS, MODE-13 PC/WPF PASS; fresh C78/PLC/hardware는 미완료
-- 문서 checkpoint: 2026-08-26, `dev@c14a3d3a4138` integrated baseline; MODE-10 source/static와 MODE-13 PC/WPF 상태는 유지, PR #18 bench qualification branch와 PR #14 C78 history branch만 의도적으로 보존
+- 진행 판정: MODE-02/06/07/08/09 source 완료, MODE-10 source/static PASS, MODE-13 PC/WPF PASS; current exact-image C78/PLC/hardware는 미완료
+- open qualification branch: PR #18 `codex/setopmode-mode11-bench-activation` — `DO NOT MERGE`, physical bench evidence 전용
+- WPF follow-up: PR #37 dynamic recovery-panel localization/CI coverage는 미병합이며 activation 근거가 아님
 
 ## 1. 정확한 API 의미
 
@@ -340,8 +342,8 @@ MODE-13 PASS는 PC/WPF 증거 등급이며 C78/PLC/hardware activation 근거가
 - [x] `MODE-07` write-dispatch 이후 no-replay와 read-only recovery 구현
 - [x] `MODE-08` Home/SetPosition/motion/SDO ownership conflict와 safety preemption source 구현
 - [x] `MODE-09` generic D5 permanent unsafe object에 `0x6060` 추가
-- [ ] `MODE-10` source/static PASS; fresh C78/ARM Rebuild/Link, artifact identity 승인과 fault mutation matrix 미완료
-- [ ] `MODE-11` CSP same-mode no-write와 exact one-write/readback packet 검증
+- [ ] `MODE-10` source/static PASS; PR #17 fresh C78 artifact checkpoint는 존재하지만 current `dev` exact-source C78/PLC/fault matrix는 재검증 필요
+- [ ] `MODE-11` CSP same-mode no-write와 exact one-write/readback packet 검증 — PR #18 software bench tooling 준비, physical evidence 미완료
 - [ ] `MODE-12` 축 1~4 timeout/disconnect/mismatch/quarantine/retire 검증
 - [x] `MODE-13` WPF pre-dispatch journal/startup no-replay recovery와 smoke test PASS
 - [ ] `MODE-14` capability bits 8/9/10 paired activation
@@ -400,9 +402,11 @@ verifier를 `dev`에 복구했다.
 - `git diff --check` PASS
 - full SourceOnly는 source/static gate를 통과하고 기존 `Classes.lcb` physical identity ratchet에서만 STOP
 
-따라서 현재 판정은 `MODE-10 source/static PASS`, `IDE/artifact 이후 미완료`다. latest source의
-fresh C78/ARM Rebuild/Link, PLC download/runtime/hardware proof를 수행하지 않았으므로 MODE-10
-전체 체크박스는 완료로 올리지 않는다. artifact ratchet도 자동 갱신하지 않는다.
+따라서 현재 판정은 `MODE-10 source/static PASS`, `current exact-image IDE/artifact 이후 미완료`다.
+PR #17에서 fresh C78 artifact checkpoint를 확보했지만 이후 HomeDS402Ex retained-store/ownership source가
+`dev`에 추가됐으므로 그 artifact를 current activation image로 간주하지 않는다. production activation
+전에는 current `dev` source tree 기준 C78/ARM Rebuild/Link, PLC download/runtime/hardware proof를 다시
+묶어야 한다. artifact ratchet도 자동 갱신하지 않는다.
 
 ### 8.6 MODE-13 PC/WPF qualification checkpoint
 
@@ -420,6 +424,25 @@ PR #15(`fix(mode): close MODE-13 WPF reject recovery gap`)를 Windows runner에�
 
 상세 evidence는
 [evidence/SET_OPERATION_MODE_MODE13_WPF_RECOVERY_20260825.md](evidence/SET_OPERATION_MODE_MODE13_WPF_RECOVERY_20260825.md)에 고정한다.
+
+### 8.7 MODE-11 software bench preparation / current WPF follow-up
+
+PR #18 `codex/setopmode-mode11-bench-activation`은 production source를 merge하는 branch가 아니라
+physical bench qualification 전용 `DO NOT MERGE` branch다.
+
+software-side 준비 checkpoint:
+
+- BASELINE_OFF/BENCH_ACTIVE activation transform self-test PASS
+- 33-check candidate verifier PASS
+- durable WPF journal evidence exporter self-test PASS
+- MODE-11A/B hardware evidence verifier self-test PASS
+- same-mode source branch에서 `WriteRequested=0`, `WriteDispatched=0` contract proof
+
+이 evidence는 실제 drive packet/hardware PASS를 대신하지 않는다.
+
+또한 PR #37은 recent SetOperationMode/HomeDS402Ex dynamic recovery panel의 Korean localization과 CI path
+coverage 후속 작업이다. 현재 미병합이며 localization regression이 아직 green이 아니다. protocol/SDK/
+LASAL/no-replay semantics와 MODE-13 완료 상태에는 영향을 주지 않는다.
 
 ## 9. 비-CSP 후속 gate
 

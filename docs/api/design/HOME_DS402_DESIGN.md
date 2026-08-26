@@ -3,6 +3,8 @@
 - 대상: No.19 `MMC_HomeDS402Cmd`
 - 현재 진행도: 50%
 - current 상태: source implemented, deployment `Dormant`
+- current baseline: `dev@52bd4cc120812c2510f8ac99d2d6a42576133d67`
+- qualification branch: Draft PR #31 `codex/home-ds402-h37-source-qualification` — H37-02/03/04/10 software qualification 확보, `dev` 미통합
 - existing command: `0x7D15 Start`, `0x7D16 ReadOutcome`, `0x7D17 Retire`
 - v1 의미: DS402 method 37, 현재 위치를 0으로 설정하는 non-search Home
 
@@ -80,6 +82,10 @@ activation verifier는 혼합 상태를 거부해야 한다. ordinary ownership�
 Stop, PowerOff, Reset, SetPosition, encoder maintenance와 Group preemption 회귀도 같은 gate에
 포함한다.
 
+current `dev`에서는 위 activation 5-gate를 열지 않는다. Draft PR #31에서 all-OFF/all-ON 및
+mixed-state negative contract를 qualification했지만, 해당 PR이 merge되기 전까지 current 완료로
+승격하지 않는다.
+
 ## 5. runtime 상태와 성공 조건
 
 ```text
@@ -137,15 +143,15 @@ Indeterminate/Quarantined로 보존하고 original Start를 재전송하지 않�
 ## 7. 작업 체크리스트
 
 - [x] `H37-01` packet map의 receipt/drain 미완료 문구와 current source 차이 해소
-- [ ] `H37-02` all-OFF/all-ON activation과 mixed-state negative verifier 고정
-- [ ] `H37-03` method37 exact request/terminal/retire PC runner와 packet assertion 작성
-- [ ] `H37-04` ordinary ownership 공통 회귀 Stop/Power/Reset/Group/maintenance 추가
-- [ ] `H37-05` activation candidate SourceOnly/method-size PASS
+- [ ] `H37-02` all-OFF/all-ON activation과 mixed-state negative verifier 고정 — Draft PR #31 branch-qualified, `dev` 미통합
+- [ ] `H37-03` method37 exact request/terminal/retire PC runner와 packet assertion 작성 — Draft PR #31 PC sequence PASS, `dev` 미통합
+- [ ] `H37-04` ordinary ownership 공통 회귀 Stop/Power/Reset/Group/maintenance 추가 — Draft PR #31 shared ownership regression PASS, `dev` 미통합
+- [ ] `H37-05` activation candidate SourceOnly/method-size PASS — method-size branch PASS, full SourceOnly artifact ratchet 미완료
 - [ ] `H37-06` C78 Rebuild/Link, method direct-open와 Network smoke PASS
 - [ ] `H37-07` Axis1 normal/timeout/fault/disconnect/response-loss matrix PASS
 - [ ] `H37-08` Axis2~4 동일 matrix PASS
 - [ ] `H37-09` 5개 gate와 global capability bit 6 paired activation
-- [ ] `H37-10` WPF recovery journal과 API manual/progress 갱신
+- [ ] `H37-10` WPF recovery journal과 API manual/progress 갱신 — Draft PR #31 WPF qualification PASS, `dev` 미통합
 
 `H37-01` source/static 대조는 2026-08-20에 완료했다. current source의 staged
 `PublishAxisOwnershipDs402Receipt` owner-release/rollback receipt와
@@ -154,7 +160,32 @@ tombstone을 기존 focused verifier와 대조했고 packet map과 delivery READ
 미구현 표현을 정정했다. 이 완료는 C78 build, PLC download 또는 실축 검증을
 의미하지 않는다.
 
-## 8. release 경계
+## 8. Draft PR #31 software qualification checkpoint
+
+Draft PR #31 `HomeDS402 H37: qualify method 37 source and durable recovery`는 다음 software evidence를
+확보했다.
+
+- H37-02 atomic 5-value activation contract: **43 checks PASS**
+- H37-03 exact method-37 `0x7D15/0x7D16/0x7D17` Start/Running/terminal/retire PC sequence PASS
+- H37-04 shared axis ownership/preemption regression: **21 checks PASS**
+- HomeDS402 LASAL method-size verifier: **10 checks PASS**
+- largest checked method `ProcessAxisDs402Home`: **29,497 bytes**, 32 KiB 미만
+- WPF durable-recovery source contract: **36 checks PASS**
+- API Debug full suite: **1194/1194 PASS**
+- API Release full suite: **1194/1194 PASS**
+- WPF Debug/Release H37 smoke PASS
+- H37-10 durable WPF recovery qualification branch-level PASS
+
+이 evidence는 branch-qualified 상태다. PR #31이 아직 Draft/Open이므로 current `dev` 체크박스를
+완료로 바꾸지 않는다.
+
+남은 exact blocker:
+
+`LASAL.UdpCallbackContract blocker: SetPosition-augmented Classes.lcb physical identity drifted.`
+
+따라서 fresh generated artifact/C78 evidence 없이 H37-05/06 또는 activation을 완료로 판정하지 않는다.
+
+## 9. release 경계
 
 축 1 성공만으로 축 2~4를 승인하지 않는다. method37 성공을 switch-search Home 또는
 HomeDS402Ex 증거로 사용하지 않는다. PLC warm state/outcome이 cold-power durable하다고

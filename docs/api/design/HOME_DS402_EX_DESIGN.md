@@ -1,11 +1,13 @@
 # HomeDS402Ex 최우선 개발 설계
 
 - 대상: No.22 `MMC_HomeDS402ExCmd`
+- current baseline: `dev@52bd4cc120812c2510f8ac99d2d6a42576133d67`
 - 현재 진행 상태: SDK/WPF + HOMEEX-06 scaffold + HOMEEX-07 full-identity ownership + HOMEEX-01/02 profile gate + HOMEEX-09 source/static + HOMEEX-08 approved-plan preparation + HOMEEX-05 retained outcome store + HOMEEX-09 C78 evidence collector를 `dev`에 통합; actual SDO/homing runtime과 hardware qualification은 미개방
 - current C#: frozen wire/lifecycle + read-only recovery + approved axis profile를 checked frozen DINT execution plan으로 만드는 internal preparation gate 구현
-- current WPF: pre-dispatch durable journal, startup interlock, read-only exact-key recovery와 exact-generation retire 구현; Start UI는 닫힘
+- current WPF: pre-dispatch durable journal, startup interlock, read-only exact-key recovery와 exact-generation retire 구현; Start UI는 닫힘. distribution example/Korean UI는 `dev`에 동기화됐고 PR #37은 남은 dynamic label/CI coverage 후속 작업 중
 - 신규 command: `0x7D1B Start`, `0x7D1C ReadOutcome`, `0x7D1D Retire`
 - activation: independent Admin feature bit 11, PLC advertisement/current runtime OFF
+- external blocker: issue #28 HOMEEX-01/02 actual hardware profile approval, issue #35 HOMEEX-09 fresh C78/generated artifact closure
 
 ## 1. 목적과 분리 원칙
 
@@ -284,13 +286,17 @@ HOMEEX-05/06/07/09와 approved-plan preparation이 통합된 current `dev`도 fe
 - terminal outcome/generation을 먼저 durable 저장한 뒤 exact `0x7D1D` 성공 후에만 resolve
 - dedicated journal + MainWindow integration smoke tests와 Debug/Release workflow
 
+`dev`의 distribution WPF example과 Korean UI는 동기화됐다. PR #37은 recent dynamic recovery panel의
+남은 Korean label/CI path coverage를 보완하는 후속 작업이며 현재 미병합이다. 이 UI 후속 작업은
+HomeDS402Ex runtime/capability activation evidence가 아니다.
+
 HomeDS402Ex Start UI와 engineering-unit confirmation surface는 HOMEEX-13 paired activation 전까지
 의도적으로 닫혀 있다.
 
 ## 9. 작업 체크리스트
 
-- [ ] `HOMEEX-01` 축 1~4 wiring, active level/debounce와 method allowlist 승인
-- [ ] `HOMEEX-02` scale/rounding/range/overflow와 MapRevision profile 승인
+- [ ] `HOMEEX-01` 축 1~4 wiring, active level/debounce와 method allowlist 승인 — issue #28 OPEN
+- [ ] `HOMEEX-02` scale/rounding/range/overflow와 MapRevision profile 승인 — issue #28 OPEN
 - [x] `HOMEEX-03` `0x7D1B/1C/1D` exact offsets, full recovery key와 SDK capability bit 고정
 - [x] `HOMEEX-04` C# approved-plan Prepare/one-shot Start/Outcome/Retire, capability-off zero-wire와 public raw-plan gate 구현
 - [x] `HOMEEX-05` golden/malformed/overflow + retained exact-key/duplicate/replay/disconnect/retire-retry software contract 구현
@@ -307,7 +313,9 @@ HomeDS402Ex Start UI와 engineering-unit confirmation surface는 HOMEEX-13 paire
 
 ## 10. current software qualification evidence
 
-### 10.1 2026-08-26 integrated `dev` checkpoint
+### 10.1 2026-08-27 integrated `dev` checkpoint
+
+current baseline: `dev@52bd4cc120812c2510f8ac99d2d6a42576133d67`
 
 - PR #26 HOMEEX-07 merge `2fc9bb208762b8f8c8e8ffad8be3e48e13103a2f`
 - PR #27 HOMEEX-01/02 profile gate merge `003e82c5eadbca5256b1066785d7017e3e2fb9ce`
@@ -320,17 +328,34 @@ HomeDS402Ex Start UI와 engineering-unit confirmation surface는 HOMEEX-13 paire
   - SDK wire workflow `32921714525`: Debug/Release full tests + diff hygiene PASS
   - WPF recovery workflow `32921714585`: Debug/Release full tests + diff hygiene PASS
 - PR #33 HOMEEX-05 retained outcome store merge `e736afede4788b79cafef4ac19203861585acb80`
-  - retained-store verifier `48/48 PASS`; HOMEEX-07 ownership `72/72 PASS`; HOMEEX-09 static `37/37 PASS`
+  - retained-store verifier `48/48 PASS`; HOMEEX-07 ownership regression PASS; HOMEEX-09 static `37/37 PASS`
   - merge 후 `dev` HOMEEX-05 / HOMEEX-09 / SetOperationMode source/static + exact known SourceOnly artifact-boundary classification PASS
 - PR #34 HOMEEX-09 C78 evidence collector merge `b7b357e38ee8c4dc55d2eb89bb8da11ab8e0cee4`
   - collector self-test PASS, stale artifact와 incomplete direct-open fail-closed PASS
   - `dev` push workflow `32938596012`: SUCCESS
   - real C78 artifact evidence는 아직 미수집이며 issue #35에서 추적
+- PR #36 design sync merge `f92f8faa51ae339f471cbcb6cbe58e1a6e998336`
+  - HOMEEX-05 retained store와 HOMEEX-09 collector 상태를 본 문서에 정합
+- `eac82efb52bf9ce58aa52bc9360a8b4a0d85bd24`: distribution WPF example/Korean UI sync
+- `52bd4cc120812c2510f8ac99d2d6a42576133d67`: recent recovery panel localization
 
-이 checkpoint는 software/source-safe preparation 통합 증거다. issue #28 hardware profile approval, fresh
+이 checkpoint는 software/source-safe preparation 통합 증거다. issue #28 hardware profile approval, issue #35 fresh
 C78/generated artifact, PLC runtime, EtherCAT packet과 physical homing qualification을 대신하지 않는다.
 
-### 10.2 historical tranche evidence
+### 10.2 2026-08-27 WPF localization follow-up
+
+Open PR #37 `fix(wpf): complete recent recovery panel localization`은 SetOperationMode/HomeDS402Ex의
+동적 recovery panel Korean label coverage와 두 WPF qualification workflow의 path coverage를 보완한다.
+
+- PR #37은 `dev` 기준 미병합
+- 새 dynamic-label localization regression은 아직 green이 아님
+- protocol/SDK/LASAL/no-replay semantics 변경 없음
+- HomeDS402Ex Start UI는 계속 닫힘
+- capability bit 11/runtime gate 상태 변화 없음
+
+따라서 PR #37은 HOMEEX checklist 진행률이나 physical/runtime qualification으로 계산하지 않는다.
+
+### 10.3 historical tranche evidence
 
 PR #20 SDK qualification rerun on the current code tranche passed:
 
@@ -382,3 +407,6 @@ They are not C78 build, PLC load/runtime, EtherCAT packet, hardware homing or pr
 scale, wiring 또는 method allowlist가 비어 있거나, temporary parameter 복원과 CSP 8 복귀가
 증명되지 않거나, ActualPosition `-Position` overflow/결과가 불명확하면 capability를 켜지 않는다.
 기존 method37 성공을 확장 method 증거로 사용하지 않는다.
+
+추가로 issue #28과 issue #35가 모두 완료되기 전에는 HOMEEX-08 actual SDO/homing runtime 구현을
+production activation 후보로 올리지 않는다.
