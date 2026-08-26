@@ -1,0 +1,34 @@
+name: HOMEEX-09 ratchet inspect
+
+on:
+  pull_request:
+    branches:
+      - codex/home-ds402ex-homeex01-02-profile-gate
+    paths:
+      - '.github/workflows/homeex09-ratchet-inspect.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/home-ds402ex-homeex09-static-qualification
+      - name: Print publish split blocker ratchet context
+        shell: powershell
+        run: |
+          @'
+          from pathlib import Path
+          p = Path(r'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1')
+          data = p.read_bytes()
+          needle = b'axis ownership publish split blocker: referenced macro closure drifted'
+          pos = data.find(needle)
+          if pos < 0:
+              raise SystemExit('needle not found')
+          lo = max(0, pos - 5000)
+          hi = min(len(data), pos + 2500)
+          print(data[lo:hi].decode('utf-8', errors='replace'))
+          '@ | python -
