@@ -1,0 +1,115 @@
+name: HomeDS402Ex integrated design sync once
+
+on:
+  push:
+    branches:
+      - codex/home-ds402ex-homeex05-design-sync
+    paths:
+      - '.github/workflows/homeex-design-sync-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/home-ds402ex-homeex05-design-sync
+          fetch-depth: 0
+
+      - name: Patch only integrated HomeDS402Ex design facts
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('docs/api/design/HOME_DS402_EX_DESIGN.md')
+          text = path.read_text(encoding='utf-8').replace('\r\n', '\n')
+
+          replacements = [
+              (
+                  '- 현재 진행 상태: SDK/WPF + HOMEEX-06 scaffold + HOMEEX-07 full-identity ownership + HOMEEX-01/02 profile gate + HOMEEX-09 source/static + HOMEEX-08 approved-plan preparation을 `dev`에 통합; actual SDO/homing runtime과 hardware qualification은 미개방',
+                  '- 현재 진행 상태: SDK/WPF + HOMEEX-06 scaffold + HOMEEX-07 full-identity ownership + HOMEEX-01/02 profile gate + HOMEEX-09 source/static + HOMEEX-08 approved-plan preparation + HOMEEX-05 retained outcome store + HOMEEX-09 C78 evidence collector를 `dev`에 통합; actual SDO/homing runtime과 hardware qualification은 미개방'
+              ),
+              (
+                  'HOMEEX-09 source/static identity qualification도 통합됐지만 actual parameter SDO와 homing runtime은\n아직 열지 않았다.',
+                  'HOMEEX-09 source/static identity qualification과 HOMEEX-05 retained outcome store도 통합됐다. LASAL은\n4축 active 40-DINT record + 4축 retired full 40-DINT outcome record를 보존하고 Outcome/Retire 성공을\n176-byte wire contract로 직렬화하지만 actual parameter SDO와 homing runtime은 아직 열지 않았다.'
+              ),
+              (
+                  'HOMEEX-06/07/09와 approved-plan preparation이 통합된 current `dev`도 feature mask `0x00000017`과',
+                  'HOMEEX-05/06/07/09와 approved-plan preparation이 통합된 current `dev`도 feature mask `0x00000017`과'
+              ),
+              (
+                  '### LASAL HOMEEX-06/07/09 software-side 구현됨',
+                  '### LASAL HOMEEX-05/06/07/09 software-side 구현됨'
+              ),
+              (
+                  '- `LMCDiagnosticsService.st`: independent `Ds402HomeExState[0..255]`, strict Start/Outcome/Retire scaffold handlers, no-op processor',
+                  '- `LMCDiagnosticsService.st`: `Ds402HomeExState[0..319]`, 4 x 40-DINT active records + 4 x 40-DINT retired full-outcome records, strict Start/Outcome/Retire handlers, physical-runtime no-op processor'
+              ),
+              (
+                  '- HOMEEX-09: stale literal 8-byte tail stride 제거, persisted-read/Reserved-state legacy SourceOnly ratchet 정합\n- dedicated HOMEEX-09 static verifier: `37/37 PASS`\n- runtime gate `LMC_DIAG_DS402_HOME_EX_ENABLED FALSE`',
+                  '- HOMEEX-05: exact retained recovery-key lookup, duplicate/replay blocking, full 176-byte Outcome/Retire serialization과 exact-generation Retire retry 구현\n- retained-store verifier: `48/48 PASS`\n- HOMEEX-09: stale literal 8-byte tail stride 제거, persisted-read/Reserved-state legacy SourceOnly ratchet 정합\n- dedicated HOMEEX-09 static verifier: `37/37 PASS`\n- `Capture-HomeDs402ExC78Evidence.ps1`: fresh C78/ARM artifact/direct-open/network evidence를 fail-closed receipt로 수집; artifact ratchet 자동 승인은 금지\n- runtime gate `LMC_DIAG_DS402_HOME_EX_ENABLED FALSE`'
+              ),
+              (
+                  '- `LMCDiagnosticsService.st`: parameter snapshot/program/restore, mode 6/controlword bit 4, actual outcome record writes와 cleanup proof',
+                  '- `LMCDiagnosticsService.st`: parameter snapshot/program/restore, mode 6/controlword bit 4, runtime-driven outcome state transition과 physical cleanup proof production'
+              ),
+              (
+                  '- [ ] `HOMEEX-05` golden bytes, malformed, overflow, duplicate intent와 disconnect test 구현\n  - SDK golden/malformed/overflow/start-response-loss/reconnect-read-only/exact-retire-retry/public-surface tests는 PASS\n  - duplicate-intent retained-store behavior는 LASAL outcome store가 없으므로 아직 미검증',
+                  '- [x] `HOMEEX-05` golden/malformed/overflow + retained exact-key/duplicate/replay/disconnect/retire-retry software contract 구현\n  - SDK golden/malformed/overflow/start-response-loss/reconnect-read-only/exact-retire-retry/public-surface tests PASS\n  - LASAL retained-store verifier `48/48 PASS`; 4축 active + retired full-outcome store와 176-byte Retire exact retry 통합'
+              ),
+              (
+                  '- [ ] `HOMEEX-09` source/static identity qualification `37/37 PASS`; method-size/C78/generated artifact는 미완료',
+                  '- [ ] `HOMEEX-09` source/static identity qualification `37/37 PASS`와 C78 evidence collector 통합; fresh real C78/generated artifact review와 full SourceOnly ratchet closure는 issue #35로 미완료'
+              ),
+              (
+                  '- PR #30 approved-profile execution-plan gate merge `64bfe52ae5f28120dd61536db24a12f8f62ca28a`\n  - approved-plan workflow `32921714514` rerun: Debug/Release full tests + diff hygiene PASS\n  - SDK wire workflow `32921714525`: Debug/Release full tests + diff hygiene PASS\n  - WPF recovery workflow `32921714585`: Debug/Release full tests + diff hygiene PASS',
+                  '- PR #30 approved-profile execution-plan gate merge `64bfe52ae5f28120dd61536db24a12f8f62ca28a`\n  - approved-plan workflow `32921714514` rerun: Debug/Release full tests + diff hygiene PASS\n  - SDK wire workflow `32921714525`: Debug/Release full tests + diff hygiene PASS\n  - WPF recovery workflow `32921714585`: Debug/Release full tests + diff hygiene PASS\n- PR #33 HOMEEX-05 retained outcome store merge `e736afede4788b79cafef4ac19203861585acb80`\n  - retained-store verifier `48/48 PASS`; HOMEEX-07 ownership `72/72 PASS`; HOMEEX-09 static `37/37 PASS`\n  - merge 후 `dev` HOMEEX-05 / HOMEEX-09 / SetOperationMode source/static + exact known SourceOnly artifact-boundary classification PASS\n- PR #34 HOMEEX-09 C78 evidence collector merge `b7b357e38ee8c4dc55d2eb89bb8da11ab8e0cee4`\n  - collector self-test PASS, stale artifact와 incomplete direct-open fail-closed PASS\n  - `dev` push workflow `32938596012`: SUCCESS\n  - real C78 artifact evidence는 아직 미수집이며 issue #35에서 추적'
+              ),
+          ]
+
+          for old, new in replacements:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'Expected exactly one design anchor, found {count}: {old[:100]!r}')
+              text = text.replace(old, new, 1)
+
+          path.write_text(text, encoding='utf-8', newline='\n')
+
+      - name: Verify safety wording and source isolation
+        shell: powershell
+        run: |
+          $doc = Get-Content -LiteralPath 'docs/api/design/HOME_DS402_EX_DESIGN.md' -Raw
+          foreach ($required in @(
+            'Ds402HomeExState[0..319]',
+            'retained-store verifier: `48/48 PASS`',
+            'issue #35',
+            'LMC_DIAG_DS402_HOME_EX_ENABLED FALSE',
+            'Admin bit 11 OFF')) {
+            if (-not $doc.Contains($required)) { throw "Missing required design statement: $required" }
+          }
+          if ($doc.Contains('duplicate-intent retained-store behavior는 LASAL outcome store가 없으므로 아직 미검증')) {
+            throw 'Stale HOMEEX-05 no-outcome-store statement remains.'
+          }
+          $changed = @(git diff --name-only)
+          if (($changed.Count -ne 1) -or ($changed[0] -ne 'docs/api/design/HOME_DS402_EX_DESIGN.md')) {
+            throw "Unexpected files changed before cleanup: $($changed -join ', ')"
+          }
+          git diff --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Remove one-shot workflow and commit design sync
+        shell: powershell
+        run: |
+          Remove-Item -LiteralPath '.github/workflows/homeex-design-sync-once.yml' -Force
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- 'docs/api/design/HOME_DS402_EX_DESIGN.md' '.github/workflows/homeex-design-sync-once.yml'
+          git diff --cached --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git commit -m 'docs(homeex): sync retained store and C78 evidence status'
+          git push origin HEAD:codex/home-ds402ex-homeex05-design-sync
