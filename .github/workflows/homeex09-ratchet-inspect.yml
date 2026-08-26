@@ -71,8 +71,11 @@ jobs:
               matches = list(pattern.finditer(data))
               if len(matches) != 1:
                   raise SystemExit(f'lexical baseline precondition failed for {old_count}/{old_len}: found {len(matches)}')
-              replacement = rb'\1' + str(new_count).encode() + rb'\2' + str(new_len).encode() + rb'\3' + new_sha + rb'\4'
-              data = pattern.sub(replacement, data, count=1)
+              data = pattern.sub(
+                  lambda match: match.group(1) + str(new_count).encode() + match.group(2) + str(new_len).encode() + match.group(3) + new_sha + match.group(4),
+                  data,
+                  count=1,
+              )
 
           contract.write_bytes(data)
           print('PASS applied confirmed transient ratchets through reserve semantic fence')
