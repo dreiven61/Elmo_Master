@@ -46,3 +46,39 @@ jobs:
           if not found:
               raise SystemExit('identity tail source contract context not found')
           '@ | python -
+
+      - name: Print legacy identity tail assertions
+        shell: powershell
+        run: |
+          @'
+          from pathlib import Path
+
+          p = Path(r'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1')
+          text = p.read_bytes().decode('utf-8', errors='replace')
+          needles = [
+              'per-axis 8-byte tail packing drifted',
+              'ValidateAxisOwnershipPreemptionReplacement',
+              'replacementTailOffset',
+              'replacementTailSize',
+              'oldIdentityTailOffset',
+              'oldIdentityTailSize',
+          ]
+          found = False
+          seen = set()
+          for needle in needles:
+              start = 0
+              while True:
+                  pos = text.lower().find(needle.lower(), start)
+                  if pos < 0:
+                      break
+                  start = pos + len(needle)
+                  key = (max(0, pos - 1500), min(len(text), pos + 2200))
+                  if key in seen:
+                      continue
+                  seen.add(key)
+                  found = True
+                  print(f'===== legacy needle={needle!r} pos={pos} =====')
+                  print(text[key[0]:key[1]])
+          if not found:
+              raise SystemExit('legacy identity tail assertion context not found')
+          '@ | python -
