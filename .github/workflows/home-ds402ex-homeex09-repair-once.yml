@@ -1,4 +1,4 @@
-# one-shot repair trigger: 2026-08-26 source-first repair
+# one-shot repair trigger: 2026-08-26 legacy-geometry closure
 name: HomeDS402Ex HOMEEX-09 one-shot repair
 
 on:
@@ -92,6 +92,40 @@ jobs:
               if contract_bytes.count(new) != 0:
                   raise SystemExit(f'HOMEEX-09 target ratchet already exists before one-shot repair: {new[:80]!r}')
               contract_bytes = contract_bytes.replace(old, new, expected_count)
+
+          geometry_replacements = [
+              (
+                  b"'Reference\\s*-\\s*1(\\)\\s*\\*\\s*8\\s*;)')",
+                  b"'Reference\\s*-\\s*1(\\)\\s*\\*\\s*LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES\\s*;)')",
+                  1,
+              ),
+              (
+                  b"'identityTailOffset\\s*:=\\s*TO_UDINT\\(Reference\\s*-\\s*1\\)\\s*\\*\\s*8\\s*;.*?' +",
+                  b"'identityTailOffset\\s*:=\\s*TO_UDINT\\(Reference\\s*-\\s*1\\)\\s*\\*\\s*LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES\\s*;.*?' +",
+                  1,
+              ),
+              (
+                  b"'if\\s+identityTailSize\\s*>\\s*8\\s+then\\s*RETURN\\s*;') (",
+                  b"'if\\s+identityTailSize\\s*>\\s*LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES\\s+then\\s*RETURN\\s*;') (",
+                  1,
+              ),
+              (
+                  b'exact 64-byte prefix and per-axis 8-byte tail packing drifted.',
+                  b'exact 64-byte prefix and per-axis identity-tail packing drifted.',
+                  1,
+              ),
+              (
+                  b"Pattern = 'identityTailOffset\\s*:=\\s*TO_UDINT\\(Reference\\s*-\\s*1\\)\\s*\\*\\s*8\\s*;'; Replacement = 'identityTailOffset := TO_UDINT(Reference) * 8;' }",
+                  b"Pattern = 'identityTailOffset\\s*:=\\s*TO_UDINT\\(Reference\\s*-\\s*1\\)\\s*\\*\\s*LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES\\s*;'; Replacement = 'identityTailOffset := TO_UDINT(Reference) * LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES;' }",
+                  1,
+              ),
+          ]
+          for old, new, expected_count in geometry_replacements:
+              observed = contract_bytes.count(old)
+              if observed != expected_count:
+                  raise SystemExit(f'Legacy identity geometry precondition failed: {old[:100]!r}, found {observed}, expected {expected_count}')
+              contract_bytes = contract_bytes.replace(old, new, expected_count)
+          print('PASS migrated legacy identity geometry self-tests from literal 8-byte stride to the 52-byte macro contract')
 
           lexical_specs = [
               (4181, 25399, b'19E0C93B5538A8E9C361401CFAE85E23CDFFE0831422EF8174B735C57471FD50', 4181, 25498, b'9E575F9EB8826780E7BBA7592D02566D342460A2DB90CB7551EFD17E8B9CC92D'),
