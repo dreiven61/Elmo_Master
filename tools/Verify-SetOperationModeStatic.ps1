@@ -163,6 +163,10 @@ if ($null -ne $processMode) {
     Assert-Regex $processMode 'ProcessAxisSetOperationModeMutationStages\(\);' 'main processor delegates mutation stages' -ExpectedCount 1
     Assert-Regex $processMode 'ProcessAxisSetOperationModeRecoveryStages\(\);' 'main processor delegates recovery stages' -ExpectedCount 1
     Assert-Regex $processMode 'TryStartWrite\([^;\r\n]*ObjectIndex:=0x6060' 'main processor owns no 0x6060 write site after split' -ExpectedCount 0
+    Assert-Regex $processMode 'recoveryScanBase \+ 10\]\$SINT = 8[\s\S]{0,260}recoveryScanBase \+ 10\]\$SINT = 1[\s\S]{0,180}recoveryScanBase \+ 10\]\$SINT = 3[\s\S]{0,180}recoveryScanBase \+ 10\]\$SINT = 7' 'MODE-11E warm-start accepts exact PP/PV/IP/CSP candidate set' -ExpectedCount 1
+    Assert-Regex $processMode 'LMC_DIAG_SET_OPERATION_MODE_SOFTWARE_MODES[\t ]*<>[\t ]*FALSE' 'MODE-11E non-CSP recovery follows loaded-image software-mode gate' -ExpectedCount 1
+    Assert-Regex $processMode 'recoveryScanBase \+ 22\]\$UDINT <> 0[\s\S]{0,220}recoveryScanBase \+ 27\]\$UDINT <> 0[\s\S]{0,160}recoveryScanBase \+ 28\]\$UDINT <> 0[\s\S]{0,160}recoveryScanBase \+ 29\]\$UDINT <> 0[\s\S]{0,160}recoveryScanBase \+ 30\]\$UDINT <> 0' 'MODE-11E warm-start requires record generation and complete owner/session identity' -ExpectedCount 1
+    Assert-Regex $processMode 'if recoveryCandidateFound then[\s\S]{0,360}_memset\(dest:=#AxisOperationModeState\[LMC_DIAG_MODE_RUNTIME_BASE\][\s\S]{0,120}RETURN;' 'MODE-11E multiple retained candidates clear staged runtime and fail closed' -ExpectedCount 1
 }
 
 # MODE-06 mutation stages contain the sole logical 0x6060 mutation site,

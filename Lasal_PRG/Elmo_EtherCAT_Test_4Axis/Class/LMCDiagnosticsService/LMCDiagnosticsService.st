@@ -9520,11 +9520,22 @@ FUNCTION LMCDiagnosticsService::ProcessAxisSetOperationMode
 			   ((AxisOperationModeState[recoveryScanBase + 18]$UDINT and
 			     LMC_DIAG_MODE_EVIDENCE_OWNER_RELEASED) = 0) &
 			   (AxisOperationModeState[recoveryScanBase + 9] = recoveryScanAxis) &
-			   (AxisOperationModeState[recoveryScanBase + 10]$SINT = 8) &
+			   ((AxisOperationModeState[recoveryScanBase + 10]$SINT = 8) |
+			    ((LMC_DIAG_SET_OPERATION_MODE_SOFTWARE_MODES <> FALSE) &
+			     ((AxisOperationModeState[recoveryScanBase + 10]$SINT = 1) |
+			      (AxisOperationModeState[recoveryScanBase + 10]$SINT = 3) |
+			      (AxisOperationModeState[recoveryScanBase + 10]$SINT = 7)))) &
+			   (AxisOperationModeState[recoveryScanBase + 22]$UDINT <> 0) &
 			   (AxisOperationModeState[recoveryScanBase + 27]$UDINT <> 0) &
-			   (AxisOperationModeState[recoveryScanBase + 28]$UDINT <> 0) then
+			   (AxisOperationModeState[recoveryScanBase + 28]$UDINT <> 0) &
+			   (AxisOperationModeState[recoveryScanBase + 29]$UDINT <> 0) &
+			   (AxisOperationModeState[recoveryScanBase + 30]$UDINT <> 0) then
 				if recoveryCandidateFound then
 					// More than one candidate violates the singleton SDO owner model.
+					// Clear the first staged candidate before returning so a later cycle
+					// cannot continue recovery from an ambiguous retained set.
+					_memset(dest:=#AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_BASE],
+						usByte:=0, cntr:=32 * 4);
 					RETURN;
 				end_if;
 				recoveryCandidateFound := TRUE;
