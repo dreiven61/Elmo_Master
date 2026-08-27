@@ -6,6 +6,7 @@ on:
       - codex/sdo-r03-generic-write-policy
     paths:
       - 'tools/Apply-SdoR03GenericWrite.py'
+      - 'tools/Apply-SdoR03RegressionFix.py'
       - '.github/workflows/sdo-r03-generic-write-promotion.yml'
       - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalGenericSdoWrite.ps1'
 
@@ -23,10 +24,12 @@ jobs:
           ref: codex/sdo-r03-generic-write-policy
           fetch-depth: 0
 
-      - name: Apply SDO-R03 source patch
+      - name: Apply SDO-R03 source and regression patches
         shell: powershell
         run: |
           python '.\tools\Apply-SdoR03GenericWrite.py'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python '.\tools\Apply-SdoR03RegressionFix.py'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           git diff --check
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -76,8 +79,8 @@ jobs:
       - name: Commit promoted source and remove temporary promoter
         shell: powershell
         run: |
-          git rm -- 'tools/Apply-SdoR03GenericWrite.py' '.github/workflows/sdo-r03-generic-write-promotion.yml'
-          git add -- 'LMC_Library/LMC_API_Delivery/src/LmcDiagnosticsD5Models.cs' 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/DiagnosticsD5ContractTests.cs' 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st' 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalGenericSdoWrite.ps1'
+          git rm -- 'tools/Apply-SdoR03GenericWrite.py' 'tools/Apply-SdoR03RegressionFix.py' '.github/workflows/sdo-r03-generic-write-promotion.yml'
+          git add -- 'LMC_Library/LMC_API_Delivery/src/LmcDiagnosticsD5Models.cs' 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/DiagnosticsD5ContractTests.cs' 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/DiagnosticsSdoWritePolicyEvaluationTests.cs' 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/DiagnosticsSdoWriteVerificationTests.cs' 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/DiagnosticsD45CompletionContractTests.cs' 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st' 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalGenericSdoWrite.ps1'
           git diff --cached --check
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           git config user.name 'github-actions[bot]'
