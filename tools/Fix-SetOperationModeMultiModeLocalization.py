@@ -61,7 +61,6 @@ replace_exact(
     "                    setOperationModeText,\n"
     "                    \"PP(1)/PV(3)/IP(7)/CSP(8) 소프트웨어 target이 구현되어 있습니다.\",\n"
     "                    \"The dynamically created SetOperationMode multi-mode warning was not found in Korean UI.\");",
-    expected=2,
 )
 replace_exact(
     test,
@@ -78,6 +77,17 @@ replace_exact(
     "                    setOperationModeText,\n"
     "                    \"PP(1)/PV(3)/IP(7)/CSP(8) software targets are implemented.\",\n"
     "                    \"English restore did not recover the SetOperationMode multi-mode warning.\");",
+)
+replace_exact(
+    test,
+    "                AssertContains(\n"
+    "                    setOperationModeText,\n"
+    "                    \"CSP 위치 동기 모드 (8)\",\n"
+    "                    \"The second Korean pass did not restore the SetOperationMode CSP translation.\");",
+    "                AssertContains(\n"
+    "                    setOperationModeText,\n"
+    "                    \"PP(1)/PV(3)/IP(7)/CSP(8) 소프트웨어 target이 구현되어 있습니다.\",\n"
+    "                    \"The second Korean pass did not restore the SetOperationMode multi-mode warning translation.\");",
 )
 
 print("SetOperationMode multi-mode localization contract updated.")
