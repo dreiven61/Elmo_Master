@@ -35,6 +35,11 @@ namespace LasalMotionControlLib
                 sessionGeneration,
                 axis.AxisReference,
                 true);
+            if (!verifiedCapabilities.SupportsSetOperationMode(requestedMode))
+            {
+                throw new NotSupportedException(
+                    "The connected PLC does not advertise the requested SetOperationMode target in SetOperationModeSupportedMask.");
+            }
             ValidateAxisSetPositionDiagnosticCapabilities(
                 verifiedDiagnosticCapabilities,
                 sessionGeneration,

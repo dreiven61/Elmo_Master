@@ -298,7 +298,7 @@ namespace LasalMotionControlApiExample
                 RoutedEventArgs e)
         {
             await RunOperationAsync(
-                "Set Operation Mode CSP Once",
+                "Set Operation Mode Selected Mode Once",
                 async () =>
                 {
                     try

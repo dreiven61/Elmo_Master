@@ -27,6 +27,7 @@ namespace LasalMotionControlApiExample
 
         private GroupBox groupAxisSetOperationModeRecovery;
         private ComboBox comboAxisSetOperationModeReference;
+        private ComboBox comboAxisSetOperationModeRequestedMode;
         private TextBox textAxisSetOperationModeTimeout;
         private CheckBox checkAxisSetOperationModeOneShotConfirmed;
         private Button buttonRefreshAxisSetOperationModeCapabilities;
@@ -74,6 +75,11 @@ namespace LasalMotionControlApiExample
         internal CheckBox AxisSetOperationModeConfirmationForTests
         {
             get { return checkAxisSetOperationModeOneShotConfirmed; }
+        }
+
+        internal ComboBox AxisSetOperationModeRequestedModeForTests
+        {
+            get { return comboAxisSetOperationModeRequestedMode; }
         }
 
         internal void RefreshAxisSetOperationModeRecoveryUiForTests()
@@ -143,6 +149,16 @@ namespace LasalMotionControlApiExample
                         CultureInfo.InvariantCulture);
                     comboAxisSetOperationModeReference.SelectedItem =
                         record.AxisReference;
+                    var recoveredMode =
+                        (LMCDriveOperationMode)record.RequestedModeRaw;
+                    if (!comboAxisSetOperationModeRequestedMode.Items.Contains(
+                            recoveredMode))
+                    {
+                        comboAxisSetOperationModeRequestedMode.Items.Add(
+                            recoveredMode);
+                    }
+                    comboAxisSetOperationModeRequestedMode.SelectedItem =
+                        recoveredMode;
                     textAxisSetOperationModeTimeout.Text =
                         record.TimeoutMilliseconds.ToString(
                             CultureInfo.InvariantCulture);
@@ -199,7 +215,7 @@ namespace LasalMotionControlApiExample
 
             groupAxisSetOperationModeRecovery = new GroupBox
             {
-                Header = "Set Operation Mode - CSP=8 / durable no-replay recovery"
+                Header = "Set Operation Mode - PLC-supported target / durable no-replay recovery"
             };
             var root = new StackPanel();
             groupAxisSetOperationModeRecovery.Content = root;
@@ -219,7 +235,7 @@ namespace LasalMotionControlApiExample
                 Foreground = Brushes.DimGray,
                 TextWrapping = TextWrapping.Wrap,
                 Text = "Recovery is bound to endpoint + DiagnosticsBuild + BootId + MapRevision + "
-                    + "128-bit ClientIntentId + RequestId + axis + requested CSP mode. "
+                    + "128-bit ClientIntentId + RequestId + axis + requested mode. "
                     + "Recovery queries 0x7D24 only; terminal proof is persisted before exact-generation 0x7D25 retirement."
             });
 
@@ -243,17 +259,28 @@ namespace LasalMotionControlApiExample
             axisPanel.Children.Add(comboAxisSetOperationModeReference);
             inputs.Children.Add(axisPanel);
 
-            var modePanel = new StackPanel { Width = 220 };
+            var modePanel = new StackPanel { Width = 240 };
             modePanel.Children.Add(new TextBlock
             {
-                Text = "Requested mode",
+                Text = "Requested mode (PLC-advertised only)",
                 Foreground = Brushes.DimGray
             });
+            comboAxisSetOperationModeRequestedMode = new ComboBox
+            {
+                Width = 220,
+                IsEnabled = false
+            };
+            comboAxisSetOperationModeRequestedMode.SelectionChanged +=
+                AxisSetOperationModeInputChanged;
+            modePanel.Children.Add(comboAxisSetOperationModeRequestedMode);
             modePanel.Children.Add(new TextBlock
             {
-                Margin = new Thickness(0, 7, 12, 8),
-                FontWeight = FontWeights.SemiBold,
-                Text = "CyclicSynchronousPosition (8)"
+                Margin = new Thickness(0, 4, 12, 4),
+                Foreground = Brushes.DarkOrange,
+                TextWrapping = TextWrapping.Wrap,
+                Text = "Software targets are limited to PP(1), PV(3), IP(7), and CSP(8). "
+                    + "The selector stays empty until the connected PLC advertises a supported-mode mask. "
+                    + "Homing(6) remains owned by HomeDS402/HomeDS402Ex."
             });
             inputs.Children.Add(modePanel);
 
@@ -280,7 +307,7 @@ namespace LasalMotionControlApiExample
                 Content = new TextBlock
                 {
                     TextWrapping = TextWrapping.Wrap,
-                    Text = "I verified the exact powered drive/axis and understand that this writes DS402 0x6060:0 to CSP=8 once only. "
+                    Text = "I verified the exact drive/axis and understand that this may write DS402 0x6060:0 to the selected PLC-advertised mode once only. "
                         + "If the response or completion is uncertain I will use the durable recovery query and will not send Start again."
                 }
             };
@@ -302,7 +329,7 @@ namespace LasalMotionControlApiExample
 
             buttonStartAxisSetOperationMode = new Button
             {
-                Content = "Start CSP Once (0x7D23)",
+                Content = "Start Selected Mode Once (0x7D23)",
                 IsEnabled = false
             };
             buttonStartAxisSetOperationMode.Click +=
@@ -498,6 +525,65 @@ namespace LasalMotionControlApiExample
             }
         }
 
+        private void RefreshAxisSetOperationModeSupportedModeSelector(
+            LMCDriveOperationMode? preferredMode = null)
+        {
+            if (comboAxisSetOperationModeRequestedMode == null
+                || HasActiveAxisSetOperationModeRecoveryRecord)
+            {
+                return;
+            }
+
+            LMCDriveOperationMode? previous = preferredMode;
+            if (!previous.HasValue
+                && comboAxisSetOperationModeRequestedMode.SelectedItem
+                    is LMCDriveOperationMode)
+            {
+                previous = (LMCDriveOperationMode)
+                    comboAxisSetOperationModeRequestedMode.SelectedItem;
+            }
+
+            comboAxisSetOperationModeRequestedMode.Items.Clear();
+            if (adminCapabilities != null
+                && adminCapabilities.Response != null
+                && adminCapabilities.Response.IsSuccess
+                && adminCapabilities.Supports(
+                    AxisSetOperationModeCapabilityTriad))
+            {
+                foreach (var mode in new[]
+                {
+                    LMCDriveOperationMode.ProfilePosition,
+                    LMCDriveOperationMode.ProfileVelocity,
+                    LMCDriveOperationMode.InterpolatedPosition,
+                    LMCDriveOperationMode.CyclicSynchronousPosition
+                })
+                {
+                    if (adminCapabilities.SupportsSetOperationMode(mode))
+                    {
+                        comboAxisSetOperationModeRequestedMode.Items.Add(mode);
+                    }
+                }
+            }
+
+            if (previous.HasValue
+                && comboAxisSetOperationModeRequestedMode.Items.Contains(
+                    previous.Value))
+            {
+                comboAxisSetOperationModeRequestedMode.SelectedItem =
+                    previous.Value;
+            }
+            else if (comboAxisSetOperationModeRequestedMode.Items.Contains(
+                LMCDriveOperationMode.CyclicSynchronousPosition))
+            {
+                comboAxisSetOperationModeRequestedMode.SelectedItem =
+                    LMCDriveOperationMode.CyclicSynchronousPosition;
+            }
+            else if (comboAxisSetOperationModeRequestedMode.Items.Count > 0)
+            {
+                comboAxisSetOperationModeRequestedMode.SelectedIndex = 0;
+            }
+        }
+
         private void UpdateAxisSetOperationModeRecoveryUiState(
             bool connected,
             bool idle)
@@ -516,6 +602,13 @@ namespace LasalMotionControlApiExample
             var timeoutValid = TryGetAxisSetOperationModeTimeout(out timeout);
             var axisSelected = comboAxisSetOperationModeReference != null
                 && comboAxisSetOperationModeReference.SelectedItem is ushort;
+            var modeSelected = comboAxisSetOperationModeRequestedMode != null
+                && comboAxisSetOperationModeRequestedMode.SelectedItem
+                    is LMCDriveOperationMode
+                && adminCapabilities != null
+                && adminCapabilities.SupportsSetOperationMode(
+                    (LMCDriveOperationMode)
+                        comboAxisSetOperationModeRequestedMode.SelectedItem);
             var admissionAllowed = !active
                 && EvaluateDiagnosticsAdmission(
                     DiagnosticsAdmissionOperation.NewLiveOrMutation)
@@ -531,13 +624,18 @@ namespace LasalMotionControlApiExample
                 && diagnosticsReady
                 && confirmed
                 && timeoutValid
-                && axisSelected;
+                && axisSelected
+                && modeSelected;
             buttonRecoverAxisSetOperationMode.IsEnabled = connected
                 && idle
                 && active
                 && !AxisSetOperationModeRecoveryJournalUnavailable;
 
             comboAxisSetOperationModeReference.IsEnabled = idle && !active;
+            comboAxisSetOperationModeRequestedMode.IsEnabled = idle
+                && !active
+                && triadReady
+                && comboAxisSetOperationModeRequestedMode.Items.Count > 0;
             textAxisSetOperationModeTimeout.IsEnabled = idle && !active;
             checkAxisSetOperationModeOneShotConfirmed.IsEnabled =
                 idle && !active;
@@ -557,6 +655,7 @@ namespace LasalMotionControlApiExample
                     var currentConnection = RequireConnection();
                     adminCapabilities = await currentConnection.Admin
                         .GetCapabilitiesAsync(CancellationToken.None);
+                    RefreshAxisSetOperationModeSupportedModeSelector();
                     await RefreshDiagnosticsCapabilitiesAsync(
                         currentConnection);
                     RefreshAxisSetOperationModeRecoveryUi();
@@ -568,7 +667,7 @@ namespace LasalMotionControlApiExample
             RoutedEventArgs e)
         {
             await RunOperationAsync(
-                "Set Operation Mode CSP Once",
+                "Set Operation Mode Selected Mode Once",
                 StartAxisSetOperationModeOnceAsync);
         }
 
@@ -591,16 +690,31 @@ namespace LasalMotionControlApiExample
 
             var timeoutMilliseconds = RequireAxisSetOperationModeTimeout();
             var axisReference = RequireAxisSetOperationModeAxisReference();
+            if (comboAxisSetOperationModeRequestedMode == null
+                || !(comboAxisSetOperationModeRequestedMode.SelectedItem
+                    is LMCDriveOperationMode))
+            {
+                throw new InvalidOperationException(
+                    "Refresh capabilities and select a PLC-advertised SetOperationMode target first.");
+            }
+            var requestedMode = (LMCDriveOperationMode)
+                comboAxisSetOperationModeRequestedMode.SelectedItem;
             var currentConnection = RequireConnection();
             adminCapabilities = await currentConnection.Admin
                 .GetCapabilitiesAsync(CancellationToken.None);
+            RefreshAxisSetOperationModeSupportedModeSelector(requestedMode);
+            if (!adminCapabilities.SupportsSetOperationMode(requestedMode))
+            {
+                throw new NotSupportedException(
+                    "The connected PLC no longer advertises the selected SetOperationMode target. No Start was sent.");
+            }
             await RefreshDiagnosticsCapabilitiesAsync(currentConnection);
             EnsureAxisSetOperationModeCapabilitiesReady(
                 "SetOperationMode Start");
 
             var currentAxis = await GetPhysicalAxisAsync(axisReference);
             var prepared = currentAxis.PrepareSetOperationMode(
-                LMCDriveOperationMode.CyclicSynchronousPosition,
+                requestedMode,
                 timeoutMilliseconds,
                 adminCapabilities,
                 diagnosticCapabilities,
@@ -1093,6 +1207,11 @@ namespace LasalMotionControlApiExample
             textAxisSetOperationModeRecoveryStatus.Text =
                 "Journal ready; no unresolved record. AdminTriad="
                 + triad
+                + ", SupportedModeMask=0x"
+                + (adminCapabilities == null
+                    ? 0
+                    : adminCapabilities.SetOperationModeSupportedMask)
+                    .ToString("X4")
                 + ", DiagnosticsIdentity="
                 + diagnostics
                 + ". Current PLC activation is expected to keep Start disabled until bits 8/9/10 are explicitly enabled after MODE-13 evidence passes.";

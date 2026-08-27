@@ -20,6 +20,9 @@ namespace LasalApiWpfTestApp.SmokeTests
                 "Wpf.SetOperationModeRecovery.DynamicUiRequiresExplicitConfirmation",
                 SetOperationModeDynamicUiRequiresExplicitConfirmation);
             tests.Add(
+                "Wpf.SetOperationModeRecovery.SelectorStartsFailClosedWithoutPlcMask",
+                SetOperationModeSelectorStartsFailClosedWithoutPlcMask);
+            tests.Add(
                 "Wpf.SetOperationModeRecovery.DefinitiveRejectArchivesAndClearsInterlock",
                 SetOperationModeDefinitiveRejectArchivesAndClearsInterlock);
             tests.Add(
@@ -117,6 +120,30 @@ namespace LasalApiWpfTestApp.SmokeTests
                 AssertEx.False(window.TextRemotePort.IsEnabled);
                 AssertEx.False(
                     window.AxisSetOperationModeStartButtonForTests.IsEnabled);
+            }
+            finally
+            {
+                if (window != null)
+                {
+                    window.Close();
+                }
+                DeleteSetOperationModeTemporaryDirectory(root);
+            }
+        }
+
+        private static void SetOperationModeSelectorStartsFailClosedWithoutPlcMask()
+        {
+            var root = CreateSetOperationModeTemporaryDirectory();
+            MainWindow window = null;
+            try
+            {
+                window = new MainWindow(root);
+                var selector = window.AxisSetOperationModeRequestedModeForTests;
+                AssertEx.NotNull(selector);
+                AssertEx.Equal(0, selector.Items.Count);
+                AssertEx.True(selector.SelectedItem == null);
+                AssertEx.False(selector.IsEnabled);
+                AssertEx.False(window.AxisSetOperationModeStartButtonForTests.IsEnabled);
             }
             finally
             {
