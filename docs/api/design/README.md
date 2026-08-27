@@ -16,7 +16,7 @@
 | 순서 | API | 현재 진행도 | 개발 성격 | 설계 |
 |---:|---|---:|---|---|
 | 1 | `HomeDS402` | 50% | H37-01/02/03/04/10 current-dev qualification 완료; fresh C78/artifact와 hardware/activation 후속 | [HOME_DS402_DESIGN.md](HOME_DS402_DESIGN.md) |
-| 2 | `SetOpMode` | 60% | owner/SDO/no-replay/preemption/D5 deny source, MODE-10 static, MODE-13 PC/WPF recovery 완료; current exact-image C78/PLC/hardware 남음 | [SET_OPERATION_MODE_DESIGN.md](SET_OPERATION_MODE_DESIGN.md) |
+| 2 | `SetOpMode` | 65% | PP/PV/IP/CSP software target SDK/PLC/WPF path까지 통합; activation OFF, SupportedModeMask/C78/PLC/hardware 후속 | [SET_OPERATION_MODE_DESIGN.md](SET_OPERATION_MODE_DESIGN.md) |
 | 3 | `HomeDS402Ex` | 40% | HOMEEX-05/06/07/12 + profile/approved-plan gate + source/static/collector 통합; issue #28/#35와 actual runtime/hardware 후속 | [HOME_DS402_EX_DESIGN.md](HOME_DS402_EX_DESIGN.md) |
 | 4 | `SetPosition` | 25% | P1 async lifecycle/volatile Store까지 완료; durable backend와 RT exactly-once 후속 구현 | [SET_POSITION_DESIGN.md](SET_POSITION_DESIGN.md) |
 
@@ -29,7 +29,7 @@ source/static, C78/generated artifact, PLC load/runtime, hardware/packet과 acti
 |---|---:|---:|---:|---|
 | HomeDS402 | `0x7D15` | `0x7D16` | `0x7D17` | source/wire + H37 software qualification 존재, activation OFF |
 | HomeDS402Ex | `0x7D1B` | `0x7D1C` | `0x7D1D` | route + full-identity ownership + retained store + profile/approved-plan preparation 존재, physical runtime/capability OFF |
-| SetOpMode | `0x7D23` | `0x7D24` | `0x7D25` | C#/LASAL lifecycle + WPF durable recovery 구현, compile gate/capability OFF |
+| SetOpMode | `0x7D23` | `0x7D24` | `0x7D25` | PP/PV/IP/CSP software mutation/recovery + WPF selector 구현, compile gate/capability OFF |
 | SetPosition | `0x7D12` | `0x7D14` | `0x7D1A` | source/wire 존재, runtime fail-closed |
 
 ## 3. current 개발 큐
@@ -44,7 +44,7 @@ source/static, C78/generated artifact, PLC load/runtime, hardware/packet과 acti
 ### Wave 1 — current blocker 해소
 
 - **HomeDS402**: PR #40으로 H37-02/03/04/10을 current `dev`에 통합했다. 다음은 H37 fresh C78 evidence collector와 H37-05/06 artifact closure다.
-- **SetOpMode**: MODE-10/13 software evidence는 완료. current exact source tree의 C78/PLC artifact와 MODE-11/12 hardware evidence가 다음 gate다.
+- **SetOpMode**: PP/PV/IP/CSP software implementation까지 통합. 다음은 PLC SupportedModeMask, current exact-image C78/PLC artifact와 MODE-11/12 hardware evidence다.
 - **HomeDS402Ex**: issue #28 axis profile 승인과 issue #35 fresh C78/generated-artifact closure가 actual runtime의 선행 조건이다.
 - **SetPosition**: `_FileSys` durable A/B backend와 RT exactly-once/native evidence를 준비한다.
 

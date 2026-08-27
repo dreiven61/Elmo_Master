@@ -1,15 +1,15 @@
 # SetOpMode 최우선 개발 설계
 
 - 대상: No.33 `MMC_ChngOpMode`
-- 현재 진행도: 60%
+- 현재 진행도: 65%
 - current baseline: `dev@52bd4cc120812c2510f8ac99d2d6a42576133d67`
-- current 상태: `Dormant runtime source`; PC/SDK contract, owner/runtime, no-replay recovery, safety preemption, generic D5 0x6060 차단과 MODE-13 WPF durable recovery 구현
+- current 상태: `Dormant multi-mode software implementation`; PP/PV/IP/CSP SDK/PLC/WPF target path, owner/runtime, no-replay recovery, safety preemption, generic D5 0x6060 차단과 MODE-13 WPF durable recovery 구현
 - 구현된 SDK command: `0x7D23 Start`, `0x7D24 ReadOutcome`, `0x7D25 Retire`
 - 구현된 PLC route/runtime: Diagnostics route, owner kind/resource, `6061 -> 6060 -> 6061`, outcome lifecycle, write-dispatch 이후 read-only recovery, safety-preemption cleanup
-- 1차 activation 범위: physical axis 1..4, Immediate, CSP mode 8만
+- software 구현 범위: physical axis 1..4, Immediate, PP(1)/PV(3)/IP(7)/CSP(8); production activation은 아직 없음
 - activation 상태: `LMC_DIAG_SET_OPERATION_MODE_ENABLED = FALSE`, capability bits 8/9/10 OFF
-- 진행 판정: MODE-02/06/07/08/09 source 완료, MODE-10 source/static PASS, MODE-13 PC/WPF PASS; current exact-image C78/PLC/hardware는 미완료
-- open qualification branch: PR #18 `codex/setopmode-mode11-bench-activation` — `DO NOT MERGE`, physical bench evidence 전용
+- 진행 판정: 기존 lifecycle/no-replay tranche + MODE-11 software multi-mode path 통합. production capability/mask, current exact-image C78/PLC/hardware는 미완료
+- PR #18 software implementation lineage는 current integration에 흡수하되 qualification-only activation은 제외. physical evidence는 별도 gate로 유지
 - WPF follow-up: PR #37 dynamic recovery-panel localization/CI coverage는 미병합이며 activation 근거가 아님
 
 ## 1. 정확한 API 의미
@@ -29,20 +29,23 @@ handler, `AxisOperationMode` owner, 전용 outcome state와 `0x6060/0x6061` SDO 
 `LMC_DIAG_SET_OPERATION_MODE_ENABLED`는 C78/PLC/hardware 검증 완료 전까지 OFF로 유지한다.
 `0x6060/0x6061` PDO도 current Elmo object에서 disabled다.
 
-## 2. 1차 지원 범위
+## 2. software 구현 범위
 
-첫 구현은 lifecycle과 recovery를 완성하되 public activation은 CSP 8만 허용한다.
+current software path는 lifecycle/recovery identity를 유지하면서 요청 mode를 runtime truth로 일반화한다.
+이 단계는 구현 완료를 의미하지만 production activation 또는 ordinary motion support를 의미하지 않는다.
 
 - physical axis 1..4
 - Immediate-only
-- requested mode `8`만
-- 이미 `0x6061=8`이면 terminal `SucceededNoWrite`
-- 다른 mode에서 8로 복구할 때만 exact one-byte `0x6060:0=8` Write
+- software allow-list: PP(1), PV(3), IP(7), CSP(8)
+- Homing(6)은 `HomeDS402/HomeDS402Ex` 전용이며 SetOperationMode에서 계속 거부
+- 이미 `0x6061=requestedMode`이면 terminal `SucceededNoWrite`
+- mode 변경이 필요하면 exact one-byte `0x6060:0=requestedMode` Write 후 `0x6061` exact verify
+- write-dispatch 이후 original Start/0x6060 자동 replay 금지
 - 움직임, Fault, pending motion, 다른 mutation owner 또는 SDO owner가 있으면 거부
-- Homing mode 6은 `HomeDS402/HomeDS402Ex` 내부 owner만 사용하고 public SetOpMode에서 거부
 
-Mode 1/3/7은 해당 mode의 setpoint PDO/controller, `_LMCAxis` output 정지·인계와 physical
-proof가 마련될 때 각각 별도 activation한다. 초기 구현에서 이를 광고하지 않는다.
+production에서는 PLC-advertised SupportedModeMask와 mode별 physical qualification이 추가되기 전까지
+compile gate와 Admin bits 8/9/10을 OFF로 유지한다. PP/PV/IP 선택 가능 소스가 존재하는 것만으로
+해당 mode의 ordinary motion/control producer가 지원된다고 해석하지 않는다.
 
 ## 3. wire 설계
 
@@ -343,7 +346,8 @@ MODE-13 PASS는 PC/WPF 증거 등급이며 C78/PLC/hardware activation 근거가
 - [x] `MODE-08` Home/SetPosition/motion/SDO ownership conflict와 safety preemption source 구현
 - [x] `MODE-09` generic D5 permanent unsafe object에 `0x6060` 추가
 - [ ] `MODE-10` source/static PASS; PR #17 fresh C78 artifact checkpoint는 존재하지만 current `dev` exact-source C78/PLC/fault matrix는 재검증 필요
-- [ ] `MODE-11` CSP same-mode no-write와 exact one-write/readback packet 검증 — PR #18 software bench tooling 준비, physical evidence 미완료
+- [x] `MODE-11S` PP/PV/IP/CSP software target prepare/start/recovery + WPF selector source 통합, activation OFF
+- [ ] `MODE-11` same-mode zero-write와 cross-mode exact one-write/readback packet 검증 — physical evidence 미완료
 - [ ] `MODE-12` 축 1~4 timeout/disconnect/mismatch/quarantine/retire 검증
 - [x] `MODE-13` WPF pre-dispatch journal/startup no-replay recovery와 smoke test PASS
 - [ ] `MODE-14` capability bits 8/9/10 paired activation
@@ -446,7 +450,7 @@ LASAL/no-replay semantics와 MODE-13 완료 상태에는 영향을 주지 않는
 
 ## 9. 비-CSP 후속 gate
 
-Mode 1/3/7을 열려면 mode별 PDO, setpoint producer, controlword owner, `_LMCAxis` output 인계,
-Stop/Power/fault/restart와 mode 8 복귀 계약을 별도로 구현한다. 이 결정 전에는 진행도가 올라가도
-`CSP=8 only` 제한을 특이사항에서 제거하지 않는다. CSP recovery-only tranche 완료를
-`MMC_ChngOpMode` 전체 구현 또는 75% 완료로 기록하지 않는다.
+PP(1)/PV(3)/IP(7)의 mode-change software mutation path 자체는 current source에 구현됐다.
+다만 production support를 열려면 PLC SupportedModeMask, mode별 PDO/setpoint producer/controlword owner,
+`_LMCAxis` output 인계, Stop/Power/fault/restart와 CSP 복귀 계약을 physical evidence로 닫아야 한다.
+따라서 software implementation 통합은 65% 진행으로 기록하되 production activation은 계속 OFF다.

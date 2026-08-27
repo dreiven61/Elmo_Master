@@ -20,6 +20,9 @@ namespace LasalApiWpfTestApp.SmokeTests
                 "Wpf.SetOperationModeRecovery.DynamicUiRequiresExplicitConfirmation",
                 SetOperationModeDynamicUiRequiresExplicitConfirmation);
             tests.Add(
+                "Wpf.SetOperationModeRecovery.SoftwareModeSelectorIsExplicitAllowList",
+                SetOperationModeSoftwareModeSelectorIsExplicitAllowList);
+            tests.Add(
                 "Wpf.SetOperationModeRecovery.DefinitiveRejectArchivesAndClearsInterlock",
                 SetOperationModeDefinitiveRejectArchivesAndClearsInterlock);
             tests.Add(
@@ -117,6 +120,40 @@ namespace LasalApiWpfTestApp.SmokeTests
                 AssertEx.False(window.TextRemotePort.IsEnabled);
                 AssertEx.False(
                     window.AxisSetOperationModeStartButtonForTests.IsEnabled);
+            }
+            finally
+            {
+                if (window != null)
+                {
+                    window.Close();
+                }
+                DeleteSetOperationModeTemporaryDirectory(root);
+            }
+        }
+
+        private static void SetOperationModeSoftwareModeSelectorIsExplicitAllowList()
+        {
+            var root = CreateSetOperationModeTemporaryDirectory();
+            MainWindow window = null;
+            try
+            {
+                window = new MainWindow(root);
+                var selector = window.AxisSetOperationModeRequestedModeForTests;
+                AssertEx.NotNull(selector);
+                AssertEx.Equal(4, selector.Items.Count);
+                AssertEx.True(selector.Items.Contains(LMCDriveOperationMode.ProfilePosition));
+                AssertEx.True(selector.Items.Contains(LMCDriveOperationMode.ProfileVelocity));
+                AssertEx.True(selector.Items.Contains(LMCDriveOperationMode.InterpolatedPosition));
+                AssertEx.True(selector.Items.Contains(LMCDriveOperationMode.CyclicSynchronousPosition));
+                AssertEx.False(selector.Items.Contains(LMCDriveOperationMode.Homing));
+                AssertEx.Equal(
+                    LMCDriveOperationMode.CyclicSynchronousPosition,
+                    (LMCDriveOperationMode)selector.SelectedItem);
+                selector.SelectedItem = LMCDriveOperationMode.ProfilePosition;
+                AssertEx.Equal(
+                    LMCDriveOperationMode.ProfilePosition,
+                    (LMCDriveOperationMode)selector.SelectedItem);
+                AssertEx.False(window.AxisSetOperationModeStartButtonForTests.IsEnabled);
             }
             finally
             {

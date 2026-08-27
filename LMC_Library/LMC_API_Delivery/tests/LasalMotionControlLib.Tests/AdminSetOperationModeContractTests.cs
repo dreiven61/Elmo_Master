@@ -58,8 +58,8 @@ namespace LasalMotionControlLib.Tests
                 "Rpc.Admin.SetOperationMode.DefinitiveRejectNoReplay",
                 DefinitiveRejectNoReplay);
             tests.Add(
-                "Contract.Admin.SetOperationMode.CspOnlyImmediate",
-                CspOnlyImmediate);
+                "Contract.Admin.SetOperationMode.SoftwareAllowListImmediate",
+                SoftwareAllowListImmediate);
         }
 
         private static void GoldenLifecycleBytes()
@@ -541,42 +541,47 @@ namespace LasalMotionControlLib.Tests
             }
         }
 
-        private static void CspOnlyImmediate()
+        private static void SoftwareAllowListImmediate()
         {
-            AssertEx.Throws<NotSupportedException>(
-                () => new LMCAxisSetOperationModeRecoveryKey(
-                    1,
-                    OriginalRequestId,
-                    DiagnosticsBuild,
-                    DiagnosticsBootId,
-                    MapRevision,
-                    Intent0,
-                    Intent1,
-                    Intent2,
-                    Intent3,
-                    2,
-                    LMCDriveOperationMode.Homing,
-                    TimeoutMilliseconds));
+            foreach (var allowed in new[]
+            {
+                LMCDriveOperationMode.ProfilePosition,
+                LMCDriveOperationMode.ProfileVelocity,
+                LMCDriveOperationMode.InterpolatedPosition,
+                LMCDriveOperationMode.CyclicSynchronousPosition
+            })
+            {
+                var key = new LMCAxisSetOperationModeRecoveryKey(
+                    1, OriginalRequestId, DiagnosticsBuild, DiagnosticsBootId,
+                    MapRevision, Intent0, Intent1, Intent2, Intent3, 2,
+                    allowed, TimeoutMilliseconds);
+                AssertEx.Equal(allowed, key.RequestedMode);
+            }
+
+            foreach (var blocked in new[]
+            {
+                LMCDriveOperationMode.NoModeAssigned,
+                LMCDriveOperationMode.Velocity,
+                LMCDriveOperationMode.ProfileTorque,
+                LMCDriveOperationMode.Homing,
+                LMCDriveOperationMode.CyclicSynchronousVelocity,
+                LMCDriveOperationMode.CyclicSynchronousTorque
+            })
+            {
+                AssertEx.Throws<NotSupportedException>(
+                    () => new LMCAxisSetOperationModeRecoveryKey(
+                        1, OriginalRequestId, DiagnosticsBuild, DiagnosticsBootId,
+                        MapRevision, Intent0, Intent1, Intent2, Intent3, 2,
+                        blocked, TimeoutMilliseconds));
+            }
+
             AssertEx.Throws<ArgumentOutOfRangeException>(
                 () => new LMCAxisSetOperationModeRecoveryKey(
-                    1,
-                    OriginalRequestId,
-                    DiagnosticsBuild,
-                    DiagnosticsBootId,
-                    MapRevision,
-                    Intent0,
-                    Intent1,
-                    Intent2,
-                    Intent3,
-                    2,
-                    LMCDriveOperationMode.CyclicSynchronousPosition,
-                    0));
+                    1, OriginalRequestId, DiagnosticsBuild, DiagnosticsBootId,
+                    MapRevision, Intent0, Intent1, Intent2, Intent3, 2,
+                    LMCDriveOperationMode.CyclicSynchronousPosition, 0));
             AssertEx.Throws<ArgumentException>(
-                () => new LMCAxisSetOperationModeClientIntentId(
-                    0,
-                    0,
-                    0,
-                    0));
+                () => new LMCAxisSetOperationModeClientIntentId(0, 0, 0, 0));
         }
 
         private static void PreCanceledZeroWireReusable()

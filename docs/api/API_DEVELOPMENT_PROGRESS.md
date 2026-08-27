@@ -44,8 +44,8 @@ history 문서에 남기고 이 문서에는 current 판정만 유지한다.
   backend가 미완료라 `Dormant`다.
 - HomeDS402는 method 37 source/runtime에 더해 H37-02/03/04/10 hardware-independent qualification이
   current `dev`에 통합됐다. fresh C78/generated artifact, PLC/hardware와 activation은 미완료다.
-- SetOperationMode는 owner/SDO/no-replay/preemption/outcome/D5 deny + MODE-10 source/static + MODE-13
-  WPF recovery가 구현됐다. compile gate와 bits 8/9/10은 OFF다.
+- SetOperationMode는 owner/SDO/no-replay/preemption/outcome/D5 deny + MODE-10/13에 더해
+  PP/PV/IP/CSP software target SDK/PLC/WPF path가 구현됐다. compile gate와 bits 8/9/10은 OFF다.
 - HomeDS402Ex는 wire/SDK/WPF/scaffold/full-identity ownership/retained store/profile preparation/source-static
   collector까지 통합됐지만 physical runtime은 no-op이고 bit 11은 OFF다.
 - WPF dynamic SetOperationMode/HomeDS402Ex recovery localization은 current `dev`에서 양쪽 Debug/Release
@@ -81,7 +81,7 @@ history 문서에 남기고 이 문서에는 current 판정만 유지한다.
 | SetPosition | `0x7D12/7D14/7D1A` | Dormant | volatile store, runtime/native execution fail-closed |
 | DS402 Home | `0x7D15/7D16/7D17` | Dormant | H37 software/source qualification current-dev PASS, five activation gates + bit 6 OFF, fresh C78/hardware 미완료 |
 | HomeDS402Ex | `0x7D1B/7D1C/7D1D` | Dormant | full identity/retained store/profile preparation/source-static 존재; physical runtime no-op, bit 11 OFF |
-| SetOperationMode | `0x7D23/7D24/7D25` | Dormant | owner/SDO/no-replay/preemption/outcome/D5 deny/WPF recovery 존재; compile gate/bits 8..10 OFF |
+| SetOperationMode | `0x7D23/7D24/7D25` | Dormant | PP/PV/IP/CSP software target + owner/SDO/no-replay/preemption/outcome/WPF recovery 존재; compile gate/bits 8..10 OFF |
 | Diagnostics capability | `0x7E00` | Active | 매 connection fresh BootId/MapRevision/mask 필요 |
 | D1/D2 | `0x7E01/02/10/20`, `0x7E30-33` | Active/Limited | typed catalog/PI/Bulk; fault/partial/soak 확대 필요 |
 | D3 Recorder | `0x7E40-49` | Active/Limited | Single/Ring/Trigger, single recorder owner |
@@ -145,8 +145,9 @@ HomeDS402 capability bit 6과 five activation values는 계속 OFF다.
 current source:
 
 - OwnerKind 6 / ResourceKind 4 / active state 12 / exact identity 56 bytes
-- `6061` preflight -> 필요 시 one-byte `6060=8` -> `6061` verify
-- same-mode no-write
+- software target allow-list PP(1)/PV(3)/IP(7)/CSP(8)
+- `6061` preflight -> 필요 시 one-byte `6060=requestedMode` -> `6061` exact verify
+- requested-mode same-mode no-write
 - WriteDispatched 이후 Start/6060 replay 금지, recovery는 read-only
 - safety Stop/Power preemption cleanup/quarantine
 - generic D5 `0x6060` permanent deny
@@ -167,8 +168,9 @@ WPF localization/round-trip current-dev CI:
 
 남은 gate:
 
+- PLC SupportedModeMask + WPF capability intersection
 - current exact source fresh C78/generated artifact + PLC load
-- MODE-11 same-mode zero-write / exact-one-write packet evidence
+- MODE-11 same-mode zero-write / cross-mode exact-one-write packet evidence
 - MODE-12 axis 1..4 fault/disconnect/quarantine matrix
 - MODE-14 bits 8/9/10 paired activation
 

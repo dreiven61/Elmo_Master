@@ -27,7 +27,7 @@ HomeDS402 H37 hardware-independent source/PC/WPF qualification이 추가 통합�
 | API | 문서 진행도 | software/source 상태 | current production gate | 다음 핵심 작업 |
 |---|---:|---|---|---|
 | `HomeDS402` | 50% | H37-01/02/03/04/10 current `dev` 완료. activation/ownership/method-size/WPF no-replay qualification green | Dormant / five-gate + bit 6 OFF | H37 fresh C78 artifact evidence와 H37-05/06 closure 후 Axis1 matrix |
-| `SetOperationMode` | 60% | MODE-02/06/07/08/09 source, MODE-10 source/static, MODE-13 WPF durable recovery + dynamic localization CI 완료 | Dormant / compile gate FALSE / bits 8..10 OFF | current exact-image C78, MODE-11/12 physical evidence, MODE-14 activation |
+| `SetOperationMode` | 65% | 기존 lifecycle/no-replay + PP/PV/IP/CSP software target SDK/PLC/WPF path 통합; MODE-10 static, MODE-13 durable recovery 유지 | Dormant / compile gate FALSE / bits 8..10 OFF | SupportedModeMask, current exact-image C78, MODE-11/12 physical evidence, MODE-14 activation |
 | `HomeDS402Ex` | 40% | HOMEEX-03/04/05/06/07/12 완료, HOMEEX-08 preparation partial, HOMEEX-09 source/static + collector partial, WPF localization CI green | Dormant / physical runtime no-op / bit 11 OFF | issue #28 profile 승인 + issue #35 fresh C78 closure 후 actual SDO/homing runtime 검토 |
 | `SetPosition` | 25% | P1 async lifecycle/volatile Store/retirement contract 존재, runtime fail-closed | Dormant | durable A/B backend + RT exactly-once/native execution evidence |
 
@@ -81,8 +81,9 @@ HomeDS402 capability bit 6과 다섯 activation value는 계속 OFF다.
 
 - OwnerKind 6 / Diagnostics SDO ResourceKind 4 / active state 12
 - exact 56-byte Start identity
-- `6061 -> 6060 -> 6061` runtime
-- same-mode zero-write path
+- SDK/WPF software target allow-list PP(1)/PV(3)/IP(7)/CSP(8)
+- PLC requested-mode-driven `6061 -> 6060 -> 6061` dormant runtime
+- requested-mode same-mode zero-write path
 - irreversible write-dispatch 이후 read-only no-replay recovery
 - safety preemption cleanup/quarantine
 - generic D5 `0x6060` permanent deny
@@ -103,9 +104,9 @@ SetOperationMode production activation 전에는 current exact source tree 기�
 
 남은 gate:
 
-1. current exact source C78/ARM rebuild/link + artifact identity review
-2. MODE-11A CSP same-mode zero-write packet/hardware evidence
-3. MODE-11B independently approved non-CSP exact-one-write/readback evidence
+1. PLC-advertised SupportedModeMask + WPF selector intersection/fail-closed
+2. current exact source C78/ARM rebuild/link + artifact identity review
+3. MODE-11 same-mode zero-write / cross-mode exact-one-write packet-hardware evidence
 4. MODE-12 axis 1..4 timeout/disconnect/mismatch/quarantine/retire matrix
 5. MODE-14 paired capability activation
 
