@@ -60,7 +60,7 @@ namespace LasalApiWpfTestApp.SmokeTests
                         journal.CurrentRecord.State);
                 }
 
-                window = new MainWindow(root);
+                window = CreateHiddenWindow(root);
                 window.InitializeAxisSetPositionRecoveryForTests();
 
                 var recovered =
@@ -104,7 +104,7 @@ namespace LasalApiWpfTestApp.SmokeTests
             MainWindow window = null;
             try
             {
-                window = new MainWindow(root);
+                window = CreateHiddenWindow(root);
                 window.InitializeAxisSetPositionRecoveryForTests();
 
                 AssertEx.NotNull(window.AxisSetPositionRecoveryGroupForTests);
@@ -138,11 +138,11 @@ namespace LasalApiWpfTestApp.SmokeTests
             MainWindow window = null;
             try
             {
-                window = new MainWindow(root);
+                window = CreateHiddenWindow(root);
                 window.InitializeAxisSetPositionRecoveryForTests();
                 AssertEx.NotNull(window.AxisSetPositionRecoveryJournalForTests);
 
-                window.Close();
+                CloseSetPositionWindow(window);
                 window = null;
 
                 var journalDirectory = Path.Combine(
@@ -186,12 +186,15 @@ namespace LasalApiWpfTestApp.SmokeTests
 
         private static void CloseSetPositionWindow(MainWindow window)
         {
-            if (window == null)
+            if (window == null || !window.IsLoaded)
             {
                 return;
             }
 
             window.Close();
+            WaitForUiCondition(
+                () => !window.IsLoaded,
+                "The SetPosition test MainWindow did not close.");
         }
 
         private static void DeleteSetPositionRecoveryDirectory(string root)
