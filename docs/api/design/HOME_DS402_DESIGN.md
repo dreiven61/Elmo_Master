@@ -3,8 +3,8 @@
 - 대상: No.19 `MMC_HomeDS402Cmd`
 - 현재 진행도: 50%
 - current 상태: source implemented, deployment `Dormant`
-- current baseline: `dev@52bd4cc120812c2510f8ac99d2d6a42576133d67`
-- qualification branch: Draft PR #31 `codex/home-ds402-h37-source-qualification` — H37-02/03/04/10 software qualification 확보, `dev` 미통합
+- current baseline: `dev@1f741bfd08e9d75a52f7edd03862ef26ac562edd`
+- current qualification: H37-02/03/04/10 software/source qualification이 PR #40으로 `dev` 통합 완료
 - existing command: `0x7D15 Start`, `0x7D16 ReadOutcome`, `0x7D17 Retire`
 - v1 의미: DS402 method 37, 현재 위치를 0으로 설정하는 non-search Home
 
@@ -31,6 +31,8 @@ Home으로 확정한다.
 - `LmcAxisDs402HomeOutcomeRetirement.cs`: generation-bound retire
 - `LmcAdminDs402Home*.cs`: immutable request, recovery key, parser와 outcome model
 - `MainWindow.MaintenanceActions.cs`: explicit confirmation과 recovery journal 선등록
+- unresolved durable DS402 Home journal은 WPF startup에서 exact recovery key로 재구성
+- recovery path는 original `0x7D15` Start를 재전송하지 않고 Query/Retire만 사용
 
 ### LASAL
 
@@ -39,6 +41,15 @@ Home으로 확정한다.
 - `LMCEcatInputLatch.st`: RT controlword, setpoint alignment와 safety drain
 - `LMCControlCommandService.st`: unified axis ownership/preemption
 - Network: 축 1~4 SDO executor와 InputLatch/ownership 연결
+
+### current qualification tooling
+
+- `tools/Verify-HomeDs402H37Activation.ps1`
+- `tools/Verify-HomeDs402H37Ownership.ps1`
+- `tools/Verify-HomeDs402H37MethodSize.ps1`
+- `tools/Verify-HomeDs402H37WpfRecovery.ps1`
+- `AdminDs402HomeH37QualificationTests.cs`
+- `.github/workflows/home-ds402-h37-source-qualification.yml`
 
 ## 3. frozen wire
 
@@ -76,15 +87,15 @@ offset을 변경하지 않는다.
 | `LMCControlCommandService.st` | `LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED` |
 | `LMCDiagnosticsService.st` | `LMC_DIAG_DS402_HOME_ENABLED` |
 | `LMCEcatInputLatch.st` | `LMC_DS402_HOME_STARTUP_SWEEP_ENABLED` |
-| Admin response | Feature mask `0x00000017 -> 0x00000057` |
+| Admin response | HomeDS402 feature bit 6 |
 
-activation verifier는 혼합 상태를 거부해야 한다. ordinary ownership은 Home 전용이 아니므로
-Stop, PowerOff, Reset, SetPosition, encoder maintenance와 Group preemption 회귀도 같은 gate에
-포함한다.
+PR #40 current-dev qualification에서 all-OFF/all-ON 및 mixed-state negative contract를
+**43 checks PASS**로 고정했다. current Admin capability mask는 `0x0000613F`이며 HomeDS402 bit 6은
+계속 OFF다. 이 verifier PASS는 activation 허가가 아니라 activation changeset 원자성 계약의
+source/static 증거다.
 
-current `dev`에서는 위 activation 5-gate를 열지 않는다. Draft PR #31에서 all-OFF/all-ON 및
-mixed-state negative contract를 qualification했지만, 해당 PR이 merge되기 전까지 current 완료로
-승격하지 않는다.
+ordinary ownership은 Home 전용이 아니므로 Stop, PowerOff, Reset, SetPosition, encoder maintenance와
+Group preemption 회귀도 같은 gate에 포함한다.
 
 ## 5. runtime 상태와 성공 조건
 
@@ -120,17 +131,20 @@ Indeterminate/Quarantined로 보존하고 original Start를 재전송하지 않�
 
 ### Source/static
 
-1. current receipt/safety-drain source와 packet map의 남은-item 설명을 대조한다.
-2. 5개 activation value의 all-OFF/all-ON만 허용하고 모든 mixed mutation을 거부한다.
+1. 5개 activation value의 all-OFF/all-ON만 허용하고 모든 mixed mutation을 거부한다.
+2. exact method37 Start/Running/terminal/retire packet contract를 검증한다.
 3. write-dispatch 이후 duplicate Start와 owner release-before-terminal을 거부한다.
-4. method 37 이외, nonzero motion parameter와 malformed key를 zero-native로 거부한다.
-5. custom method-size와 full SourceOnly를 같은 tree에서 통과한다.
+4. ordinary ownership/preemption 공통 회귀를 검증한다.
+5. custom method-size를 32 KiB 미만으로 유지한다.
+6. WPF startup/reconnect recovery가 Start replay 없이 exact recovery key만 복원하는지 검증한다.
+7. full SourceOnly의 source gate와 generated-artifact ratchet을 분리 판정한다.
 
 ### IDE/PLC
 
-1. generated method/network 연결을 직접 확인한다.
-2. C78 Rebuild/Link 0 error와 새 `CInvalidArgException` 0을 확인한다.
-3. 동일 artifact를 PLC에 다운로드하고 build/BootId/map tuple을 기록한다.
+1. 같은 current source tree에서 fresh C78/ARM Rebuild/Link를 수행한다.
+2. generated method/network 연결과 artifact identity를 직접 확인한다.
+3. C78 0 error, linker 성공, 새 `CInvalidArgException` 0을 확인한다.
+4. 동일 artifact를 PLC에 다운로드하고 build/BootId/map tuple을 기록한다.
 
 ### Hardware/packet
 
@@ -143,49 +157,63 @@ Indeterminate/Quarantined로 보존하고 original Start를 재전송하지 않�
 ## 7. 작업 체크리스트
 
 - [x] `H37-01` packet map의 receipt/drain 미완료 문구와 current source 차이 해소
-- [ ] `H37-02` all-OFF/all-ON activation과 mixed-state negative verifier 고정 — Draft PR #31 branch-qualified, `dev` 미통합
-- [ ] `H37-03` method37 exact request/terminal/retire PC runner와 packet assertion 작성 — Draft PR #31 PC sequence PASS, `dev` 미통합
-- [ ] `H37-04` ordinary ownership 공통 회귀 Stop/Power/Reset/Group/maintenance 추가 — Draft PR #31 shared ownership regression PASS, `dev` 미통합
-- [ ] `H37-05` activation candidate SourceOnly/method-size PASS — method-size branch PASS, full SourceOnly artifact ratchet 미완료
+- [x] `H37-02` all-OFF/all-ON activation과 mixed-state negative verifier 고정
+- [x] `H37-03` method37 exact request/terminal/retire PC runner와 packet assertion 작성
+- [x] `H37-04` ordinary ownership 공통 회귀 Stop/Power/Reset/Group/maintenance 추가
+- [ ] `H37-05` activation candidate SourceOnly/method-size PASS — method-size/source gate PASS, fresh generated artifact ratchet closure 미완료
 - [ ] `H37-06` C78 Rebuild/Link, method direct-open와 Network smoke PASS
 - [ ] `H37-07` Axis1 normal/timeout/fault/disconnect/response-loss matrix PASS
 - [ ] `H37-08` Axis2~4 동일 matrix PASS
 - [ ] `H37-09` 5개 gate와 global capability bit 6 paired activation
-- [ ] `H37-10` WPF recovery journal과 API manual/progress 갱신 — Draft PR #31 WPF qualification PASS, `dev` 미통합
+- [x] `H37-10` WPF recovery journal/startup no-replay recovery qualification
 
-`H37-01` source/static 대조는 2026-08-20에 완료했다. current source의 staged
-`PublishAxisOwnershipDs402Receipt` owner-release/rollback receipt와
-`RequestDs402HomeSafetyDrain` bit-4 low/readback, exact dispatch barrier, late-command
-tombstone을 기존 focused verifier와 대조했고 packet map과 delivery README의 과거
-미구현 표현을 정정했다. 이 완료는 C78 build, PLC download 또는 실축 검증을
-의미하지 않는다.
+## 8. 2026-08-27 current-dev qualification checkpoint
 
-## 8. Draft PR #31 software qualification checkpoint
+PR #40 `test(h37): qualify HomeDS402 source and recovery on current dev`를 current `dev`에서
+qualification한 뒤 squash merge했다.
 
-Draft PR #31 `HomeDS402 H37: qualify method 37 source and durable recovery`는 다음 software evidence를
-확보했다.
+- qualified head: `f39fe0e9b56b0994619aed3f68b22c33a86d3b24`
+- workflow run: `33026506170`
+- successful rerun job: `98369296568`
+- merge commit: `1f741bfd08e9d75a52f7edd03862ef26ac562edd`
 
-- H37-02 atomic 5-value activation contract: **43 checks PASS**
-- H37-03 exact method-37 `0x7D15/0x7D16/0x7D17` Start/Running/terminal/retire PC sequence PASS
-- H37-04 shared axis ownership/preemption regression: **21 checks PASS**
-- HomeDS402 LASAL method-size verifier: **10 checks PASS**
-- largest checked method `ProcessAxisDs402Home`: **29,497 bytes**, 32 KiB 미만
-- WPF durable-recovery source contract: **36 checks PASS**
-- API Debug full suite: **1194/1194 PASS**
-- API Release full suite: **1194/1194 PASS**
-- WPF Debug/Release H37 smoke PASS
-- H37-10 durable WPF recovery qualification branch-level PASS
+결과:
 
-이 evidence는 branch-qualified 상태다. PR #31이 아직 Draft/Open이므로 current `dev` 체크박스를
-완료로 바꾸지 않는다.
+- H37-02 activation contract: **43 checks PASS**
+- H37-03 exact `0x7D15/16/17` PC lifecycle: PASS
+- H37-04 ownership/preemption: **21 checks PASS**
+- method-size: **10 checks PASS**
+  - `HandleAxisDs402HomeStart`: 22,041 bytes
+  - `HandleAxisDs402HomeOutcome`: 7,255 bytes
+  - `HandleAxisDs402HomeRetire`: 4,221 bytes
+  - `ProcessAxisDs402Home`: 29,497 bytes (< 32,768)
+- H37-10 WPF durable no-replay source contract: **36 checks PASS**
+- API Debug/Release full suites: PASS
+- WPF Debug/Release `MaintenanceJournal` + `Ds402Home` smoke: PASS
+- diff hygiene: PASS
 
-남은 exact blocker:
+첫 workflow attempt는 위 네 verifier까지 PASS한 뒤 hosted Windows runner의 MSBuild 탐색 문제로
+중단됐다. source workaround 없이 동일 head의 failed job만 재실행했고 전체 qualification이 green으로
+완료됐다.
+
+full SourceOnly은 source/static gate를 통과한 뒤 다음 exact generated-artifact boundary에 도달한다.
 
 `LASAL.UdpCallbackContract blocker: SetPosition-augmented Classes.lcb physical identity drifted.`
 
-따라서 fresh generated artifact/C78 evidence 없이 H37-05/06 또는 activation을 완료로 판정하지 않는다.
+이 경계는 **H37-05/06 완료가 아니다**. fresh C78/ARM rebuild와 generated artifact identity review 후
+정당한 ratchet update 여부를 별도로 승인해야 한다. source/static PASS를 C78/artifact PASS로 승격하지
+않는다.
 
-## 9. release 경계
+## 9. 다음 개발 tranche
+
+1. H37 fresh C78 evidence collector를 current `dev`에 통합한다.
+2. 같은 source tree에서 실제 C78/ARM Rebuild/Link evidence를 수집한다.
+3. generated `Classes.lcb`/project/network artifact identity를 review한다.
+4. H37-05 SourceOnly artifact ratchet을 정당한 evidence로 닫는다.
+5. H37-06 direct-open/Network smoke 후 H37-07 Axis1 hardware matrix로 이동한다.
+6. H37-07/08이 끝나기 전 H37-09 activation을 열지 않는다.
+
+## 10. release 경계
 
 축 1 성공만으로 축 2~4를 승인하지 않는다. method37 성공을 switch-search Home 또는
 HomeDS402Ex 증거로 사용하지 않는다. PLC warm state/outcome이 cold-power durable하다고
