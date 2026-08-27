@@ -127,8 +127,24 @@ $status = Get-GitText -Root $root -Arguments @('status', '--porcelain=v1')
 if ([string]::IsNullOrWhiteSpace($status)) {
     $status = '<clean>'
 }
+
+# Historical MODE-11 candidates were activated only in the working tree, so
+# the checkpoint hashed the visible diff against HEAD. The qualification
+# branch now intentionally tracks the exact paired BENCH_ACTIVE values. For a
+# clean tracked candidate, preserve the same evidence concept by hashing the
+# two-source delta against the merge-base with origin/dev instead of requiring
+# an uncommitted activation diff.
 $activeDiff = Get-GitText -Root $root -Arguments @('diff', '--binary', '--', $DiagnosticsRelative, $ControlRelative)
-Assert-Condition (-not [string]::IsNullOrWhiteSpace($activeDiff)) 'BENCH_ACTIVE checkpoint requires a visible activation diff against HEAD.'
+$activeDiffBasis = 'working-tree-vs-HEAD'
+if ([string]::IsNullOrWhiteSpace($activeDiff)) {
+    $originDev = Get-GitText -Root $root -Arguments @('rev-parse', '--verify', 'origin/dev')
+    Assert-Condition (-not [string]::IsNullOrWhiteSpace($originDev)) 'Tracked BENCH_ACTIVE checkpoint requires origin/dev for baseline identity.'
+    $mergeBase = Get-GitText -Root $root -Arguments @('merge-base', 'HEAD', 'origin/dev')
+    Assert-Condition (-not [string]::IsNullOrWhiteSpace($mergeBase)) 'Unable to resolve qualification/dev merge-base.'
+    $activeDiff = Get-GitText -Root $root -Arguments @('diff', '--binary', $mergeBase, 'HEAD', '--', $DiagnosticsRelative, $ControlRelative)
+    Assert-Condition (-not [string]::IsNullOrWhiteSpace($activeDiff)) 'Tracked BENCH_ACTIVE checkpoint requires a source delta against the qualification/dev merge-base.'
+    $activeDiffBasis = "tracked-vs-dev-merge-base:$mergeBase"
+}
 $activeDiffSha = Get-TextSha256 -Text $activeDiff
 
 $classes = Get-Item -LiteralPath $classesPath
@@ -167,6 +183,7 @@ $markdown = @"
 - RepositoryHead: ``$head``
 - CandidateSourceState: ``BENCH_ACTIVE``
 - ProductionActivation: **OFF / DO NOT MERGE**
+- ActiveSourceDiffBasis: ``$activeDiffBasis``
 - ActiveSourceDiffSha256: ``$activeDiffSha``
 
 This checkpoint proves candidate identity and static safety contracts only. It does not prove PLC load,
@@ -221,6 +238,7 @@ if (-not [string]::IsNullOrWhiteSpace($outputDirectory) -and -not (Test-Path -Li
 Write-Host "PASS MODE-11 BENCH_ACTIVE source identity"
 Write-Host "PASS MODE-11 candidate safety contract and define-order gates"
 Write-Host "PASS artifact identity captured: Classes=$($classes.Length) bytes, Project=$($project.Length) bytes"
+Write-Host "PASS active source diff basis: $activeDiffBasis"
 Write-Host "PASS active source diff SHA-256: $activeDiffSha"
 Write-Host "PASS MODE-11 bench checkpoint written: $outputFull"
 Write-Host 'NOT_RUN hardware/packet qualification remains pending'
