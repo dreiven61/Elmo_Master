@@ -60,18 +60,41 @@ namespace LasalMotionControlApiExample
                     "Operation Mode 설정 - CSP=8 / durable 재전송 방지 복구",
                     setOperationModeGroup.Header as string);
                 var setOperationModeText = CollectText(setOperationModeGroup);
-                AssertEx.True(
-                    setOperationModeText.Contains("물리 축 번호 (1..4)"),
+                AssertContains(
+                    setOperationModeText,
+                    "물리 축 번호 (1..4)",
                     "The dynamically created SetOperationMode axis label was not found in Korean UI.");
-                AssertEx.True(
-                    setOperationModeText.Contains("CSP 위치 동기 모드 (8)"),
+                AssertContains(
+                    setOperationModeText,
+                    "CSP 위치 동기 모드 (8)",
                     "The dynamically created SetOperationMode CSP label was not found in Korean UI.");
+                AssertContains(
+                    setOperationModeText,
+                    "Mode capability 새로고침",
+                    "The dynamically created SetOperationMode capability button was not localized in Korean UI.");
+                AssertContains(
+                    setOperationModeText,
+                    "복구 조회 / 폐기 (Start 재전송 없음)",
+                    "The dynamically created SetOperationMode recovery button was not localized in Korean UI.");
 
                 var homeExGroup = window.AxisDs402HomeExRecoveryGroupForTests;
                 AssertEx.NotNull(homeExGroup);
                 AssertEx.Equal(
                     "HomeDS402Ex - durable 재전송 방지 복구 (Start UI 닫힘)",
                     homeExGroup.Header as string);
+                var homeExText = CollectText(homeExGroup);
+                AssertContains(
+                    homeExText,
+                    "HOMEDS402EX START UI는 제공하지 않습니다. Engineering scale/profile과 LASAL runtime activation은 아직 qualification되지 않았습니다. 이 패널은 이미 durable하게 저장된 정확한 intent만 0x7D1C/0x7D1D로 복구합니다.",
+                    "The dynamically created HomeDS402Ex warning text was not localized in Korean UI.");
+                AssertContains(
+                    homeExText,
+                    "HomeEx capability 새로고침",
+                    "The dynamically created HomeDS402Ex capability button was not localized in Korean UI.");
+                AssertContains(
+                    homeExText,
+                    "HomeEx 복구 조회 / 폐기 (Start 재전송 없음)",
+                    "The dynamically created HomeDS402Ex recovery button was not localized in Korean UI.");
 
                 window.ComboUiLanguage.SelectedIndex = 0;
                 PumpUiTwice();
@@ -84,25 +107,69 @@ namespace LasalMotionControlApiExample
                     "Set Operation Mode - CSP=8 / durable no-replay recovery",
                     setOperationModeGroup.Header as string);
                 setOperationModeText = CollectText(setOperationModeGroup);
-                AssertEx.True(
-                    setOperationModeText.Contains("Physical axis reference (1..4)"),
+                AssertContains(
+                    setOperationModeText,
+                    "Physical axis reference (1..4)",
                     "English restore did not recover the SetOperationMode axis label.");
-                AssertEx.True(
-                    setOperationModeText.Contains("CyclicSynchronousPosition (8)"),
+                AssertContains(
+                    setOperationModeText,
+                    "CyclicSynchronousPosition (8)",
                     "English restore did not recover the SetOperationMode CSP label.");
+                AssertContains(
+                    setOperationModeText,
+                    "Refresh Mode Capabilities",
+                    "English restore did not recover the SetOperationMode capability button.");
+                AssertContains(
+                    setOperationModeText,
+                    "Query / Retire Recovery (No Start Replay)",
+                    "English restore did not recover the SetOperationMode recovery button.");
+
                 AssertEx.Equal(
                     "HomeDS402Ex - durable no-replay recovery (Start UI closed)",
                     homeExGroup.Header as string);
+                homeExText = CollectText(homeExGroup);
+                AssertContains(
+                    homeExText,
+                    "NO HOMEDS402EX START UI. Engineering scale/profile and LASAL runtime activation are not qualified. This panel only recovers an already durable exact intent through 0x7D1C/0x7D1D.",
+                    "English restore did not recover the HomeDS402Ex warning text.");
+                AssertContains(
+                    homeExText,
+                    "Refresh HomeEx Capabilities",
+                    "English restore did not recover the HomeDS402Ex capability button.");
+                AssertContains(
+                    homeExText,
+                    "Query / Retire HomeEx Recovery (No Start Replay)",
+                    "English restore did not recover the HomeDS402Ex recovery button.");
 
                 window.ComboUiLanguage.SelectedIndex = 1;
                 PumpUiTwice();
                 setOperationModeText = CollectText(setOperationModeGroup);
-                AssertEx.True(
-                    setOperationModeText.Contains("물리 축 번호 (1..4)"),
+                AssertContains(
+                    setOperationModeText,
+                    "물리 축 번호 (1..4)",
                     "The second Korean pass did not restore the SetOperationMode axis translation.");
-                AssertEx.True(
-                    setOperationModeText.Contains("CSP 위치 동기 모드 (8)"),
+                AssertContains(
+                    setOperationModeText,
+                    "CSP 위치 동기 모드 (8)",
                     "The second Korean pass did not restore the SetOperationMode CSP translation.");
+                AssertContains(
+                    setOperationModeText,
+                    "Mode capability 새로고침",
+                    "The second Korean pass did not restore the SetOperationMode capability-button translation.");
+
+                homeExText = CollectText(homeExGroup);
+                AssertContains(
+                    homeExText,
+                    "HOMEDS402EX START UI는 제공하지 않습니다. Engineering scale/profile과 LASAL runtime activation은 아직 qualification되지 않았습니다. 이 패널은 이미 durable하게 저장된 정확한 intent만 0x7D1C/0x7D1D로 복구합니다.",
+                    "The second Korean pass did not restore the HomeDS402Ex warning translation.");
+                AssertContains(
+                    homeExText,
+                    "HomeEx capability 새로고침",
+                    "The second Korean pass did not restore the HomeDS402Ex capability-button translation.");
+                AssertContains(
+                    homeExText,
+                    "HomeEx 복구 조회 / 폐기 (Start 재전송 없음)",
+                    "The second Korean pass did not restore the HomeDS402Ex recovery-button translation.");
             }
             finally
             {
@@ -133,6 +200,14 @@ namespace LasalMotionControlApiExample
                     // temporary-directory cleanup failure.
                 }
             }
+        }
+
+        private static void AssertContains(
+            ISet<string> values,
+            string expected,
+            string message)
+        {
+            AssertEx.True(values.Contains(expected), message);
         }
 
         private static HashSet<string> CollectText(DependencyObject root)
