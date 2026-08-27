@@ -51,6 +51,16 @@ namespace LasalMotionControlLib
         public uint NativeCommandState { get; private set; }
         public uint RecordGeneration { get; private set; }
 
+        /// <summary>
+        /// SetPosition outcome queries expose only durable terminal records.
+        /// A non-terminal or missing record is represented by a query failure,
+        /// never by this result type.
+        /// </summary>
+        public bool IsTerminal
+        {
+            get { return true; }
+        }
+
         public LMCAdminDetailCode OriginalDetailCode
         {
             get { return (LMCAdminDetailCode)OriginalDetailCodeValue; }
