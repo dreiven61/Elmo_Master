@@ -89,9 +89,12 @@ jobs:
         run: |
           $diag = '.\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st'
           $control = '.\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCControlCommandService\LMCControlCommandService.st'
-          $tracked = (& '.\tools\Prepare-SetOperationModeMode11Bench.ps1' -Verify | Out-String)
+          & '.\tools\Prepare-SetOperationModeMode11Bench.ps1' -Verify
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $wasActive = $tracked.Contains('BENCH_ACTIVE')
+          $diagText = [IO.File]::ReadAllText($diag)
+          $controlText = [IO.File]::ReadAllText($control)
+          $wasActive = $diagText.Contains('#define LMC_DIAG_SET_OPERATION_MODE_ENABLED TRUE') -and
+                       $controlText.Contains('(pResponseFrame + 24)^$UDINT := 0x00000717;')
 
           if ($wasActive) {
             & '.\tools\Prepare-SetOperationModeMode11Bench.ps1' -Revert
@@ -103,8 +106,12 @@ jobs:
           if ($wasActive) {
             git checkout HEAD -- $diag $control
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            $restored = (& '.\tools\Prepare-SetOperationModeMode11Bench.ps1' -Verify | Out-String)
-            if ($LASTEXITCODE -ne 0 -or -not $restored.Contains('BENCH_ACTIVE')) {
+            & '.\tools\Prepare-SetOperationModeMode11Bench.ps1' -Verify
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            $restoredDiag = [IO.File]::ReadAllText($diag)
+            $restoredControl = [IO.File]::ReadAllText($control)
+            if (-not $restoredDiag.Contains('#define LMC_DIAG_SET_OPERATION_MODE_ENABLED TRUE') -or
+                -not $restoredControl.Contains('(pResponseFrame + 24)^$UDINT := 0x00000717;')) {
               Write-Error 'Tracked BENCH_ACTIVE source was not restored after dormant-contract verification.'
               exit 1
             }
@@ -119,9 +126,15 @@ jobs:
       - name: Capture tracked BENCH_ACTIVE pre-hardware checkpoint when armed
         shell: powershell
         run: |
-          $state = (& '.\tools\Prepare-SetOperationModeMode11Bench.ps1' -Verify | Out-String)
+          $diag = '.\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st'
+          $control = '.\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCControlCommandService\LMCControlCommandService.st'
+          & '.\tools\Prepare-SetOperationModeMode11Bench.ps1' -Verify
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          if ($state.Contains('BENCH_ACTIVE')) {
+          $diagText = [IO.File]::ReadAllText($diag)
+          $controlText = [IO.File]::ReadAllText($control)
+          $isActive = $diagText.Contains('#define LMC_DIAG_SET_OPERATION_MODE_ENABLED TRUE') -and
+                      $controlText.Contains('(pResponseFrame + 24)^$UDINT := 0x00000717;')
+          if ($isActive) {
             $checkpoint = Join-Path $env:RUNNER_TEMP 'mode11-bench-candidate-checkpoint.md'
             & '.\tools\Capture-SetOperationModeMode11BenchCheckpoint.ps1' -OutputPath $checkpoint
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
