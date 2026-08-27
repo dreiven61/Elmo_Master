@@ -48,12 +48,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify current MODE-10 source/static contract
-        shell: powershell
-        run: |
-          & '.\tools\Verify-SetOperationModeStatic.ps1'
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
       - name: Self-test fresh C78 evidence collector
         shell: powershell
         run: |
@@ -78,67 +72,87 @@ jobs:
           & '.\tools\Verify-SetOperationModeMode11Evidence.ps1' -SelfTest
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Verify baseline MODE-11 candidate safety contract
+      - name: Verify tracked MODE-11 candidate state and safety contract
         shell: powershell
         run: |
+          git checkout -B codex/setopmode-mode11-bench-activation HEAD
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & '.\tools\Prepare-SetOperationModeMode11Bench.ps1' -Verify
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & '.\tools\Verify-SetOperationModeMode11Candidate.ps1'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & '.\tools\Verify-SetOperationModeDefineOrder.ps1'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Exercise real bench activation and exact revert
+      - name: Verify production-dormant MODE-10 contract from the same tracked candidate
         shell: powershell
         run: |
           $diag = '.\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st'
           $control = '.\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCControlCommandService\LMCControlCommandService.st'
-          git checkout -B codex/setopmode-mode11-bench-activation HEAD
+          $tracked = (& '.\tools\Prepare-SetOperationModeMode11Bench.ps1' -Verify | Out-String)
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $wasActive = $tracked.Contains('BENCH_ACTIVE')
+
+          if ($wasActive) {
+            & '.\tools\Prepare-SetOperationModeMode11Bench.ps1' -Revert
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          & '.\tools\Verify-SetOperationModeStatic.ps1'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-          & '.\tools\Prepare-SetOperationModeMode11Bench.ps1' -Enable
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          & '.\tools\Prepare-SetOperationModeMode11Bench.ps1' -Verify
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          & '.\tools\Verify-SetOperationModeMode11Candidate.ps1'
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          & '.\tools\Verify-SetOperationModeDefineOrder.ps1'
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          git diff --check -- $diag $control
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-          $checkpoint = Join-Path $env:RUNNER_TEMP 'mode11-bench-candidate-checkpoint.md'
-          & '.\tools\Capture-SetOperationModeMode11BenchCheckpoint.ps1' -OutputPath $checkpoint
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          if (-not (Test-Path -LiteralPath $checkpoint -PathType Leaf)) {
-            Write-Error 'MODE-11 bench checkpoint was not created.'
-            exit 1
-          }
-          $checkpointText = Get-Content -LiteralPath $checkpoint -Raw
-          if (-not $checkpointText.Contains('CandidateSourceState: `BENCH_ACTIVE`')) {
-            Write-Error 'MODE-11 bench checkpoint did not record BENCH_ACTIVE source state.'
-            exit 1
-          }
-          if (-not $checkpointText.Contains('PRE-HARDWARE / MODE-11 NOT YET PASSED')) {
-            Write-Error 'MODE-11 bench checkpoint did not preserve the pre-hardware boundary.'
-            exit 1
+          if ($wasActive) {
+            git checkout HEAD -- $diag $control
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            $restored = (& '.\tools\Prepare-SetOperationModeMode11Bench.ps1' -Verify | Out-String)
+            if ($LASTEXITCODE -ne 0 -or -not $restored.Contains('BENCH_ACTIVE')) {
+              Write-Error 'Tracked BENCH_ACTIVE source was not restored after dormant-contract verification.'
+              exit 1
+            }
           }
 
-          & '.\tools\Prepare-SetOperationModeMode11Bench.ps1' -Revert
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          & '.\tools\Prepare-SetOperationModeMode11Bench.ps1' -Verify
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           git diff --exit-code -- $diag $control
           if ($LASTEXITCODE -ne 0) {
-            Write-Error 'MODE-11 activation/revert did not restore the exact tracked LASAL source.'
+            Write-Error 'MODE-10 verification changed the tracked candidate source.'
             exit $LASTEXITCODE
           }
 
-      - name: Verify SetOperationMode define order
+      - name: Capture tracked BENCH_ACTIVE pre-hardware checkpoint when armed
         shell: powershell
         run: |
-          & '.\tools\Verify-SetOperationModeDefineOrder.ps1'
+          $state = (& '.\tools\Prepare-SetOperationModeMode11Bench.ps1' -Verify | Out-String)
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ($state.Contains('BENCH_ACTIVE')) {
+            $checkpoint = Join-Path $env:RUNNER_TEMP 'mode11-bench-candidate-checkpoint.md'
+            & '.\tools\Capture-SetOperationModeMode11BenchCheckpoint.ps1' -OutputPath $checkpoint
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            if (-not (Test-Path -LiteralPath $checkpoint -PathType Leaf)) {
+              Write-Error 'MODE-11 bench checkpoint was not created.'
+              exit 1
+            }
+            $checkpointText = Get-Content -LiteralPath $checkpoint -Raw
+            if (-not $checkpointText.Contains('CandidateSourceState: `BENCH_ACTIVE`')) {
+              Write-Error 'MODE-11 bench checkpoint did not record BENCH_ACTIVE source state.'
+              exit 1
+            }
+            if (-not $checkpointText.Contains('PRE-HARDWARE / MODE-11 NOT YET PASSED')) {
+              Write-Error 'MODE-11 bench checkpoint did not preserve the pre-hardware boundary.'
+              exit 1
+            }
+          }
+          else {
+            Write-Host 'Tracked candidate is BASELINE_OFF; promotion workflow has not armed the branch yet.'
+          }
 
-      - name: Diff hygiene
+      - name: Final tracked source state and diff hygiene
         shell: powershell
         run: |
+          & '.\tools\Prepare-SetOperationModeMode11Bench.ps1' -Verify
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git diff --exit-code
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error 'Qualification left the checkout dirty.'
+            exit $LASTEXITCODE
+          }
           if ($env:GITHUB_EVENT_NAME -eq 'pull_request') {
             git diff --check "origin/$env:GITHUB_BASE_REF...HEAD"
           }
