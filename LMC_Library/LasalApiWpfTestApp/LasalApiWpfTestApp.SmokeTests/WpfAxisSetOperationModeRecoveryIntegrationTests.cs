@@ -20,8 +20,8 @@ namespace LasalApiWpfTestApp.SmokeTests
                 "Wpf.SetOperationModeRecovery.DynamicUiRequiresExplicitConfirmation",
                 SetOperationModeDynamicUiRequiresExplicitConfirmation);
             tests.Add(
-                "Wpf.SetOperationModeRecovery.SelectorStartsFailClosedWithoutPlcMask",
-                SetOperationModeSelectorStartsFailClosedWithoutPlcMask);
+                "Wpf.SetOperationModeRecovery.SelectorRemainsUsableWithoutPlcMask",
+                SetOperationModeSelectorRemainsUsableWithoutPlcMask);
             tests.Add(
                 "Wpf.SetOperationModeRecovery.DefinitiveRejectArchivesAndClearsInterlock",
                 SetOperationModeDefinitiveRejectArchivesAndClearsInterlock);
@@ -131,7 +131,7 @@ namespace LasalApiWpfTestApp.SmokeTests
             }
         }
 
-        private static void SetOperationModeSelectorStartsFailClosedWithoutPlcMask()
+        private static void SetOperationModeSelectorRemainsUsableWithoutPlcMask()
         {
             var root = CreateSetOperationModeTemporaryDirectory();
             MainWindow window = null;
@@ -140,9 +140,11 @@ namespace LasalApiWpfTestApp.SmokeTests
                 window = new MainWindow(root);
                 var selector = window.AxisSetOperationModeRequestedModeForTests;
                 AssertEx.NotNull(selector);
-                AssertEx.Equal(0, selector.Items.Count);
-                AssertEx.True(selector.SelectedItem == null);
-                AssertEx.False(selector.IsEnabled);
+                AssertEx.Equal(4, selector.Items.Count);
+                AssertEx.Equal(
+                    LMCDriveOperationMode.CyclicSynchronousPosition,
+                    (LMCDriveOperationMode)selector.SelectedItem);
+                AssertEx.True(selector.IsEnabled);
                 AssertEx.False(window.AxisSetOperationModeStartButtonForTests.IsEnabled);
             }
             finally
