@@ -19,8 +19,6 @@ def replace_once(rel, old, new):
     write(rel, text.replace(old, new, 1))
 
 
-# SDK model: preserve the 40-byte schema and expose the former reserved UInt16
-# as a fail-closed SetOperationMode support mask.
 models = "LMC_Library/LMC_API_Delivery/src/LmcAdminModels.cs"
 replace_once(
     models,
@@ -39,8 +37,6 @@ replace_once(
     "        public bool Supports(LMCAxisParameterKey key)\n",
     "        public bool SupportsSetOperationMode(LMCDriveOperationMode mode)\n        {\n            var raw = (int)(sbyte)mode;\n            if (raw < 0 || raw > 15)\n            {\n                return false;\n            }\n\n            return (SetOperationModeSupportedMask & (1 << raw)) != 0;\n        }\n\n        public bool Supports(LMCAxisParameterKey key)\n")
 
-# SDK parser: byte-compatible schema. Offset 38 is no longer reserved; it is a
-# UInt16 mask where bit N means positive DS402 mode N is advertised.
 protocol = "LMC_Library/LMC_API_Delivery/src/LmcAdminProtocol.cs"
 replace_once(
     protocol,
@@ -63,16 +59,12 @@ replace_once(
     "                groupReference,\n                maxGroupParameterCount,\n                errorCatalogVersion);\n",
     "                groupReference,\n                maxGroupParameterCount,\n                errorCatalogVersion,\n                setOperationModeSupportedMask);\n")
 
-# PLC AdminCapabilities: keep payload length 40. The supported-mode mask is
-# advertised only when the exact Start/Outcome/Retire triad is enabled.
 control = "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st"
 replace_once(
     control,
     "\t\t\t(pResponseFrame + 44)^$UINT := 6;\n\t\t\t(pResponseFrame + 46)^$UINT := 0;\n\t\t\tResponseSize := 48;",
     "\t\t\t(pResponseFrame + 44)^$UINT := 6;\n\t\t\tif (((pResponseFrame + 24)^$UDINT and 0x00000700) = 0x00000700) then\n\t\t\t\t// bits: PP(1), PV(3), IP(7), CSP(8)\n\t\t\t\t(pResponseFrame + 46)^$UINT := 0x018A;\n\t\t\telse\n\t\t\t\t(pResponseFrame + 46)^$UINT := 0;\n\t\t\tend_if;\n\t\t\tResponseSize := 48;")
 
-# LASAL SetOperationMode dormant software path from the prior qualification
-# branch. Production activation remains FALSE.
 diag = "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st"
 replace_once(
     diag,
@@ -84,22 +76,21 @@ replace_once(
     "\telsif (requestedMode <> 8) &\n\t      ((LMC_DIAG_SET_OPERATION_MODE_SOFTWARE_MODES = FALSE) |\n\t       ((requestedMode <> 1) & (requestedMode <> 3) & (requestedMode <> 7))) then\n\t\tdetailCode := LMC_DIAG_MODE_DETAIL_UNSUPPORTED;")
 replace_once(
     diag,
-    "\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_WRITE_DATA] := 8;",
-    "\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_WRITE_DATA] := TO_DINT(requestedMode);")
+    "\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_TIMEOUT_MS]$UDINT :=\n\t\ttimeoutMilliseconds;\n\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_WRITE_DATA] := 8;\n\tAxisOperationModeState[recordBase] := LMC_DIAG_MODE_RECORD_RUNNING;",
+    "\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_TIMEOUT_MS]$UDINT :=\n\t\ttimeoutMilliseconds;\n\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_WRITE_DATA] := TO_DINT(requestedMode);\n\tAxisOperationModeState[recordBase] := LMC_DIAG_MODE_RECORD_RUNNING;")
 replace_once(
     diag,
     "\telsif requestedMode <> 8 then\n\t\tdetailCode := LMC_DIAG_MODE_DETAIL_KEY_MISMATCH;",
     "\telsif (requestedMode <> 8) &\n\t      ((LMC_DIAG_SET_OPERATION_MODE_SOFTWARE_MODES = FALSE) |\n\t       ((requestedMode <> 1) & (requestedMode <> 3) & (requestedMode <> 7))) then\n\t\tdetailCode := LMC_DIAG_MODE_DETAIL_KEY_MISMATCH;")
 replace_once(
     diag,
-    "\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_WRITE_DATA] := 8;",
-    "\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_WRITE_DATA] :=\n\t\t\t\t\tAxisOperationModeState[recoveryScanBase + 10];")
+    "\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_TIMEOUT_MS]$UDINT :=\n\t\t\t\t\tLMC_DIAG_MODE_RECOVERY_READ_TIMEOUT_MS;\n\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_WRITE_DATA] := 8;\n\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_QUARANTINE_REASON]$UDINT :=",
+    "\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_TIMEOUT_MS]$UDINT :=\n\t\t\t\t\tLMC_DIAG_MODE_RECOVERY_READ_TIMEOUT_MS;\n\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_WRITE_DATA] :=\n\t\t\t\t\tAxisOperationModeState[recoveryScanBase + 10];\n\t\t\t\tAxisOperationModeState[LMC_DIAG_MODE_RUNTIME_QUARANTINE_REASON]$UDINT :=")
 replace_once(
     diag,
     "\t\t\t\tif observedMode = 8 then",
     "\t\t\t\tif observedMode = AxisOperationModeState[recordBase + 10]$SINT then")
 
-# Existing contract test name/body must follow the promoted multi-mode SDK path.
 tests = "LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/AdminSetOperationModeContractTests.cs"
 replace_once(
     tests,
