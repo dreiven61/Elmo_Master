@@ -1,0 +1,89 @@
+name: SetOperationMode software integration promotion
+
+on:
+  push:
+    branches:
+      - codex/setopmode-mode11-implementation-integration
+    paths:
+      - 'tools/Apply-SetOperationModeSoftwareIntegration.py'
+      - '.github/workflows/set-operation-mode-software-integration.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  promote:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout integration branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/setopmode-mode11-implementation-integration
+          fetch-depth: 0
+
+      - name: Apply dormant multi-mode software transform
+        shell: powershell
+        run: |
+          python '.\tools\Apply-SetOperationModeSoftwareIntegration.py'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git diff --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify activation remains OFF
+        shell: powershell
+        run: |
+          $diag = Get-Content '.\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st' -Raw
+          $control = Get-Content '.\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCControlCommandService\LMCControlCommandService.st' -Raw
+          if (-not $diag.Contains('#define LMC_DIAG_SET_OPERATION_MODE_ENABLED FALSE')) {
+            Write-Error 'SetOperationMode compile gate is not FALSE.'
+            exit 1
+          }
+          if ($diag.Contains('#define LMC_DIAG_SET_OPERATION_MODE_ENABLED TRUE')) {
+            Write-Error 'SetOperationMode compile gate unexpectedly contains TRUE.'
+            exit 1
+          }
+          if (-not $control.Contains('(pResponseFrame + 24)^$UDINT := 0x00000017;')) {
+            Write-Error 'Admin baseline mask is not 0x00000017.'
+            exit 1
+          }
+          if ($control.Contains('(pResponseFrame + 24)^$UDINT := 0x00000717;')) {
+            Write-Error 'Admin SetOperationMode bits 8/9/10 are unexpectedly active.'
+            exit 1
+          }
+          Write-Host 'PASS: multi-mode software implementation is dormant; activation remains OFF.'
+
+      - name: Commit promoted software and progress docs
+        shell: powershell
+        run: |
+          $expected = @(
+            'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st',
+            'LMC_Library/LMC_API_Delivery/src/LmcAdminSetOperationModeProtocol.cs',
+            'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.AxisSetOperationModeRecovery.cs',
+            'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.ReadOnlyApi.cs',
+            'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/AdminSetOperationModeContractTests.cs',
+            'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/WpfAxisSetOperationModeRecoveryIntegrationTests.cs',
+            'docs/api/design/SET_OPERATION_MODE_DESIGN.md',
+            'docs/api/design/DEVELOPMENT_STATUS_20260827.md',
+            'docs/api/design/README.md',
+            'docs/api/API_DEVELOPMENT_PROGRESS.md'
+          )
+          $changed = @(git diff --name-only)
+          foreach ($path in $expected) {
+            if ($changed -notcontains $path) {
+              Write-Error "Expected promoted file missing: $path"
+              exit 1
+            }
+          }
+          $unexpected = @($changed | Where-Object { $expected -notcontains $_ })
+          if ($unexpected.Count -ne 0) {
+            Write-Error ('Unexpected promoted files: ' + ($unexpected -join ', '))
+            exit 1
+          }
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- $expected
+          git commit -m 'feat(mode): integrate dormant PP PV IP CSP software path'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git push origin HEAD:codex/setopmode-mode11-implementation-integration
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
