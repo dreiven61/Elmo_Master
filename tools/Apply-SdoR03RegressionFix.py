@@ -34,9 +34,18 @@ sdk = sdk.replace(old_switch, new_switch)
 SDK.write_text(sdk, encoding='utf-8')
 
 plc = PLC.read_text(encoding='utf-8')
-old_plc_block = '''\t\tif (ObjectIndex = 0x6040) | (ObjectIndex = 0x6060) |\n\t\t\t(ObjectIndex = 0x607A) | (ObjectIndex = 0x60FF) |\n\t\t\t(ObjectIndex = 0x6071) then\n'''
-new_plc_block = '''\t\tif (ObjectIndex = 0x6040) | (ObjectIndex = 0x6060) |\n\t\t\t(ObjectIndex = 0x607A) | (ObjectIndex = 0x60FF) |\n\t\t\t(ObjectIndex = 0x6071) | (ObjectIndex = 0x3204) |\n\t\t\t(ObjectIndex = 0x20FC) then\n'''
-plc = replace_once(plc, old_plc_block, new_plc_block, 'PLC semantic owner block')
+plc = regex_once(
+    plc,
+    r'(?P<indent>\s*)if \(ObjectIndex = 0x6040\) \| \(ObjectIndex = 0x6060\) \|\s*'
+    r'\(ObjectIndex = 0x607A\) \| \(ObjectIndex = 0x60FF\) \|\s*'
+    r'\(ObjectIndex = 0x6071\) then',
+    lambda match: (
+        match.group('indent')
+        + 'if (ObjectIndex = 0x6040) | (ObjectIndex = 0x6060) |\n'
+        + '\t\t\t(ObjectIndex = 0x607A) | (ObjectIndex = 0x60FF) |\n'
+        + '\t\t\t(ObjectIndex = 0x6071) | (ObjectIndex = 0x3204) |\n'
+        + '\t\t\t(ObjectIndex = 0x20FC) then'),
+    'PLC semantic owner block')
 PLC.write_text(plc, encoding='utf-8')
 
 # LMCSdoRequest uses a four-byte minimum wire container even for narrow scalar
