@@ -1,0 +1,198 @@
+name: HomeDS402 H37 source qualification
+# H37-02/H37-03/H37-04/H37-05/H37-10 software/source qualification.
+# The known Classes.lcb physical-identity boundary remains a separate generated-artifact gate.
+
+on:
+  push:
+    branches:
+      - dev
+      - codex/home-ds402-h37-dev-integration
+    paths:
+      - 'tools/Verify-HomeDs402H37Activation.ps1'
+      - 'tools/Verify-HomeDs402H37Ownership.ps1'
+      - 'tools/Verify-HomeDs402H37MethodSize.ps1'
+      - 'tools/Verify-HomeDs402H37WpfRecovery.ps1'
+      - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/AdminDs402HomeH37QualificationTests.cs'
+      - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Program.cs'
+      - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/LasalMotionControlLib.Tests.csproj'
+      - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/LasalApiWpfTestApp.csproj'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.MaintenanceActions.cs'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MaintenanceActionRecoveryJournal.cs'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/LasalApiWpfTestApp.SmokeTests.csproj'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/**/*.cs'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCEcatInputLatch/LMCEcatInputLatch.st'
+      - 'docs/api/API_MANUAL.md'
+      - 'docs/api/API_DEVELOPMENT_PROGRESS.md'
+      - 'docs/api/design/HOME_DS402_DESIGN.md'
+      - '.github/workflows/home-ds402-h37-source-qualification.yml'
+  pull_request:
+    branches:
+      - dev
+    paths:
+      - 'tools/Verify-HomeDs402H37Activation.ps1'
+      - 'tools/Verify-HomeDs402H37Ownership.ps1'
+      - 'tools/Verify-HomeDs402H37MethodSize.ps1'
+      - 'tools/Verify-HomeDs402H37WpfRecovery.ps1'
+      - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/AdminDs402HomeH37QualificationTests.cs'
+      - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Program.cs'
+      - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/LasalMotionControlLib.Tests.csproj'
+      - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/LasalApiWpfTestApp.csproj'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.MaintenanceActions.cs'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MaintenanceActionRecoveryJournal.cs'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/LasalApiWpfTestApp.SmokeTests.csproj'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/**/*.cs'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCEcatInputLatch/LMCEcatInputLatch.st'
+      - 'docs/api/API_MANUAL.md'
+      - 'docs/api/API_DEVELOPMENT_PROGRESS.md'
+      - 'docs/api/design/HOME_DS402_DESIGN.md'
+      - '.github/workflows/home-ds402-h37-source-qualification.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  h37-source:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify atomic activation contract
+        shell: powershell
+        run: |
+          & '.\tools\Verify-HomeDs402H37Activation.ps1' -RepositoryRoot (Get-Location).Path
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify ownership regression contract
+        shell: powershell
+        run: |
+          & '.\tools\Verify-HomeDs402H37Ownership.ps1' -RepositoryRoot (Get-Location).Path
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify HomeDS402 method budget
+        shell: powershell
+        run: |
+          & '.\tools\Verify-HomeDs402H37MethodSize.ps1' -RepositoryRoot (Get-Location).Path
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify WPF durable recovery no-replay contract
+        shell: powershell
+        run: |
+          & '.\tools\Verify-HomeDs402H37WpfRecovery.ps1' -RepositoryRoot (Get-Location).Path
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Locate MSBuild
+        id: msbuild
+        shell: powershell
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          if (-not (Test-Path -LiteralPath $vswhere)) { throw 'vswhere.exe was not found.' }
+          $msbuild = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
+          if ([string]::IsNullOrWhiteSpace($msbuild)) { throw 'MSBuild.exe was not found.' }
+          "path=$msbuild" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Build and run API tests Debug
+        shell: powershell
+        run: |
+          $project = '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\LasalMotionControlLib.Tests.csproj'
+          & '${{ steps.msbuild.outputs.path }}' $project /t:Build /p:Configuration=Debug /p:Platform=AnyCPU /m
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\bin\Debug\LasalMotionControlLib.Tests.exe'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build and run API tests Release
+        shell: powershell
+        run: |
+          $project = '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\LasalMotionControlLib.Tests.csproj'
+          & '${{ steps.msbuild.outputs.path }}' $project /t:Build /p:Configuration=Release /p:Platform=AnyCPU /m
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\bin\Release\LasalMotionControlLib.Tests.exe'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build and run H37 WPF recovery smoke Debug
+        shell: powershell
+        run: |
+          $project = '.\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\LasalApiWpfTestApp.SmokeTests.csproj'
+          $exe = '.\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\bin\Debug\LasalApiWpfTestApp.SmokeTests.exe'
+          & '${{ steps.msbuild.outputs.path }}' $project /t:Build /p:Configuration=Debug /p:Platform=AnyCPU /m
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $exe --filter MaintenanceJournal
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $exe --filter Ds402Home
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build and run H37 WPF recovery smoke Release
+        shell: powershell
+        run: |
+          $project = '.\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\LasalApiWpfTestApp.SmokeTests.csproj'
+          $exe = '.\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\bin\Release\LasalApiWpfTestApp.SmokeTests.exe'
+          & '${{ steps.msbuild.outputs.path }}' $project /t:Build /p:Configuration=Release /p:Platform=AnyCPU /m
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $exe --filter MaintenanceJournal
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $exe --filter Ds402Home
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify full SourceOnly to exact known artifact boundary
+        shell: powershell
+        run: |
+          $knownArtifactBoundary = 'LASAL.UdpCallbackContract blocker: SetPosition-augmented Classes.lcb physical identity drifted.'
+          $captured = New-Object System.Collections.Generic.List[string]
+          $code = 0
+          try {
+            $ErrorActionPreference = 'Continue'
+            & '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\Verify-LasalContract.ps1' `
+              -RepositoryRoot $env:GITHUB_WORKSPACE `
+              -SourceOnly `
+              -ExpectedSdoWriteAxis 1 2>&1 |
+              ForEach-Object {
+                $text = $_ | Out-String
+                [void]$captured.Add($text)
+                Write-Host $_
+              }
+            $code = $LASTEXITCODE
+          }
+          catch {
+            $text = $_ | Out-String
+            [void]$captured.Add($text)
+            Write-Host $text
+            $code = 1
+          }
+          if ($code -eq 0) {
+            Write-Host 'PASS full SourceOnly contract completed.'
+            exit 0
+          }
+          $joined = [string]::Join("`n", $captured)
+          if ($joined.Contains($knownArtifactBoundary)) {
+            Write-Host 'PASS H37 source/static qualification reached the exact known C78/generated-artifact boundary.'
+            Write-Host 'NOTE this does not qualify or approve the tracked Classes.lcb artifact.'
+            exit 0
+          }
+          exit $code
+
+      - name: Diff hygiene
+        if: always()
+        shell: powershell
+        run: |
+          if ($env:GITHUB_EVENT_NAME -eq 'pull_request') {
+            git diff --check "origin/$env:GITHUB_BASE_REF...HEAD"
+          }
+          elseif ($env:GITHUB_EVENT_NAME -eq 'push') {
+            git diff --check HEAD^ HEAD
+          }
+          else {
+            git diff --check
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
