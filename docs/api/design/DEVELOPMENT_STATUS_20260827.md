@@ -1,213 +1,242 @@
 # 개발 상태 스냅샷 — 2026-08-27
 
-이 문서는 `dev@1f741bfd08e9d75a52f7edd03862ef26ac562edd` 기준의 최우선 API 설계/구현 진행 상태를 정리한다.
-
-설계 완료, PC/SDK 구현, LASAL source/static qualification, IDE/generated artifact, PLC load/runtime,
-hardware/packet qualification과 production activation은 서로 다른 gate다. 아래 진행도는 기존 문서의
-release-oriented 수치를 유지하며, 체크리스트 완료 개수와 동일한 의미로 사용하지 않는다.
-
-## 1. current baseline
-
-- 기준 branch/HEAD: `dev@1f741bfd08e9d75a52f7edd03862ef26ac562edd`
+- current production branch: `dev`
+- current production HEAD: `cd89d189a3dd574c1fc1147eba07dff88effc54a`
+- P0 redesign audit branch: `codex/sdo-mode-redesign-docs-20260827@4909200ba45e9e5d4f87334e92f6190599f471e2`
 - production 판정: **NO-GO**
-- HomeDS402 activation 5-gate: OFF
-- HomeDS402 Admin bit 6: OFF
-- SetOperationMode `LMC_DIAG_SET_OPERATION_MODE_ENABLED`: `FALSE`
-- SetOperationMode Admin bits 8/9/10: OFF
-- HomeDS402Ex `LMC_DIAG_DS402_HOME_EX_ENABLED`: `FALSE`
-- HomeDS402Ex Admin bit 11: OFF
-- HomeDS402Ex actual axis 1..4 profile approval: issue #28 OPEN
-- HomeDS402Ex fresh C78/generated-artifact closure: issue #35 OPEN
 
-2026-08-27 current `dev`에는 WPF dynamic recovery localization의 GitHub CI qualification과
-HomeDS402 H37 hardware-independent source/PC/WPF qualification이 추가 통합됐다.
+설계/source/static, generated artifact, C78, PLC load, hardware/packet, production activation은 서로 다른 gate다. Branch-local 구현을 `dev` current completion으로 승격하지 않는다.
 
-## 2. 최우선 API 진행도
+---
 
-| API | 문서 진행도 | software/source 상태 | current production gate | 다음 핵심 작업 |
-|---|---:|---|---|---|
-| `HomeDS402` | 50% | H37-01/02/03/04/10 current `dev` 완료. activation/ownership/method-size/WPF no-replay qualification green | Dormant / five-gate + bit 6 OFF | H37 fresh C78 artifact evidence와 H37-05/06 closure 후 Axis1 matrix |
-| `SetOperationMode` | 60% | MODE-02/06/07/08/09 source, MODE-10 source/static, MODE-13 WPF durable recovery + dynamic localization CI 완료 | Dormant / compile gate FALSE / bits 8..10 OFF | current exact-image C78, MODE-11/12 physical evidence, MODE-14 activation |
-| `HomeDS402Ex` | 40% | HOMEEX-03/04/05/06/07/12 완료, HOMEEX-08 preparation partial, HOMEEX-09 source/static + collector partial, WPF localization CI green | Dormant / physical runtime no-op / bit 11 OFF | issue #28 profile 승인 + issue #35 fresh C78 closure 후 actual SDO/homing runtime 검토 |
-| `SetPosition` | 25% | P1 async lifecycle/volatile Store/retirement contract 존재, runtime fail-closed | Dormant | durable A/B backend + RT exactly-once/native execution evidence |
+## 1. 최우선 API current 상태
 
-### 판정 해석
+| API | release-oriented 진행도 | current `dev` 상태 | 다음 핵심 gate |
+|---|---:|---|---|
+| HomeDS402 | 50% | H37-01/02/03/04/10 software/current-dev qualification 완료, activation OFF | fresh C78/artifact H37-05/06 -> Axis1 H37-07 -> Axis2..4 -> activation |
+| SetOperationMode | 60% | lifecycle/owner/no-replay/MODE-10/MODE-13 존재, production gate FALSE, bits 8/9/10 OFF | redesign MODE-R01 SupportedModeMask -> MODE-R02 physical matrix |
+| HomeDS402Ex | 40% | SDK/retained store/ownership/WPF recovery 존재, physical runtime OFF, bit 11 OFF | issue #28 profile + issue #35 artifact -> actual runtime/hardware |
+| SetPosition | 25% | P1 lifecycle + WPF durable recovery current-dev 통합, runtime activation OFF | durable A/B store + RT/native exactly-once |
 
-- software/source 상태가 높아도 C78/PLC/hardware evidence가 없으면 production readiness로 승격하지 않는다.
-- current 완료는 `dev`에 merge되고 해당 evidence grade에서 qualification된 것만 표시한다.
-- 한 API의 C78/hardware PASS를 다른 API의 current source evidence로 재사용하지 않는다.
+진행률은 checklist 단순 비율이 아니다. 특히 이번 Generic SDO/SetOperationMode branch-local 작업만으로 SetOperationMode release 진행률을 올리지 않는다.
 
-## 3. HomeDS402 current boundary
+---
 
-PR #40 `test(h37): qualify HomeDS402 source and recovery on current dev`가
-`1f741bfd08e9d75a52f7edd03862ef26ac562edd`로 `dev`에 squash merge됐다.
+## 2. 2026-08-27 사용자 요청 3건 audit
 
-current 완료:
+| 요청 | 판정 | 근거 |
+|---|---|---|
+| SetOperationMode PP/PV/IP/CSP 실제 전환 | **부분 구현 / 미완료** | qualification branch에는 multi-mode request/UI가 있으나 bench definitive reject. redesign/current dev에 PLC SupportedModeMask 없음. actual mode-change PASS 없음 |
+| Generic SDO arbitrary Write | **미구현** | arbitrary request model test는 추가됐으나 `AllowedSdoWrites` / `RequireSdoWriteAllowed()`가 여전히 Axis1 `0x2F00:24` exact target만 허용 |
+| `LMCSdoExecutor` manual Server Read/Write | **source 구현 완료 / bench 미완료** | dual-entry source + C78 build + PLC basic smoke 존재. manual physical Read/Write/arbitration/D5 regression은 미완료 |
 
-- H37-01 receipt/safety-drain 문서/source 정합
-- H37-02 five-value atomic activation contract: **43 checks PASS**
-- H37-03 exact `0x7D15/0x7D16/0x7D17` PC lifecycle contract PASS
-- H37-04 shared ownership/preemption contract: **21 checks PASS**
-- H37-10 WPF durable no-replay recovery: **36 checks PASS** + restart reconstruction smoke PASS
-- HomeDS402 method-size: **10 checks PASS**
-  - largest checked method `ProcessAxisDs402Home`: 29,497 bytes < 32,768
-- API Debug/Release full suites PASS
-- WPF Debug/Release H37 smoke PASS
-- diff hygiene PASS
+따라서 issue #46의 세 요구는 아직 전체 완료가 아니다.
 
-qualification evidence:
+---
 
-- PR #40 qualified head `f39fe0e9b56b0994619aed3f68b22c33a86d3b24`
-- workflow run `33026506170`
-- successful rerun job `98369296568`
+## 3. branch-local SDO-R02 현재 evidence
 
-full SourceOnly source/static gate는 통과했으며 다음 exact generated-artifact boundary에 도달한다.
+PR #47 branch에는 `LMCSdoExecutor` dual-entry 구현이 존재한다.
 
-`LASAL.UdpCallbackContract blocker: SetPosition-augmented Classes.lcb physical identity drifted.`
+구현됨:
 
-따라서 아직 미완료:
+- `RequestSource` NONE/MANUAL_SERVER/PROGRAMMATIC
+- manual `ParaReadWrite::Write` Read/Write dispatch
+- `ParaType`/`ParaString` base-compatible behavior
+- manual/programmatic shared arbitration
+- callback source dispatch
+- manual `ClassState`/`ErrorCode`/`ParaLength` publish
+- tokenized programmatic path 유지
+- focused dual-entry source verifier
 
-- H37-05 fresh generated-artifact ratchet closure
-- H37-06 fresh C78/ARM rebuild/link + direct-open/network smoke
-- H37-07 Axis1 hardware/packet matrix
-- H37-08 Axis2~4 matrix
-- H37-09 paired activation
+현재 build/runtime evidence:
 
-HomeDS402 capability bit 6과 다섯 activation value는 계속 OFF다.
+- C78/ARM Rebuild/Link: **0 errors, 101 warnings**
+- generated `Classes.lcb` 재생성: 확인
+- PLC download: 사용자 확인 PASS
+- PLC basic normal run: 사용자 확인 PASS
 
-## 4. SetOperationMode current boundary
+아직 닫히지 않은 SDO-R02 gate:
 
-현재 `dev`에는 다음 software/source 계약이 존재한다.
+- Axis1..4 executor network direct-open
+- Axis1..4 manual `0x6061:0` Read
+- safe object manual Write + exact readback
+- manual/programmatic BUSY/no-wire contention
+- opposite-entry reuse after completion
+- late/source mismatch quarantine
+- programmatic D5 regression
+- same-image generated artifact physical identity closure
 
-- OwnerKind 6 / Diagnostics SDO ResourceKind 4 / active state 12
-- exact 56-byte Start identity
-- `6061 -> 6060 -> 6061` runtime
-- same-mode zero-write path
-- irreversible write-dispatch 이후 read-only no-replay recovery
-- safety preemption cleanup/quarantine
-- generic D5 `0x6060` permanent deny
-- MODE-10 three-way processor split + source/static verifier
-- MODE-13 WPF pre-dispatch durable journal + startup/reconnect no-replay recovery
+상세 evidence: `docs/api/design/evidence/SDO_R02_C78_DOWNLOAD_SMOKE_20260827.md`
 
-WPF dynamic recovery localization은 PR #39에서 actual dynamic contents의 Korean -> English -> Korean
-round-trip을 GitHub Actions로 qualification했다.
+---
 
-- SetOperationMode WPF recovery run `33026189333`: SUCCESS
-- HomeDS402Ex WPF recovery run `33026189342`: SUCCESS
-- PR #39 merge commit `64ff6dfb2d6f7bc3554436ae3ea686e74509b4d4`
+## 4. Generic SDO Write current blocker
 
-stale PR #37은 superseded로 CLOSED / unmerged다.
+`LmcDiagnosticsD5Models.cs`에는 현재도 다음 exact allowlist가 살아 있다.
 
-SetOperationMode production activation 전에는 current exact source tree 기준 fresh C78/PLC evidence가
-필요하다. Open Draft PR #18은 계속 `DO NOT MERGE` physical bench qualification branch다.
+```text
+AllowedSdoWrites
+RequireSdoWriteAllowed()
+CreateAllowedSdoWriteTargets()
+```
 
-남은 gate:
+현재 effective target은 Axis1 `0x2F00:24 Int32/4` 한 개다.
 
-1. current exact source C78/ARM rebuild/link + artifact identity review
-2. MODE-11A CSP same-mode zero-write packet/hardware evidence
-3. MODE-11B independently approved non-CSP exact-one-write/readback evidence
-4. MODE-12 axis 1..4 timeout/disconnect/mismatch/quarantine/retire matrix
-5. MODE-14 paired capability activation
+따라서 다음은 서로 구분한다.
 
-## 5. HomeDS402Ex current boundary
+```text
+arbitrary request model construction -> 가능
+arbitrary request submission policy   -> 아직 불가
+```
 
-`dev`에 통합된 software tranche:
+다음 작업은 SDO-R03이다.
 
-- HOMEEX-03 wire/capability contract
-- HOMEEX-04 approved-plan C# lifecycle gate
-- HOMEEX-05 exact retained outcome/recovery/retire software store
-- HOMEEX-06 gate-OFF LASAL parser/state scaffold
-- HOMEEX-07 full 116-byte owner identity + shared DS402 Home engine admission
-- HOMEEX-12 WPF durable no-replay recovery
-- HOMEEX-08 approved-profile -> frozen DINT preparation gate
-- HOMEEX-09 source/static verifier + C78 evidence collector
+1. exact target allowlist를 generic admission에서 제거
+2. capability/request validity/owner 기반 policy로 교체
+3. 1/2/4-byte arbitrary Write tests
+4. semantic reserved object policy
+5. `0x2F00:24`를 preset으로만 유지
 
-retained store:
+그 뒤 SDO-R04 WPF editor, SDO-R05 durable recovery를 진행한다.
 
-- `Ds402HomeExState[0..319]`
-- 4 x 40-DINT active records
-- 4 x 40-DINT retired full-outcome records
-- 176-byte Outcome/Retire exact serialization
-- duplicate/replay blocking
-- exact-generation Retire retry
-- retained-store verifier 48/48 PASS
+---
 
-현재 actual physical runtime은 계속 미개방이다.
+## 5. SetOperationMode redesign current blocker
 
-- parameter snapshot/program/restore 미구현
-- mode 6 / controlword bit 4 physical execution 미구현
-- RT owner + homing observation 미구현
-- CleanupProofFlags production proof 미구현
-- capability bit 11 OFF
-- WPF Start UI OFF
+별도 MODE-11 qualification branch에는 PP(1)/PV(3)/IP(7)/CSP(8) request support가 있다. 그러나 그 branch는 `DO NOT MERGE`이고 이전 bench에서 Start가 definitive reject됐다.
 
-external blockers:
+현재 필요한 MODE-R01:
 
-- issue #28: axis 1..4 wiring/polarity/method allowlist/scale/range/rounding/MapRevision actual approval
-- issue #35: same-tree fresh C78/generated artifact review + SourceOnly ratchet closure
+- PLC `SupportedModeMask`
+- SDK typed capability model
+- WPF selector = SDK-known ∩ PLC-supported
+- stale/no-mask fail-closed
+- rejection log에 ErrorId/DetailCode/RequestedMode/current mode/Build/BootId/MapRevision/Admin mask/SupportedModeMask 표시
 
-두 blocker 전에는 HOMEEX-08 physical runtime을 열지 않는다.
+MODE-R02는 새 same-image C78/PLC에서 다음 Axis1 matrix를 실행한다.
 
-## 6. current open work / stale branch 정리
+```text
+CSP -> PP -> CSP
+CSP -> PV -> CSP
+CSP -> IP -> CSP
+CSP -> CSP same-mode
+```
 
-정리 완료:
+Axis1 PASS 후 Axis2..4로 확대한다.
 
-- PR #37 WPF localization branch: superseded by current `dev` + PR #39 qualification, CLOSED unmerged
-- PR #31 HomeDS402 H37 stale Draft: current-dev PR #40으로 selective transplant/requalification 후 CLOSED unmerged
+---
 
-의도적으로 유지되는 qualification/history work:
+## 6. PR #47 current qualification 상태
 
-- PR #14 `codex/mode-10-c78-finalize` — C78 history/review
-- PR #18 `codex/setopmode-mode11-bench-activation` — `DO NOT MERGE`, physical bench evidence
+Latest audited head `4909200...`:
 
-현재 기능 상태 판정은 항상 `dev`를 기준으로 한다.
+기능 측 focused checks:
 
-## 7. 다음 작업 우선순위
+- SetOperationMode source invariants: **57/57 PASS**
+- SetOperationMode define order: **PASS**
+- SetOperationMode WPF Debug recovery smoke: **PASS**
+- SetOperationMode WPF Release recovery smoke: **PASS**
+- SetOperationMode C78 evidence collector self-test: **PASS**
 
-### 우선순위 A — current artifact blocker
+그러나 PR 전체는 아직 merge-ready가 아니다.
 
-1. HomeDS402 H37 fresh C78 evidence collector를 current `dev`에 통합
-2. same-tree actual C78/ARM rebuild/link와 generated artifact review로 H37-05/06 진행
-3. issue #35 HomeDS402Ex fresh C78/generated artifact evidence 수집
-4. issue #28 HomeDS402Ex axis 1..4 hardware profile 승인
+확인된 latest-head failure 중 focused SetOperationMode workflows는 diff hygiene에서 실패했다.
 
-### 우선순위 B — physical qualification
+- architecture 문서 trailing whitespace
+- SDO-R02 evidence 문서 EOF extra blank line
 
-1. HomeDS402 H37-07 Axis1 normal/timeout/fault/disconnect/response-loss matrix
-2. SetOperationMode MODE-11/12 Axis1 evidence
-3. HomeDS402Ex HOMEEX-08 actual runtime은 issue #28/#35 완료 후에만 구현
-4. HomeDS402Ex HOMEEX-10 Axis1 matrix
-5. 각 API Axis2~4 확대
+이번 문서 sync에서 두 hygiene 문제를 제거한다. 다른 전체-repository workflow는 최신 head 재실행 결과를 별도로 확인해야 한다.
 
-### 우선순위 C — activation
+---
 
-- HomeDS402 H37-09 five-gate + bit 6 paired activation
-- SetOperationMode MODE-14 bits 8/9/10 paired activation
-- HomeDS402Ex HOMEEX-13 bit 11 + WPF Start UI paired activation
+## 7. 다른 API production boundaries
 
-각 activation은 해당 API의 current source/image/hardware proof가 모두 같은 승인 세트일 때만 허용한다.
+### HomeDS402
 
-## 8. branch-local SDO-R02 evidence
+current dev 완료:
 
-`codex/sdo-mode-redesign-docs-20260827@4ff371599d01eae55ce9d246fdbf9e6ec08e8385`
-기준으로 `LMCSdoExecutor` dual-entry source가 구현됐다.
+- H37-02 five-gate static contract
+- H37-03 lifecycle PC contract
+- H37-04 ownership/preemption
+- H37-10 WPF durable no-replay
 
-- 집중 source contract PASS
-- C78/ARM Rebuild/Link: 0 errors, 101 warnings
-- PLC 다운로드: 사용자 확인 PASS
-- PLC 기본 정상 구동: 사용자 확인 PASS
-- manual SDO Read/Write, D5 regression 및 packet/readback qualification: 미완료
-- post-download `Classes.lcb` strict physical identity: 미종결
+남음:
 
-이 branch-local 결과는 아직 `dev` current 완료나 production activation으로 승격하지 않는다.
-상세 evidence는 `evidence/SDO_R02_C78_DOWNLOAD_SMOKE_20260827.md`를 따른다.
+- H37-05/06 fresh generated artifact/C78
+- H37-07 Axis1 matrix
+- H37-08 Axis2..4
+- H37-09 activation
 
-## 9. 결론
+Admin bit 6과 다섯 activation value는 OFF.
 
-2026-08-27 기준 HomeDS402 H37의 hardware-independent source/PC/WPF qualification은 current `dev`에
-통합됐다. SetOperationMode/HomeDS402Ex dynamic recovery localization도 current `dev`에서 GitHub CI
-evidence까지 닫혔다.
+### HomeDS402Ex
 
-그러나 HomeDS402의 fresh C78/generated artifact와 hardware matrix, SetOperationMode current-image
-C78/hardware, HomeDS402Ex issue #28/#35 및 physical runtime이 남아 있다. 따라서 production 판정은
-계속 **NO-GO**다.
+current dev software:
+
+- HOMEEX-03/04 SDK lifecycle
+- HOMEEX-05 retained outcome store
+- HOMEEX-06 parser/scaffold
+- HOMEEX-07 full owner identity
+- HOMEEX-08 approved-plan preparation
+- HOMEEX-09 source/static collector
+- HOMEEX-12 WPF durable recovery
+
+남음:
+
+- issue #28 hardware profile approval
+- issue #35 fresh artifact/C78 closure
+- actual parameter/mode/controlword/homing runtime
+- HOMEEX-10/11 hardware
+- HOMEEX-13 activation
+
+`LMC_DIAG_DS402_HOME_EX_ENABLED=FALSE`, Admin bit 11 OFF.
+
+### SetPosition
+
+current dev에는 SP-04A WPF durable no-replay recovery가 통합됐다.
+
+남음:
+
+- durable `_FileSys` A/B backend
+- vendor CRC / IDE-generated ABI prerequisites
+- RT exactly-once/native execution
+- C78/PLC/hardware
+- capability activation
+
+---
+
+## 8. P0 다음 작업 순서
+
+현재 최우선 순서는 issue #46 기준이다.
+
+```text
+1. PR #47 hygiene/CI 정리
+2. SDO-R02 manual Server bench qualification 완료
+3. SDO-R03 Generic Write policy 일반화
+4. SDO-R04 WPF arbitrary-target editor
+5. SDO-R05 exact-request durable recovery
+6. MODE-R01 SupportedModeMask + rejection diagnostics
+7. MODE-R02 Axis1 multi-mode physical matrix
+8. Axis2..4 확대
+9. REL-R01 distribution/docs/artifact sync
+10. production activation 별도 review
+```
+
+---
+
+## 9. activation rule
+
+어떤 API도 다음 항목이 같은 승인 세트에서 연결되지 않으면 Active로 승격하지 않는다.
+
+1. exact source commit
+2. generated artifact identity
+3. fresh C78/ARM build/link
+4. exact PLC load identity
+5. Build/BootId/MapRevision
+6. PC/source/static tests
+7. hardware/packet normal + negative matrix
+8. durable no-replay evidence
+9. paired capability/UI/manual update
+
+Branch-local source 구현이나 user-reported basic PLC smoke만으로 production capability를 켜지 않는다.

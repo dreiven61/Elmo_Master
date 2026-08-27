@@ -13,13 +13,13 @@ programmatic D5 regression, 실제 packet/readback 및 MODE 변경을 통과한 
 
 ## 2. 기준 소스
 
+- implementation commit: `4ff371599d01eae55ce9d246fdbf9e6ec08e8385` (`dev : Edit SdoExecutor`)
+- audit head after generated/syntax/evidence updates: `4909200ba45e9e5d4f87334e92f6190599f471e2`
 - branch: `codex/sdo-mode-redesign-docs-20260827`
-- HEAD: `4ff371599d01eae55ce9d246fdbf9e6ec08e8385`
-- commit subject: `dev : Edit SdoExecutor`
 
 다운로드 시점 working tree에는 LASAL IDE 재생성물과 사용자가 수정한
-`LMCDiagnosticsService.st`가 미커밋 상태로 존재했다. 따라서 위 HEAD만으로 다운로드 image의
-물리 identity를 재현했다고 주장하지 않는다.
+`LMCDiagnosticsService.st`가 미커밋 상태로 존재했다. 따라서 implementation commit 하나만으로
+다운로드 image의 물리 identity를 재현했다고 주장하지 않는다.
 
 ## 3. C78 build evidence
 
@@ -40,7 +40,7 @@ programmatic D5 regression, 실제 packet/readback 및 MODE 변경을 통과한 
 101개 warning에는 기존 source warning과 프로젝트 C78 / library C82 version mismatch warning이
 포함된다. error나 linker failure는 없다.
 
-## 4. 사용자가 수정한 C78 syntax 오류
+## 4. C78 syntax 수정
 
 다음 두 implementation의 `VAR_OUTPUT` 종료부에서 `END_VAR;` 뒤에 `VAR`가 이어지던 문법을
 `END_VAR`로 수정했다.
@@ -56,7 +56,7 @@ programmatic D5 regression, 실제 packet/readback 및 MODE 변경을 통과한 
 - generated `Classes.lcb`에서 `LMCSdoExecutor.st` record 1개 확인
 - 해당 record에서 `RequestSource`, `ParaReadWrite`, `ParaType`, `ParaString` 등록 확인
 
-전체 `Verify-LasalContract.ps1 -SourceOnly`는 다음 기존 strict physical-identity gate에서 중단됐다.
+전체 `Verify-LasalContract.ps1 -SourceOnly`는 기존 strict physical-identity gate에서 중단됐다.
 
 ```text
 LASAL.UdpCallbackContract blocker: SetPosition-augmented Classes.lcb physical identity drifted.
@@ -80,10 +80,13 @@ checksum과 동일하다는 별도 PLC-side 증거는 아직 없다.
 
 ## 7. 남은 SDO-R02 bench gate
 
-- Axis1..4 executor network direct-open 확인
-- Axis1..4 manual `0x6061:0` Read PASS
-- 승인된 safe object manual Write + exact readback PASS
-- manual/programmatic 동시 진입 BUSY/no-wire arbitration PASS
-- programmatic D5 regression PASS
-- 위 시험과 동일한 PLC image identity 고정
+- [ ] Axis1..4 executor network direct-open 확인
+- [ ] Axis1..4 manual `0x6061:0` Read PASS
+- [ ] 승인된 safe object manual Write + exact readback PASS
+- [ ] manual/programmatic 동시 진입 BUSY/no-wire arbitration PASS
+- [ ] completion 후 반대 entry 재사용 PASS
+- [ ] late/source mismatch quarantine PASS
+- [ ] programmatic D5 Read/Write regression PASS
+- [ ] 위 시험과 동일한 PLC image identity 고정
 
+이 gate가 닫히기 전에는 `LMCSdoExecutor` manual Server 기능을 hardware-qualified 완료로 표시하지 않는다.
