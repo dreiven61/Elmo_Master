@@ -93,7 +93,8 @@ namespace LasalApiWpfTestApp.SmokeTests
             finally
             {
                 CloseSetPositionWindow(window);
-                DeleteSetPositionTemporaryDirectory(root);
+                DeleteSetPositionRecoveryDirectory(root);
+                DeleteSetPositionTemporaryRootBestEffort(root);
             }
         }
 
@@ -126,7 +127,8 @@ namespace LasalApiWpfTestApp.SmokeTests
             finally
             {
                 CloseSetPositionWindow(window);
-                DeleteSetPositionTemporaryDirectory(root);
+                DeleteSetPositionRecoveryDirectory(root);
+                DeleteSetPositionTemporaryRootBestEffort(root);
             }
         }
 
@@ -155,7 +157,8 @@ namespace LasalApiWpfTestApp.SmokeTests
             finally
             {
                 CloseSetPositionWindow(window);
-                DeleteSetPositionTemporaryDirectory(root);
+                DeleteSetPositionRecoveryDirectory(root);
+                DeleteSetPositionTemporaryRootBestEffort(root);
             }
         }
 
@@ -191,14 +194,46 @@ namespace LasalApiWpfTestApp.SmokeTests
             window.Close();
         }
 
-        private static void DeleteSetPositionTemporaryDirectory(string path)
+        private static void DeleteSetPositionRecoveryDirectory(string root)
+        {
+            if (string.IsNullOrWhiteSpace(root))
+            {
+                return;
+            }
+
+            var journalDirectory = Path.Combine(
+                root,
+                "AxisSetPositionRecovery");
+            if (Directory.Exists(journalDirectory))
+            {
+                // This deletion is intentionally strict. If the SetPosition
+                // journal still owns its lock after Window.Close, the focused
+                // smoke test must fail rather than hiding the lifecycle leak.
+                Directory.Delete(journalDirectory, true);
+            }
+        }
+
+        private static void DeleteSetPositionTemporaryRootBestEffort(string path)
         {
             if (string.IsNullOrWhiteSpace(path) || !Directory.Exists(path))
             {
                 return;
             }
 
-            Directory.Delete(path, true);
+            try
+            {
+                // MainWindow also opens legacy/shared recovery journals whose
+                // lifetime is outside this focused SetPosition contract. Keep
+                // their historical cleanup behavior separate from the strict
+                // SetPosition journal assertion above.
+                Directory.Delete(path, true);
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
         }
     }
 }
