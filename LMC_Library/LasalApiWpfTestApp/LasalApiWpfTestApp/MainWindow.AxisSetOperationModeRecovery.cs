@@ -267,9 +267,20 @@ namespace LasalMotionControlApiExample
             });
             comboAxisSetOperationModeRequestedMode = new ComboBox
             {
-                Width = 220,
-                IsEnabled = false
+                Width = 220
             };
+            foreach (var mode in new[]
+            {
+                LMCDriveOperationMode.ProfilePosition,
+                LMCDriveOperationMode.ProfileVelocity,
+                LMCDriveOperationMode.InterpolatedPosition,
+                LMCDriveOperationMode.CyclicSynchronousPosition
+            })
+            {
+                comboAxisSetOperationModeRequestedMode.Items.Add(mode);
+            }
+            comboAxisSetOperationModeRequestedMode.SelectedItem =
+                LMCDriveOperationMode.CyclicSynchronousPosition;
             comboAxisSetOperationModeRequestedMode.SelectionChanged +=
                 AxisSetOperationModeInputChanged;
             modePanel.Children.Add(comboAxisSetOperationModeRequestedMode);
@@ -544,25 +555,15 @@ namespace LasalMotionControlApiExample
             }
 
             comboAxisSetOperationModeRequestedMode.Items.Clear();
-            if (adminCapabilities != null
-                && adminCapabilities.Response != null
-                && adminCapabilities.Response.IsSuccess
-                && adminCapabilities.Supports(
-                    AxisSetOperationModeCapabilityTriad))
+            foreach (var mode in new[]
             {
-                foreach (var mode in new[]
-                {
-                    LMCDriveOperationMode.ProfilePosition,
-                    LMCDriveOperationMode.ProfileVelocity,
-                    LMCDriveOperationMode.InterpolatedPosition,
-                    LMCDriveOperationMode.CyclicSynchronousPosition
-                })
-                {
-                    if (adminCapabilities.SupportsSetOperationMode(mode))
-                    {
-                        comboAxisSetOperationModeRequestedMode.Items.Add(mode);
-                    }
-                }
+                LMCDriveOperationMode.ProfilePosition,
+                LMCDriveOperationMode.ProfileVelocity,
+                LMCDriveOperationMode.InterpolatedPosition,
+                LMCDriveOperationMode.CyclicSynchronousPosition
+            })
+            {
+                comboAxisSetOperationModeRequestedMode.Items.Add(mode);
             }
 
             if (previous.HasValue
@@ -634,7 +635,6 @@ namespace LasalMotionControlApiExample
             comboAxisSetOperationModeReference.IsEnabled = idle && !active;
             comboAxisSetOperationModeRequestedMode.IsEnabled = idle
                 && !active
-                && triadReady
                 && comboAxisSetOperationModeRequestedMode.Items.Count > 0;
             textAxisSetOperationModeTimeout.IsEnabled = idle && !active;
             checkAxisSetOperationModeOneShotConfirmed.IsEnabled =
