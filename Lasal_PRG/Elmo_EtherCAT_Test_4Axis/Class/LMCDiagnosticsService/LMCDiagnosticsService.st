@@ -9520,7 +9520,11 @@ FUNCTION LMCDiagnosticsService::ProcessAxisSetOperationMode
 			   ((AxisOperationModeState[recoveryScanBase + 18]$UDINT and
 			     LMC_DIAG_MODE_EVIDENCE_OWNER_RELEASED) = 0) &
 			   (AxisOperationModeState[recoveryScanBase + 9] = recoveryScanAxis) &
-			   (AxisOperationModeState[recoveryScanBase + 10]$SINT = 8) &
+			   ((AxisOperationModeState[recoveryScanBase + 10]$SINT = 8) |
+			    ((LMC_DIAG_SET_OPERATION_MODE_SOFTWARE_MODES = TRUE) &
+			     ((AxisOperationModeState[recoveryScanBase + 10]$SINT = 1) |
+			      (AxisOperationModeState[recoveryScanBase + 10]$SINT = 3) |
+			      (AxisOperationModeState[recoveryScanBase + 10]$SINT = 7)))) &
 			   (AxisOperationModeState[recoveryScanBase + 27]$UDINT <> 0) &
 			   (AxisOperationModeState[recoveryScanBase + 28]$UDINT <> 0) then
 				if recoveryCandidateFound then

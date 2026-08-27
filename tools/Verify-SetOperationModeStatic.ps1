@@ -163,6 +163,10 @@ if ($null -ne $processMode) {
     Assert-Regex $processMode 'ProcessAxisSetOperationModeMutationStages\(\);' 'main processor delegates mutation stages' -ExpectedCount 1
     Assert-Regex $processMode 'ProcessAxisSetOperationModeRecoveryStages\(\);' 'main processor delegates recovery stages' -ExpectedCount 1
     Assert-Regex $processMode 'TryStartWrite\([^;\r\n]*ObjectIndex:=0x6060' 'main processor owns no 0x6060 write site after split' -ExpectedCount 0
+    # MODE-11E: warm-start recovery accepts every software-qualified mode, while
+    # preserving the write-dispatched singleton/no-replay boundary.
+    Assert-Regex $processMode 'AxisOperationModeState\[recoveryScanBase \+ 10\]\$SINT = 8[\s\S]{0,520}LMC_DIAG_SET_OPERATION_MODE_SOFTWARE_MODES = TRUE[\s\S]{0,520}AxisOperationModeState\[recoveryScanBase \+ 10\]\$SINT = 1[\s\S]{0,300}AxisOperationModeState\[recoveryScanBase \+ 10\]\$SINT = 3[\s\S]{0,300}AxisOperationModeState\[recoveryScanBase \+ 10\]\$SINT = 7' 'MODE-11E warm-start candidate admits CSP plus PP/PV/IP software modes' -ExpectedCount 1
+    Assert-Regex $processMode 'LMC_DIAG_MODE_RECORD_RUNNING[\s\S]{0,700}LMC_DIAG_MODE_EVIDENCE_WRITE_DISPATCHED[\s\S]{0,500}LMC_DIAG_MODE_EVIDENCE_OWNER_RELEASED[\s\S]{0,900}LMC_DIAG_MODE_STAGE_RECOVERY_START' 'MODE-11E reconstruction remains gated by running/write-dispatched/not-released evidence' -MinimumCount 1
 }
 
 # MODE-06 mutation stages contain the sole logical 0x6060 mutation site,
