@@ -1,0 +1,134 @@
+name: SetOperationMode MODE-11 bench candidate
+
+on:
+  pull_request:
+    branches:
+      - dev
+    paths:
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st'
+      - 'tools/Prepare-SetOperationModeMode11Bench.ps1'
+      - 'tools/Verify-SetOperationModeMode11Candidate.ps1'
+      - 'tools/Capture-SetOperationModeMode11BenchCheckpoint.ps1'
+      - 'tools/Export-SetOperationModeMode11JournalEvidence.ps1'
+      - 'tools/Verify-SetOperationModeMode11Evidence.ps1'
+      - 'tools/Verify-SetOperationModeDefineOrder.ps1'
+      - '.github/workflows/set-operation-mode-mode11-bench-candidate.yml'
+  push:
+    branches:
+      - codex/setopmode-mode11-bench-activation
+    paths:
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st'
+      - 'tools/Prepare-SetOperationModeMode11Bench.ps1'
+      - 'tools/Verify-SetOperationModeMode11Candidate.ps1'
+      - 'tools/Capture-SetOperationModeMode11BenchCheckpoint.ps1'
+      - 'tools/Export-SetOperationModeMode11JournalEvidence.ps1'
+      - 'tools/Verify-SetOperationModeMode11Evidence.ps1'
+      - 'tools/Verify-SetOperationModeDefineOrder.ps1'
+      - '.github/workflows/set-operation-mode-mode11-bench-candidate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bench-candidate-static:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Self-test bench activation transform
+        shell: powershell
+        run: |
+          & '.\tools\Prepare-SetOperationModeMode11Bench.ps1' -SelfTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Self-test durable journal evidence exporter
+        shell: powershell
+        run: |
+          & '.\tools\Export-SetOperationModeMode11JournalEvidence.ps1' -SelfTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Self-test hardware evidence verifier
+        shell: powershell
+        run: |
+          & '.\tools\Verify-SetOperationModeMode11Evidence.ps1' -SelfTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify baseline MODE-11 candidate safety contract
+        shell: powershell
+        run: |
+          & '.\tools\Verify-SetOperationModeMode11Candidate.ps1'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Exercise real bench activation and exact revert
+        shell: powershell
+        run: |
+          $diag = '.\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st'
+          $control = '.\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCControlCommandService\LMCControlCommandService.st'
+          git checkout -B codex/setopmode-mode11-bench-activation HEAD
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          & '.\tools\Prepare-SetOperationModeMode11Bench.ps1' -Enable
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & '.\tools\Prepare-SetOperationModeMode11Bench.ps1' -Verify
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & '.\tools\Verify-SetOperationModeMode11Candidate.ps1'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & '.\tools\Verify-SetOperationModeDefineOrder.ps1'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git diff --check -- $diag $control
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          $checkpoint = Join-Path $env:RUNNER_TEMP 'mode11-bench-candidate-checkpoint.md'
+          & '.\tools\Capture-SetOperationModeMode11BenchCheckpoint.ps1' -OutputPath $checkpoint
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path -LiteralPath $checkpoint -PathType Leaf)) {
+            Write-Error 'MODE-11 bench checkpoint was not created.'
+            exit 1
+          }
+          $checkpointText = Get-Content -LiteralPath $checkpoint -Raw
+          if (-not $checkpointText.Contains('CandidateSourceState: `BENCH_ACTIVE`')) {
+            Write-Error 'MODE-11 bench checkpoint did not record BENCH_ACTIVE source state.'
+            exit 1
+          }
+          if (-not $checkpointText.Contains('PRE-HARDWARE / MODE-11 NOT YET PASSED')) {
+            Write-Error 'MODE-11 bench checkpoint did not preserve the pre-hardware boundary.'
+            exit 1
+          }
+
+          & '.\tools\Prepare-SetOperationModeMode11Bench.ps1' -Revert
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & '.\tools\Prepare-SetOperationModeMode11Bench.ps1' -Verify
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git diff --exit-code -- $diag $control
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error 'MODE-11 activation/revert did not restore the exact tracked LASAL source.'
+            exit $LASTEXITCODE
+          }
+
+      - name: Verify SetOperationMode define order
+        shell: powershell
+        run: |
+          & '.\tools\Verify-SetOperationModeDefineOrder.ps1'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Diff hygiene
+        shell: powershell
+        run: |
+          if ($env:GITHUB_EVENT_NAME -eq 'pull_request') {
+            git diff --check "origin/$env:GITHUB_BASE_REF...HEAD"
+          }
+          elseif ($env:GITHUB_EVENT_NAME -eq 'push') {
+            git diff --check HEAD^ HEAD
+          }
+          else {
+            git diff --check
+          }
