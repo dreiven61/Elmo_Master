@@ -118,13 +118,16 @@ d45 = replace_once(
     cap_step + cap_step.replace('CapabilitiesPayload(\n                            1,', 'CapabilitiesPayload(\n                            2,'),
     'second capability observation for generic SDO write')
 
-# Local request-validation context must now use a semantic-owner target, not an
-# arbitrary generic address which is intentionally valid.
-d45 = replace_once(
-    d45,
-    '''                    0x2000,\n                    0,\n                    LMCSignalValueType.UInt32,\n                    TestFrame.Hex("78 56 34 12"),\n''',
-    '''                    0x6060,\n                    0,\n                    LMCSignalValueType.Int8,\n                    TestFrame.Hex("08 00 00 00"),\n''',
-    'D45 local semantic-owner preflight request')
+# The same formerly-arbitrary 0x2000 write appears in two local preflight
+# contexts. Both must become a dedicated-owner target so they remain zero-wire
+# after arbitrary generic addresses become valid.
+old_local = '''                    0x2000,\n                    0,\n                    LMCSignalValueType.UInt32,\n                    TestFrame.Hex("78 56 34 12"),\n'''
+new_local = '''                    0x6060,\n                    0,\n                    LMCSignalValueType.Int8,\n                    TestFrame.Hex("08 00 00 00"),\n'''
+local_count = d45.count(old_local)
+if local_count != 2:
+    raise RuntimeError(
+        f'D45 local semantic-owner preflight requests: expected exactly 2 matches, found {local_count}')
+d45 = d45.replace(old_local, new_local)
 D45.write_text(d45, encoding='utf-8')
 
 print('SDO-R03 regression contracts updated successfully.')
