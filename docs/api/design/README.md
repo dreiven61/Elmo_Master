@@ -1,7 +1,7 @@
 # 최우선 API 개발 설계
 
 - 기준일: 2026-08-27
-- 기준 branch/HEAD: `dev@52bd4cc120812c2510f8ac99d2d6a42576133d67`
+- 기준 branch/HEAD: `dev@5e6fd2f2a98d8e970fb85ecd7754ae76c9b999f0`
 - 범위: 개발 진행표의 우선순위 `상`이면서 진행도 75% 미만인 4개 API
 - 상태: source 구현과 qualification을 병행하되 production 활성화는 각 문서의 최종 gate 통과 전까지 금지
 - active development branch: `dev`

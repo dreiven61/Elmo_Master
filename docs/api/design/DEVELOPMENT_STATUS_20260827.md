@@ -1,6 +1,6 @@
 # 개발 상태 스냅샷 — 2026-08-27
 
-이 문서는 `dev@52bd4cc120812c2510f8ac99d2d6a42576133d67` 기준의 최우선 API 설계/구현 진행 상태를 정리한다.
+이 문서는 `dev@5e6fd2f2a98d8e970fb85ecd7754ae76c9b999f0` 기준의 최우선 API 설계/구현 진행 상태를 정리한다.
 
 설계 완료, PC/SDK 구현, LASAL source/static qualification, IDE/generated artifact, PLC load/runtime,
 hardware/packet qualification과 production activation은 서로 다른 gate다. 아래 진행도는 기존 문서의
@@ -8,7 +8,7 @@ release-oriented 수치를 유지하며, 체크리스트 완료 개수와 동일
 
 ## 1. current baseline
 
-- 기준 branch/HEAD: `dev@52bd4cc120812c2510f8ac99d2d6a42576133d67`
+- 기준 branch/HEAD: `dev@5e6fd2f2a98d8e970fb85ecd7754ae76c9b999f0`
 - production 판정: **NO-GO**
 - HomeDS402 activation 5-gate: OFF
 - SetOperationMode `LMC_DIAG_SET_OPERATION_MODE_ENABLED`: `FALSE`
@@ -138,13 +138,15 @@ PR #36은 위 상태를 설계문서에 동기화했다.
 
 - `eac82efb52bf9ce58aa52bc9360a8b4a0d85bd24` — distribution example + Korean UI sync
 - `52bd4cc120812c2510f8ac99d2d6a42576133d67` — recent recovery panels localization
+- `5e6fd2f2a98d8e970fb85ecd7754ae76c9b999f0` — dynamic recovery panel traversal, Korean label alignment, and WPF recovery localization regression coverage
 
 Open PR #37 `codex/wpf-recent-recovery-localization-coverage`는 SetOperationMode/HomeDS402Ex의 동적
 recovery panel에서 남은 Korean label coverage와 CI path gap을 보완하는 후속 작업이다.
 
-현재 PR #37은 **미병합**이며 새 localization regression이 아직 green이 아니다. 따라서 이 작업은
-설계/프로토콜/PLC runtime 완료로 계산하지 않는다. `dev`의 no-replay recovery semantics와 capability
-activation 상태에는 변화가 없다.
+PR #37의 오래된 branch는 아직 미병합이다. 해당 범위는 current `dev`에 재적용됐고 local Debug/Release
+SetOperationMode 13/13, HomeDS402Ex 12/12 WPF recovery smoke가 PASS했다. 이 source-only 결과는
+GitHub workflow 결과나 설계/프로토콜/PLC runtime 완료를 뜻하지 않는다. `dev`의 no-replay recovery
+semantics와 capability activation 상태에는 변화가 없다.
 
 ## 7. open work / branch 상태
 
@@ -162,7 +164,7 @@ branch 존재 자체를 feature completion evidence로 사용하지 않는다.
 
 ### 우선순위 A — current blocker 해소
 
-1. PR #37 WPF dynamic recovery localization 회귀를 green으로 만들고 문서/CI 경계를 정리
+1. current `dev` WPF localization 변경의 GitHub workflow 결과를 기록하고 PR #37 branch 처리 경계를 정리
 2. PR #31 H37 software qualification 내용을 `dev` 기준으로 재검토하고 merge 가능 상태 정리
 3. issue #35 HomeDS402Ex fresh LASAL C78/generated artifact evidence 수집
 4. issue #28 HomeDS402Ex axis 1..4 hardware profile 승인
