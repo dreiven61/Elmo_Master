@@ -363,7 +363,8 @@ namespace LasalMotionControlLib.Tests
                     CapabilitiesPayload(
                         OriginalRequestId,
                         CapabilityTriad,
-                        6)),
+                        6,
+                        0x018A)),
                 OriginalRequestId,
                 1);
             AssertEx.True(capabilities.Supports(CapabilityTriad));
