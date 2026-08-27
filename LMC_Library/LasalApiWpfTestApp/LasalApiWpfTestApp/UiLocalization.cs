@@ -805,6 +805,17 @@ namespace LasalMotionControlApiExample
             values["No drive read result."] = "Drive 읽기 결과가 없습니다.";
             values["Ready"] = "준비됨";
 
+            values["Set Operation Mode - software target / durable no-replay recovery"] =
+                "Operation Mode 설정 - 소프트웨어 target / durable 재전송 방지 복구";
+            values["PP(1)/PV(3)/IP(7)/CSP(8) software targets are implemented. Production Start remains disabled until PLC capability and hardware qualification are complete. Homing(6) remains unavailable here."] =
+                "PP(1)/PV(3)/IP(7)/CSP(8) 소프트웨어 target이 구현되어 있습니다. PLC capability와 hardware qualification이 완료될 때까지 Production Start는 비활성화됩니다. Homing(6)은 여기서 사용할 수 없습니다.";
+            values["I verified the exact drive/axis and understand that this may write DS402 0x6060:0 to the selected mode once only. If the response or completion is uncertain I will use the durable recovery query and will not send Start again."] =
+                "정확한 drive/축을 확인했으며 선택한 mode를 DS402 0x6060:0에 한 번만 쓸 수 있음을 이해했습니다. 응답 또는 완료가 불확실하면 durable 복구 조회만 사용하고 Start를 다시 전송하지 않습니다.";
+            values["Start Selected Mode Once (0x7D23)"] =
+                "선택 Mode 1회 시작 (0x7D23)";
+            values["Set Operation Mode Selected Mode Once"] =
+                "Operation Mode 선택 Mode 1회 설정";
+
             AddStaticChromeTranslations(values);
 
             return values;
