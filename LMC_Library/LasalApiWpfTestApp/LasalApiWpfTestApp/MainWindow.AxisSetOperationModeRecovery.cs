@@ -27,6 +27,7 @@ namespace LasalMotionControlApiExample
 
         private GroupBox groupAxisSetOperationModeRecovery;
         private ComboBox comboAxisSetOperationModeReference;
+        private ComboBox comboAxisSetOperationModeRequestedMode;
         private TextBox textAxisSetOperationModeTimeout;
         private CheckBox checkAxisSetOperationModeOneShotConfirmed;
         private Button buttonRefreshAxisSetOperationModeCapabilities;
@@ -74,6 +75,11 @@ namespace LasalMotionControlApiExample
         internal CheckBox AxisSetOperationModeConfirmationForTests
         {
             get { return checkAxisSetOperationModeOneShotConfirmed; }
+        }
+
+        internal ComboBox AxisSetOperationModeRequestedModeForTests
+        {
+            get { return comboAxisSetOperationModeRequestedMode; }
         }
 
         internal void RefreshAxisSetOperationModeRecoveryUiForTests()
@@ -143,6 +149,8 @@ namespace LasalMotionControlApiExample
                         CultureInfo.InvariantCulture);
                     comboAxisSetOperationModeReference.SelectedItem =
                         record.AxisReference;
+                    comboAxisSetOperationModeRequestedMode.SelectedItem =
+                        (LMCDriveOperationMode)record.RequestedModeRaw;
                     textAxisSetOperationModeTimeout.Text =
                         record.TimeoutMilliseconds.ToString(
                             CultureInfo.InvariantCulture);
@@ -199,7 +207,7 @@ namespace LasalMotionControlApiExample
 
             groupAxisSetOperationModeRecovery = new GroupBox
             {
-                Header = "Set Operation Mode - CSP=8 / durable no-replay recovery"
+                Header = "Set Operation Mode - bench target / durable no-replay recovery"
             };
             var root = new StackPanel();
             groupAxisSetOperationModeRecovery.Content = root;
@@ -219,7 +227,7 @@ namespace LasalMotionControlApiExample
                 Foreground = Brushes.DimGray,
                 TextWrapping = TextWrapping.Wrap,
                 Text = "Recovery is bound to endpoint + DiagnosticsBuild + BootId + MapRevision + "
-                    + "128-bit ClientIntentId + RequestId + axis + requested CSP mode. "
+                    + "128-bit ClientIntentId + RequestId + axis + requested mode. "
                     + "Recovery queries 0x7D24 only; terminal proof is persisted before exact-generation 0x7D25 retirement."
             });
 
@@ -249,11 +257,29 @@ namespace LasalMotionControlApiExample
                 Text = "Requested mode",
                 Foreground = Brushes.DimGray
             });
+            comboAxisSetOperationModeRequestedMode = new ComboBox
+            {
+                Width = 205,
+                ItemsSource = new[]
+                {
+                    LMCDriveOperationMode.ProfilePosition,
+                    LMCDriveOperationMode.ProfileVelocity,
+                    LMCDriveOperationMode.InterpolatedPosition,
+                    LMCDriveOperationMode.CyclicSynchronousPosition
+                },
+                SelectedItem = LMCDriveOperationMode.CyclicSynchronousPosition
+            };
+            comboAxisSetOperationModeRequestedMode.SelectionChanged +=
+                AxisSetOperationModeInputChanged;
+            modePanel.Children.Add(comboAxisSetOperationModeRequestedMode);
             modePanel.Children.Add(new TextBlock
             {
-                Margin = new Thickness(0, 7, 12, 8),
-                FontWeight = FontWeights.SemiBold,
-                Text = "CyclicSynchronousPosition (8)"
+                Margin = new Thickness(0, 4, 12, 4),
+                Foreground = Brushes.DarkOrange,
+                TextWrapping = TextWrapping.Wrap,
+                Text = "PP(1)/PV(3)/IP(7): BENCH PRECONDITION ONLY. "
+                    + "Keep the axis operation-disabled and do not run ordinary motion; "
+                    + "return to CSP(8) before motion. Homing(6) remains unavailable here."
             });
             inputs.Children.Add(modePanel);
 
@@ -280,7 +306,8 @@ namespace LasalMotionControlApiExample
                 Content = new TextBlock
                 {
                     TextWrapping = TextWrapping.Wrap,
-                    Text = "I verified the exact powered drive/axis and understand that this writes DS402 0x6060:0 to CSP=8 once only. "
+                    Text = "I verified the exact drive/axis and understand that this may write DS402 0x6060:0 to the selected qualification mode once only. "
+                        + "PP/PV/IP are precondition states only; I will keep the axis operation-disabled and return to CSP(8) before motion. "
                         + "If the response or completion is uncertain I will use the durable recovery query and will not send Start again."
                 }
             };
@@ -302,7 +329,7 @@ namespace LasalMotionControlApiExample
 
             buttonStartAxisSetOperationMode = new Button
             {
-                Content = "Start CSP Once (0x7D23)",
+                Content = "Start Selected Mode Once (0x7D23)",
                 IsEnabled = false
             };
             buttonStartAxisSetOperationMode.Click +=
@@ -516,6 +543,9 @@ namespace LasalMotionControlApiExample
             var timeoutValid = TryGetAxisSetOperationModeTimeout(out timeout);
             var axisSelected = comboAxisSetOperationModeReference != null
                 && comboAxisSetOperationModeReference.SelectedItem is ushort;
+            var modeSelected = comboAxisSetOperationModeRequestedMode != null
+                && comboAxisSetOperationModeRequestedMode.SelectedItem
+                    is LMCDriveOperationMode;
             var admissionAllowed = !active
                 && EvaluateDiagnosticsAdmission(
                     DiagnosticsAdmissionOperation.NewLiveOrMutation)
@@ -531,13 +561,15 @@ namespace LasalMotionControlApiExample
                 && diagnosticsReady
                 && confirmed
                 && timeoutValid
-                && axisSelected;
+                && axisSelected
+                && modeSelected;
             buttonRecoverAxisSetOperationMode.IsEnabled = connected
                 && idle
                 && active
                 && !AxisSetOperationModeRecoveryJournalUnavailable;
 
             comboAxisSetOperationModeReference.IsEnabled = idle && !active;
+            comboAxisSetOperationModeRequestedMode.IsEnabled = idle && !active;
             textAxisSetOperationModeTimeout.IsEnabled = idle && !active;
             checkAxisSetOperationModeOneShotConfirmed.IsEnabled =
                 idle && !active;
@@ -568,7 +600,7 @@ namespace LasalMotionControlApiExample
             RoutedEventArgs e)
         {
             await RunOperationAsync(
-                "Set Operation Mode CSP Once",
+                "Set Operation Mode Selected Mode Once",
                 StartAxisSetOperationModeOnceAsync);
         }
 
@@ -591,6 +623,15 @@ namespace LasalMotionControlApiExample
 
             var timeoutMilliseconds = RequireAxisSetOperationModeTimeout();
             var axisReference = RequireAxisSetOperationModeAxisReference();
+            if (comboAxisSetOperationModeRequestedMode == null
+                || !(comboAxisSetOperationModeRequestedMode.SelectedItem
+                    is LMCDriveOperationMode))
+            {
+                throw new InvalidOperationException(
+                    "A supported SetOperationMode qualification target is required.");
+            }
+            var requestedMode = (LMCDriveOperationMode)
+                comboAxisSetOperationModeRequestedMode.SelectedItem;
             var currentConnection = RequireConnection();
             adminCapabilities = await currentConnection.Admin
                 .GetCapabilitiesAsync(CancellationToken.None);
@@ -600,7 +641,7 @@ namespace LasalMotionControlApiExample
 
             var currentAxis = await GetPhysicalAxisAsync(axisReference);
             var prepared = currentAxis.PrepareSetOperationMode(
-                LMCDriveOperationMode.CyclicSynchronousPosition,
+                requestedMode,
                 timeoutMilliseconds,
                 adminCapabilities,
                 diagnosticCapabilities,

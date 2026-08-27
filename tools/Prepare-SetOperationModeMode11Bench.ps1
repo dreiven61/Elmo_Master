@@ -21,6 +21,8 @@ $DiagnosticsRelative = 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsS
 $ControlRelative = 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCControlCommandService\LMCControlCommandService.st'
 $DiagnosticsOff = '#define LMC_DIAG_SET_OPERATION_MODE_ENABLED FALSE'
 $DiagnosticsOn = '#define LMC_DIAG_SET_OPERATION_MODE_ENABLED TRUE'
+$BenchModesOff = '#define LMC_DIAG_SET_OPERATION_MODE_BENCH_PRECONDITION_MODES FALSE'
+$BenchModesOn = '#define LMC_DIAG_SET_OPERATION_MODE_BENCH_PRECONDITION_MODES TRUE'
 $AdminOff = '(pResponseFrame + 24)^$UDINT := 0x00000017;'
 $AdminOn = '(pResponseFrame + 24)^$UDINT := 0x00000717;'
 
@@ -77,6 +79,8 @@ function Assert-BaselineText {
 
     Assert-ExactCount $Diagnostics $DiagnosticsOff 1 'Diagnostics OFF gate'
     Assert-ExactCount $Diagnostics $DiagnosticsOn 0 'Diagnostics ON gate'
+    Assert-ExactCount $Diagnostics $BenchModesOff 1 'bench-mode OFF gate'
+    Assert-ExactCount $Diagnostics $BenchModesOn 0 'bench-mode ON gate'
     Assert-ExactCount $Control $AdminOff 1 'Admin baseline feature mask'
     Assert-ExactCount $Control $AdminOn 0 'Admin MODE-11 feature mask'
 }
@@ -89,13 +93,15 @@ function Assert-ActiveText {
 
     Assert-ExactCount $Diagnostics $DiagnosticsOff 0 'Diagnostics OFF gate'
     Assert-ExactCount $Diagnostics $DiagnosticsOn 1 'Diagnostics ON gate'
+    Assert-ExactCount $Diagnostics $BenchModesOff 0 'bench-mode OFF gate'
+    Assert-ExactCount $Diagnostics $BenchModesOn 1 'bench-mode ON gate'
     Assert-ExactCount $Control $AdminOff 0 'Admin baseline feature mask'
     Assert-ExactCount $Control $AdminOn 1 'Admin MODE-11 feature mask'
 
     # Keep this transform verifier intentionally narrow. The dedicated
     # Verify-SetOperationModeMode11Candidate.ps1 owns the detailed safety
     # contract (0x6060 write length/fanout, no replay, D5 deny, state guards).
-    Assert-ExactCount $Diagnostics 'elsif requestedMode <> 8 then' 2 'CSP=8-only request guards'
+    Assert-MinimumCount $Diagnostics 'LMC_DIAG_SET_OPERATION_MODE_BENCH_PRECONDITION_MODES = FALSE' 2 'bench precondition allow-list guards'
     Assert-MinimumCount $Diagnostics 'LMC_DIAG_MODE_EVIDENCE_WRITE_DISPATCHED' 1 'write-dispatch evidence ABI'
 }
 
@@ -109,12 +115,14 @@ function Convert-BenchText {
     if ($ToActive) {
         Assert-BaselineText $Diagnostics $Control
         $newDiagnostics = $Diagnostics.Replace($DiagnosticsOff, $DiagnosticsOn)
+        $newDiagnostics = $newDiagnostics.Replace($BenchModesOff, $BenchModesOn)
         $newControl = $Control.Replace($AdminOff, $AdminOn)
         Assert-ActiveText $newDiagnostics $newControl
     }
     else {
         Assert-ActiveText $Diagnostics $Control
         $newDiagnostics = $Diagnostics.Replace($DiagnosticsOn, $DiagnosticsOff)
+        $newDiagnostics = $newDiagnostics.Replace($BenchModesOn, $BenchModesOff)
         $newControl = $Control.Replace($AdminOn, $AdminOff)
         Assert-BaselineText $newDiagnostics $newControl
     }
@@ -140,7 +148,7 @@ function Write-AsciiPreservingText {
 }
 
 function Invoke-SelfTest {
-    $diag = "prefix`r`n$DiagnosticsOff`r`nelsif requestedMode <> 8 then`r`nelsif requestedMode <> 8 then`r`nLMC_DIAG_MODE_EVIDENCE_WRITE_DISPATCHED`r`n"
+    $diag = "prefix`r`n$DiagnosticsOff`r`n$BenchModesOff`r`nelsif (requestedMode <> 8) & (LMC_DIAG_SET_OPERATION_MODE_BENCH_PRECONDITION_MODES = FALSE) then`r`nelsif (requestedMode <> 8) & (LMC_DIAG_SET_OPERATION_MODE_BENCH_PRECONDITION_MODES = FALSE) then`r`nLMC_DIAG_MODE_EVIDENCE_WRITE_DISPATCHED`r`n"
     $control = "prefix`r`n$AdminOff`r`n"
     $active = Convert-BenchText -Diagnostics $diag -Control $control -ToActive $true
     $reverted = Convert-BenchText -Diagnostics $active[0] -Control $active[1] -ToActive $false
@@ -219,5 +227,5 @@ if ($baseline) {
     Write-Host 'PASS MODE-11 source state: BASELINE_OFF (Diagnostics FALSE, Admin mask 0x00000017).'
 }
 else {
-    Write-Host 'PASS MODE-11 source state: BENCH_ACTIVE (Diagnostics TRUE, Admin mask 0x00000717).'
+    Write-Host 'PASS MODE-11 source state: BENCH_ACTIVE (Diagnostics TRUE, Admin mask 0x00000717, bench targets PP/PV/IP/CSP).'
 }
