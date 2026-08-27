@@ -1,0 +1,40 @@
+name: SetOperationMode selector test UX promotion
+
+on:
+  push:
+    branches:
+      - codex/setopmode-selector-test-ux
+    paths:
+      - tools/Patch-SetOperationModeSelectorTestUx.py
+      - .github/workflows/setopmode-selector-test-ux-promote.yml
+
+permissions:
+  contents: write
+
+jobs:
+  promote:
+    runs-on: windows-2025
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/setopmode-selector-test-ux
+          fetch-depth: 0
+      - name: Apply selector UX patch
+        shell: pwsh
+        run: python .\tools\Patch-SetOperationModeSelectorTestUx.py
+      - name: Diff hygiene
+        shell: pwsh
+        run: |
+          git diff --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git diff -- LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.AxisSetOperationModeRecovery.cs LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/WpfAxisSetOperationModeRecoveryIntegrationTests.cs
+      - name: Commit implementation
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.AxisSetOperationModeRecovery.cs LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/WpfAxisSetOperationModeRecoveryIntegrationTests.cs
+          if (git diff --cached --quiet) { throw 'selector UX patch produced no source changes' }
+          git commit -m "fix(mode): keep selector usable while Start remains fail-closed"
+          git push origin HEAD:codex/setopmode-selector-test-ux
