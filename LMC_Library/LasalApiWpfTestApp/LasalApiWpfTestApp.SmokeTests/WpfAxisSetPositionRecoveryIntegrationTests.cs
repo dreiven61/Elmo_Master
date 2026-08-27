@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Windows;
+using System.Windows.Threading;
 using LasalMotionControlApiExample;
 using LasalMotionControlLib;
 using LasalMotionControlLib.Tests;
@@ -60,7 +62,7 @@ namespace LasalApiWpfTestApp.SmokeTests
                         journal.CurrentRecord.State);
                 }
 
-                window = CreateHiddenWindow(root);
+                window = CreateSetPositionHiddenWindow(root);
                 window.InitializeAxisSetPositionRecoveryForTests();
 
                 var recovered =
@@ -104,7 +106,7 @@ namespace LasalApiWpfTestApp.SmokeTests
             MainWindow window = null;
             try
             {
-                window = CreateHiddenWindow(root);
+                window = CreateSetPositionHiddenWindow(root);
                 window.InitializeAxisSetPositionRecoveryForTests();
 
                 AssertEx.NotNull(window.AxisSetPositionRecoveryGroupForTests);
@@ -138,7 +140,7 @@ namespace LasalApiWpfTestApp.SmokeTests
             MainWindow window = null;
             try
             {
-                window = CreateHiddenWindow(root);
+                window = CreateSetPositionHiddenWindow(root);
                 window.InitializeAxisSetPositionRecoveryForTests();
                 AssertEx.NotNull(window.AxisSetPositionRecoveryJournalForTests);
 
@@ -184,6 +186,23 @@ namespace LasalApiWpfTestApp.SmokeTests
             return path;
         }
 
+        private static MainWindow CreateSetPositionHiddenWindow(string root)
+        {
+            var window = new MainWindow(root)
+            {
+                ShowActivated = false,
+                ShowInTaskbar = false,
+                WindowStartupLocation = WindowStartupLocation.Manual,
+                Left = -10000,
+                Top = -10000
+            };
+            window.Show();
+            WaitForSetPositionUiCondition(
+                () => window.IsLoaded,
+                "The SetPosition test MainWindow did not load.");
+            return window;
+        }
+
         private static void CloseSetPositionWindow(MainWindow window)
         {
             if (window == null || !window.IsLoaded)
@@ -192,9 +211,31 @@ namespace LasalApiWpfTestApp.SmokeTests
             }
 
             window.Close();
-            WaitForUiCondition(
+            WaitForSetPositionUiCondition(
                 () => !window.IsLoaded,
                 "The SetPosition test MainWindow did not close.");
+        }
+
+        private static void WaitForSetPositionUiCondition(
+            Func<bool> condition,
+            string message)
+        {
+            var deadline = DateTime.UtcNow.AddSeconds(3);
+            while (!condition() && DateTime.UtcNow < deadline)
+            {
+                PumpSetPositionUiOnce();
+            }
+
+            AssertEx.True(condition(), message);
+        }
+
+        private static void PumpSetPositionUiOnce()
+        {
+            var frame = new DispatcherFrame();
+            Dispatcher.CurrentDispatcher.BeginInvoke(
+                DispatcherPriority.Background,
+                new Action(() => frame.Continue = false));
+            Dispatcher.PushFrame(frame);
         }
 
         private static void DeleteSetPositionRecoveryDirectory(string root)
