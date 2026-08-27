@@ -14,6 +14,8 @@ on:
       - 'tools/Export-SetOperationModeMode11JournalEvidence.ps1'
       - 'tools/Verify-SetOperationModeMode11Evidence.ps1'
       - 'tools/Verify-SetOperationModeDefineOrder.ps1'
+      - 'tools/Verify-SetOperationModeStatic.ps1'
+      - 'tools/Capture-SetOperationModeC78Evidence.ps1'
       - '.github/workflows/set-operation-mode-mode11-bench-candidate.yml'
   push:
     branches:
@@ -28,6 +30,8 @@ on:
       - 'tools/Export-SetOperationModeMode11JournalEvidence.ps1'
       - 'tools/Verify-SetOperationModeMode11Evidence.ps1'
       - 'tools/Verify-SetOperationModeDefineOrder.ps1'
+      - 'tools/Verify-SetOperationModeStatic.ps1'
+      - 'tools/Capture-SetOperationModeC78Evidence.ps1'
       - '.github/workflows/set-operation-mode-mode11-bench-candidate.yml'
   workflow_dispatch:
 
@@ -43,6 +47,18 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Verify current MODE-10 source/static contract
+        shell: powershell
+        run: |
+          & '.\tools\Verify-SetOperationModeStatic.ps1'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Self-test fresh C78 evidence collector
+        shell: powershell
+        run: |
+          & '.\tools\Capture-SetOperationModeC78Evidence.ps1' -SelfTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Self-test bench activation transform
         shell: powershell
