@@ -18,6 +18,9 @@ namespace LasalApiWpfTestApp.SmokeTests
             tests.Add(
                 "Wpf.SetPositionRecovery.DormantCapabilityKeepsStartClosed",
                 SetPositionDormantCapabilityKeepsStartClosed);
+            tests.Add(
+                "Wpf.SetPositionRecovery.WindowCloseReleasesJournalLock",
+                SetPositionWindowCloseReleasesJournalLock);
         }
 
         private static void SetPositionStartupArmedPromotesAndInterlocks()
@@ -127,6 +130,35 @@ namespace LasalApiWpfTestApp.SmokeTests
             }
         }
 
+        private static void SetPositionWindowCloseReleasesJournalLock()
+        {
+            var root = CreateSetPositionTemporaryDirectory();
+            MainWindow window = null;
+            try
+            {
+                window = new MainWindow(root);
+                window.InitializeAxisSetPositionRecoveryForTests();
+                AssertEx.NotNull(window.AxisSetPositionRecoveryJournalForTests);
+
+                window.Close();
+                window = null;
+
+                var journalDirectory = Path.Combine(
+                    root,
+                    "AxisSetPositionRecovery");
+                using (var reopened =
+                    AxisSetPositionRecoveryJournal.Open(journalDirectory))
+                {
+                    AssertEx.False(reopened.HasActiveRecord);
+                }
+            }
+            finally
+            {
+                CloseSetPositionWindow(window);
+                DeleteSetPositionTemporaryDirectory(root);
+            }
+        }
+
         private static DateTime FixedSetPositionUtc()
         {
             return new DateTime(
@@ -156,13 +188,7 @@ namespace LasalApiWpfTestApp.SmokeTests
                 return;
             }
 
-            try
-            {
-                window.Close();
-            }
-            catch
-            {
-            }
+            window.Close();
         }
 
         private static void DeleteSetPositionTemporaryDirectory(string path)
@@ -172,16 +198,7 @@ namespace LasalApiWpfTestApp.SmokeTests
                 return;
             }
 
-            try
-            {
-                Directory.Delete(path, true);
-            }
-            catch (IOException)
-            {
-            }
-            catch (UnauthorizedAccessException)
-            {
-            }
+            Directory.Delete(path, true);
         }
     }
 }
