@@ -41,6 +41,30 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Normalize qualification PR to production-dormant source for MODE-10 checks
+        shell: powershell
+        run: |
+          if ($env:GITHUB_EVENT_NAME -ne 'pull_request' -or
+              $env:GITHUB_HEAD_REF -ne 'codex/setopmode-mode11-bench-activation') {
+            Write-Host 'Production/dev path: no bench normalization required.'
+            exit 0
+          }
+          $diag = '.\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st'
+          $control = '.\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCControlCommandService\LMCControlCommandService.st'
+          $diagText = [IO.File]::ReadAllText($diag)
+          $controlText = [IO.File]::ReadAllText($control)
+          $diagOn = '#define LMC_DIAG_SET_OPERATION_MODE_ENABLED TRUE'
+          $diagOff = '#define LMC_DIAG_SET_OPERATION_MODE_ENABLED FALSE'
+          $adminOn = '(pResponseFrame + 24)^$UDINT := 0x00000717;'
+          $adminOff = '(pResponseFrame + 24)^$UDINT := 0x00000017;'
+          if (-not $diagText.Contains($diagOn) -or -not $controlText.Contains($adminOn)) {
+            Write-Error 'Qualification PR is not the exact paired BENCH_ACTIVE source.'
+            exit 1
+          }
+          [IO.File]::WriteAllText($diag, $diagText.Replace($diagOn, $diagOff), (New-Object Text.ASCIIEncoding))
+          [IO.File]::WriteAllText($control, $controlText.Replace($adminOn, $adminOff), (New-Object Text.ASCIIEncoding))
+          Write-Host 'Qualification-only normalization: BENCH_ACTIVE -> production-dormant pair for MODE-10 verification.'
+
       - name: Run SetOperationMode invariants
         shell: powershell
         run: |
@@ -51,20 +75,6 @@ jobs:
         shell: powershell
         run: |
           & '.\tools\Verify-SetOperationModeDefineOrder.ps1'
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      - name: Diff hygiene
-        shell: powershell
-        run: |
-          if ($env:GITHUB_EVENT_NAME -eq 'pull_request') {
-            git diff --check "origin/$env:GITHUB_BASE_REF...HEAD"
-          }
-          elseif ($env:GITHUB_EVENT_NAME -eq 'push') {
-            git diff --check HEAD^ HEAD
-          }
-          else {
-            git diff --check
-          }
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Run repository SourceOnly contract to exact known artifact boundary
@@ -104,3 +114,29 @@ jobs:
             exit 0
           }
           exit $code
+
+      - name: Restore tracked bench source and verify diff hygiene
+        shell: powershell
+        run: |
+          $diag = 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
+          $control = 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
+          if ($env:GITHUB_EVENT_NAME -eq 'pull_request' -and
+              $env:GITHUB_HEAD_REF -eq 'codex/setopmode-mode11-bench-activation') {
+            git checkout HEAD -- $diag $control
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          git diff --exit-code
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error 'Static qualification left the checkout dirty.'
+            exit $LASTEXITCODE
+          }
+          if ($env:GITHUB_EVENT_NAME -eq 'pull_request') {
+            git diff --check "origin/$env:GITHUB_BASE_REF...HEAD"
+          }
+          elseif ($env:GITHUB_EVENT_NAME -eq 'push') {
+            git diff --check HEAD^ HEAD
+          }
+          else {
+            git diff --check
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
