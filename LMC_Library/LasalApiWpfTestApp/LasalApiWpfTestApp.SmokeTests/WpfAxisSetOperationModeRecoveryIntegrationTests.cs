@@ -179,6 +179,28 @@ namespace LasalApiWpfTestApp.SmokeTests
                             CultureInfo.InvariantCulture),
                     evidence);
                 AssertEx.Contains("ResponseDetailCode=44", evidence);
+                AssertEx.Contains("ResponseErrorId=-31000", evidence);
+                AssertEx.Contains(
+                    "RequestedModeRaw="
+                        + ((sbyte)LMCDriveOperationMode
+                            .CyclicSynchronousPosition).ToString(
+                                CultureInfo.InvariantCulture),
+                    evidence);
+                AssertEx.Contains(
+                    "DiagnosticsBuild="
+                        + key.DiagnosticsBuild.ToString(
+                            CultureInfo.InvariantCulture),
+                    evidence);
+                AssertEx.Contains(
+                    "DiagnosticsBootId="
+                        + key.DiagnosticsBootId.ToString(
+                            CultureInfo.InvariantCulture),
+                    evidence);
+                AssertEx.Contains(
+                    "MapRevision="
+                        + key.MapRevision.ToString(
+                            CultureInfo.InvariantCulture),
+                    evidence);
                 AssertEx.Contains("RejectedKeyExact=True", evidence);
                 AssertEx.Contains("OriginalJournalSha256=", evidence);
                 AssertEx.Contains("OriginalJournalBase64=", evidence);
