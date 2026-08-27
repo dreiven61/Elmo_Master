@@ -258,7 +258,8 @@ namespace LasalMotionControlLib
             var groupReference = LMC_Frame.ReadUInt16(payload, 32);
             var maxGroupParameterCount = LMC_Frame.ReadUInt16(payload, 34);
             var errorCatalogVersion = LMC_Frame.ReadUInt16(payload, 36);
-            var reserved = LMC_Frame.ReadUInt16(payload, 38);
+            var setOperationModeSupportedMask =
+                LMC_Frame.ReadUInt16(payload, 38);
 
             const LMCAdminFeature knownFeatures =
                 LMCAdminFeature.AxisParameterRead
@@ -274,11 +275,13 @@ namespace LasalMotionControlLib
                 | LMCAdminFeature.AxisSetOperationModeOutcomeRetire
                 | LMCAdminFeature.AxisDs402HomeEx;
             const uint knownAxisMask = 0x0000003Fu;
+            const ushort knownSetOperationModeSupportedMask = 0x018A;
 
             if ((features & ~knownFeatures) != 0
                 || (axisMask & ~knownAxisMask) != 0
                 || (groupSelection & ~LMCGroupParameterSelection.All) != 0
-                || reserved != 0)
+                || (setOperationModeSupportedMask
+                    & ~knownSetOperationModeSupportedMask) != 0)
             {
                 throw new InvalidDataException(
                     "GetAdminCapabilities contains schema version 1 reserved bits.");
@@ -354,6 +357,23 @@ namespace LasalMotionControlLib
                     "GetAdminCapabilities feature bits and limits are inconsistent.");
             }
 
+            var setOperationModeFeatures = features
+                & (LMCAdminFeature.AxisSetOperationModeStart
+                    | LMCAdminFeature.AxisSetOperationModeOutcomeRead
+                    | LMCAdminFeature.AxisSetOperationModeOutcomeRetire);
+            var fullSetOperationModeTriad =
+                LMCAdminFeature.AxisSetOperationModeStart
+                | LMCAdminFeature.AxisSetOperationModeOutcomeRead
+                | LMCAdminFeature.AxisSetOperationModeOutcomeRetire;
+            if ((setOperationModeFeatures == LMCAdminFeature.None
+                    && setOperationModeSupportedMask != 0)
+                || (setOperationModeFeatures == fullSetOperationModeTriad
+                    && setOperationModeSupportedMask == 0))
+            {
+                throw new InvalidDataException(
+                    "GetAdminCapabilities SetOperationMode triad and supported-mode mask are inconsistent.");
+            }
+
             return new LMCAdminCapabilities(
                 response,
                 connectionOwner,
@@ -365,7 +385,8 @@ namespace LasalMotionControlLib
                 maxAxisParameterCount,
                 groupReference,
                 maxGroupParameterCount,
-                errorCatalogVersion);
+                errorCatalogVersion,
+                setOperationModeSupportedMask);
         }
 
         internal static LMCAxisParameterResult ParseAxisParameter(

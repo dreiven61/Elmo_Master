@@ -9781,7 +9781,12 @@ FUNCTION LMCControlCommandService::HandleAdminCommands
 			(pResponseFrame + 40)^$UINT := 0x0100;
 			(pResponseFrame + 42)^$UINT := 3;
 			(pResponseFrame + 44)^$UINT := 6;
-			(pResponseFrame + 46)^$UINT := 0;
+			if (((pResponseFrame + 24)^$UDINT and 0x00000700) = 0x00000700) then
+				// bits: PP(1), PV(3), IP(7), CSP(8)
+				(pResponseFrame + 46)^$UINT := 0x018A;
+			else
+				(pResponseFrame + 46)^$UINT := 0;
+			end_if;
 			ResponseSize := 48;
 
 		0x7D10:

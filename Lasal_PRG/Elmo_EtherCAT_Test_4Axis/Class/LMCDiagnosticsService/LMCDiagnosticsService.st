@@ -549,6 +549,7 @@ END_FUNCTION
 #define LMC_DIAG_HOMEEX_DETAIL_CLEANUP_INCOMPLETE 62
 // SetOperationMode runtime remains private until MODE-14 paired activation.
 #define LMC_DIAG_SET_OPERATION_MODE_ENABLED FALSE
+#define LMC_DIAG_SET_OPERATION_MODE_SOFTWARE_MODES TRUE
 #define LMC_DIAG_DS402_PREFLIGHT_READY -2
 #define LMC_DIAG_DS402_STAGE_INTENT_DISCARD_CLEAR 86
 #define LMC_DIAG_DS402_STAGE_RESERVE_INTENT 87
@@ -8901,7 +8902,9 @@ FUNCTION LMCDiagnosticsService::HandleAxisSetOperationModeStart
 		detailCode := 17;
 	elsif mapRevision <> LMC_DIAG_MAP_REVISION then
 		detailCode := 18;
-	elsif requestedMode <> 8 then
+	elsif (requestedMode <> 8) &
+	      ((LMC_DIAG_SET_OPERATION_MODE_SOFTWARE_MODES = FALSE) |
+	       ((requestedMode <> 1) & (requestedMode <> 3) & (requestedMode <> 7))) then
 		detailCode := LMC_DIAG_MODE_DETAIL_UNSUPPORTED;
 	elsif LMC_DIAG_SET_OPERATION_MODE_ENABLED = FALSE then
 		detailCode := LMC_DIAG_MODE_DETAIL_STORAGE;
@@ -9127,7 +9130,7 @@ FUNCTION LMCDiagnosticsService::HandleAxisSetOperationModeStart
 	AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_START_MS]$UDINT := ops.tAbsolute;
 	AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_TIMEOUT_MS]$UDINT :=
 		timeoutMilliseconds;
-	AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_WRITE_DATA] := 8;
+	AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_WRITE_DATA] := TO_DINT(requestedMode);
 	AxisOperationModeState[recordBase] := LMC_DIAG_MODE_RECORD_RUNNING;
 
 	_memset(dest:=pResponse, usByte:=0, cntr:=24);
@@ -9230,7 +9233,9 @@ FUNCTION LMCDiagnosticsService::HandleAxisSetOperationModeOutcome
 		detailCode := 17;
 	elsif mapRevision <> LMC_DIAG_MAP_REVISION then
 		detailCode := 18;
-	elsif requestedMode <> 8 then
+	elsif (requestedMode <> 8) &
+	      ((LMC_DIAG_SET_OPERATION_MODE_SOFTWARE_MODES = FALSE) |
+	       ((requestedMode <> 1) & (requestedMode <> 3) & (requestedMode <> 7))) then
 		detailCode := LMC_DIAG_MODE_DETAIL_KEY_MISMATCH;
 	else
 		detailCode := 0;
@@ -9542,7 +9547,8 @@ FUNCTION LMCDiagnosticsService::ProcessAxisSetOperationMode
 				AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_START_MS]$UDINT := ops.tAbsolute;
 				AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_TIMEOUT_MS]$UDINT :=
 					LMC_DIAG_MODE_RECOVERY_READ_TIMEOUT_MS;
-				AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_WRITE_DATA] := 8;
+				AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_WRITE_DATA] :=
+					AxisOperationModeState[recoveryScanBase + 10];
 				AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_QUARANTINE_REASON]$UDINT :=
 					AxisOperationModeState[recoveryScanBase + 24]$UDINT;
 			end_if;
@@ -10030,7 +10036,7 @@ FUNCTION LMCDiagnosticsService::ProcessAxisSetOperationModeMutationStages
 				observedMode := (completion.Data and 0x000000FF)$SINT;
 				AxisOperationModeState[recordBase + 11] := TO_DINT(observedMode);
 				AxisOperationModeState[recordBase + 23] := TO_DINT(observedMode);
-				if observedMode = 8 then
+				if observedMode = AxisOperationModeState[recordBase + 10]$SINT then
 					evidenceFlags := evidenceFlags or
 						LMC_DIAG_MODE_EVIDENCE_VERIFY_DISPATCHED or
 						LMC_DIAG_MODE_EVIDENCE_VERIFY_COMPLETED;
