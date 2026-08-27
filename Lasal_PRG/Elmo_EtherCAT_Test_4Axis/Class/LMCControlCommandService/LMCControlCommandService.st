@@ -9773,7 +9773,7 @@ FUNCTION LMCControlCommandService::HandleAdminCommands
 				(pResponseFrame + 12)^$UINT := 1;
 				(pResponseFrame + 14)^$INT := -31000;
 			end_if;
-			(pResponseFrame + 24)^$UDINT := 0x00000017;
+			(pResponseFrame + 24)^$UDINT := 0x00000717;
 			(pResponseFrame + 28)^$UDINT := 0x0000003F;
 			(pResponseFrame + 32)^$UDINT := 0x00000007;
 			(pResponseFrame + 36)^$UINT := 4;
