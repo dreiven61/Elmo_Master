@@ -993,20 +993,23 @@ namespace LasalMotionControlApiExample
             out int targetPosition,
             out int expectedActualPosition)
         {
-            return int.TryParse(
-                    textAxisSetPositionTarget == null
-                        ? string.Empty
-                        : textAxisSetPositionTarget.Text.Trim(),
-                    NumberStyles.Integer,
-                    CultureInfo.InvariantCulture,
-                    out targetPosition)
-                && int.TryParse(
-                    textAxisSetPositionExpectedActual == null
-                        ? string.Empty
-                        : textAxisSetPositionExpectedActual.Text.Trim(),
-                    NumberStyles.Integer,
-                    CultureInfo.InvariantCulture,
-                    out expectedActualPosition);
+            targetPosition = 0;
+            expectedActualPosition = 0;
+            var targetValid = int.TryParse(
+                textAxisSetPositionTarget == null
+                    ? string.Empty
+                    : textAxisSetPositionTarget.Text.Trim(),
+                NumberStyles.Integer,
+                CultureInfo.InvariantCulture,
+                out targetPosition);
+            var expectedActualValid = int.TryParse(
+                textAxisSetPositionExpectedActual == null
+                    ? string.Empty
+                    : textAxisSetPositionExpectedActual.Text.Trim(),
+                NumberStyles.Integer,
+                CultureInfo.InvariantCulture,
+                out expectedActualPosition);
+            return targetValid && expectedActualValid;
         }
 
         private void AxisSetPositionInputChanged(
