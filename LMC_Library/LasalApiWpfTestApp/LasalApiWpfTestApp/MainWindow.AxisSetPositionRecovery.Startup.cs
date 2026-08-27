@@ -1,3 +1,4 @@
+using System;
 using System.Windows;
 
 namespace LasalMotionControlApiExample
@@ -6,6 +7,7 @@ namespace LasalMotionControlApiExample
     {
         private static readonly bool axisSetPositionLoadedHandlerRegistered =
             RegisterAxisSetPositionLoadedHandler();
+        private bool axisSetPositionClosedHandlerHooked;
 
         private static bool RegisterAxisSetPositionLoadedHandler()
         {
@@ -24,13 +26,41 @@ namespace LasalMotionControlApiExample
             var window = sender as MainWindow;
             if (window != null)
             {
+                window.EnsureAxisSetPositionClosedHandler();
                 window.InitializeAxisSetPositionRecoveryUi();
                 window.ApplyAxisSetPositionPassiveControlState();
             }
         }
 
+        private void EnsureAxisSetPositionClosedHandler()
+        {
+            if (axisSetPositionClosedHandlerHooked)
+            {
+                return;
+            }
+
+            Closed += MainWindowAxisSetPositionClosed;
+            axisSetPositionClosedHandlerHooked = true;
+        }
+
+        private static void MainWindowAxisSetPositionClosed(
+            object sender,
+            EventArgs e)
+        {
+            var window = sender as MainWindow;
+            if (window == null)
+            {
+                return;
+            }
+
+            window.Closed -= MainWindowAxisSetPositionClosed;
+            window.axisSetPositionClosedHandlerHooked = false;
+            window.DisposeAxisSetPositionRecoveryJournal();
+        }
+
         internal void InitializeAxisSetPositionRecoveryForTests()
         {
+            EnsureAxisSetPositionClosedHandler();
             InitializeAxisSetPositionRecoveryUi();
             ApplyAxisSetPositionPassiveControlState();
         }
