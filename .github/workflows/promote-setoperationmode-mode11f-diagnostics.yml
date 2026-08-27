@@ -1,0 +1,86 @@
+name: Promote SetOperationMode MODE-11F diagnostics
+
+on:
+  push:
+    branches:
+      - codex/setopmode-mode11f-diagnostics
+    paths:
+      - 'tools/Promote-SetOperationModeMode11FDiagnostics.py'
+      - '.github/workflows/promote-setoperationmode-mode11f-diagnostics.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  promote:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply exact MODE-11F WPF patch
+        shell: powershell
+        run: |
+          python '.\tools\Promote-SetOperationModeMode11FDiagnostics.py'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify exact promotion diff
+        shell: powershell
+        run: |
+          git diff --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $expected = @(
+            'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.AxisSetOperationModeRecovery.cs',
+            'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/WpfAxisSetOperationModeRecoveryIntegrationTests.cs'
+          ) | Sort-Object
+          $actual = @(git diff --name-only) | Sort-Object
+          $delta = @(Compare-Object -ReferenceObject $expected -DifferenceObject $actual)
+          if ($delta.Count -ne 0) {
+            Write-Host 'Unexpected MODE-11F promotion diff:'
+            $delta | Format-Table | Out-String | Write-Host
+            exit 1
+          }
+
+      - name: Locate MSBuild
+        id: msbuild
+        shell: powershell
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          if (-not (Test-Path -LiteralPath $vswhere)) { throw 'vswhere.exe was not found.' }
+          $msbuild = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
+          if ([string]::IsNullOrWhiteSpace($msbuild)) { throw 'MSBuild.exe was not found.' }
+          "path=$msbuild" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Build and run SetOperationMode smoke Debug
+        shell: powershell
+        run: |
+          $project = '.\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\LasalApiWpfTestApp.SmokeTests.csproj'
+          & '${{ steps.msbuild.outputs.path }}' $project /t:Build /p:Configuration=Debug /p:Platform=AnyCPU /m
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $exe = '.\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\bin\Debug\LasalApiWpfTestApp.SmokeTests.exe'
+          & $exe --filter SetOperationMode
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build and run SetOperationMode smoke Release
+        shell: powershell
+        run: |
+          $project = '.\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\LasalApiWpfTestApp.SmokeTests.csproj'
+          & '${{ steps.msbuild.outputs.path }}' $project /t:Build /p:Configuration=Release /p:Platform=AnyCPU /m
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $exe = '.\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\bin\Release\LasalApiWpfTestApp.SmokeTests.exe'
+          & $exe --filter SetOperationMode
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Commit promoted implementation
+        shell: powershell
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.AxisSetOperationModeRecovery.cs' 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/WpfAxisSetOperationModeRecoveryIntegrationTests.cs'
+          git commit -m 'feat(mode): expose SetOperationMode preflight and write evidence'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git push origin HEAD:codex/setopmode-mode11f-diagnostics
