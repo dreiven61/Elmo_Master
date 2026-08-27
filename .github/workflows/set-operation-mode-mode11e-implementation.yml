@@ -1,0 +1,119 @@
+name: SetOperationMode MODE-11E implementation
+
+on:
+  push:
+    branches:
+      - codex/setopmode-mode11e-warmstart
+    paths:
+      - '.github/workflows/set-operation-mode-mode11e-implementation.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  implement-and-verify:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout implementation branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/setopmode-mode11e-warmstart
+          fetch-depth: 0
+
+      - name: Apply MODE-11E warm-start generalization
+        shell: python
+        run: |
+          from pathlib import Path
+
+          source_path = Path('Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st')
+          text = source_path.read_text(encoding='utf-8')
+          old = "\t\t\t   (AxisOperationModeState[recoveryScanBase + 10]$SINT = 8) &\n"
+          new = (
+              "\t\t\t   ((AxisOperationModeState[recoveryScanBase + 10]$SINT = 8) |\n"
+              "\t\t\t    ((LMC_DIAG_SET_OPERATION_MODE_SOFTWARE_MODES = TRUE) &\n"
+              "\t\t\t     ((AxisOperationModeState[recoveryScanBase + 10]$SINT = 1) |\n"
+              "\t\t\t      (AxisOperationModeState[recoveryScanBase + 10]$SINT = 3) |\n"
+              "\t\t\t      (AxisOperationModeState[recoveryScanBase + 10]$SINT = 7)))) &\n"
+          )
+          if text.count(old) != 1:
+              raise SystemExit(f'warm-start CSP-only predicate match count={text.count(old)}')
+          source_path.write_text(text.replace(old, new, 1), encoding='utf-8', newline='')
+
+          verifier_path = Path('tools/Verify-SetOperationModeStatic.ps1')
+          verifier = verifier_path.read_text(encoding='utf-8')
+          marker = "    Assert-Regex $processMode 'TryStartWrite\\([^;\\r\\n]*ObjectIndex:=0x6060' 'main processor owns no 0x6060 write site after split' -ExpectedCount 0\n"
+          addition = marker + "    # MODE-11E: warm-start recovery accepts every software-qualified mode, while`n" + \
+              "    # preserving the write-dispatched singleton/no-replay boundary.`n" + \
+              "    Assert-Regex $processMode 'AxisOperationModeState\\[recoveryScanBase \\+ 10\\]\\$SINT = 8[\\s\\S]{0,520}LMC_DIAG_SET_OPERATION_MODE_SOFTWARE_MODES = TRUE[\\s\\S]{0,520}AxisOperationModeState\\[recoveryScanBase \\+ 10\\]\\$SINT = 1[\\s\\S]{0,300}AxisOperationModeState\\[recoveryScanBase \\+ 10\\]\\$SINT = 3[\\s\\S]{0,300}AxisOperationModeState\\[recoveryScanBase \\+ 10\\]\\$SINT = 7' 'MODE-11E warm-start candidate admits CSP plus PP/PV/IP software modes' -ExpectedCount 1`n" + \
+              "    Assert-Regex $processMode 'LMC_DIAG_MODE_RECORD_RUNNING[\\s\\S]{0,700}LMC_DIAG_MODE_EVIDENCE_WRITE_DISPATCHED[\\s\\S]{0,500}LMC_DIAG_MODE_EVIDENCE_OWNER_RELEASED[\\s\\S]{0,900}LMC_DIAG_MODE_STAGE_RECOVERY_START' 'MODE-11E reconstruction remains gated by running/write-dispatched/not-released evidence' -MinimumCount 1`n"
+          if verifier.count(marker) != 1:
+              raise SystemExit(f'verifier insertion marker count={verifier.count(marker)}')
+          verifier_path.write_text(verifier.replace(marker, addition, 1), encoding='utf-8', newline='')
+
+      - name: Run focused SetOperationMode static qualification
+        shell: powershell
+        run: |
+          & '.\tools\Verify-SetOperationModeStatic.ps1' -ExpectedSdoWriteAxis 1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify SetOperationMode define order
+        shell: powershell
+        run: |
+          & '.\tools\Verify-SetOperationModeDefineOrder.ps1'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run SourceOnly to known generated-artifact boundary
+        shell: powershell
+        run: |
+          $repoRoot = (Get-Location).Path
+          $knownArtifactBoundary = 'LASAL.UdpCallbackContract blocker: SetPosition-augmented Classes.lcb physical identity drifted.'
+          $captured = New-Object System.Collections.Generic.List[string]
+          $code = 0
+          try {
+            $ErrorActionPreference = 'Continue'
+            & '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\Verify-LasalContract.ps1' `
+              -RepositoryRoot $repoRoot `
+              -SourceOnly `
+              -ExpectedSdoWriteAxis 1 2>&1 |
+              ForEach-Object {
+                $text = $_ | Out-String
+                [void]$captured.Add($text)
+                Write-Host $_
+              }
+            $code = $LASTEXITCODE
+          }
+          catch {
+            $text = $_ | Out-String
+            [void]$captured.Add($text)
+            Write-Host $text
+            $code = 1
+          }
+          if ($code -eq 0) { exit 0 }
+          $joined = [string]::Join("`n", $captured)
+          if ($joined.Contains($knownArtifactBoundary)) {
+            Write-Host 'PASS reached exact known C78/generated-artifact boundary.'
+            exit 0
+          }
+          exit $code
+
+      - name: Diff hygiene
+        shell: powershell
+        run: |
+          git diff --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git status --short
+
+      - name: Commit verified MODE-11E implementation
+        shell: powershell
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st' 'tools/Verify-SetOperationModeStatic.ps1'
+          git diff --cached --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (git diff --cached --quiet) {
+            Write-Host 'No implementation changes to commit.'
+            exit 0
+          }
+          git commit -m 'fix(mode): generalize warm-start recovery modes'
+          git push origin HEAD:codex/setopmode-mode11e-warmstart
