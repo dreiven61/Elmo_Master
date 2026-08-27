@@ -7,6 +7,7 @@ on:
     paths:
       - 'tools/Apply-SdoR03GenericWrite.py'
       - 'tools/Apply-SdoR03RegressionFix.py'
+      - 'tools/Apply-SdoR03FinalRegressionFix.py'
       - '.github/workflows/sdo-r03-generic-write-promotion.yml'
       - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalGenericSdoWrite.ps1'
 
@@ -30,6 +31,8 @@ jobs:
           python '.\tools\Apply-SdoR03GenericWrite.py'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python '.\tools\Apply-SdoR03RegressionFix.py'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python '.\tools\Apply-SdoR03FinalRegressionFix.py'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           git diff --check
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -79,7 +82,7 @@ jobs:
       - name: Commit promoted source and remove temporary promoter
         shell: powershell
         run: |
-          git rm -- 'tools/Apply-SdoR03GenericWrite.py' 'tools/Apply-SdoR03RegressionFix.py' '.github/workflows/sdo-r03-generic-write-promotion.yml'
+          git rm -- 'tools/Apply-SdoR03GenericWrite.py' 'tools/Apply-SdoR03RegressionFix.py' 'tools/Apply-SdoR03FinalRegressionFix.py' '.github/workflows/sdo-r03-generic-write-promotion.yml'
           git add -- 'LMC_Library/LMC_API_Delivery/src/LmcDiagnosticsD5Models.cs' 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/DiagnosticsD5ContractTests.cs' 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/DiagnosticsSdoWritePolicyEvaluationTests.cs' 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/DiagnosticsSdoWriteVerificationTests.cs' 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/DiagnosticsD45CompletionContractTests.cs' 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st' 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalGenericSdoWrite.ps1'
           git diff --cached --check
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
