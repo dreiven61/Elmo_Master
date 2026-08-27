@@ -27,9 +27,19 @@ namespace LasalMotionControlApiExample
             if (window != null)
             {
                 window.EnsureAxisSetPositionClosedHandler();
-                window.InitializeAxisSetPositionRecoveryUi();
+                window.EnsureAxisSetPositionRecoveryInitialized();
                 window.ApplyAxisSetPositionPassiveControlState();
             }
+        }
+
+        private void EnsureAxisSetPositionRecoveryInitialized()
+        {
+            if (axisSetPositionRecoveryJournal != null)
+            {
+                return;
+            }
+
+            InitializeAxisSetPositionRecoveryUi();
         }
 
         private void EnsureAxisSetPositionClosedHandler()
@@ -61,7 +71,7 @@ namespace LasalMotionControlApiExample
         internal void InitializeAxisSetPositionRecoveryForTests()
         {
             EnsureAxisSetPositionClosedHandler();
-            InitializeAxisSetPositionRecoveryUi();
+            EnsureAxisSetPositionRecoveryInitialized();
             ApplyAxisSetPositionPassiveControlState();
         }
 
