@@ -24,9 +24,14 @@ jobs:
       - name: Require exact baseline before promotion
         shell: powershell
         run: |
-          $state = (& '.\tools\Prepare-SetOperationModeMode11Bench.ps1' -Verify | Out-String)
+          $diag = '.\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st'
+          $control = '.\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCControlCommandService\LMCControlCommandService.st'
+          & '.\tools\Prepare-SetOperationModeMode11Bench.ps1' -Verify
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          if (-not $state.Contains('BASELINE_OFF')) {
+          $diagText = [IO.File]::ReadAllText($diag)
+          $controlText = [IO.File]::ReadAllText($control)
+          if (-not $diagText.Contains('#define LMC_DIAG_SET_OPERATION_MODE_ENABLED FALSE') -or
+              -not $controlText.Contains('(pResponseFrame + 24)^$UDINT := 0x00000017;')) {
             Write-Error 'One-shot promoter expected the exact BASELINE_OFF pair.'
             exit 1
           }
@@ -34,10 +39,16 @@ jobs:
       - name: Promote paired SetOperationMode gates and verify safety contract
         shell: powershell
         run: |
+          $diag = '.\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st'
+          $control = '.\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCControlCommandService\LMCControlCommandService.st'
           & '.\tools\Prepare-SetOperationModeMode11Bench.ps1' -Enable
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $state = (& '.\tools\Prepare-SetOperationModeMode11Bench.ps1' -Verify | Out-String)
-          if ($LASTEXITCODE -ne 0 -or -not $state.Contains('BENCH_ACTIVE')) {
+          & '.\tools\Prepare-SetOperationModeMode11Bench.ps1' -Verify
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $diagText = [IO.File]::ReadAllText($diag)
+          $controlText = [IO.File]::ReadAllText($control)
+          if (-not $diagText.Contains('#define LMC_DIAG_SET_OPERATION_MODE_ENABLED TRUE') -or
+              -not $controlText.Contains('(pResponseFrame + 24)^$UDINT := 0x00000717;')) {
             Write-Error 'Paired BENCH_ACTIVE promotion did not complete.'
             exit 1
           }
