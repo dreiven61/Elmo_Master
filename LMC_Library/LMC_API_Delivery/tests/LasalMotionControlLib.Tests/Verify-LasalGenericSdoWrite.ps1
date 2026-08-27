@@ -27,8 +27,8 @@ Require-NoMatch $sdk 'target is not in the SDK compile-time allowlist' `
     'SDK still rejects generic SDO Write by address allowlist.'
 Require-Match $sdk 'Generic SDO Write supports SlaveReference 1 through 4 only' `
     'SDK generic slave-range policy is missing.'
-Require-Match $sdk '(?s)case 0x6040:\s*case 0x6060:\s*case 0x607A:\s*case 0x60FF:\s*case 0x6071:' `
-    'SDK semantic-owner raw-write block list is incomplete.'
+Require-Match $sdk '(?s)case 0x6040:\s*case 0x6060:\s*case 0x607A:\s*case 0x60FF:\s*case 0x6071:\s*case 0x3204:\s*case 0x20FC:' `
+    'SDK semantic/dedicated-owner raw-write block list is incomplete.'
 Require-Match $sdk 'ExpectedReadLength\(request\.ValueType\)' `
     'SDK generic Write does not reuse canonical scalar type lengths.'
 Require-Match $sdk '(?s)request\.ObjectIndex == 0x2F00.*?request\.SubIndex == 24' `
@@ -36,8 +36,8 @@ Require-Match $sdk '(?s)request\.ObjectIndex == 0x2F00.*?request\.SubIndex == 24
 
 Require-NoMatch $plc '\(ObjectIndex <> 0x2F00\) \| \(SubIndex <> 24\)' `
     'PLC still rejects generic SDO Write by the old UI[24] address gate.'
-Require-Match $plc '(?s)\(ObjectIndex = 0x6040\) \| \(ObjectIndex = 0x6060\).*?\(ObjectIndex = 0x607A\).*?\(ObjectIndex = 0x60FF\).*?\(ObjectIndex = 0x6071\)' `
-    'PLC semantic-owner raw-write block list is incomplete.'
+Require-Match $plc '(?s)\(ObjectIndex = 0x6040\) \| \(ObjectIndex = 0x6060\).*?\(ObjectIndex = 0x607A\).*?\(ObjectIndex = 0x60FF\).*?\(ObjectIndex = 0x6071\).*?\(ObjectIndex = 0x3204\).*?\(ObjectIndex = 0x20FC\)' `
+    'PLC semantic/dedicated-owner raw-write block list is incomplete.'
 Require-Match $plc '(?s)case ValueType of\s*1, 9, 10, 11:.*?DataLength <> 1.*?2, 3, 7:.*?DataLength <> 2.*?4, 5, 6, 8:.*?DataLength <> 4' `
     'PLC canonical 1/2/4-byte scalar type/length admission is missing.'
 Require-Match $plc '(?s)\(ValueType = 1\).*?\(WriteData <> 0\).*?\(WriteData <> 1\)' `
