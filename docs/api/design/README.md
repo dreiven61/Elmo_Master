@@ -11,6 +11,10 @@
 [DEVELOPMENT_STATUS_20260826.md](DEVELOPMENT_STATUS_20260826.md)에 historical checkpoint로 유지한다.
 실제 구현된 byte offset은 `LMC_Library/LMC_API_Delivery/docs/DINT_PACKET_MAP.txt`가 정본이다.
 
+2026-08-27 branch-local `LMCSdoExecutor` dual-entry의 C78 빌드, PLC 다운로드 및 기본 구동
+smoke는 [SDO_R02_C78_DOWNLOAD_SMOKE_20260827.md](evidence/SDO_R02_C78_DOWNLOAD_SMOKE_20260827.md)에
+기록한다. 이는 아직 current `dev` 통합 또는 manual SDO/hardware qualification 증거가 아니다.
+
 ## 1. 대상과 우선순위
 
 | 순서 | API | 현재 진행도 | 개발 성격 | 설계 |

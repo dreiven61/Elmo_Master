@@ -187,7 +187,22 @@ external blockers:
 
 각 activation은 해당 API의 current source/image/hardware proof가 모두 같은 승인 세트일 때만 허용한다.
 
-## 8. 결론
+## 8. branch-local SDO-R02 evidence
+
+`codex/sdo-mode-redesign-docs-20260827@4ff371599d01eae55ce9d246fdbf9e6ec08e8385`
+기준으로 `LMCSdoExecutor` dual-entry source가 구현됐다.
+
+- 집중 source contract PASS
+- C78/ARM Rebuild/Link: 0 errors, 101 warnings
+- PLC 다운로드: 사용자 확인 PASS
+- PLC 기본 정상 구동: 사용자 확인 PASS
+- manual SDO Read/Write, D5 regression 및 packet/readback qualification: 미완료
+- post-download `Classes.lcb` strict physical identity: 미종결
+
+이 branch-local 결과는 아직 `dev` current 완료나 production activation으로 승격하지 않는다.
+상세 evidence는 `evidence/SDO_R02_C78_DOWNLOAD_SMOKE_20260827.md`를 따른다.
+
+## 9. 결론
 
 2026-08-27 기준 HomeDS402 H37의 hardware-independent source/PC/WPF qualification은 current `dev`에
 통합됐다. SetOperationMode/HomeDS402Ex dynamic recovery localization도 current `dev`에서 GitHub CI

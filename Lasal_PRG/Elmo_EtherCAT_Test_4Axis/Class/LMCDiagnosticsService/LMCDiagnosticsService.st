@@ -205,7 +205,7 @@ LMCDiagnosticsService : CLASS
 		VAR_OUTPUT
 			ResponseSize 	: DINT;
 		END_VAR;
-
+	
 	FUNCTION HandleAxisDs402HomeExOutcome
 		VAR_INPUT
 			Reference 	: UINT;
@@ -218,7 +218,7 @@ LMCDiagnosticsService : CLASS
 		VAR_OUTPUT
 			ResponseSize 	: DINT;
 		END_VAR;
-
+	
 	FUNCTION HandleAxisDs402HomeExRetire
 		VAR_INPUT
 			Reference 	: UINT;
@@ -231,8 +231,9 @@ LMCDiagnosticsService : CLASS
 		VAR_OUTPUT
 			ResponseSize 	: DINT;
 		END_VAR;
-
+	
 	FUNCTION ProcessAxisDs402HomeEx;
+	
 	FUNCTION HandleAxisDs402HomeStart
 		VAR_INPUT
 			Reference 	: UINT;
@@ -4830,7 +4831,7 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeExOutcome
 	END_VAR
 	VAR_OUTPUT
 		ResponseSize 	: DINT;
-	END_VAR;
+	END_VAR
 	VAR
 		schemaVersion, requestFlags, bufferMode, reservedValue : UINT;
 		requestId, diagnosticsBuild, bootId, mapRevision : UDINT;
@@ -5054,7 +5055,7 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeExRetire
 	END_VAR
 	VAR_OUTPUT
 		ResponseSize 	: DINT;
-	END_VAR;
+	END_VAR
 	VAR
 		schemaVersion, requestFlags, bufferMode, reservedValue : UINT;
 		requestId, diagnosticsBuild, bootId, mapRevision : UDINT;

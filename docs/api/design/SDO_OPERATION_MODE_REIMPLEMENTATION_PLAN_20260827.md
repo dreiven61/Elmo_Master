@@ -177,12 +177,17 @@ late callback -> source mismatch quarantine
 
 ### SDO-R02 완료 gate
 
-- LASAL IDE Rebuild/Link error 0
-- `Classes.lcb` regenerated
+- [x] LASAL IDE Rebuild/Link error 0 (2026-08-27 C78/ARM, 101 warnings)
+- [x] `Classes.lcb` regenerated
 - 4개 executor network direct-open
 - manual `0x6061:0` read on Axis1..4 PASS
 - safe test object manual write/readback PASS
 - programmatic D5 regression PASS
+
+2026-08-27 사용자가 PLC 다운로드와 기본 정상 구동을 확인했다. 이 결과는 PLC smoke PASS이며
+위 manual SDO/회귀 항목의 PASS를 의미하지 않는다. post-download `Classes.lcb` physical hash가
+strict verifier 기준과 달라 artifact identity review는 계속 필요하다. 상세 evidence는
+`evidence/SDO_R02_C78_DOWNLOAD_SMOKE_20260827.md`에 기록한다.
 
 ---
 
