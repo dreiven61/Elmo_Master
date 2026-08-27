@@ -118,6 +118,7 @@ namespace LasalApiWpfTestApp.SmokeTests
             TestFrame.WriteUInt32(payload, 16, 0x00000700u);
             TestFrame.WriteUInt16(payload, 28, 4);
             TestFrame.WriteUInt16(payload, 36, 6);
+            TestFrame.WriteUInt16(payload, 38, 0x018A);
             return new FakeRpcStep(
                 0x7D00,
                 TestFrame.Response(0, payload));

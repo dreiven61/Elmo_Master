@@ -40,11 +40,16 @@ namespace LasalMotionControlLib
             uint timeoutMilliseconds,
             uint flags)
         {
-            if (requestedMode
-                != LMCDriveOperationMode.CyclicSynchronousPosition)
+            var softwareModeAllowed = requestedMode
+                    == LMCDriveOperationMode.CyclicSynchronousPosition
+                || requestedMode == LMCDriveOperationMode.ProfilePosition
+                || requestedMode == LMCDriveOperationMode.ProfileVelocity
+                || requestedMode == LMCDriveOperationMode.InterpolatedPosition;
+            if (!softwareModeAllowed)
             {
                 throw new NotSupportedException(
-                    "SetOperationMode schema version 1 supports CSP mode 8 recovery only.");
+                    "SetOperationMode software implementation supports PP(1), PV(3), IP(7), and CSP(8). "
+                    + "Homing(6) remains owned by HomeDS402/HomeDS402Ex.");
             }
 
             if (timeoutMilliseconds == 0)

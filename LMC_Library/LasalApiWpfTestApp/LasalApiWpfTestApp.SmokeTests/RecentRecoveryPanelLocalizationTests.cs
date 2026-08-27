@@ -57,7 +57,7 @@ namespace LasalMotionControlApiExample
                     window.AxisSetOperationModeRecoveryGroupForTests;
                 AssertEx.NotNull(setOperationModeGroup);
                 AssertEx.Equal(
-                    "Operation Mode 설정 - CSP=8 / durable 재전송 방지 복구",
+                    "Operation Mode 설정 - PLC 지원 target / durable 재전송 방지 복구",
                     setOperationModeGroup.Header as string);
                 var setOperationModeText = CollectText(setOperationModeGroup);
                 AssertContains(
@@ -66,8 +66,8 @@ namespace LasalMotionControlApiExample
                     "The dynamically created SetOperationMode axis label was not found in Korean UI.");
                 AssertContains(
                     setOperationModeText,
-                    "CSP 위치 동기 모드 (8)",
-                    "The dynamically created SetOperationMode CSP label was not found in Korean UI.");
+                    "소프트웨어 target은 PP(1), PV(3), IP(7), CSP(8)로 제한됩니다. 연결된 PLC가 supported-mode mask를 광고하기 전까지 selector는 비어 있습니다. Homing(6)은 HomeDS402/HomeDS402Ex가 계속 소유합니다.",
+                    "The dynamically created SetOperationMode supported-mode warning was not found in Korean UI.");
                 AssertContains(
                     setOperationModeText,
                     "Mode capability 새로고침",
@@ -104,7 +104,7 @@ namespace LasalMotionControlApiExample
                 AssertEx.NotNull(selected);
                 AssertEx.Equal(UiLanguage.English, selected.Language);
                 AssertEx.Equal(
-                    "Set Operation Mode - CSP=8 / durable no-replay recovery",
+                    "Set Operation Mode - PLC-supported target / durable no-replay recovery",
                     setOperationModeGroup.Header as string);
                 setOperationModeText = CollectText(setOperationModeGroup);
                 AssertContains(
@@ -113,8 +113,8 @@ namespace LasalMotionControlApiExample
                     "English restore did not recover the SetOperationMode axis label.");
                 AssertContains(
                     setOperationModeText,
-                    "CyclicSynchronousPosition (8)",
-                    "English restore did not recover the SetOperationMode CSP label.");
+                    "Software targets are limited to PP(1), PV(3), IP(7), and CSP(8). The selector stays empty until the connected PLC advertises a supported-mode mask. Homing(6) remains owned by HomeDS402/HomeDS402Ex.",
+                    "English restore did not recover the SetOperationMode supported-mode warning.");
                 AssertContains(
                     setOperationModeText,
                     "Refresh Mode Capabilities",
@@ -150,8 +150,8 @@ namespace LasalMotionControlApiExample
                     "The second Korean pass did not restore the SetOperationMode axis translation.");
                 AssertContains(
                     setOperationModeText,
-                    "CSP 위치 동기 모드 (8)",
-                    "The second Korean pass did not restore the SetOperationMode CSP translation.");
+                    "소프트웨어 target은 PP(1), PV(3), IP(7), CSP(8)로 제한됩니다. 연결된 PLC가 supported-mode mask를 광고하기 전까지 selector는 비어 있습니다. Homing(6)은 HomeDS402/HomeDS402Ex가 계속 소유합니다.",
+                    "The second Korean pass did not restore the SetOperationMode supported-mode warning translation.");
                 AssertContains(
                     setOperationModeText,
                     "Mode capability 새로고침",

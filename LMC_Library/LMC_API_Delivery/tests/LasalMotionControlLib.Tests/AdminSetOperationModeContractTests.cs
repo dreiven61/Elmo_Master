@@ -58,8 +58,11 @@ namespace LasalMotionControlLib.Tests
                 "Rpc.Admin.SetOperationMode.DefinitiveRejectNoReplay",
                 DefinitiveRejectNoReplay);
             tests.Add(
-                "Contract.Admin.SetOperationMode.CspOnlyImmediate",
-                CspOnlyImmediate);
+                "Contract.Admin.SetOperationMode.SoftwareAllowListImmediate",
+                SoftwareAllowListImmediate);
+            tests.Add(
+                "Response.Admin.SetOperationMode.SupportedModeMaskStrict",
+                SupportedModeMaskStrict);
         }
 
         private static void GoldenLifecycleBytes()
@@ -360,7 +363,8 @@ namespace LasalMotionControlLib.Tests
                     CapabilitiesPayload(
                         OriginalRequestId,
                         CapabilityTriad,
-                        6)),
+                        6,
+                        0x018A)),
                 OriginalRequestId,
                 1);
             AssertEx.True(capabilities.Supports(CapabilityTriad));
@@ -541,42 +545,95 @@ namespace LasalMotionControlLib.Tests
             }
         }
 
-        private static void CspOnlyImmediate()
+        private static void SoftwareAllowListImmediate()
         {
-            AssertEx.Throws<NotSupportedException>(
-                () => new LMCAxisSetOperationModeRecoveryKey(
-                    1,
-                    OriginalRequestId,
-                    DiagnosticsBuild,
-                    DiagnosticsBootId,
-                    MapRevision,
-                    Intent0,
-                    Intent1,
-                    Intent2,
-                    Intent3,
-                    2,
-                    LMCDriveOperationMode.Homing,
-                    TimeoutMilliseconds));
+            foreach (var allowed in new[]
+            {
+                LMCDriveOperationMode.ProfilePosition,
+                LMCDriveOperationMode.ProfileVelocity,
+                LMCDriveOperationMode.InterpolatedPosition,
+                LMCDriveOperationMode.CyclicSynchronousPosition
+            })
+            {
+                var key = new LMCAxisSetOperationModeRecoveryKey(
+                    1, OriginalRequestId, DiagnosticsBuild, DiagnosticsBootId,
+                    MapRevision, Intent0, Intent1, Intent2, Intent3, 2,
+                    allowed, TimeoutMilliseconds);
+                AssertEx.Equal(allowed, key.RequestedMode);
+            }
+
+            foreach (var blocked in new[]
+            {
+                LMCDriveOperationMode.NoModeAssigned,
+                LMCDriveOperationMode.Velocity,
+                LMCDriveOperationMode.ProfileTorque,
+                LMCDriveOperationMode.Homing,
+                LMCDriveOperationMode.CyclicSynchronousVelocity,
+                LMCDriveOperationMode.CyclicSynchronousTorque
+            })
+            {
+                AssertEx.Throws<NotSupportedException>(
+                    () => new LMCAxisSetOperationModeRecoveryKey(
+                        1, OriginalRequestId, DiagnosticsBuild, DiagnosticsBootId,
+                        MapRevision, Intent0, Intent1, Intent2, Intent3, 2,
+                        blocked, TimeoutMilliseconds));
+            }
+
             AssertEx.Throws<ArgumentOutOfRangeException>(
                 () => new LMCAxisSetOperationModeRecoveryKey(
-                    1,
-                    OriginalRequestId,
-                    DiagnosticsBuild,
-                    DiagnosticsBootId,
-                    MapRevision,
-                    Intent0,
-                    Intent1,
-                    Intent2,
-                    Intent3,
-                    2,
-                    LMCDriveOperationMode.CyclicSynchronousPosition,
-                    0));
+                    1, OriginalRequestId, DiagnosticsBuild, DiagnosticsBootId,
+                    MapRevision, Intent0, Intent1, Intent2, Intent3, 2,
+                    LMCDriveOperationMode.CyclicSynchronousPosition, 0));
             AssertEx.Throws<ArgumentException>(
-                () => new LMCAxisSetOperationModeClientIntentId(
+                () => new LMCAxisSetOperationModeClientIntentId(0, 0, 0, 0));
+        }
+
+        private static void SupportedModeMaskStrict()
+        {
+            const ushort mask = 0x018A;
+            var capabilities = LMC_AdminParser.ParseCapabilities(
+                TestFrame.Response(
                     0,
-                    0,
-                    0,
-                    0));
+                    CapabilitiesPayload(
+                        OriginalRequestId, CapabilityTriad, 6, mask)),
+                OriginalRequestId,
+                1);
+            AssertEx.Equal(mask, capabilities.SetOperationModeSupportedMask);
+            AssertEx.True(capabilities.SupportsSetOperationMode(
+                LMCDriveOperationMode.ProfilePosition));
+            AssertEx.True(capabilities.SupportsSetOperationMode(
+                LMCDriveOperationMode.ProfileVelocity));
+            AssertEx.True(capabilities.SupportsSetOperationMode(
+                LMCDriveOperationMode.InterpolatedPosition));
+            AssertEx.True(capabilities.SupportsSetOperationMode(
+                LMCDriveOperationMode.CyclicSynchronousPosition));
+            AssertEx.False(capabilities.SupportsSetOperationMode(
+                LMCDriveOperationMode.Homing));
+
+            AssertEx.Throws<InvalidDataException>(
+                () => LMC_AdminParser.ParseCapabilities(
+                    TestFrame.Response(
+                        0,
+                        CapabilitiesPayload(
+                            OriginalRequestId, CapabilityTriad, 6, 0)),
+                    OriginalRequestId,
+                    1));
+            AssertEx.Throws<InvalidDataException>(
+                () => LMC_AdminParser.ParseCapabilities(
+                    TestFrame.Response(
+                        0,
+                        CapabilitiesPayload(
+                            OriginalRequestId, LMCAdminFeature.None, 1, mask)),
+                    OriginalRequestId,
+                    1));
+            AssertEx.Throws<InvalidDataException>(
+                () => LMC_AdminParser.ParseCapabilities(
+                    TestFrame.Response(
+                        0,
+                        CapabilitiesPayload(
+                            OriginalRequestId, CapabilityTriad, 6, 0x0200)),
+                    OriginalRequestId,
+                    1));
         }
 
         private static void PreCanceledZeroWireReusable()
@@ -816,12 +873,15 @@ namespace LasalMotionControlLib.Tests
         private static byte[] CapabilitiesPayload(
             uint requestId,
             LMCAdminFeature features,
-            ushort errorCatalogVersion)
+            ushort errorCatalogVersion,
+            ushort setOperationModeSupportedMask = 0)
         {
             var payload = CommonPayload(requestId, 40);
             TestFrame.WriteUInt32(payload, 16, (uint)features);
             TestFrame.WriteUInt16(payload, 28, 4);
             TestFrame.WriteUInt16(payload, 36, errorCatalogVersion);
+            TestFrame.WriteUInt16(
+                payload, 38, setOperationModeSupportedMask);
             return payload;
         }
 
@@ -839,7 +899,11 @@ namespace LasalMotionControlLib.Tests
                         (ushort)((features & CapabilityTriad)
                                 == CapabilityTriad
                             ? 6
-                            : 1))));
+                            : 1),
+                        (ushort)((features & CapabilityTriad)
+                                == CapabilityTriad
+                            ? 0x018A
+                            : 0))));
         }
 
         private static LMCDiagnosticCapabilities

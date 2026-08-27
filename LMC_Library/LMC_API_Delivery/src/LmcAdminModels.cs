@@ -184,7 +184,8 @@ namespace LasalMotionControlLib
             ushort maxAxisParameterCount,
             ushort groupReference,
             ushort maxGroupParameterCount,
-            ushort errorCatalogVersion)
+            ushort errorCatalogVersion,
+            ushort setOperationModeSupportedMask)
         {
             Response = response;
             ConnectionOwner = connectionOwner;
@@ -197,6 +198,7 @@ namespace LasalMotionControlLib
             GroupReference = groupReference;
             MaxGroupParameterCount = maxGroupParameterCount;
             ErrorCatalogVersion = errorCatalogVersion;
+            SetOperationModeSupportedMask = setOperationModeSupportedMask;
         }
 
         public LMCAdminResponse Response { get; private set; }
@@ -212,6 +214,7 @@ namespace LasalMotionControlLib
         public ushort GroupReference { get; private set; }
         public ushort MaxGroupParameterCount { get; private set; }
         public ushort ErrorCatalogVersion { get; private set; }
+        public ushort SetOperationModeSupportedMask { get; private set; }
 
         internal long ConnectionSessionGeneration { get; private set; }
         internal LMCConnection ConnectionOwner { get; private set; }
@@ -263,6 +266,17 @@ namespace LasalMotionControlLib
         {
             return feature != LMCAdminFeature.None
                 && (Features & feature) == feature;
+        }
+
+        public bool SupportsSetOperationMode(LMCDriveOperationMode mode)
+        {
+            var raw = (int)(sbyte)mode;
+            if (raw < 0 || raw > 15)
+            {
+                return false;
+            }
+
+            return (SetOperationModeSupportedMask & (1 << raw)) != 0;
         }
 
         public bool Supports(LMCAxisParameterKey key)
