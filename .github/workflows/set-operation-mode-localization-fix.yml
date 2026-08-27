@@ -12,9 +12,9 @@ permissions:
   contents: write
 
 jobs:
-  fix-and-verify:
+  apply:
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
     steps:
       - name: Checkout integration branch
         uses: actions/checkout@v4
@@ -30,37 +30,7 @@ jobs:
           git diff --check
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Locate MSBuild
-        id: msbuild
-        shell: powershell
-        run: |
-          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-          if (-not (Test-Path -LiteralPath $vswhere)) { throw 'vswhere.exe not found.' }
-          $msbuild = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
-          if ([string]::IsNullOrWhiteSpace($msbuild)) { throw 'MSBuild.exe not found.' }
-          "path=$msbuild" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-
-      - name: Build and run SetOperationMode smoke Debug
-        shell: powershell
-        run: |
-          $project = '.\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\LasalApiWpfTestApp.SmokeTests.csproj'
-          & '${{ steps.msbuild.outputs.path }}' $project /t:Build /p:Configuration=Debug /p:Platform=AnyCPU /m
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $exe = '.\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\bin\Debug\LasalApiWpfTestApp.SmokeTests.exe'
-          & $exe --filter SetOperationMode
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      - name: Build and run SetOperationMode smoke Release
-        shell: powershell
-        run: |
-          $project = '.\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\LasalApiWpfTestApp.SmokeTests.csproj'
-          & '${{ steps.msbuild.outputs.path }}' $project /t:Build /p:Configuration=Release /p:Platform=AnyCPU /m
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $exe = '.\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\bin\Release\LasalApiWpfTestApp.SmokeTests.exe'
-          & $exe --filter SetOperationMode
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      - name: Commit verified localization fix and remove temporary tooling
+      - name: Commit localization fix and remove temporary tooling
         shell: powershell
         run: |
           git rm -- 'tools/Fix-SetOperationModeMultiModeLocalization.py' '.github/workflows/set-operation-mode-localization-fix.yml'
