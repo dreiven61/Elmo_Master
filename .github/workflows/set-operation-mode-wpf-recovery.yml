@@ -7,6 +7,8 @@ on:
     paths:
       - 'LMC_Library/LMC_API_Delivery/src/LmcAdminSetOperationMode*.cs'
       - 'LMC_Library/LMC_API_Delivery/src/LmcAxisSetOperationMode.cs'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/App.xaml.cs'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/UiLocalization.cs'
       - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/AxisSetOperationModeRecoveryJournal.cs'
       - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.AxisSetOperationModeRecovery.cs'
       - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.ReadOnlyApi.cs'
@@ -14,6 +16,7 @@ on:
       - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/AxisSetOperationModeRecoveryJournalTests.cs'
       - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/AxisSetOperationModeSdkRecoveryIdentityTests.cs'
       - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/WpfAxisSetOperationModeRecoveryIntegrationTests.cs'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/RecentRecoveryPanelLocalizationTests.cs'
       - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/LasalApiWpfTestApp.SmokeTests.csproj'
       - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/Program.cs'
       - '.github/workflows/set-operation-mode-wpf-recovery.yml'
@@ -23,6 +26,8 @@ on:
     paths:
       - 'LMC_Library/LMC_API_Delivery/src/LmcAdminSetOperationMode*.cs'
       - 'LMC_Library/LMC_API_Delivery/src/LmcAxisSetOperationMode.cs'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/App.xaml.cs'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/UiLocalization.cs'
       - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/AxisSetOperationModeRecoveryJournal.cs'
       - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.AxisSetOperationModeRecovery.cs'
       - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.ReadOnlyApi.cs'
@@ -30,6 +35,7 @@ on:
       - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/AxisSetOperationModeRecoveryJournalTests.cs'
       - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/AxisSetOperationModeSdkRecoveryIdentityTests.cs'
       - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/WpfAxisSetOperationModeRecoveryIntegrationTests.cs'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/RecentRecoveryPanelLocalizationTests.cs'
       - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/LasalApiWpfTestApp.SmokeTests.csproj'
       - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/Program.cs'
       - '.github/workflows/set-operation-mode-wpf-recovery.yml'

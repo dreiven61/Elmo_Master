@@ -55,6 +55,10 @@ namespace LasalApiWpfTestApp.SmokeTests
                 var tests = new List<TestCase>();
                 LasalMotionControlApiExample
                     .UiLocalizationTests.Register(tests);
+                // Shared regression is intentionally selected by both filtered
+                // SetOperationMode and HomeDS402Ex WPF recovery workflows.
+                LasalMotionControlApiExample
+                    .RecentRecoveryPanelLocalizationTests.Register(tests);
                 LasalMotionControlApiExample
                     .ApplicationInstanceLeaseTests.Register(tests);
                 LasalMotionControlApiExample

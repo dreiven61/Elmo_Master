@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using System.Windows.Threading;
 
 namespace LasalMotionControlApiExample
@@ -265,7 +266,18 @@ namespace LasalMotionControlApiExample
             applying = true;
             try
             {
-                ApplyRecursive(window);
+                var visited = new HashSet<DependencyObject>();
+                ApplyRecursive(window, visited);
+                // These recovery panels are composed dynamically. They are not
+                // guaranteed to be reachable from the window tree before their
+                // containing tab is first realized, so localize their roots
+                // explicitly as well.
+                ApplyRecursive(
+                    window.AxisSetOperationModeRecoveryGroupForTests,
+                    visited);
+                ApplyRecursive(
+                    window.AxisDs402HomeExRecoveryGroupForTests,
+                    visited);
             }
             finally
             {
@@ -273,9 +285,11 @@ namespace LasalMotionControlApiExample
             }
         }
 
-        private void ApplyRecursive(DependencyObject current)
+        private void ApplyRecursive(
+            DependencyObject current,
+            ISet<DependencyObject> visited)
         {
-            if (current == null)
+            if (current == null || !visited.Add(current))
             {
                 return;
             }
@@ -286,13 +300,24 @@ namespace LasalMotionControlApiExample
                 ApplyTextBlock(textBlock);
             }
 
-            var button = current as Button;
-            if (button != null && button.Content is string)
+            var contentControl = current as ContentControl;
+            if (contentControl != null)
             {
-                ApplyStringValue(
-                    button,
-                    (string)button.Content,
-                    value => button.Content = value);
+                var stringContent = contentControl.Content as string;
+                if (stringContent != null)
+                {
+                    ApplyStringValue(
+                        contentControl,
+                        stringContent,
+                        value => contentControl.Content = value);
+                }
+
+                var dependencyContent =
+                    contentControl.Content as DependencyObject;
+                if (dependencyContent != null)
+                {
+                    ApplyRecursive(dependencyContent, visited);
+                }
             }
 
             var groupBox = current as GroupBox;
@@ -304,13 +329,36 @@ namespace LasalMotionControlApiExample
                     value => groupBox.Header = value);
             }
 
+            var panel = current as Panel;
+            if (panel != null)
+            {
+                foreach (UIElement child in panel.Children)
+                {
+                    ApplyRecursive(child, visited);
+                }
+            }
+
             foreach (var child in LogicalTreeHelper.GetChildren(current))
             {
                 var dependencyChild = child as DependencyObject;
                 if (dependencyChild != null)
                 {
-                    ApplyRecursive(dependencyChild);
+                    ApplyRecursive(dependencyChild, visited);
                 }
+            }
+
+            var visual = current as Visual;
+            if (visual == null)
+            {
+                return;
+            }
+
+            var visualChildCount = VisualTreeHelper.GetChildrenCount(visual);
+            for (var index = 0; index < visualChildCount; index++)
+            {
+                ApplyRecursive(
+                    VisualTreeHelper.GetChild(visual, index),
+                    visited);
             }
         }
 
@@ -488,7 +536,9 @@ namespace LasalMotionControlApiExample
                 "실제 드라이브 모드 Write입니다. Start는 0x7D23을 한 번만 전송합니다. Start 성공 응답은 접수만 의미하며 모드 변경 완료를 의미하지 않습니다. Start 결과가 미확정이거나 접수된 뒤에는 0x7D23/0x6060 자동 재전송을 금지합니다.";
             values["Recovery is bound to endpoint + DiagnosticsBuild + BootId + MapRevision + 128-bit ClientIntentId + RequestId + axis + requested CSP mode. Recovery queries 0x7D24 only; terminal proof is persisted before exact-generation 0x7D25 retirement."] =
                 "복구는 endpoint + DiagnosticsBuild + BootId + MapRevision + 128-bit ClientIntentId + RequestId + axis + 요청 CSP mode에 정확히 결합됩니다. 복구 시 0x7D24만 조회하며 terminal 증거를 durable 저장한 뒤 exact-generation 0x7D25 retirement를 수행합니다.";
+            values["Physical axis reference (1..4)"] = "물리 축 번호 (1..4)";
             values["Requested mode"] = "요청 모드";
+            values["CyclicSynchronousPosition (8)"] = "CSP 위치 동기 모드 (8)";
             values["Timeout (ms, nonzero)"] = "Timeout (ms, 0 제외)";
             values["I verified the exact powered drive/axis and understand that this writes DS402 0x6060:0 to CSP=8 once only. If the response or completion is uncertain I will use the durable recovery query and will not send Start again."] =
                 "정확한 powered drive/axis를 확인했으며 DS402 0x6060:0에 CSP=8을 한 번만 Write한다는 점을 이해했습니다. 응답 또는 완료 여부가 미확정이면 durable 복구 조회를 사용하고 Start를 다시 전송하지 않겠습니다.";

@@ -795,7 +795,7 @@ namespace LasalMotionControlApiExample
                 "Phase 5 읽기 전용 transport qualification";
             values["PLC verification boundary"] = "PLC 검증 범위";
             values["Physical axis reference (1..4)"] =
-                "물리 축 reference (1..4)";
+                "물리 축 번호 (1..4)";
             values["Semantic parameter key"] = "Semantic 파라미터 키";
             values["Admin capabilities have not been read."] =
                 "Admin capability를 아직 읽지 않았습니다.";
