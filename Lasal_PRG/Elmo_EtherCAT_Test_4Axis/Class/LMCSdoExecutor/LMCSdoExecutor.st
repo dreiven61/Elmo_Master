@@ -111,6 +111,7 @@ LMCSdoExecutor : CLASS
 
 		PublishSequence 	: UDINT;
 		PublishedResult 	: LMCSdoExecutorResult;
+		RequestSource 	: UDINT;
   //Functions:
 	
 	FUNCTION LMCSdoExecutor
@@ -308,6 +309,10 @@ END_FUNCTION
 #define LMC_SDO_EXEC_QUARANTINED 5
 #define LMC_SDO_EXEC_RELEASING 6
 
+#define LMC_SDO_SOURCE_NONE 0
+#define LMC_SDO_SOURCE_MANUAL_SERVER 1
+#define LMC_SDO_SOURCE_PROGRAMMATIC 2
+
 #define LMC_SDO_EXEC_VALID 0$UDINT
 #define LMC_SDO_EXEC_INVALID_VERSION 1
 #define LMC_SDO_EXEC_INVALID_STATE 2
@@ -325,9 +330,178 @@ FUNCTION VIRTUAL GLOBAL LMCSdoExecutor::ParaReadWrite::Write
 	VAR_OUTPUT
 		result (EAX) : DINT;
 	END_VAR
+	VAR
+		previousState : UDINT;
+		startResult : iprStates;
+	END_VAR
 
-	// The production executor cannot be started through the manual channel.
+	ParaReadWrite := input;
 	result := ParaReadWrite;
+	ErrorCode := 0;
+
+	if RequestSource <> LMC_SDO_SOURCE_NONE then
+		ClassState := BUSY;
+		RETURN;
+	end_if;
+
+	previousState := sigclib_atomic_cmpxchgU32(
+		pValue:=#AdapterState,
+		cmpVal:=LMC_SDO_EXEC_IDLE,
+		newVal:=LMC_SDO_EXEC_ARMING);
+	if previousState <> LMC_SDO_EXEC_IDLE then
+		ClassState := BUSY;
+		RETURN;
+	end_if;
+
+	RequestSource := LMC_SDO_SOURCE_MANUAL_SERVER;
+	ActiveToken := 0;
+	ActiveIndex := ParaIndex$UINT;
+	ActiveSubIndex := ParaSubIndex$USINT;
+	ActiveIsWrite := ParaReadWrite <> 0;
+
+	if ParaType = 0 then
+		if ActiveIsWrite then
+			if (ParaLength = 0) | (ParaLength > sizeof(ParaValue)) then
+				ClassState := ERROR;
+				RequestSource := LMC_SDO_SOURCE_NONE;
+				previousState := sigclib_atomic_cmpxchgU32(
+					pValue:=#AdapterState,
+					cmpVal:=LMC_SDO_EXEC_ARMING,
+					newVal:=LMC_SDO_EXEC_IDLE);
+				if previousState <> LMC_SDO_EXEC_ARMING then
+					sigclib_atomic_setU32(
+						pValue:=#AdapterState,
+						value:=LMC_SDO_EXEC_QUARANTINED);
+				end_if;
+				RETURN;
+			end_if;
+			ActiveLength := ParaLength$UINT;
+		else
+			ParaValue := 0;
+			ActiveLength := sizeof(ParaValue)$UINT;
+		end_if;
+	else
+		if ActiveIsWrite then
+			ParaLength := strSDOParaString.GetLength() +
+				strSDOParaString.GetCharSize();
+			if (ParaLength = 0) | (ParaLength > sizeof(szString)) then
+				ClassState := ERROR;
+				RequestSource := LMC_SDO_SOURCE_NONE;
+				previousState := sigclib_atomic_cmpxchgU32(
+					pValue:=#AdapterState,
+					cmpVal:=LMC_SDO_EXEC_ARMING,
+					newVal:=LMC_SDO_EXEC_IDLE);
+				if previousState <> LMC_SDO_EXEC_ARMING then
+					sigclib_atomic_setU32(
+						pValue:=#AdapterState,
+						value:=LMC_SDO_EXEC_QUARANTINED);
+				end_if;
+				RETURN;
+			end_if;
+			strSDOParaString.TxtGet(
+				pdst:=#szString[0], dstsize:=sizeof(szString));
+			ActiveLength := ParaLength$UINT;
+		else
+			strSDOParaString.Clear();
+			ActiveLength := sizeof(szString)$UINT;
+		end_if;
+	end_if;
+
+	if IsClientConnected(#toSlave) = FALSE then
+		ClassState := ERROR;
+		RequestSource := LMC_SDO_SOURCE_NONE;
+		previousState := sigclib_atomic_cmpxchgU32(
+			pValue:=#AdapterState,
+			cmpVal:=LMC_SDO_EXEC_ARMING,
+			newVal:=LMC_SDO_EXEC_IDLE);
+		if previousState <> LMC_SDO_EXEC_ARMING then
+			sigclib_atomic_setU32(
+				pValue:=#AdapterState, value:=LMC_SDO_EXEC_QUARANTINED);
+		end_if;
+		RETURN;
+	end_if;
+
+	previousState := sigclib_atomic_cmpxchgU32(
+		pValue:=#AdapterState,
+		cmpVal:=LMC_SDO_EXEC_ARMING,
+		newVal:=LMC_SDO_EXEC_RUNNING);
+	if previousState <> LMC_SDO_EXEC_ARMING then
+		ClassState := ERROR;
+		sigclib_atomic_setU32(
+			pValue:=#AdapterState, value:=LMC_SDO_EXEC_QUARANTINED);
+		RETURN;
+	end_if;
+
+	// Publish manual BUSY before StartSDO can callback synchronously.
+	ClassState := BUSY;
+	if ActiveIsWrite then
+		if ParaType = 0 then
+			startResult := toSlave.StartWriteSDO(
+				ParaIndex$HINT,
+				ParaSubIndex$HSINT,
+				CompleteAccess,
+				(#ParaValue)$^USINT,
+				ParaLength,
+				Timeout,
+				THIS);
+		else
+			startResult := toSlave.StartWriteSDO(
+				ParaIndex$HINT,
+				ParaSubIndex$HSINT,
+				CompleteAccess,
+				#szString[0],
+				ParaLength,
+				Timeout,
+				THIS);
+		end_if;
+	else
+		if ParaType = 0 then
+			startResult := toSlave.StartReadSDO(
+				ParaIndex$HINT,
+				ParaSubIndex$HSINT,
+				CompleteAccess,
+				(#ParaValue)$^USINT,
+				sizeof(ParaValue),
+				Timeout,
+				THIS);
+		else
+			startResult := toSlave.StartReadSDO(
+				ParaIndex$HINT,
+				ParaSubIndex$HSINT,
+				CompleteAccess,
+				(#szString)$^USINT,
+				sizeof(szString),
+				Timeout,
+				THIS);
+		end_if;
+	end_if;
+
+	if startResult <> READY then
+		ClassState := ERROR;
+		previousState := sigclib_atomic_cmpxchgU32(
+			pValue:=#AdapterState,
+			cmpVal:=LMC_SDO_EXEC_RUNNING,
+			newVal:=LMC_SDO_EXEC_RELEASING);
+		if previousState = LMC_SDO_EXEC_RUNNING then
+			ActiveIndex := 0;
+			ActiveSubIndex := 0;
+			ActiveLength := 0;
+			ActiveIsWrite := FALSE;
+			RequestSource := LMC_SDO_SOURCE_NONE;
+			previousState := sigclib_atomic_cmpxchgU32(
+				pValue:=#AdapterState,
+				cmpVal:=LMC_SDO_EXEC_RELEASING,
+				newVal:=LMC_SDO_EXEC_IDLE);
+			if previousState <> LMC_SDO_EXEC_RELEASING then
+				sigclib_atomic_setU32(
+					pValue:=#AdapterState,
+					value:=LMC_SDO_EXEC_QUARANTINED);
+			end_if;
+		else
+			sigclib_atomic_setU32(
+				pValue:=#AdapterState, value:=LMC_SDO_EXEC_QUARANTINED);
+		end_if;
+	end_if;
 
 END_FUNCTION
 
@@ -339,6 +513,12 @@ FUNCTION VIRTUAL GLOBAL LMCSdoExecutor::ParaType::Write
 	VAR_OUTPUT
 		result (EAX) : DINT;
 	END_VAR
+
+	if input = 0 then
+		ParaType := 0;
+	else
+		ParaType := 1;
+	end_if;
 
 	result := ParaType;
 
@@ -353,7 +533,8 @@ FUNCTION VIRTUAL GLOBAL LMCSdoExecutor::ParaString::Write
 		result (EAX) : UDINT;
 	END_VAR
 
-	result := ParaString;
+	ParaString := input;
+	result := (strSDOParaString.Data.Write(ParaString))$UDINT;
 
 END_FUNCTION
 
@@ -380,6 +561,10 @@ FUNCTION GLOBAL LMCSdoExecutor::TryStartRead
 		(TimeoutMs = 0) | (TimeoutMs > 60000) then
 		RETURN;
 	end_if;
+	if RequestSource <> LMC_SDO_SOURCE_NONE then
+		ret_code := BUSY;
+		RETURN;
+	end_if;
 
 	previousState := sigclib_atomic_cmpxchgU32(
 		pValue:=#AdapterState,
@@ -390,6 +575,7 @@ FUNCTION GLOBAL LMCSdoExecutor::TryStartRead
 		RETURN;
 	end_if;
 
+	RequestSource := LMC_SDO_SOURCE_PROGRAMMATIC;
 	ActiveToken := OperationToken;
 	ActiveIndex := ObjectIndex;
 	ActiveSubIndex := SubIndex;
@@ -405,6 +591,7 @@ FUNCTION GLOBAL LMCSdoExecutor::TryStartRead
 			cmpVal:=LMC_SDO_EXEC_ARMING,
 			newVal:=LMC_SDO_EXEC_RELEASING);
 		if previousState = LMC_SDO_EXEC_ARMING then
+			RequestSource := LMC_SDO_SOURCE_NONE;
 			ActiveToken := 0;
 			ActiveIndex := 0;
 			ActiveSubIndex := 0;
@@ -462,6 +649,7 @@ FUNCTION GLOBAL LMCSdoExecutor::TryStartRead
 			cmpVal:=LMC_SDO_EXEC_RUNNING,
 			newVal:=LMC_SDO_EXEC_RELEASING);
 		if previousState = LMC_SDO_EXEC_RUNNING then
+			RequestSource := LMC_SDO_SOURCE_NONE;
 			ActiveToken := 0;
 			ActiveIndex := 0;
 			ActiveSubIndex := 0;
@@ -519,6 +707,10 @@ FUNCTION GLOBAL LMCSdoExecutor::TryStartWrite
 		(TimeoutMs = 0) | (TimeoutMs > 60000) then
 		RETURN;
 	end_if;
+	if RequestSource <> LMC_SDO_SOURCE_NONE then
+		ret_code := BUSY;
+		RETURN;
+	end_if;
 
 	previousState := sigclib_atomic_cmpxchgU32(
 		pValue:=#AdapterState,
@@ -529,6 +721,7 @@ FUNCTION GLOBAL LMCSdoExecutor::TryStartWrite
 		RETURN;
 	end_if;
 
+	RequestSource := LMC_SDO_SOURCE_PROGRAMMATIC;
 	ActiveToken := OperationToken;
 	ActiveIndex := ObjectIndex;
 	ActiveSubIndex := SubIndex;
@@ -546,6 +739,7 @@ FUNCTION GLOBAL LMCSdoExecutor::TryStartWrite
 			cmpVal:=LMC_SDO_EXEC_ARMING,
 			newVal:=LMC_SDO_EXEC_RELEASING);
 		if previousState = LMC_SDO_EXEC_ARMING then
+			RequestSource := LMC_SDO_SOURCE_NONE;
 			ActiveToken := 0;
 			ActiveIndex := 0;
 			ActiveSubIndex := 0;
@@ -601,6 +795,7 @@ FUNCTION GLOBAL LMCSdoExecutor::TryStartWrite
 			cmpVal:=LMC_SDO_EXEC_RUNNING,
 			newVal:=LMC_SDO_EXEC_RELEASING);
 		if previousState = LMC_SDO_EXEC_RUNNING then
+			RequestSource := LMC_SDO_SOURCE_NONE;
 			ActiveToken := 0;
 			ActiveIndex := 0;
 			ActiveSubIndex := 0;
@@ -655,6 +850,9 @@ FUNCTION GLOBAL LMCSdoExecutor::CopyCompletion
 		(DestSize < sizeof(LMCSdoExecutorResult)) then
 		RETURN;
 	end_if;
+	if RequestSource <> LMC_SDO_SOURCE_PROGRAMMATIC then
+		RETURN;
+	end_if;
 
 	stateValue := sigclib_atomic_getU32(pValue:=#AdapterState);
 	if stateValue <> LMC_SDO_EXEC_RESULT_READY then
@@ -692,6 +890,7 @@ FUNCTION GLOBAL LMCSdoExecutor::CopyCompletion
 					RETURN;
 				end_if;
 
+				RequestSource := LMC_SDO_SOURCE_NONE;
 				ActiveToken := 0;
 				ActiveIndex := 0;
 				ActiveSubIndex := 0;
@@ -741,7 +940,8 @@ FUNCTION GLOBAL LMCSdoExecutor::MarkOrphan
 	END_VAR
 
 	Result := -1;
-	if (ExpectedToken = 0) | (ActiveToken <> ExpectedToken) then
+	if (RequestSource <> LMC_SDO_SOURCE_PROGRAMMATIC) |
+		(ExpectedToken = 0) | (ActiveToken <> ExpectedToken) then
 		RETURN;
 	end_if;
 
@@ -763,8 +963,9 @@ FUNCTION GLOBAL LMCSdoExecutor::IsReusable
 		Reusable : BOOL;
 	END_VAR
 
-	Reusable := sigclib_atomic_getU32(
-		pValue:=#AdapterState) = LMC_SDO_EXEC_IDLE;
+	Reusable := (RequestSource = LMC_SDO_SOURCE_NONE) &
+		(sigclib_atomic_getU32(
+			pValue:=#AdapterState) = LMC_SDO_EXEC_IDLE);
 
 END_FUNCTION
 
@@ -805,6 +1006,68 @@ FUNCTION VIRTUAL GLOBAL LMCSdoExecutor::ClassState::NewInst
 	actualLength := pPara^.aPara[5]$UDINT;
 	abortCode := pPara^.aPara[6]$UDINT;
 	validationCode := LMC_SDO_EXEC_VALID;
+
+	if RequestSource = LMC_SDO_SOURCE_MANUAL_SERVER then
+		if stateValue <> LMC_SDO_EXEC_RUNNING then
+			ClassState := ERROR;
+			sigclib_atomic_setU32(
+				pValue:=#AdapterState, value:=LMC_SDO_EXEC_QUARANTINED);
+			RETURN;
+		end_if;
+
+		if pPara^.aPara[0]$DINT <> 1 then
+			ClassState := ERROR;
+			ErrorCode := 0;
+		elsif osResult <> 0 then
+			ClassState := ERROR;
+			ErrorCode := abortCode;
+		elsif callbackIsWrite = 0 then
+			ParaLength := actualLength;
+			if ParaType = 1 then
+				strSDOParaString.TxtSet(
+					dstchrsize:=1,
+					psrc:=#szString[0],
+					srcchrsize:=1);
+			end_if;
+			ClassState := READY;
+			ErrorCode := 0;
+		elsif callbackIsWrite = 1 then
+			ClassState := READY;
+			ErrorCode := 0;
+		else
+			ClassState := ERROR;
+			ErrorCode := 0;
+		end_if;
+
+		previousState := sigclib_atomic_cmpxchgU32(
+			pValue:=#AdapterState,
+			cmpVal:=LMC_SDO_EXEC_RUNNING,
+			newVal:=LMC_SDO_EXEC_RELEASING);
+		if previousState = LMC_SDO_EXEC_RUNNING then
+			ActiveIndex := 0;
+			ActiveSubIndex := 0;
+			ActiveLength := 0;
+			ActiveIsWrite := FALSE;
+			RequestSource := LMC_SDO_SOURCE_NONE;
+			previousState := sigclib_atomic_cmpxchgU32(
+				pValue:=#AdapterState,
+				cmpVal:=LMC_SDO_EXEC_RELEASING,
+				newVal:=LMC_SDO_EXEC_IDLE);
+			if previousState <> LMC_SDO_EXEC_RELEASING then
+				sigclib_atomic_setU32(
+					pValue:=#AdapterState,
+					value:=LMC_SDO_EXEC_QUARANTINED);
+			end_if;
+		else
+			sigclib_atomic_setU32(
+				pValue:=#AdapterState, value:=LMC_SDO_EXEC_QUARANTINED);
+		end_if;
+		RETURN;
+	elsif RequestSource <> LMC_SDO_SOURCE_PROGRAMMATIC then
+		sigclib_atomic_setU32(
+			pValue:=#AdapterState, value:=LMC_SDO_EXEC_QUARANTINED);
+		RETURN;
+	end_if;
 
 	if pPara^.aPara[0]$DINT <> 1 then
 		validationCode := LMC_SDO_EXEC_INVALID_VERSION;
@@ -847,6 +1110,7 @@ FUNCTION VIRTUAL GLOBAL LMCSdoExecutor::ClassState::NewInst
 				pValue:=#AdapterState, value:=LMC_SDO_EXEC_QUARANTINED);
 			RETURN;
 		end_if;
+		RequestSource := LMC_SDO_SOURCE_NONE;
 		ActiveToken := 0;
 		ActiveIndex := 0;
 		ActiveSubIndex := 0;
@@ -911,6 +1175,7 @@ FUNCTION VIRTUAL GLOBAL LMCSdoExecutor::ClassState::NewInst
 			cmpVal:=LMC_SDO_EXEC_ORPHANED,
 			newVal:=LMC_SDO_EXEC_RELEASING);
 		if previousState = LMC_SDO_EXEC_ORPHANED then
+			RequestSource := LMC_SDO_SOURCE_NONE;
 			ActiveToken := 0;
 			ActiveIndex := 0;
 			ActiveSubIndex := 0;
@@ -948,6 +1213,7 @@ FUNCTION LMCSdoExecutor::LMCSdoExecutor
 		ret_code 	: ConfStates;
 	END_VAR
 
+	RequestSource := LMC_SDO_SOURCE_NONE;
 	ActiveToken := 0;
 	ActiveIndex := 0;
 	ActiveSubIndex := 0;

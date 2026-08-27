@@ -51555,24 +51555,32 @@ Assert-Match $sdoExecutor '(?s)ActiveLength\s*:\s*UINT;.*?ActiveIsWrite\s*:\s*BO
 Assert-Match $sdoExecutor 'Function Name="ClassState\.NewInst" UseBaseCmd="true"' 'LMCSdoExecutor callback override does not preserve the EtherCAT_SDOBase command table.'
 Assert-Match $sdoExecutor '(?s)ParaReadWrite\.pMeth\s*:=\s*StoreMethod\(\s*#M_RD_DIRECT\(\),\s*#ParaReadWrite::Write\(\)\s*\).*?ParaType\.pMeth\s*:=\s*StoreMethod\(\s*#M_RD_DIRECT\(\),\s*#ParaType::Write\(\)\s*\).*?_memcpy\(\(#vmt\.CmdTable\)\$\^USINT,\s*ParaString\.pMeth.*?vmt\.CmdTable\.Write\s*:=\s*#ParaString::Write\(\).*?ParaString\.pMeth\s*:=\s*StoreCmd' 'LMCSdoExecutor manual-channel write overrides are not registered in the IDE-generated unqualified VMT entries.'
 
-foreach ($manualWrite in @(
-    @{ Name = 'ParaReadWrite'; Expected = 'ParaReadWrite' },
-    @{ Name = 'ParaType'; Expected = 'ParaType' },
-    @{ Name = 'ParaString'; Expected = 'ParaString' })) {
-    $manualWriteBlock = [regex]::Match(
-        $sdoExecutor,
-        ('(?s)FUNCTION VIRTUAL GLOBAL LMCSdoExecutor::' +
-            $manualWrite.Name + '::Write.*?END_FUNCTION')).Value
-    if ([string]::IsNullOrWhiteSpace($manualWriteBlock)) {
-        throw "LMCSdoExecutor.$($manualWrite.Name).Write implementation was not found."
-    }
-    Assert-Match $manualWriteBlock (
-        'result\s*:=\s*' + $manualWrite.Expected + '\s*;') (
-        "LMCSdoExecutor.$($manualWrite.Name).Write does not ignore manual writes fail-closed.")
-    if ($manualWriteBlock -match 'result\s*:=\s*input') {
-        throw "LMCSdoExecutor.$($manualWrite.Name).Write accepts the manual input."
-    }
+Assert-Match $sdoExecutor 'RequestSource\s*:\s*UDINT\s*;' 'LMCSdoExecutor does not declare request-source arbitration state.'
+Assert-Match $sdoExecutor '(?s)#define LMC_SDO_SOURCE_NONE\s+0.*?#define LMC_SDO_SOURCE_MANUAL_SERVER\s+1.*?#define LMC_SDO_SOURCE_PROGRAMMATIC\s+2' 'LMCSdoExecutor request-source constants are incomplete.'
+$manualReadWriteBlock = [regex]::Match(
+    $sdoExecutor,
+    '(?s)FUNCTION VIRTUAL GLOBAL LMCSdoExecutor::ParaReadWrite::Write.*?END_FUNCTION').Value
+if ([string]::IsNullOrWhiteSpace($manualReadWriteBlock)) {
+    throw 'LMCSdoExecutor.ParaReadWrite.Write implementation was not found.'
 }
+Assert-Match $manualReadWriteBlock 'ParaReadWrite\s*:=\s*input\s*;' 'LMCSdoExecutor.ParaReadWrite.Write does not accept the manual trigger.'
+Assert-Match $manualReadWriteBlock 'RequestSource\s*:=\s*LMC_SDO_SOURCE_MANUAL_SERVER\s*;' 'LMCSdoExecutor.ParaReadWrite.Write does not reserve manual ownership.'
+Assert-Match $manualReadWriteBlock 'toSlave\.StartReadSDO\(' 'LMCSdoExecutor manual entry does not start SDO Read.'
+Assert-Match $manualReadWriteBlock 'toSlave\.StartWriteSDO\(' 'LMCSdoExecutor manual entry does not start SDO Write.'
+Assert-Match $manualReadWriteBlock 'ParaLength\s*>\s*sizeof\(ParaValue\)' 'LMCSdoExecutor manual numeric Write does not enforce buffer capacity.'
+if ($manualReadWriteBlock -match 'production executor cannot be started through the manual channel') {
+    throw 'LMCSdoExecutor still disables the manual Server entry.'
+}
+
+$manualTypeBlock = [regex]::Match(
+    $sdoExecutor,
+    '(?s)FUNCTION VIRTUAL GLOBAL LMCSdoExecutor::ParaType::Write.*?END_FUNCTION').Value
+Assert-Match $manualTypeBlock '(?s)if input = 0 then.*?ParaType\s*:=\s*0\s*;.*?ParaType\s*:=\s*1\s*;' 'LMCSdoExecutor.ParaType.Write does not preserve base semantics.'
+$manualStringBlock = [regex]::Match(
+    $sdoExecutor,
+    '(?s)FUNCTION VIRTUAL GLOBAL LMCSdoExecutor::ParaString::Write.*?END_FUNCTION').Value
+Assert-Match $manualStringBlock 'ParaString\s*:=\s*input\s*;' 'LMCSdoExecutor.ParaString.Write does not accept the manual string handle.'
+Assert-Match $manualStringBlock 'strSDOParaString\.Data\.Write\(ParaString\)' 'LMCSdoExecutor.ParaString.Write does not forward the inherited String client.'
 
 $sdoTryStartBlock = [regex]::Match(
     $sdoExecutor,

@@ -678,6 +678,19 @@ namespace LasalMotionControlLib.Tests
             returned[0] = 0;
             AssertEx.Equal((byte)0x34, write.WriteData[0]);
 
+            var arbitraryWrite = LMCSdoRequest.CreateWrite(
+                1,
+                0x6061,
+                0,
+                LMCSignalValueType.Int8,
+                TestFrame.Hex("08 00 00 00"),
+                200);
+            AssertEx.Equal((ushort)1, arbitraryWrite.SlaveReference);
+            AssertEx.Equal((ushort)0x6061, arbitraryWrite.ObjectIndex);
+            AssertEx.Equal((byte)0, arbitraryWrite.SubIndex);
+            AssertEx.Equal(LMCSignalValueType.Int8, arbitraryWrite.ValueType);
+            AssertEx.True(arbitraryWrite.IsWrite);
+
             AssertEx.Throws<ArgumentOutOfRangeException>(
                 () => LMCSdoRequest.CreateRead(
                     0,
