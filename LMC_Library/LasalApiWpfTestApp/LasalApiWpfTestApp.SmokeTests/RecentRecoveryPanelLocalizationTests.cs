@@ -66,7 +66,7 @@ namespace LasalMotionControlApiExample
                     "The dynamically created SetOperationMode axis label was not found in Korean UI.");
                 AssertContains(
                     setOperationModeText,
-                    "PP(1)/PV(3)/IP(7)/CSP(8) 소프트웨어 target이 구현되어 있습니다.",
+                    "PP(1)/PV(3)/IP(7)/CSP(8) 소프트웨어 target이 구현되어 있습니다. PLC capability와 hardware qualification이 완료될 때까지 Production Start는 비활성화됩니다. Homing(6)은 여기서 사용할 수 없습니다.",
                     "The dynamically created SetOperationMode multi-mode warning was not found in Korean UI.");
                 AssertContains(
                     setOperationModeText,
@@ -113,7 +113,7 @@ namespace LasalMotionControlApiExample
                     "English restore did not recover the SetOperationMode axis label.");
                 AssertContains(
                     setOperationModeText,
-                    "PP(1)/PV(3)/IP(7)/CSP(8) software targets are implemented.",
+                    "PP(1)/PV(3)/IP(7)/CSP(8) software targets are implemented. Production Start remains disabled until PLC capability and hardware qualification are complete. Homing(6) remains unavailable here.",
                     "English restore did not recover the SetOperationMode multi-mode warning.");
                 AssertContains(
                     setOperationModeText,
@@ -150,7 +150,7 @@ namespace LasalMotionControlApiExample
                     "The second Korean pass did not restore the SetOperationMode axis translation.");
                 AssertContains(
                     setOperationModeText,
-                    "PP(1)/PV(3)/IP(7)/CSP(8) 소프트웨어 target이 구현되어 있습니다.",
+                    "PP(1)/PV(3)/IP(7)/CSP(8) 소프트웨어 target이 구현되어 있습니다. PLC capability와 hardware qualification이 완료될 때까지 Production Start는 비활성화됩니다. Homing(6)은 여기서 사용할 수 없습니다.",
                     "The second Korean pass did not restore the SetOperationMode multi-mode warning translation.");
                 AssertContains(
                     setOperationModeText,
