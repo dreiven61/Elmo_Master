@@ -1278,6 +1278,18 @@ namespace LasalMotionControlApiExample
 
             var triad = HasAxisSetOperationModeCapabilityTriad();
             var diagnostics = HasStableAxisSetOperationModeDiagnosticsIdentity();
+            var confirmed = checkAxisSetOperationModeOneShotConfirmed != null
+                && checkAxisSetOperationModeOneShotConfirmed.IsChecked == true;
+            var selectedModeAdvertised =
+                comboAxisSetOperationModeRequestedMode != null
+                && comboAxisSetOperationModeRequestedMode.SelectedItem
+                    is LMCDriveOperationMode
+                && adminCapabilities != null
+                && adminCapabilities.SupportsSetOperationMode(
+                    (LMCDriveOperationMode)
+                        comboAxisSetOperationModeRequestedMode.SelectedItem);
+            var admissionAllowed = EvaluateDiagnosticsAdmission(
+                DiagnosticsAdmissionOperation.NewLiveOrMutation).IsAllowed;
             textAxisSetOperationModeRecoveryStatus.Text =
                 "Journal ready; no unresolved record. AdminTriad="
                 + triad
@@ -1288,7 +1300,15 @@ namespace LasalMotionControlApiExample
                     .ToString("X4")
                 + ", DiagnosticsIdentity="
                 + diagnostics
-                + ". Current PLC activation is expected to keep Start disabled until bits 8/9/10 are explicitly enabled after MODE-13 evidence passes.";
+                + ", Confirmed="
+                + confirmed
+                + ", SelectedModeAdvertised="
+                + selectedModeAdvertised
+                + ", AdmissionAllowed="
+                + admissionAllowed
+                + ", JournalReady="
+                + AxisSetOperationModeRecoveryJournalCanArm
+                + ". Start is enabled only when every displayed gate and the axis/timeout/idle gates are true.";
         }
 
         private static string FormatAxisSetOperationModeStartRejection(
