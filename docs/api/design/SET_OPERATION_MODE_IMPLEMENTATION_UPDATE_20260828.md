@@ -2,63 +2,67 @@
 
 > 상태: current implementation addendum
 >
-> 기준 source: `dev@b3be6bf19bd9effb2240a4713424b288643d2a3e`
+> 기준 source: `dev@45fc528c48723cbe3ba20fb11c3a2d7ec0e7ef0b`
 >
-> qualification branch: `codex/setopmode-mode11-bench-activation@eae31dd0365c4ae39f4d56874b8a1b82ab477146`
+> 현재 qualification branch: `codex/setopmode-mode11-bench-activation@eae31dd0365c4ae39f4d56874b8a1b82ab477146` — **stale / 다음 실기 전 재생성 필요**
 >
-> 추적: issue #46, qualification PR #18
+> 추적: issue #46, qualification PR #18, MODE-11E PR #52, MODE-11F PR #53
 >
-> 이 문서는 기존 `SET_OPERATION_MODE_DESIGN.md`의 historical evidence를 삭제하지 않고, 현재 구현과 달라진 2/4/6/8/9절의 해석을 보완한다. 충돌하는 경우 이 문서의 2026-08-28 current-state 판정을 우선한다.
+> 이 문서는 기존 `SET_OPERATION_MODE_DESIGN.md`의 historical evidence를 삭제하지 않고 current implementation과 release boundary를 보완한다. 충돌하는 경우 이 문서의 current-state 판정을 우선한다.
 
 ## 1. 현재 판정
 
-현재 SetOperationMode는 **multi-mode software implementation은 진행됐지만 PP/PV/IP가 CSP와 동일 수준으로 qualification된 상태는 아니다.**
+SetOperationMode의 **multi-mode software path와 no-replay recovery, operator diagnostics는 구현 단계가 상당 부분 닫혔다.** 다만 PP/PV/IP의 실제 mode-change packet/hardware qualification과 current-image C78/PLC evidence가 아직 남아 있으므로 release 완료로 보지 않는다.
 
-- source/PC 구현 진행도: **약 70%**
-- release-oriented qualification 진행도: **약 60%**
+- source/PC 구현 진행도: **약 80%**
+- release-oriented qualification 진행도: **약 65%**
 - production activation: **OFF 유지**
 - `dev` runtime gate: `LMC_DIAG_SET_OPERATION_MODE_ENABLED = FALSE`
 - `dev` Admin bits 8/9/10: OFF
-- `dev` advertised `SetOperationModeSupportedMask`: 0
-- qualification branch: runtime gate + Admin triad만 test-active로 올리는 `DO NOT MERGE` branch
+- `dev` advertised `SetOperationModeSupportedMask`: `0x0000`
+- production 의미: 신규 SetOperationMode mutation은 dormant
+
+진행도는 checklist 단순 비율이 아니라 구현/검증 grade를 분리한 추정치다. PP/PV/IP physical PASS 전에는 `multi-mode complete`로 기록하지 않는다.
 
 ### 1.1 기능별 판정
 
 | 기능 | 현재 판정 | 근거 / 남은 것 |
 |---|---|---|
 | immutable Start/Outcome/Retire contract | 완료 | `0x7D23/0x7D24/0x7D25`, durable identity, exact-generation retire |
-| PP(1)/PV(3)/IP(7)/CSP(8) request parsing | 완료 | SDK/LASAL requested-mode allow path 존재 |
-| same-mode no-write | source 완료 | `0x6061 == requestedMode`이면 `SucceededNoWrite`; formal packet evidence는 CSP부터 확보 필요 |
-| cross-mode `0x6060` mutation | source 완료 / physical 미완료 | requested mode를 exact 1-byte write하고 `0x6061` exact verify |
-| non-CSP preflight | source 완료 | Standstill + Fault clear + OperationEnabled clear + owner/SDO conflict clear 요구 |
-| write-dispatch 이후 no-replay | 완료 | recovery는 `0x6061` read-only; original Start/`0x6060` replay 금지 |
-| PP/PV/IP warm-start recovery | **미완료** | warm-start candidate filter에 `requestedMode == 8` CSP-only 조건 잔존 |
-| PLC `SupportedModeMask` wire/SDK/WPF 연동 | source 완료 | software mask PP/PV/IP/CSP = `0x018A`; release 의미는 아래 정책으로 제한 |
-| WPF selector | 완료 | PP/PV/IP/CSP 항상 표시/선택 가능; Start는 live PLC triad/mask로 fail-closed |
-| Axis1 PP/PV/IP 실제 mode change | **미완료** | exact C78/PLC image에서 packet/readback evidence 필요 |
+| PP(1)/PV(3)/IP(7)/CSP(8) request parsing | 완료 | SDK/LASAL requested-mode path |
+| same-mode no-write | source 완료 / physical evidence 대기 | `0x6061 == requestedMode`이면 `WriteRequested=0`, `WriteDispatched=0` |
+| cross-mode `0x6060` mutation | source 완료 / physical 미완료 | requested mode exact 1-byte write 후 `0x6061` exact verify |
+| non-CSP preflight | source 완료 | PhysicalValid + Standstill + Fault clear + OperationEnabled clear + conflict clear |
+| write-dispatch 이후 no-replay | 완료 | recovery는 `0x6061` read-only, original Start/`0x6060` replay 금지 |
+| PP/PV/IP/CSP warm-start recovery | **완료 — MODE-11E** | CSP-only candidate 제거, multi-mode candidate + identity fence + multi-candidate fail-closed |
+| PLC `SupportedModeMask` wire/SDK/WPF 연동 | source 완료 | candidate mask PP/PV/IP/CSP = `0x018A`; production은 physical PASS mode만 광고해야 함 |
+| WPF selector | 완료 | PP/PV/IP/CSP 선택 가능, 실제 Start는 live PLC triad/mask로 fail-closed |
+| WPF rejection/preflight diagnostics | **완료 — MODE-11F** | requested/preflight/observed, DetailCode, DS402/evidence/write state 표시 |
+| Axis1 CSP/PP/PV/IP actual mode change | **미완료** | exact current C78/PLC image에서 packet/readback evidence 필요 |
+| timeout/disconnect/mismatch/quarantine matrix | 미완료 | Axis1부터 evidence 필요 |
 | Axis2..4 matrix | 미완료 | Axis1 closure 이후 확대 |
-| production activation | 미완료 | physical qualification 완료 후 별도 review |
+| production activation | 미완료 | physical qualification + release mask + paired activation review 필요 |
 
 ## 2. 현재 정상 mutation 경로
 
-정상 mutation path는 더 이상 CSP=8 write로 하드코딩하지 않는다.
+정상 mutation path는 CSP=8로 하드코딩하지 않는다.
 
-1. `0x7D23 Start`에서 `requestedMode`를 exact durable record에 저장한다.
+1. `0x7D23 Start`에서 `requestedMode`를 durable key/record에 저장한다.
 2. `0x6061:0`을 Int8/1 byte로 preflight read한다.
-3. `observedMode == requestedMode`이면 `WriteRequested=0`, `WriteDispatched=0`으로 terminal success한다.
+3. `observedMode == requestedMode`이면 write 없이 terminal success한다.
 4. mode가 다르면 cross-mode safety preflight를 수행한다.
-5. 통과하면 `AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_WRITE_DATA] = requestedMode`를 사용해 `0x6060:0`에 **exact 1 byte**를 한 번 write한다.
+5. 통과하면 `requestedMode`를 `0x6060:0`에 **exact 1 byte, 1회** write한다.
 6. write completion 후 `0x6061:0`을 다시 read한다.
-7. `observedMode == requestedMode`일 때만 terminal success를 publish한다.
-8. write outcome이 불확실하면 새 `0x6060` write를 만들지 않고 read-only recovery로 이동한다.
+7. `observedMode == requestedMode`일 때만 success를 publish한다.
+8. write dispatch 이후 outcome이 불확실하면 새 `0x6060` write 없이 read-only recovery로 이동한다.
 
-즉 PP/PV/IP가 선택됐는데 내부에서 CSP=8을 쓰는 구조는 현재 source에 없다.
+따라서 PP/PV/IP를 선택했을 때 내부에서 CSP=8을 쓰는 정상 mutation 경로는 current source에 없다.
 
-## 3. CSP만 동작하는 것처럼 보이는 이유
+## 3. CSP만 동작하는 것처럼 보일 수 있는 이유
 
-현재 축이 CSP(8)일 때 CSP를 다시 선택하면 preflight read에서 즉시 same-mode가 성립한다. 이 경로는 실제 `0x6060` mutation이 필요 없으므로 가장 쉽게 성공한다.
+현재 mode가 CSP(8)인 상태에서 CSP를 다시 선택하면 same-mode가 즉시 성립하므로 실제 `0x6060` write 없이 성공할 수 있다.
 
-반면 CSP에서 PP/PV/IP로 전환하려면 아래를 모두 만족해야 한다.
+반면 CSP에서 PP/PV/IP로 전환하려면 다음 조건이 모두 필요하다.
 
 - physical context valid
 - target axis Standstill
@@ -70,92 +74,113 @@
 - `LMCSdoExecutor` connected/reusable
 - common ownership/admission tuple valid
 
-하나라도 실패하면 `LMC_DIAG_MODE_DETAIL_UNSAFE(44)` 또는 실행 계열 detail로 terminal safe failure하고 `0x6060` write를 수행하지 않는다.
+하나라도 실패하면 `SetOperationModeUnsafeState(44)` 또는 실행 계열 detail로 safe failure하고 `0x6060` write를 수행하지 않는다.
 
-따라서 `CSP -> CSP PASS`, `CSP -> PP/PV/IP FAIL`만 관찰됐다는 사실만으로 requested-mode write가 CSP로 고정됐다고 판정하면 안 된다. 먼저 preflight detail과 actual SDO dispatch evidence를 구분해야 한다.
+따라서 실기 판정은 반드시 `requested/preflight/observed mode`, DetailCode, `WriteRequested`, `WriteDispatched`를 함께 본다.
 
-## 4. 확인된 구현 결함 — warm-start recovery CSP-only
+## 4. MODE-11E — multi-mode warm-start recovery 완료
 
-`ProcessAxisSetOperationMode`의 warm-start reconstruction에는 아직 다음 의미의 조건이 남아 있다.
+PR #52에서 기존 CSP-only warm-start reconstruction을 PP/PV/IP/CSP로 일반화했고 `dev`에 merge했다.
 
-```text
-Running record
-+ valid magic / owner identity
-+ WriteDispatched evidence
-+ requestedMode == 8
-```
+### 4.1 구현 내용
 
-이 때문에 PP/PV/IP write가 이미 dispatch된 뒤 PLC restart/reconnect가 발생한 경우 CSP와 동일한 recovery candidate로 복원되지 않는다.
+- write-dispatched Running record의 requested mode를 PP(1)/PV(3)/IP(7)/CSP(8) 범위로 일반화
+- non-CSP candidate는 loaded-image software-mode gate를 통과해야 함
+- record generation과 admission/owner/session/sequence identity를 nonzero/exact fence로 강화
+- exact magic / axis / reference / record identity를 검증
+- candidate가 둘 이상이면 fail-closed
+- 다중 candidate 발견 시 이미 staging한 첫 runtime 영역도 즉시 clear
+- recovery helper는 `0x6060` write를 생성하지 않음
+- recovery는 exact `0x6061` read-only 확인으로만 terminal 판단
 
-### 4.1 수정 원칙
+### 4.2 검증 결과
 
-warm-start candidate는 mode 값 자체가 아니라 다음 조건으로 판정해야 한다.
+- SetOperationMode static qualification: PASS
+- SetOperationMode C78 evidence tool: PASS
+- HomeDS402 H37 source regression: PASS
+- HomeDS402Ex LASAL/static/ownership/retained-store regressions: PASS
+- MODE-11E merge commit: `dev@10e7ba11e99770d1d62988007df6ed444604b33f`
 
-- `requestedMode`가 **그 record가 만들어질 당시 loaded image에서 허용된 qualification mode**인지
-- exact record magic / generation / owner tuple이 유효한지
-- `WriteDispatched` evidence가 존재하는지
-- `OwnerReleased`가 아직 없는 Running record인지
-- axis/reference/recordBase가 exact match인지
-- candidate가 singleton인지
+이 PASS는 source/static/PC regression 증거다. fresh current-image C78/PLC/hardware PASS를 대신하지 않는다.
 
-복원 후 `LMC_DIAG_MODE_RUNTIME_WRITE_DATA`는 record의 `requestedMode`를 복사하지만, recovery stage에서는 이를 write source로 사용하지 않는다. recovery는 계속 `0x6061` read-only여야 한다.
+## 5. MODE-11F — WPF rejection/preflight diagnostics 완료
 
-### 4.2 acceptance criteria
+PR #53에서 실패 원인과 실제 wire mutation 여부를 operator가 구분할 수 있도록 WPF diagnostics를 확장했고 `dev`에 merge했다.
 
-- PP/PV/IP/CSP 각각 write-dispatched Running fixture가 warm-start recovery candidate가 됨
-- recovery helper 내부 `0x6060` write site 0개 유지
-- exact `0x6061` match만 terminal success
-- mismatch/timeout/callback uncertainty는 quarantine
-- 두 개 이상의 candidate가 있으면 fail-closed
-- unsupported/corrupt requested mode record는 reconstruct하지 않음
+### 5.1 표시 항목
 
-## 5. SupportedModeMask 의미 재정의
+Start definitive rejection 또는 terminal outcome에서 다음을 표시한다.
 
-현재 wire는 AdminCapabilities의 기존 reserved `UInt16` 슬롯을 `SetOperationModeSupportedMask`로 사용한다.
+- Requested mode
+- Preflight/Previous mode
+- Observed mode
+- Axis / RequestId
+- CommandStatus
+- ErrorId
+- symbolic + numeric DetailCode
+- DiagnosticsBuild / BootId / MapRevision
+- DS402 StatusWord
+- Fault
+- OperationEnabled
+- PhysicalValid
+- EvidenceFlags
+- WriteRequested
+- WriteDispatched
+- VerifyReadDispatched
+- VerifyReadCompleted
+- OwnerReleased
+- ExecutorReusable
+- ContextCheck
+- QuarantineReason
+- RecordGeneration
 
-bit N은 DS402 mode N을 의미한다.
+현재 outcome wire에는 원본 Standstill field가 없으므로 **`Standstill=not-exported`**로 표시한다. 다른 bit로 추정해서 PASS/FAIL을 만들지 않는다.
+
+### 5.2 검증 결과
+
+PR #53 fixed head `875dbe588c08509193660eeb8675dc8b734b312b` 기준:
+
+- SetOperationMode WPF recovery Debug/Release: PASS
+- HomeDS402Ex WPF recovery Debug/Release: PASS
+- HomeDS402 H37 source qualification: PASS
+- Korean/English localization round-trip: PASS
+- MODE-11F merge commit: `dev@45fc528c48723cbe3ba20fb11c3a2d7ec0e7ef0b`
+
+## 6. SupportedModeMask 계약
+
+AdminCapabilities의 `SetOperationModeSupportedMask`에서 bit N은 DS402 mode N을 의미한다.
 
 - PP(1): `0x0002`
 - PV(3): `0x0008`
 - IP(7): `0x0080`
 - CSP(8): `0x0100`
-- PP/PV/IP/CSP 전체 candidate mask: `0x018A`
+- PP/PV/IP/CSP qualification candidate mask: `0x018A`
 
-### 5.1 중요한 구분
-
-`SupportedModeMask`는 **현재 loaded image가 Start를 받아들일 수 있도록 enable한 mode 집합**을 뜻한다. 이것만으로 physical qualification PASS를 의미하지 않는다.
-
-따라서 image 종류별 의미를 분리한다.
+### 6.1 image별 의미
 
 | image | Admin triad | mask | 의미 |
 |---|---:|---:|---|
 | production `dev` dormant | OFF | `0x0000` | 신규 SetOperationMode mutation 금지 |
-| qualification candidate | ON | 시험 대상 mask | bench에서 실제 mode를 검증하기 위한 test enable |
-| future production | ON | physical PASS mode만 | release evidence와 paired activation 후에만 허용 |
+| qualification candidate | ON | 시험 대상 mask | bench test enable; physical PASS 자체를 뜻하지 않음 |
+| future production | ON | physical PASS mode만 | mode별 evidence와 paired activation 후 허용 |
 
-qualification branch에서 `0x018A`를 광고하는 것은 PP/PV/IP/CSP가 이미 release-qualified라는 뜻이 아니다. WPF에는 qualification banner와 live mask를 명확히 표시해야 한다.
+`0x018A`를 광고했다는 사실만으로 PP/PV/IP/CSP가 production-qualified라고 판정하지 않는다.
 
-### 5.2 production 정책
-
-production activation review에서는 mode별 evidence matrix를 기준으로 mask를 구성한다. 한 mode라도 physical evidence가 없으면 그 bit를 production mask에 넣지 않는다.
-
-## 6. WPF/SDK 동작 계약
-
-PR #50 이후 selector UX와 wire admission을 분리한다.
+## 7. WPF/SDK admission 계약
 
 ### selector
 
 - PP/PV/IP/CSP 4개 software-known target은 항상 표시한다.
-- PLC mask가 0이어도 operator가 mode를 선택해 UI/로그를 확인할 수 있다.
+- PLC mask가 0이어도 operator가 선택/로그 확인은 가능하다.
 - Homing(6)은 표시하지 않는다.
 
 ### Start
 
-Start는 다음 조건을 모두 만족해야만 enabled/dispatch 가능하다.
+Start는 다음을 모두 만족해야만 enabled/dispatch 가능하다.
 
 - connected + idle
 - no unresolved SetOperationMode recovery
-- durable recovery journal arm 가능
+- durable journal arm 가능
 - Admin capability bits 8/9/10 full triad
 - stable DiagnosticsBuild/BootId/MapRevision
 - selected mode가 live `SetOperationModeSupportedMask`에 포함
@@ -163,23 +188,9 @@ Start는 다음 조건을 모두 만족해야만 enabled/dispatch 가능하다.
 - explicit one-shot confirmation
 - common diagnostics admission allowed
 
-Start 직전 capabilities를 다시 읽고 selected mode가 사라졌으면 zero-wire로 거부한다.
+Start 직전 capability를 다시 읽고 selected mode가 사라졌으면 zero-wire로 거부한다.
 
-### 진단 보완 필요
-
-현재 다음 operator-visible 정보가 부족하다.
-
-- Start definitive rejection의 symbolic/numeric DetailCode
-- requested mode / preflight observed mode
-- DS402 StatusWord snapshot
-- Standstill / OperationEnabled / Fault 판단 결과
-- owner/resource conflict 종류
-- SDO executor connected/reusable 여부
-- actual `WriteRequested/WriteDispatched` 여부
-
-다음 WPF tranche에서 이 정보를 로그와 evidence export에 포함한다.
-
-## 7. revised state machine
+## 8. revised state machine
 
 ```text
 Accepted(requestedMode)
@@ -209,97 +220,139 @@ Accepted(requestedMode)
   -> exact-generation Retire
 ```
 
-Warm-start는 `WriteDispatched`가 증명된 Running record만 reconstruct하며, requestedMode는 PP/PV/IP/CSP candidate 범위로 일반화한다. **warm-start/reconnect recovery는 어떤 경우에도 새 `0x6060` write를 만들지 않는다.**
+Warm-start는 `WriteDispatched`가 증명된 exact Running record만 reconstruct한다. requestedMode는 PP/PV/IP/CSP candidate 범위이며 **warm-start/reconnect recovery는 어떤 경우에도 새 `0x6060` write를 만들지 않는다.**
 
-## 8. 구현 체크리스트 개정
+## 9. qualification branch 상태
 
-기존 MODE-01..14 historical numbering은 유지하고, current multi-mode work를 다음 sub-gate로 추가한다.
+현재 branch `codex/setopmode-mode11-bench-activation@eae31dd...`는 merge-base가 `dev@b3be6bf...`이고, current `dev@45fc528c...`와 **diverged** 상태다.
+
+current qualification branch에는 activation-only commit이 존재하지만 다음 current-dev 변경이 빠져 있다.
+
+- MODE-11E multi-mode warm-start recovery
+- MODE-11F WPF diagnostics/localization
+- current implementation addendum update
+
+따라서 **다음 실장비 test에는 현재 branch head를 그대로 사용하지 않는다.**
+
+### 9.1 다음 qualification branch 재생성 규칙
+
+current `dev@45fc528c...`에서 새 qualification head를 만든 뒤 production source와 차이는 최소한 다음 activation delta만 허용한다.
+
+1. `LMC_DIAG_SET_OPERATION_MODE_ENABLED = TRUE`
+2. Admin capability bits 8/9/10 ON
+3. qualification `SetOperationModeSupportedMask`에 시험 대상 mode bit만 명시
+
+재생성 후 반드시 `dev...qualification` diff를 확인해 stale implementation/generated artifact가 섞이지 않았는지 증명한다.
+
+## 10. 구현 / qualification 체크리스트
 
 - [x] `MODE-01..09` protocol/owner/runtime/no-replay/safety/generic-0x6060-deny source 구현
-- [ ] `MODE-10` current exact `dev` C78/ARM Rebuild+Link + generated artifact identity + PLC load 재검증
+- [ ] `MODE-10` **current exact `dev@45fc528c...`** C78/ARM Rebuild+Link + generated artifact identity + PLC load
 - [ ] `MODE-11A` Axis1 CSP same-mode zero-write packet evidence
-- [ ] `MODE-11B` Axis1 safe-state cross-mode `CSP -> PP -> CSP` exact-one-write/readback
-- [ ] `MODE-11C` Axis1 safe-state cross-mode `CSP -> PV -> CSP` exact-one-write/readback
-- [ ] `MODE-11D` Axis1 safe-state cross-mode `CSP -> IP -> CSP` exact-one-write/readback
-- [ ] `MODE-11E` **PP/PV/IP/CSP warm-start recovery generalization** + no-write recovery regression
-- [ ] `MODE-11F` WPF preflight/rejection diagnostics 및 evidence export
+- [ ] `MODE-11B` Axis1 safe-state `CSP -> PP -> CSP` exact-one-write/readback
+- [ ] `MODE-11C` Axis1 safe-state `CSP -> PV -> CSP` exact-one-write/readback
+- [ ] `MODE-11D` Axis1 safe-state `CSP -> IP -> CSP` exact-one-write/readback
+- [x] `MODE-11E` PP/PV/IP/CSP warm-start recovery generalization + no-write recovery regression
+- [x] `MODE-11F` WPF preflight/rejection/write-evidence diagnostics + localization regression
 - [ ] `MODE-11G` mode별 qualification evidence와 qualification/release mask coupling
-- [ ] `MODE-12` Axis1 timeout/disconnect/mismatch/quarantine/retire + Axis2..4 확대
+- [ ] `MODE-12A` Axis1 timeout/disconnect/mismatch/quarantine/retire matrix
+- [ ] `MODE-12B` Axis2..4 확대
 - [x] `MODE-13` WPF durable journal / startup no-replay recovery
 - [ ] `MODE-14` production capability bits 8/9/10 + production-qualified mode mask paired activation
 
-## 9. 실기 테스트 순서
+## 11. 다음 작업 순서
 
-### 9.1 먼저 확인할 공통 상태
+### Phase A — test baseline 재정렬
 
-1. exact qualification branch / exact C78 image identity
-2. `AdminTriad=True`
-3. qualification `SupportedModeMask` 확인
-4. `0x6061` current mode read
-5. DS402 StatusWord read
-6. Standstill=true
-7. Fault=false
-8. OperationEnabled=false — cross-mode test 필수
-9. conflicting owner/SDO 없음
+1. current `dev@45fc528c...`에서 qualification branch 재생성
+2. activation delta만 남았는지 diff 검증
+3. LASAL generated source / `Classes.lcb`를 IDE에서 current source로 재생성
+4. C78/ARM Rebuild + Link
+5. exact image identity 기록
+6. PLC Download/Load
+7. WPF도 동일 source 기준으로 build
 
-### 9.2 same-mode
+### Phase B — Axis1 mode matrix
 
-각 mode가 실제로 current mode가 된 뒤 동일 mode Start를 실행한다.
+8. CSP same-mode zero-write 확인
+9. safe-state `CSP -> PP -> CSP`
+10. safe-state `CSP -> PV -> CSP`
+11. safe-state `CSP -> IP -> CSP`
 
-PASS 조건:
+cross-mode PASS 조건:
 
-- `WriteRequested=0`
-- `WriteDispatched=0`
-- terminal `ObservedMode == RequestedMode`
+- preflight `0x6061` = source mode
+- `0x6060:0 = requestedMode` exact 1-byte write **1회**
+- duplicate `0x6060` write 0회
+- verify `0x6061:0 = requestedMode`
+- terminal success
+- owner released / executor reusable
+- exact-generation retire 후 slot clear
+
+same-mode PASS 조건:
+
+- `WriteRequested=False`
+- `WriteDispatched=False`
+- `ObservedMode == RequestedMode`
 - owner released / executor reusable
 
-### 9.3 cross-mode
+### Phase C — failure/recovery matrix
 
-PP/PV/IP 각각에 대해 Axis1에서 먼저 수행한다.
+12. unsafe preflight: OperationEnabled=true / Fault / Standstill false 등에서 zero-write rejection 확인
+13. timeout before write / after possible write 구분
+14. disconnect / lost callback
+15. verify mismatch
+16. quarantine 유지
+17. reconnect/warm-start read-only recovery
+18. exact-generation retire
 
-PASS 조건:
+### Phase D — evidence-driven mode mask
 
-- preflight `0x6061`은 source mode
-- `0x6060:0 = requestedMode` exact 1-byte write **1회**
-- duplicate write 0회
-- verify `0x6061:0 = requestedMode`
-- terminal success evidence
-- retire 후 slot clear
-- CSP 복귀도 동일한 exact-one-write/readback 규칙을 만족
+19. MODE-11G에서 mode별 evidence ledger를 작성한다.
+20. qualification mask와 future production mask를 분리한다.
+21. physical PASS 없는 mode bit는 production mask에 넣지 않는다.
+22. Axis1 closure 후 Axis2..4로 동일 matrix를 확대한다.
 
-현재 ordinary motion은 non-CSP mode에서 별도 activation하지 않는다. mode change qualification과 PP/PV/IP motion qualification을 혼동하지 않는다.
+### Phase E — release
 
-## 10. 다음 구현 순서
+23. current exact source/generated/C78/distribution/docs sync
+24. MODE-14 paired activation review
+25. runtime gate + Admin triad + production-qualified mask를 하나의 승인된 image에서 함께 변경
 
-1. **MODE-11E warm-start recovery multi-mode 일반화**
-2. source/static regression에서 recovery helper `0x6060` write 0개 재확인
-3. **MODE-11F WPF failure/preflight evidence 상세화**
-4. qualification branch를 current `dev`에서 재생성하고 candidate mask를 명시
-5. fresh C78/ARM Rebuild + Link + generated artifact capture
-6. Axis1 CSP same-mode / PP / PV / IP / CSP-return physical matrix
-7. mode별 PASS 결과에 따라 qualification/release mask 정책 갱신
-8. timeout/disconnect/mismatch/quarantine/retire matrix
-9. Axis2..4 확대
-10. MODE-14 production paired activation review
+## 12. 실기 로그 판정 규칙
 
-## 11. 진행도 산정 규칙
+MODE-11F 이후에는 다음 식으로 원인을 구분한다.
 
-향후 SetOperationMode 진행도는 source가 존재한다는 이유만으로 올리지 않는다.
+### preflight reject
 
-- **source/PC implementation 약 70%**: multi-mode normal path, supported-mask, WPF selector까지 구현됨
-- **release-oriented 약 60%**: non-CSP recovery와 actual hardware matrix가 미완료
-- PP/PV/IP physical PASS 전에는 `multi-mode complete`로 기록하지 않는다.
-- qualification `0x018A` 광고만으로 production support 완료로 기록하지 않는다.
-- C78/generated artifact/PLC load는 같은 exact source tree 증거여야 한다.
-- branch-only 또는 stale artifact evidence를 current `dev` 완료 근거로 사용하지 않는다.
+예: `Detail=SetOperationModeUnsafeState(44)` + `WriteRequested=False` + `WriteDispatched=False`
 
-## 12. 현재 known blockers
+→ drive가 requested mode를 거부한 증거가 아니다. PLC safety preflight에서 mutation 전에 차단된 것이다.
 
-- warm-start recovery CSP-only candidate condition
-- non-CSP cross-mode preflight가 실제 장비 상태에서 만족되는지 evidence 부족
-- PP/PV/IP 실제 `0x6060` packet + `0x6061` readback physical proof 없음
-- operator-visible rejection/preflight detail 부족
-- current exact `dev` C78/generated-artifact evidence 갱신 필요
-- production mode mask를 physical evidence와 결합하는 release gate 미완료
+### write dispatched + verify mismatch
 
-이 blocker가 닫히기 전 production `dev`의 runtime gate, Admin bits 8/9/10, production supported-mode mask는 계속 OFF/0을 유지한다.
+`WriteDispatched=True`인데 `Observed != Requested`
+
+→ 실제 `0x6060` dispatch 이후 drive/readback 문제로 분류한다. 자동 Start/Write replay 금지.
+
+### same-mode success
+
+`Requested == PreflightMode == Observed` + `WriteDispatched=False`
+
+→ same-mode no-write success다. cross-mode mutation PASS 증거로 사용하지 않는다.
+
+## 13. 현재 known blockers
+
+현재 software blocker 중 MODE-11E/11F는 닫혔다. 남은 blocker는 다음이다.
+
+- qualification branch가 current `dev` 기준이 아님
+- current exact `dev@45fc528c...` C78/generated-artifact/PLC-load evidence 미갱신
+- Axis1 CSP same-mode formal packet evidence 미완료
+- Axis1 PP/PV/IP actual `0x6060` packet + `0x6061` readback physical proof 없음
+- non-CSP safe-state preflight가 실제 장비에서 충족되는지 evidence 필요
+- Standstill 원본 field가 current SetOperationMode outcome wire에 export되지 않음
+- timeout/disconnect/mismatch/quarantine/retire matrix 미완료
+- Axis2..4 physical matrix 미완료
+- production mode mask를 physical evidence와 결합하는 MODE-11G/14 release gate 미완료
+
+이 blocker가 닫히기 전 production `dev`의 runtime gate, Admin bits 8/9/10, production supported-mode mask는 계속 OFF/OFF/`0x0000`을 유지한다.
