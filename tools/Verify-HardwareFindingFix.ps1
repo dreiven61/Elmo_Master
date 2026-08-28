@@ -66,7 +66,7 @@ Require-Match $wpfMode '(?s)GetPhysicalAxisAsync\(axisReference\).*?VerifyAxisSe
 # turn this corrective tranche into an unsafe OperationEnabled 0x6060 write.
 Require-Match $plcDiagnostics '#define LMC_DIAG_SET_OPERATION_MODE_SOFTWARE_MODES TRUE' `
     'SetOperationMode PP/PV/IP software target gate is not enabled.'
-Require-Match $plcControl '0x0000018A' `
+Require-Match $plcControl '0x018A' `
     'SetOperationMode advertised qualification mask is not PP/PV/IP/CSP (0x018A).'
 Require-Match $plcDiagnostics '(?s)requestedMode <> 8.*?requestedMode <> 1.*?requestedMode <> 3.*?requestedMode <> 7' `
     'SetOperationMode PLC admission does not retain PP/PV/IP/CSP targets.'
