@@ -1,0 +1,38 @@
+name: Branch cleanup audit
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/branch-cleanup-audit.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Audit codex branches against dev
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'
+          echo '=== BRANCH CLEANUP AUDIT ==='
+          for ref in $(git for-each-ref --format='%(refname:short)' refs/remotes/origin/codex/ | sort); do
+            name=${ref#origin/}
+            sha=$(git rev-parse "$ref")
+            if git merge-base --is-ancestor "$sha" origin/dev; then
+              status=MERGED_IN_DEV
+              ahead=0
+            else
+              status=NOT_MERGED
+              ahead=$(git rev-list --count origin/dev.."$ref")
+            fi
+            behind=$(git rev-list --count "$ref"..origin/dev)
+            subject=$(git log -1 --format='%s' "$ref")
+            printf '%s|%s|ahead=%s|behind=%s|sha=%s|%s\n' "$status" "$name" "$ahead" "$behind" "$sha" "$subject"
+          done
