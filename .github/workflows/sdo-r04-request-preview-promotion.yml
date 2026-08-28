@@ -22,27 +22,43 @@ jobs:
         with:
           fetch-depth: 0
       - uses: microsoft/setup-msbuild@v2
+
       - name: Apply current-dev patch
         shell: powershell
         run: python .\tools\Apply-SdoR04RequestPreview.py
+
       - name: Normalize verifier for Windows PowerShell 5.1
         shell: powershell
         run: python .\tools\Fix-SdoR04PromotionVerifier.py
+
       - name: Verify focused source contract
         shell: powershell
         run: .\tools\Verify-SdoR04RequestPreview.ps1
+
       - name: Build Debug smoke suite
         shell: powershell
         run: msbuild .\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\LasalApiWpfTestApp.SmokeTests.csproj /t:Build /p:Configuration=Debug /m
-      - name: Run WPF smoke suite
+
+      - name: Run Generic SDO targeted smoke
         shell: powershell
-        run: .\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\bin\Debug\LasalApiWpfTestApp.SmokeTests.exe
+        run: .\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\bin\Debug\LasalApiWpfTestApp.SmokeTests.exe --filter 'Wpf.Sdo.'
+
+      - name: Verify static localization catalog coverage
+        shell: powershell
+        run: .\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\bin\Debug\LasalApiWpfTestApp.SmokeTests.exe --filter 'Wpf.UiLocalization.StaticChromeHasExplicitCatalogEntries'
+
+      - name: Verify localization service round trip
+        shell: powershell
+        run: .\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\bin\Debug\LasalApiWpfTestApp.SmokeTests.exe --filter 'Wpf.UiLocalization.ServiceEnglishKoreanEnglishPreservesTextBox'
+
       - name: Build Release smoke suite
         shell: powershell
         run: msbuild .\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\LasalApiWpfTestApp.SmokeTests.csproj /t:Build /p:Configuration=Release /m
+
       - name: Diff hygiene
         shell: powershell
         run: git diff --check
+
       - name: Commit promoted implementation
         shell: powershell
         run: |
