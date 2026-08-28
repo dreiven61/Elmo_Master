@@ -6,6 +6,7 @@ on:
       - codex/sdo-r04-request-preview-current-dev
     paths:
       - 'tools/Apply-SdoR04RequestPreview.py'
+      - 'tools/Fix-SdoR04PromotionVerifier.py'
       - '.github/workflows/sdo-r04-request-preview-promotion.yml'
   workflow_dispatch:
 
@@ -24,6 +25,9 @@ jobs:
       - name: Apply current-dev patch
         shell: powershell
         run: python .\tools\Apply-SdoR04RequestPreview.py
+      - name: Normalize verifier for Windows PowerShell 5.1
+        shell: powershell
+        run: python .\tools\Fix-SdoR04PromotionVerifier.py
       - name: Verify focused source contract
         shell: powershell
         run: .\tools\Verify-SdoR04RequestPreview.ps1
