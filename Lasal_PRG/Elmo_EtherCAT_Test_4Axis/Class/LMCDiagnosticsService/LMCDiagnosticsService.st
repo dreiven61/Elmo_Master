@@ -547,8 +547,9 @@ END_FUNCTION
 #define LMC_DIAG_HOMEEX_DETAIL_SLOT_OCCUPIED 60
 #define LMC_DIAG_HOMEEX_DETAIL_INVALID_PROFILE 61
 #define LMC_DIAG_HOMEEX_DETAIL_CLEANUP_INCOMPLETE 62
-// SetOperationMode runtime remains private until MODE-14 paired activation.
-#define LMC_DIAG_SET_OPERATION_MODE_ENABLED FALSE
+// Qualification integration only. Production activation remains gated by the
+// MODE-12/MODE-13 physical and recovery evidence matrix.
+#define LMC_DIAG_SET_OPERATION_MODE_ENABLED TRUE
 #define LMC_DIAG_SET_OPERATION_MODE_SOFTWARE_MODES TRUE
 #define LMC_DIAG_DS402_PREFLIGHT_READY -2
 #define LMC_DIAG_DS402_STAGE_INTENT_DISCARD_CLEAR 86

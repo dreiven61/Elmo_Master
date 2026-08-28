@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [ValidateRange(1, 4)]
-    [int]$ExpectedSdoWriteAxis = 1
+    [int]$ExpectedSdoWriteAxis = 1,
+    [switch]$QualificationActivation
 )
 
 Set-StrictMode -Version Latest
@@ -124,9 +125,19 @@ $tcp = ConvertTo-LfText ([System.IO.File]::ReadAllText($tcpPath))
 Write-Host 'MODE-10 SetOperationMode source/static qualification'
 Write-Host "Repository: $repoRoot"
 Write-Host "ExpectedSdoWriteAxis compatibility parameter: $ExpectedSdoWriteAxis"
+Write-Host "QualificationActivation: $QualificationActivation"
 
-# MODE-14 remains closed. MODE-10 must never activate the feature.
-Assert-Regex $diagnostics '(?m)^#define[\t ]+LMC_DIAG_SET_OPERATION_MODE_ENABLED[\t ]+FALSE[\t ]*$' 'SetOperationMode compile-time activation gate is FALSE' -ExpectedCount 1
+# Production keeps the feature closed. A dedicated qualification integration
+# may open the paired runtime/Admin triad without weakening the source contract.
+if ($QualificationActivation) {
+    Assert-Regex $diagnostics '(?m)^#define[\t ]+LMC_DIAG_SET_OPERATION_MODE_ENABLED[\t ]+TRUE[\t ]*$' 'SetOperationMode qualification activation gate is TRUE' -ExpectedCount 1
+    Assert-Regex $control '\(pResponseFrame \+ 24\)\^\$UDINT := 0x00000717;' 'Admin capability mask advertises the SetOperationMode triad' -ExpectedCount 1
+    Assert-Regex $control '\(pResponseFrame \+ 46\)\^\$UINT := 0x018A;' 'Admin capability payload advertises PP/PV/IP/CSP mask' -ExpectedCount 1
+}
+else {
+    Assert-Regex $diagnostics '(?m)^#define[\t ]+LMC_DIAG_SET_OPERATION_MODE_ENABLED[\t ]+FALSE[\t ]*$' 'SetOperationMode compile-time activation gate is FALSE' -ExpectedCount 1
+    Assert-Regex $control '\(pResponseFrame \+ 24\)\^\$UDINT := 0x00000017;' 'Production Admin capability mask keeps SetOperationMode closed' -ExpectedCount 1
+}
 Assert-Regex $diagnostics 'LMC_DIAG_SET_OPERATION_MODE_ENABLED[\t ]*=[\t ]*FALSE' 'runtime paths explicitly honor the OFF gate' -MinimumCount 3
 
 # Frozen MODE-06 owner ABI and TCP routing.

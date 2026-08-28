@@ -1241,18 +1241,7 @@ namespace LasalMotionControlApiExample
                 && mode == SdoOperationMode.Write
                 && !HasPendingD5SdoWriteReadback)
             {
-                var selectedTarget = ComboSdoWriteTarget == null
-                    ? null
-                    : ComboSdoWriteTarget.SelectedItem
-                        as LMCSdoWriteTarget;
-                var englishCaption =
-                    HasCurrentSdoWriteActivationQualificationProof(
-                        connection,
-                        diagnosticCapabilities,
-                        selectedTarget)
-                        ? "Arm SDO Write"
-                        : "Run Same-Value Qualification First";
-                ButtonSubmitSdo.Content = englishCaption;
+                ButtonSubmitSdo.Content = "Arm SDO Write";
                 UiLocalizationService.Apply(
                     ButtonSubmitSdo,
                     currentUiLanguage);
@@ -1643,7 +1632,6 @@ namespace LasalMotionControlApiExample
                             isRequiredWriteReadback
                                 || RequiresGeneralInlineSdoRead(request));
                     D5SdoQuarantineHandle submissionGuard;
-                    LMCSdoWriteTarget pinnedWriteTarget = null;
                     try
                     {
                         if (isRequiredWriteReadback
@@ -1661,22 +1649,6 @@ namespace LasalMotionControlApiExample
                             request);
                         if (request.IsWrite)
                         {
-                            var currentApprovedTarget =
-                                FindApprovedSdoWriteTargetForRequest(
-                                    currentConnection.Diagnostics
-                                        .GetApprovedSdoWriteTargets(),
-                                    request);
-                            if (!HasCurrentSdoWriteActivationQualificationProof(
-                                    currentConnection,
-                                    capabilities,
-                                    currentApprovedTarget))
-                            {
-                                throw new InvalidOperationException(
-                                    "Manual SDO Write is blocked until the exact current connection session, DiagnosticsBuild, BootId, MapRevision, and approved target pass the four-ticket Same-Value SDO Write qualification. No Write was submitted.");
-                            }
-
-                            pinnedWriteTarget = currentApprovedTarget;
-
                             await VerifyD5SdoQualificationSafeAxisAsync(
                                 currentConnection,
                                 request.SlaveReference,
@@ -1713,14 +1685,6 @@ namespace LasalMotionControlApiExample
                                     + request.SlaveReference.ToString(
                                         CultureInfo.InvariantCulture),
                                 CancellationToken.None);
-                            if (!HasCurrentSdoWriteActivationQualificationProof(
-                                    currentConnection,
-                                    capabilities,
-                                    pinnedWriteTarget))
-                            {
-                                throw new InvalidOperationException(
-                                    "The manual SDO Write activation proof changed or was retired during final axis verification. No Write was submitted.");
-                            }
                         }
 
                         submissionGuard =
@@ -1760,14 +1724,7 @@ namespace LasalMotionControlApiExample
                                 .SubmitReadbackAsync(
                                      request,
                                      CancellationToken.None)
-                            : request.IsWrite
-                                ? await currentConnection.Diagnostics
-                                    .SubmitSdoWriteIdentityPinnedAsync(
-                                        request,
-                                        capabilities,
-                                        pinnedWriteTarget,
-                                        CancellationToken.None)
-                                : await currentConnection.Diagnostics
+                            : await currentConnection.Diagnostics
                                     .SubmitSdoAsync(
                                         request,
                                         CancellationToken.None);
@@ -2517,15 +2474,6 @@ namespace LasalMotionControlApiExample
                     ? canSubmitMutationOperation
                     : canSubmitReadOnlyOperation)
                 || requiredReadbackSubmissionAvailable;
-            var hasApprovedSdoWriteTarget =
-                ComboSdoWriteTarget.SelectedItem is LMCSdoWriteTarget;
-            var selectedSdoWriteTarget = ComboSdoWriteTarget.SelectedItem
-                as LMCSdoWriteTarget;
-            var manualSdoWriteActivationQualified = !isSdoWrite
-                || HasCurrentSdoWriteActivationQualificationProof(
-                    currentConnection,
-                    diagnosticCapabilities,
-                    selectedSdoWriteTarget);
             if (!isSdoWrite
                 && supportsSdoRead
                 && !supportsGeneralSdoRead
@@ -2572,17 +2520,14 @@ namespace LasalMotionControlApiExample
                     ? "Submit Required Exact Readback"
                     : "Readback Session Mismatch"
                 : isSdoWrite
-                    ? !manualSdoWriteActivationQualified
-                        ? "Run Same-Value Qualification First"
-                        : sdoWriteConfirmationState.IsArmed
+                    ? sdoWriteConfirmationState.IsArmed
                             ? "Confirm & Submit SDO Write"
                             : "Arm SDO Write"
                     : "Submit SDO Read";
             ButtonSubmitSdo.ToolTip = isSdoWrite
                 && !HasPendingD5SdoWriteReadback
-                && !manualSdoWriteActivationQualified
-                    ? "Manual SDO Write is fail-closed until this exact connection session, DiagnosticsBuild, BootId, MapRevision, and approved target pass the four-ticket Same-Value SDO Write qualification below."
-                    : "Write mode uses two-click confirmation after the current-session same-value activation proof. Read mode submits one tracked SDO Read.";
+                    ? "Write Once uses an exact-request two-click confirmation, safe-axis preflight, durable no-replay journal, and mandatory exact readback. Known targets are optional presets."
+                    : "Read mode submits one tracked SDO Read.";
             ButtonSubmitSdo.IsEnabled = connected
                 && idle
                 && canSubmitSdoOperation
@@ -2592,8 +2537,6 @@ namespace LasalMotionControlApiExample
                         && !isSdoWrite
                     : isSdoWrite
                     ? supportsSdoWrite
-                        && hasApprovedSdoWriteTarget
-                        && manualSdoWriteActivationQualified
                         && DiagnosticsMutationJournalCanArm
                     : supportsSdoRead);
             var inlineReadLength = ComboSdoDataLength.SelectedItem
@@ -2712,7 +2655,7 @@ namespace LasalMotionControlApiExample
                     "Load the PI Catalog and check Recordable signals first.";
                 TextRecorderPlotRange.Text = "No downloaded data.";
                 TextDiagnosticOperationSummary.Text =
-                    "SDO Read supports exact 1/2/4-byte typed values. Manual SDO Write additionally requires a four-ticket Same-Value qualification PASS bound to the exact current session and PLC identity; arbitrary object writes remain blocked.";
+                    "SDO Read and Generic Write support exact 1/2/4-byte typed values. Known targets are optional presets. Semantic motion objects remain blocked; Write Once requires two-click confirmation, durable no-replay journal, and exact readback.";
                 if (HasPendingD5SdoWriteReadback)
                 {
                     ShowPendingD5SdoWriteReadbackStatus();
@@ -2893,31 +2836,6 @@ namespace LasalMotionControlApiExample
             }
 
             sdoWriteConfirmationState.Clear();
-        }
-
-        private static LMCSdoWriteTarget FindApprovedSdoWriteTargetForRequest(
-            IReadOnlyList<LMCSdoWriteTarget> targets,
-            LMCSdoRequest request)
-        {
-            if (targets == null || request == null || !request.IsWrite)
-            {
-                return null;
-            }
-
-            foreach (var target in targets)
-            {
-                if (target != null
-                    && target.SlaveReference == request.SlaveReference
-                    && target.ObjectIndex == request.ObjectIndex
-                    && target.SubIndex == request.SubIndex
-                    && target.ValueType == request.ValueType
-                    && target.DataLength == request.DataLength)
-                {
-                    return target;
-                }
-            }
-
-            return null;
         }
 
         private void EnsureCapability(
@@ -3551,25 +3469,11 @@ namespace LasalMotionControlApiExample
                 : SdoOperationMode.Read;
             if (mode == SdoOperationMode.Write)
             {
-                ApplySelectedSdoWriteTarget();
-                var selectedTarget = ComboSdoWriteTarget == null
-                    ? null
-                    : ComboSdoWriteTarget.SelectedItem
-                        as LMCSdoWriteTarget;
-                var activationProofCurrent =
-                    HasCurrentSdoWriteActivationQualificationProof(
-                        connection,
-                        diagnosticCapabilities,
-                        selectedTarget);
-                ButtonSubmitSdo.Content = !activationProofCurrent
-                    ? "Run Same-Value Qualification First"
-                    : sdoWriteConfirmationState.IsArmed
+                ButtonSubmitSdo.Content = sdoWriteConfirmationState.IsArmed
                         ? "Confirm & Submit SDO Write"
                         : "Arm SDO Write";
                 TextDiagnosticOperationSummary.Text =
-                    approvedSdoWriteTargets.Count == 0
-                        ? "SDO Write fields may be prepared, but Submit is fail-closed: this SDK build has no approved target. Confirm a reserved drive object before enabling the SDK and PLC allowlists."
-                        : "SDO Write fields remain editable, but Submit must exactly match the selected SDK-approved target. The GUI also requires PLC bits 8/9/13, PowerOn=False, Standstill=True, stable position, and explicit confirmation.";
+                    "Generic scalar SDO Write accepts direct Slave/Object/SubIndex/Type/Length/Value input. Known targets are optional presets. Semantic motion objects remain blocked; Write Once requires PLC bits 8/9/13, PowerOn=False, Standstill=True, stable position, exact two-click confirmation, durable journal, and exact readback.";
             }
             else
             {
@@ -3860,15 +3764,6 @@ namespace LasalMotionControlApiExample
                         return false;
                     }
 
-                    if (!(ComboSdoWriteTarget.SelectedItem
-                        is LMCSdoWriteTarget target)
-                        || !approvedSdoWriteTargets.Contains(target))
-                    {
-                        validationMessage =
-                            "Select an SDK-approved SDO Write target. This SDK build may intentionally have an empty allowlist.";
-                        return false;
-                    }
-
                     var writeSlaveReference = ParseUInt16Wire(
                         TextSdoSlaveReference.Text,
                         "SDO slave reference",
@@ -3888,41 +3783,45 @@ namespace LasalMotionControlApiExample
                         ComboSdoDataLength.Text,
                         "SDO data length",
                         false);
-                    if (writeSlaveReference != target.SlaveReference
-                        || writeObjectIndex != target.ObjectIndex
-                        || writeSubIndex != target.SubIndex
-                        || writeValueType != target.ValueType
-                        || writeDataLength != target.DataLength)
+                    if (writeSlaveReference < 1
+                        || writeSlaveReference > 4)
                     {
                         validationMessage =
-                            "The editable Slave/Object/SubIndex/ValueType/DataLength fields must exactly match the selected SDK-approved SDO Write target. Arbitrary object writes remain blocked.";
+                            "Generic SDO Write supports Slave reference 1 through 4 only.";
                         return false;
                     }
 
-                    if (target.SlaveReference < 1
-                        || target.SlaveReference > 4)
+                    var expectedWriteLength =
+                        GetSdoReadDataLength(writeValueType);
+                    if (writeDataLength != expectedWriteLength)
                     {
                         validationMessage =
-                            "The test GUI supports approved write targets on Slave 1..4 only.";
+                            "Data length must match the selected type: 8-bit types=1, 16-bit types=2, 32-bit types=4.";
                         return false;
                     }
 
                     if (diagnosticCapabilities.MaxSdoDataBytes
-                            < target.DataLength
+                            < writeDataLength
                         || diagnosticCapabilities.MaxRequestPayloadBytes
-                            < 32 + target.DataLength)
+                            < 32 + writeDataLength)
                     {
                         validationMessage =
-                            "The PLC capability payload limits cannot carry the approved SDO Write target.";
+                            "The PLC capability payload limits cannot carry the requested SDO Write.";
                         return false;
                     }
 
-                    var integerValue = ParseSdoWriteIntegerValue(
+                    var writeData = ParseSdoWriteScalarData(
                         TextSdoWriteData.Text,
-                        target);
-                    request = target.CreateRequest(
-                        integerValue,
+                        writeValueType,
+                        writeDataLength);
+                    request = LMCSdoRequest.CreateWrite(
+                        writeSlaveReference,
+                        writeObjectIndex,
+                        writeSubIndex,
+                        writeValueType,
+                        writeData,
                         timeoutCycles);
+                    LMCDiagnosticsWritePolicy.RequireSdoWriteAllowed(request);
                     validationMessage = null;
                     return true;
                 }
@@ -4014,6 +3913,11 @@ namespace LasalMotionControlApiExample
                 validationMessage = error.Message;
                 return false;
             }
+            catch (NotSupportedException error)
+            {
+                validationMessage = error.Message;
+                return false;
+            }
         }
 
         private bool TryCreateInlineSdoReadRequest(
@@ -4095,48 +3999,176 @@ namespace LasalMotionControlApiExample
             }
         }
 
-        private static long ParseSdoWriteIntegerValue(
+        private static byte[] ParseSdoWriteScalarData(
             string value,
-            LMCSdoWriteTarget target)
+            LMCSignalValueType valueType,
+            ushort dataLength)
         {
-            if (target == null)
+            var expectedLength = GetSdoReadDataLength(valueType);
+            if (dataLength != expectedLength)
             {
-                throw new ArgumentNullException("target");
+                throw new InvalidOperationException(
+                    "The SDO Write data length does not match the selected value type.");
             }
 
             var text = (value ?? string.Empty).Trim();
-            long parsed;
+            if (text.Length == 0)
+            {
+                throw new InvalidOperationException(
+                    "SDO Write value is required.");
+            }
+
+            uint raw;
             if (text.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
             {
-                var raw = ParseUInt32Wire(text, "SDO Write value");
-                parsed = target.ValueType == LMCSignalValueType.Int32
-                    ? unchecked((int)raw)
-                    : (long)raw;
+                raw = ParseUInt32Wire(text, "SDO Write value");
+                var maximumRaw = dataLength == 1
+                    ? 0xFFu
+                    : dataLength == 2
+                        ? 0xFFFFu
+                        : uint.MaxValue;
+                if (raw > maximumRaw)
+                {
+                    throw new InvalidOperationException(
+                        "The raw hexadecimal SDO Write value does not fit the selected data length.");
+                }
             }
-            else if (!long.TryParse(
+            else
+            {
+                raw = ParseSdoWriteScalarDecimal(text, valueType);
+            }
+
+            if (valueType == LMCSignalValueType.Bool && raw > 1)
+            {
+                throw new InvalidOperationException(
+                    "Bool SDO Write accepts only false/true or 0/1.");
+            }
+
+            var data = new byte[dataLength];
+            for (var index = 0; index < data.Length; index++)
+            {
+                data[index] = (byte)(raw >> (index * 8));
+            }
+
+            return data;
+        }
+
+        private static uint ParseSdoWriteScalarDecimal(
+            string text,
+            LMCSignalValueType valueType)
+        {
+            switch (valueType)
+            {
+                case LMCSignalValueType.Bool:
+                    if (string.Equals(
+                        text,
+                        "true",
+                        StringComparison.OrdinalIgnoreCase))
+                    {
+                        return 1;
+                    }
+
+                    if (string.Equals(
+                        text,
+                        "false",
+                        StringComparison.OrdinalIgnoreCase))
+                    {
+                        return 0;
+                    }
+
+                    return ParseUnsignedSdoWriteDecimal(text, 1);
+                case LMCSignalValueType.Int8:
+                    return unchecked((byte)ParseSignedSdoWriteDecimal(
+                        text,
+                        sbyte.MinValue,
+                        sbyte.MaxValue));
+                case LMCSignalValueType.Int16:
+                    return unchecked((ushort)ParseSignedSdoWriteDecimal(
+                        text,
+                        short.MinValue,
+                        short.MaxValue));
+                case LMCSignalValueType.Int32:
+                    return unchecked((uint)(int)ParseSignedSdoWriteDecimal(
+                        text,
+                        int.MinValue,
+                        int.MaxValue));
+                case LMCSignalValueType.UInt8:
+                case LMCSignalValueType.BitField8:
+                    return ParseUnsignedSdoWriteDecimal(text, byte.MaxValue);
+                case LMCSignalValueType.UInt16:
+                case LMCSignalValueType.BitField16:
+                    return ParseUnsignedSdoWriteDecimal(text, ushort.MaxValue);
+                case LMCSignalValueType.UInt32:
+                case LMCSignalValueType.BitField32:
+                    return ParseUnsignedSdoWriteDecimal(text, uint.MaxValue);
+                case LMCSignalValueType.Real32:
+                    float realValue;
+                    if (!float.TryParse(
+                        text,
+                        NumberStyles.Float,
+                        CultureInfo.InvariantCulture,
+                        out realValue)
+                        || float.IsNaN(realValue)
+                        || float.IsInfinity(realValue))
+                    {
+                        throw new InvalidOperationException(
+                            "Real32 SDO Write value must be a finite invariant-culture number or raw 0x hexadecimal bits.");
+                    }
+
+                    var realBytes = BitConverter.GetBytes(realValue);
+                    if (!BitConverter.IsLittleEndian)
+                    {
+                        Array.Reverse(realBytes);
+                    }
+
+                    return (uint)realBytes[0]
+                        | ((uint)realBytes[1] << 8)
+                        | ((uint)realBytes[2] << 16)
+                        | ((uint)realBytes[3] << 24);
+                default:
+                    throw new InvalidOperationException(
+                        "The selected SDO Write value type is unsupported.");
+            }
+        }
+
+        private static long ParseSignedSdoWriteDecimal(
+            string text,
+            long minimum,
+            long maximum)
+        {
+            long value;
+            if (!long.TryParse(
                 text,
                 NumberStyles.Integer,
                 CultureInfo.InvariantCulture,
-                out parsed))
+                out value)
+                || value < minimum
+                || value > maximum)
             {
                 throw new InvalidOperationException(
-                    "SDO Write value must be an integer in decimal or 0x-prefixed raw hexadecimal form.");
+                    "The signed SDO Write value is outside the selected type range.");
             }
 
-            if (parsed < target.MinimumIntegerValue
-                || parsed > target.MaximumIntegerValue)
+            return value;
+        }
+
+        private static uint ParseUnsignedSdoWriteDecimal(
+            string text,
+            uint maximum)
+        {
+            uint value;
+            if (!uint.TryParse(
+                text,
+                NumberStyles.Integer,
+                CultureInfo.InvariantCulture,
+                out value)
+                || value > maximum)
             {
                 throw new InvalidOperationException(
-                    "SDO Write value must be between "
-                    + target.MinimumIntegerValue.ToString(
-                        CultureInfo.InvariantCulture)
-                    + " and "
-                    + target.MaximumIntegerValue.ToString(
-                        CultureInfo.InvariantCulture)
-                    + " for the selected target.");
+                    "The unsigned SDO Write value is outside the selected type range.");
             }
 
-            return parsed;
+            return value;
         }
 
         private static void RequireManualSdoOperationCapabilities(

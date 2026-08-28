@@ -229,7 +229,10 @@ function Read-LmcSpReceiptChain {
     $lines = @($rawLines[0..($rawLines.Length - 2)])
     Assert-LmcSpCondition ($lines.Count -ge 1 -and $lines.Count -le $script:LmcSpAllowedStates.Count) 'Receipt record count is outside the supported state chain.'
 
-    $records = New-Object System.Collections.Generic.List[object]
+    # Materialize through ArrayList instead of expanding List[object] with
+    # @(...). Windows PowerShell 5.1 and PowerShell 7 can otherwise throw
+    # "Argument types do not match" while constructing the return object.
+    $records = New-Object System.Collections.ArrayList
     $previousLine = $null
     for ($index = 0; $index -lt $lines.Count; $index++) {
         $line = [string]$lines[$index]
@@ -251,12 +254,12 @@ function Read-LmcSpReceiptChain {
             $expectedPrevious = Get-LmcSpTextSha256 $previousLine
             Assert-LmcSpCondition ([string]$record.PreviousReceiptSha256 -ceq $expectedPrevious) "Receipt[$index] PreviousReceiptSha256 does not match the previous canonical record."
         }
-        $records.Add($record)
+        [void]$records.Add($record)
         $previousLine = $line
     }
 
     return [pscustomobject]@{
-        Records = @($records)
+        Records = [object[]]$records.ToArray()
         Lines = @($lines)
     }
 }

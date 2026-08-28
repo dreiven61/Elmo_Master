@@ -831,13 +831,13 @@ namespace LasalMotionControlApiExample
                                 StringComparison.Ordinal));
                     PumpUiOnce();
                     AssertEx.Equal(
-                        "먼저 동일 값 Qualification 실행",
+                        "SDO Write 준비",
                         (string)window.ButtonSubmitSdo.Content,
                         "Korean SDO Write mode did not localize its action.");
                     window.TextSdoWriteData.Text = "1";
                     PumpUiOnce();
                     AssertEx.Equal(
-                        "먼저 동일 값 Qualification 실행",
+                        "SDO Write 준비",
                         (string)window.ButtonSubmitSdo.Content,
                         "Editing the Korean SDO request restored an English action caption.");
 
@@ -866,7 +866,7 @@ namespace LasalMotionControlApiExample
                             .ExpanderSafetyAndRecoveryDetails.Header);
                     AssertEx.True(window.TextMotionWarning.IsVisible);
                     AssertEx.Equal(
-                        "Run Same-Value Qualification First",
+                        "Arm SDO Write",
                         (string)window.ButtonSubmitSdo.Content,
                         "English restore retained the Korean SDO action caption.");
                     AssertEx.Equal(

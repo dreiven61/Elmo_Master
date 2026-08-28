@@ -787,6 +787,8 @@ namespace LasalMotionControlApiExample
             values["Abort value type"] = "Abort 값 형식";
             values["SDK-approved SDO Write target"] =
                 "SDK 승인 SDO Write target";
+            values["Known SDO Write preset (optional)"] =
+                "알려진 SDO Write preset (선택 사항)";
             values["Single SDK-approved target"] = "SDK 승인 단일 target";
             values["Readiness matrix / next attempt (cached, no wire)"] =
                 "준비 상태 matrix / 다음 시도 (cache, wire 전송 없음)";
@@ -817,6 +819,59 @@ namespace LasalMotionControlApiExample
                 "선택 Mode 1회 시작 (0x7D23)";
             values["Set Operation Mode Selected Mode Once"] =
                 "Operation Mode 선택 Mode 1회 설정";
+            values["Set Position - durable no-replay recovery"] =
+                "Set Position - durable 재전송 방지 복구";
+            values["Target position (DINT)"] = "대상 위치 (DINT)";
+            values["Expected actual position (DINT)"] =
+                "예상 실제 위치 (DINT)";
+            values["Timeout (ms, nonzero)"] = "Timeout (ms, 0 제외)";
+            values["Refresh SetPosition Capabilities"] =
+                "SetPosition Capability 새로고침";
+            values["Start SetPosition Once (0x7D12)"] =
+                "SetPosition 1회 시작 (0x7D12)";
+            values["Query / Retire SetPosition Recovery (No Start Replay)"] =
+                "SetPosition 복구 조회 / 폐기 (Start 재전송 없음)";
+            values["Refresh Mode Capabilities"] =
+                "Mode Capability 새로고침";
+            values["Query / Retire Recovery (No Start Replay)"] =
+                "복구 조회 / 폐기 (Start 재전송 없음)";
+            values[
+                "HomeDS402Ex - durable no-replay recovery (Start UI closed)"] =
+                "HomeDS402Ex - durable 재전송 방지 복구 (Start UI 닫힘)";
+            values["Refresh HomeEx Capabilities"] =
+                "HomeEx Capability 새로고침";
+            values["Query / Retire HomeEx Recovery (No Start Replay)"] =
+                "HomeEx 복구 조회 / 폐기 (Start 재전송 없음)";
+            values[
+                "COORDINATE MUTATION. 0x7D12 is one-shot only. The durable recovery record is written before the Start write boundary. Any accepted or uncertain Start blocks automatic replay until exact outcome query/retirement completes."] =
+                "좌표 변경입니다. 0x7D12는 1회만 전송합니다. Durable 복구 record는 Start write 경계 전에 기록됩니다. 승인되었거나 결과가 불확실한 Start는 exact outcome 조회/폐기가 끝날 때까지 자동 재전송을 차단합니다.";
+            values[
+                "I verified the exact powered drive/axis, target and fresh expected actual position. I understand that SetPosition changes the coordinate origin once only. If the response is uncertain I will use durable recovery and will not send 0x7D12 Start again."] =
+                "전원이 켜진 정확한 drive/축, target 및 최신 예상 실제 위치를 확인했습니다. SetPosition이 좌표 원점을 한 번만 변경함을 이해했습니다. 응답이 불확실하면 durable 복구를 사용하고 0x7D12 Start를 다시 보내지 않습니다.";
+            values[
+                "Journal ready; no unresolved SetPosition record. AdminTriad=False, DiagnosticsIdentity=False. Start remains disabled until current PLC advertises the paired SetPosition capability triad after SP qualification."] =
+                "Journal 준비됨; 미해결 SetPosition record 없음. AdminTriad=False, DiagnosticsIdentity=False. SP qualification 후 현재 PLC가 SetPosition capability triad를 광고할 때까지 Start는 비활성입니다.";
+            values[
+                "Recovery is bound to endpoint + DiagnosticsBuild + BootId + MapRevision + RequestId + 128-bit ClientIntentId + axis + target + expected actual position. Current PLC activation is expected to keep SetPosition disabled until SP-01..03/05/06 are qualified."] =
+                "복구는 endpoint + DiagnosticsBuild + BootId + MapRevision + RequestId + 128-bit ClientIntentId + axis + target + expected actual position에 묶입니다. 현재 PLC activation은 SP-01..03/05/06 qualification 전까지 SetPosition을 비활성으로 유지해야 합니다.";
+            values[
+                "LIVE DRIVE MODE WRITE. Start sends 0x7D23 once only. A successful Start response is acceptance only, not mode-change completion. After any uncertain or accepted Start, automatic 0x7D23/0x6060 replay is forbidden."] =
+                "실제 drive mode write입니다. Start는 0x7D23을 한 번만 보냅니다. Start 성공 응답은 접수일 뿐 mode 변경 완료가 아닙니다. 불확실하거나 접수된 Start 이후 0x7D23/0x6060 자동 재전송은 금지됩니다.";
+            values[
+                "Journal ready; no unresolved record. AdminTriad=False, SupportedModeMask=0x0000, DiagnosticsIdentity=False. Current PLC activation is expected to keep Start disabled until bits 8/9/10 are explicitly enabled after MODE-13 evidence passes."] =
+                "Journal 준비됨; 미해결 record 없음. AdminTriad=False, SupportedModeMask=0x0000, DiagnosticsIdentity=False. MODE-13 evidence PASS 후 bit 8/9/10을 명시적으로 활성화할 때까지 현재 PLC activation은 Start를 비활성으로 유지해야 합니다.";
+            values[
+                "Recovery is bound to endpoint + DiagnosticsBuild + BootId + MapRevision + 128-bit ClientIntentId + RequestId + axis + requested mode. Recovery queries 0x7D24 only; terminal proof is persisted before exact-generation 0x7D25 retirement."] =
+                "복구는 endpoint + DiagnosticsBuild + BootId + MapRevision + 128-bit ClientIntentId + RequestId + axis + requested mode에 묶입니다. 복구는 0x7D24만 조회하며 terminal proof는 exact-generation 0x7D25 폐기 전에 저장됩니다.";
+            values[
+                "NO HOMEDS402EX START UI. Engineering scale/profile and LASAL runtime activation are not qualified. This panel only recovers an already durable exact intent through 0x7D1C/0x7D1D."] =
+                "HomeDS402Ex Start UI 없음. Engineering scale/profile과 LASAL runtime activation은 qualification되지 않았습니다. 이 panel은 이미 durable하게 기록된 exact intent를 0x7D1C/0x7D1D로만 복구합니다.";
+            values[
+                "No unresolved HomeDS402Ex recovery record. Start UI intentionally remains closed until HOMEEX-01/02/06..11 are qualified."] =
+                "미해결 HomeDS402Ex 복구 record가 없습니다. HOMEEX-01/02/06..11 qualification 전까지 Start UI는 의도적으로 닫혀 있습니다.";
+            values[
+                "Recovery is bound to endpoint + DiagnosticsBuild + BootId + MapRevision + RequestId + 128-bit ClientIntentId + axis + every frozen HomeDS402Ex plan field. Terminal proof is persisted before exact-generation retirement; Start is never reconstructed from the journal."] =
+                "복구는 endpoint + DiagnosticsBuild + BootId + MapRevision + RequestId + 128-bit ClientIntentId + axis + 모든 고정 HomeDS402Ex plan field에 묶입니다. Terminal proof는 exact-generation 폐기 전에 저장되며 Start는 journal에서 재구성되지 않습니다.";
 
             AddStaticChromeTranslations(values);
 
@@ -887,6 +942,14 @@ namespace LasalMotionControlApiExample
                 "Readback session 불일치";
             values["Confirm & Submit SDO Write"] =
                 "SDO Write 확인 후 전송";
+            values[
+                "Write Once uses an exact-request two-click confirmation, safe-axis preflight, durable no-replay journal, and mandatory exact readback. Known targets are optional presets."] =
+                "Write Once는 exact request 2회 클릭 확인, 안전 축 사전 점검, durable 재전송 방지 journal 및 필수 exact readback을 사용합니다. 알려진 target은 선택 preset입니다.";
+            values["Read mode submits one tracked SDO Read."] =
+                "Read mode는 추적되는 SDO Read 하나를 전송합니다.";
+            values[
+                "Generic scalar SDO Write accepts direct Slave/Object/SubIndex/Type/Length/Value input. Known targets are optional presets. Semantic motion objects remain blocked; Write Once requires PLC bits 8/9/13, PowerOn=False, Standstill=True, stable position, exact two-click confirmation, durable journal, and exact readback."] =
+                "Generic scalar SDO Write는 Slave/Object/SubIndex/Type/Length/Value 직접 입력을 받습니다. 알려진 target은 선택 preset입니다. Semantic motion object는 차단되며 Write Once에는 PLC bit 8/9/13, PowerOn=False, Standstill=True, 안정 위치, exact 2회 클릭 확인, durable journal 및 exact readback이 필요합니다.";
             values["Verify Recovered SDO Readback"] =
                 "복구된 SDO Readback 확인";
             values["Acknowledge Stale SDO Write"] =
@@ -1231,6 +1294,9 @@ namespace LasalMotionControlApiExample
                 "현재 정확한 session이 4-ticket Same-Value SDO Write qualification을 통과할 때까지 Write mode는 fail-closed이며, "
                 + "통과하면 이 버튼이 SDO Write Arm으로 바뀝니다.";
             values[
+                "Write Once requires an exact-request two-click confirmation, safe-axis preflight, durable no-replay journal, and mandatory exact readback."] =
+                "Write Once는 exact request 2회 클릭 확인, 안전 축 사전 점검, durable 재전송 방지 journal 및 필수 exact readback을 요구합니다.";
+            values[
                 "Submit one ordinary 1/2/4-byte SDO Read and wait for its terminal result. This does not run SDO Write, required Write readback, or CREVIS I/O."] =
                 "일반 1/2/4-byte SDO Read 하나를 전송하고 terminal 결과를 기다립니다. SDO Write, 필수 Write readback 또는 CREVIS I/O는 실행하지 않습니다.";
             values[
@@ -1244,6 +1310,9 @@ namespace LasalMotionControlApiExample
                 + "and PLC identity; arbitrary object writes remain blocked."] =
                 "SDO Read는 정확한 1/2/4-byte typed 값을 지원합니다. Manual SDO Write에는 현재 정확한 session과 PLC identity에 묶인 4-ticket Same-Value qualification PASS도 필요하며, "
                 + "임의 object write는 계속 차단됩니다.";
+            values[
+                "SDO Read and Generic Write support exact 1/2/4-byte typed values. Known targets are optional presets. Semantic motion objects remain blocked; Write Once requires two-click confirmation, durable no-replay journal, and exact readback."] =
+                "SDO Read와 Generic Write는 정확한 1/2/4-byte typed 값을 지원합니다. 알려진 target은 선택 preset입니다. Semantic motion object는 계속 차단되며 Write Once는 2회 클릭 확인, durable 재전송 방지 journal 및 exact readback을 요구합니다.";
             values[
                 "These runners never write an SDO and never inject an EtherCAT fault. Abort qualification uses a manufacturer-approved nonexistent read-only object/sub-index. "
                 + "Contention, timeout, and queued-cancel qualification use only 0x6061:0 Int8/1. Abrupt Disconnect intentionally drops only the API TCP transport without sending RPC Close (0x405D), "

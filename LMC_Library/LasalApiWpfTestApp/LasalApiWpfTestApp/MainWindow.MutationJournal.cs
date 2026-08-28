@@ -502,6 +502,19 @@ namespace LasalMotionControlApiExample
             var current = diagnosticsMutationJournal.CurrentRecord;
             if (current.Kind == DiagnosticsMutationKind.SdoWrite)
             {
+                // A durable typed Write terminal already proves that the
+                // original mutation completed. Losing or replacing the TCP
+                // session must not erase that proof or force the record back
+                // to an ambiguous state. Recovery remains read-only and is
+                // still fenced by the exact BootId/MapRevision/request tuple.
+                if (current.State
+                        == DiagnosticsMutationState
+                            .TerminalSuccessPendingReadback
+                    && current.HasTypedSdoWriteMetadata)
+                {
+                    return;
+                }
+
                 MarkSdoWriteMutationOutcomeUnverified();
             }
             else if (current.Kind
@@ -720,80 +733,42 @@ namespace LasalMotionControlApiExample
                 return false;
             }
 
-            return IsExactApprovedSdoWriteTarget(
-                record.SdoWriteMetadata,
-                currentConnection.Diagnostics
-                    .GetApprovedSdoWriteTargets());
+            return IsValidGenericSdoWriteMetadata(
+                record.SdoWriteMetadata);
         }
 
-        private static bool IsExactApprovedSdoWriteTarget(
-            DiagnosticsSdoWriteMutationMetadata metadata,
-            IReadOnlyList<LMCSdoWriteTarget> targets)
+        private static bool IsValidGenericSdoWriteMetadata(
+            DiagnosticsSdoWriteMutationMetadata metadata)
         {
-            if (metadata == null || targets == null)
+            if (metadata == null)
             {
                 return false;
             }
 
-            var expectedData = metadata.ExpectedWriteData;
-            var rawValue = (uint)expectedData[0]
-                | ((uint)expectedData[1] << 8)
-                | ((uint)expectedData[2] << 16)
-                | ((uint)expectedData[3] << 24);
-            var integerValue = metadata.ValueType
-                    == LMCSignalValueType.Int32
-                ? unchecked((long)(int)rawValue)
-                : (long)rawValue;
-            for (var index = 0; index < targets.Count; index++)
+            try
             {
-                var target = targets[index];
-                if (target == null
-                    || target.SlaveReference != metadata.SlaveReference
-                    || target.ObjectIndex != metadata.ObjectIndex
-                    || target.SubIndex != metadata.SubIndex
-                    || target.ValueType != metadata.ValueType
-                    || target.DataLength != metadata.DataLength)
-                {
-                    continue;
-                }
-
-                LMCSdoRequest canonicalRequest;
-                try
-                {
-                    canonicalRequest = target.CreateRequest(
-                        integerValue,
-                        metadata.TimeoutCycles);
-                }
-                catch (ArgumentException)
-                {
-                    continue;
-                }
-
-                if (ByteArraysEqual(
-                        expectedData,
-                        canonicalRequest.WriteData))
-                {
-                    return true;
-                }
+                var request = LMCSdoRequest.CreateWrite(
+                    metadata.SlaveReference,
+                    metadata.ObjectIndex,
+                    metadata.SubIndex,
+                    metadata.ValueType,
+                    metadata.ExpectedWriteData,
+                    metadata.TimeoutCycles);
+                LMCDiagnosticsWritePolicy.RequireSdoWriteAllowed(request);
+                return request.DataLength == metadata.DataLength;
             }
-
-            return false;
-        }
-
-        private static bool ByteArraysEqual(byte[] left, byte[] right)
-        {
-            if (left == null || right == null || left.Length != right.Length)
+            catch (ArgumentException)
             {
                 return false;
             }
-
-            var difference = 0;
-            for (var index = 0; index < left.Length; index++)
+            catch (NotSupportedException)
             {
-                difference |= left[index] ^ right[index];
+                return false;
             }
-
-            return difference == 0;
+            catch (InvalidOperationException)
+            {
+                return false;
+            }
         }
 
         private bool CanAcknowledgeStaleSdoWriteReadback(bool idle)
@@ -1031,10 +1006,7 @@ namespace LasalMotionControlApiExample
                         HasPendingD5SdoWriteReadback,
                         HasD5SdoTicketOrQuarantine,
                         HasUnresolvedDigitalOutputWrite,
-                        metadata => IsExactApprovedSdoWriteTarget(
-                            metadata,
-                            currentConnection.Diagnostics
-                                .GetApprovedSdoWriteTargets()),
+                        IsValidGenericSdoWriteMetadata,
                         async () =>
                         {
                             observedCapabilities =

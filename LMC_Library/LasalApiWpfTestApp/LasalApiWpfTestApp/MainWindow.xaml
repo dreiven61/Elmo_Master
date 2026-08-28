@@ -2091,7 +2091,7 @@
                                 </StackPanel>
 
                                 <StackPanel Grid.Row="2" Grid.ColumnSpan="5">
-                                    <TextBlock Style="{StaticResource FieldLabel}" Text="SDK-approved SDO Write target" />
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Known SDO Write preset (optional)" />
                                     <ComboBox
                                         x:Name="ComboSdoWriteTarget"
                                         Width="760"
@@ -2104,7 +2104,7 @@
                                         x:Name="ButtonSubmitSdo"
                                         Click="ButtonSubmitSdo_Click"
                                         Content="Submit SDO Read"
-                                        ToolTip="Write mode remains fail-closed until the exact current session passes the four-ticket Same-Value SDO Write qualification, then changes this button to Arm SDO Write."
+                                        ToolTip="Write Once requires an exact-request two-click confirmation, safe-axis preflight, durable no-replay journal, and mandatory exact readback."
                                         ToolTipService.ShowOnDisabled="True" />
                                     <Button
                                         x:Name="ButtonReadSdoInline"
@@ -2135,7 +2135,7 @@
                                     Grid.Row="4"
                                     Grid.ColumnSpan="5"
                                     FontFamily="Consolas"
-                                    Text="SDO Read supports exact 1/2/4-byte typed values. Manual SDO Write also requires a four-ticket Same-Value qualification PASS bound to the exact current session and PLC identity; arbitrary object writes remain blocked."
+                                    Text="SDO Read and Generic Write support exact 1/2/4-byte typed values. Known targets are optional presets. Semantic motion objects remain blocked; Write Once requires two-click confirmation, durable no-replay journal, and exact readback."
                                     TextWrapping="Wrap" />
                             </Grid>
                         </GroupBox>

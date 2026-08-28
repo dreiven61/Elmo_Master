@@ -5752,7 +5752,7 @@ namespace LasalApiWpfTestApp.SmokeTests
                             first));
                     InvokePrivate(window, "UpdateUiState");
                     AssertEx.Equal(
-                        "Run Same-Value Qualification First",
+                        "Confirm & Submit SDO Write",
                         Convert.ToString(
                             window.ButtonSubmitSdo.Content,
                             CultureInfo.InvariantCulture));
@@ -5766,7 +5766,7 @@ namespace LasalApiWpfTestApp.SmokeTests
                         uiState.IsArmed,
                         "Editing any SDO Write request field must invalidate the armed snapshot immediately.");
                     AssertEx.Equal(
-                        "Run Same-Value Qualification First",
+                        "Arm SDO Write",
                         Convert.ToString(
                             window.ButtonSubmitSdo.Content,
                             CultureInfo.InvariantCulture));
@@ -5979,7 +5979,6 @@ namespace LasalApiWpfTestApp.SmokeTests
                 | LMCDiagnosticCapability.EtherCATTopology;
             var steps = CreateConnectAndTopologySteps(capabilities);
             steps.Add(CapabilitiesStep(11, capabilities));
-            steps.Add(CapabilitiesStep(12, capabilities));
             steps.Add(CloseStep());
 
             var journalDirectory = CreateJournalDirectory();
@@ -6020,11 +6019,11 @@ namespace LasalApiWpfTestApp.SmokeTests
 
                     window.ComboSdoOperation.SelectedIndex = 1;
                     PumpDispatcherOnce();
-                    AssertEx.False(
+                    AssertEx.True(
                         window.ButtonSubmitSdo.IsEnabled,
-                        "Manual SDO Write opened before the current-session same-value activation proof.");
+                        "Generic SDO Write did not open with current capabilities and a healthy durable journal.");
                     AssertEx.Equal(
-                        "Run Same-Value Qualification First",
+                        "Arm SDO Write",
                         Convert.ToString(
                             window.ButtonSubmitSdo.Content,
                             CultureInfo.InvariantCulture));
@@ -6049,9 +6048,7 @@ namespace LasalApiWpfTestApp.SmokeTests
                         activationProof);
                     InvokePrivate(window, "UpdateUiState");
                     PumpDispatcherOnce();
-                    AssertEx.True(
-                        window.ButtonSubmitSdo.IsEnabled,
-                        "The exact current-session same-value activation proof did not open manual SDO Write.");
+                    AssertEx.True(window.ButtonSubmitSdo.IsEnabled);
                     AssertEx.Equal(
                         "Arm SDO Write",
                         Convert.ToString(
@@ -6062,7 +6059,54 @@ namespace LasalApiWpfTestApp.SmokeTests
                         "sdoWriteActivationQualificationProof",
                         null);
                     InvokePrivate(window, "UpdateUiState");
-                    AssertEx.False(window.ButtonSubmitSdo.IsEnabled);
+                    AssertEx.True(
+                        window.ButtonSubmitSdo.IsEnabled,
+                        "Generic Write must not depend on the optional known-preset same-value qualification proof.");
+
+                    window.ComboSdoWriteTarget.SelectedItem = null;
+                    window.TextSdoSlaveReference.Text = "2";
+                    window.TextSdoIndex.Text = "0x2000";
+                    window.TextSdoSubIndex.Text = "3";
+                    window.ComboSdoValueType.SelectedItem =
+                        LMCSignalValueType.UInt16;
+                    window.ComboSdoDataLength.SelectedItem = (ushort)2;
+                    window.TextSdoWriteData.Text = "0x1234";
+                    var genericRequestArguments = new object[] { null, null };
+                    AssertEx.True(
+                        (bool)InvokePrivate(
+                            window,
+                            "TryCreateSdoRequest",
+                            genericRequestArguments),
+                        Convert.ToString(
+                            genericRequestArguments[1],
+                            CultureInfo.InvariantCulture));
+                    var genericRequest = genericRequestArguments[0]
+                        as LMCSdoRequest;
+                    AssertEx.NotNull(genericRequest);
+                    AssertEx.Equal((ushort)2, genericRequest.SlaveReference);
+                    AssertEx.Equal((ushort)0x2000, genericRequest.ObjectIndex);
+                    AssertEx.Equal((byte)3, genericRequest.SubIndex);
+                    AssertEx.Equal(
+                        LMCSignalValueType.UInt16,
+                        genericRequest.ValueType);
+                    AssertEx.Equal((ushort)2, genericRequest.DataLength);
+                    AssertEx.SequenceEqual(
+                        new byte[] { 0x34, 0x12 },
+                        genericRequest.WriteData);
+
+                    window.TextSdoIndex.Text = "0x6060";
+                    var reservedRequestArguments = new object[] { null, null };
+                    AssertEx.False(
+                        (bool)InvokePrivate(
+                            window,
+                            "TryCreateSdoRequest",
+                            reservedRequestArguments),
+                        "Generic SDO Write accepted the semantic SetOperationMode object.");
+                    AssertEx.Contains(
+                        "semantic or dedicated-owner objects",
+                        Convert.ToString(
+                            reservedRequestArguments[1],
+                            CultureInfo.InvariantCulture));
 
                     AssertEx.False(
                         window.ButtonRunD5SdoWriteSameValueQualification
@@ -6092,35 +6136,6 @@ namespace LasalApiWpfTestApp.SmokeTests
                         "NOT STARTED",
                         window.TextD5SdoWriteQualificationSummary.Text);
 
-                    var manualWriteRequestsBeforeForcedHandler =
-                        CountRequestCommand(
-                            server.ReceivedRequests,
-                            0x7E50);
-                    InvokePrivate(
-                        window,
-                        "ButtonSubmitSdo_Click",
-                        window.ButtonSubmitSdo,
-                        new RoutedEventArgs());
-                    WaitUntil(
-                        () => string.Equals(
-                            window.TextOperationState.Text,
-                            "Arm / Submit SDO Write failed",
-                            StringComparison.Ordinal),
-                        "The forced manual SDO Write handler did not fail closed without a current-session activation proof.");
-                    AssertEx.Equal(
-                        manualWriteRequestsBeforeForcedHandler,
-                        CountRequestCommand(
-                            server.ReceivedRequests,
-                            0x7E50),
-                        "The forced manual handler submitted SDO traffic without the same-value activation proof.");
-                    AssertEx.Contains(
-                        "Manual SDO Write is blocked until the exact current connection session",
-                        window.TextExecutionLog.Text);
-
-                    SetPrivateField(
-                        window,
-                        "sdoWriteActivationQualificationProof",
-                        activationProof);
                     CloseConnectedWindow(window);
                     AssertEx.Equal<object>(
                         null,
@@ -6642,16 +6657,92 @@ namespace LasalApiWpfTestApp.SmokeTests
                         () => window.GridEtherCATTopology.Items.Count
                             == TopologyNodeCount,
                         "Recovered typed SDO test did not complete connection/topology setup.");
+                    WaitUntil(
+                        () => window.ButtonDiagnosticsCapabilities.IsEnabled,
+                        "Recovered typed SDO test did not return to idle after topology setup.");
+                    InvokePrivate(window, "UpdateUiState");
+                    PumpDispatcherOnce();
+
+                    var recoveredJournal = GetPrivateField(
+                        window,
+                        "diagnosticsMutationJournal")
+                        as DiagnosticsMutationJournal;
+                    AssertEx.NotNull(recoveredJournal);
+                    var genericValidator = typeof(MainWindow).GetMethod(
+                        "IsValidGenericSdoWriteMetadata",
+                        BindingFlags.Static | BindingFlags.NonPublic);
+                    AssertEx.NotNull(genericValidator);
+                    AssertEx.True(
+                        (bool)genericValidator.Invoke(
+                            null,
+                            new object[]
+                            {
+                                recoveredJournal.CurrentRecord
+                                    .SdoWriteMetadata
+                            }),
+                        "The recovered Axis2 metadata was not accepted by the generic SDO policy.");
+                    var canAttemptRecovery = typeof(MainWindow).GetMethod(
+                        "CanAttemptExactSdoRestartRecovery",
+                        BindingFlags.Instance | BindingFlags.NonPublic);
+                    AssertEx.NotNull(canAttemptRecovery);
+                    var canAttemptGenericRecovery =
+                        (bool)canAttemptRecovery.Invoke(
+                            window,
+                            new object[] { true });
+                    AssertEx.True(
+                        canAttemptGenericRecovery,
+                        "The recovered generic SDO record was not eligible for exact read-only restart recovery. "
+                            + "recoveredAtStartup="
+                            + GetPrivateField(
+                                window,
+                                "diagnosticsMutationRecoveredAtStartup")
+                            + ", pendingReadback="
+                            + (GetPrivateField(
+                                window,
+                                "d5SdoPendingWriteReadback") != null)
+                            + ", activeTicket="
+                            + (GetPrivateField(
+                                window,
+                                "d5SdoQualificationActiveTicket") != null)
+                            + ", attemptedIdentity="
+                            + GetPrivateField(
+                                window,
+                                "diagnosticsMutationRestartRecoveryAttemptedIdentity")
+                            + ", connected="
+                            + (((LMCConnection)GetPrivateField(
+                                window,
+                                "connection")).IsConnected)
+                            + ", recordActive="
+                            + recoveredJournal.CurrentRecord.IsActive
+                            + ", recordState="
+                            + recoveredJournal.CurrentRecord.State
+                            + ", quarantine="
+                            + ((D5SdoQuarantineLedger)GetPrivateField(
+                                window,
+                                "d5SdoQualificationQuarantine")).HasEntries
+                            + ", digitalOutputRequest="
+                            + (GetPrivateField(
+                                window,
+                                "pendingDigitalOutputWriteRequest") != null)
+                            + ", digitalOutputTicket="
+                            + (GetPrivateField(
+                                window,
+                                "pendingDigitalOutputWriteTicket") != null));
+                    InvokePrivate(
+                        window,
+                        "UpdateDiagnosticsMutationJournalUiState",
+                        true);
+                    PumpDispatcherOnce();
 
                     AssertEx.Equal(
-                        "Acknowledge Recovered Mutation",
+                        "Verify Recovered SDO Readback",
                         window.ButtonAcknowledgePersistedMutation.Content
                             as string,
-                        "A non-allowlisted Axis2 target must not expose protocol recovery.");
-                    AssertEx.True(
+                        "A valid generic Axis2 target did not expose exact read-only recovery.");
+                    AssertEx.False(
                         window.CheckPersistedMutationPhysicallyVerified
                             .IsEnabled);
-                    AssertEx.False(
+                    AssertEx.True(
                         window.ButtonAcknowledgePersistedMutation.IsEnabled);
                     AssertEx.Equal(1, window.ComboSdoWriteTarget.Items.Count);
                     var approvedTarget = window.ComboSdoWriteTarget.Items[0]
@@ -6664,19 +6755,6 @@ namespace LasalApiWpfTestApp.SmokeTests
                         LMCSignalValueType.Int32,
                         approvedTarget.ValueType);
                     AssertEx.Equal((ushort)4, approvedTarget.DataLength);
-
-                    var recoveryMethod = typeof(MainWindow).GetMethod(
-                        "RecoverPersistedSdoWriteByExactReadbackAsync",
-                        BindingFlags.Instance | BindingFlags.NonPublic);
-                    AssertEx.NotNull(recoveryMethod);
-                    var forcedTask = (Task)recoveryMethod.Invoke(
-                        window,
-                        new object[] { true });
-                    var rejection = AssertEx.Throws<InvalidOperationException>(
-                        () => forcedTask.GetAwaiter().GetResult());
-                    AssertEx.Contains(
-                        "no longer eligible",
-                        rejection.Message);
 
                     AssertRequestCommandSequence(
                         server.ReceivedRequests,
