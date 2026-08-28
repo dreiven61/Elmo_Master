@@ -6,6 +6,7 @@ on:
       - codex/sdo-r05-generic-durable-current-dev
     paths:
       - 'tools/Apply-SdoR05FullIdentity.py'
+      - 'tools/Apply-SdoR05FullIdentityWpfFixture.py'
       - '.github/workflows/sdo-r05-full-identity-promotion.yml'
   workflow_dispatch:
 
@@ -25,6 +26,10 @@ jobs:
       - name: Apply R05-B full identity patch
         shell: powershell
         run: python .\tools\Apply-SdoR05FullIdentity.py
+
+      - name: Apply R05-B WPF v3 recovery fixture
+        shell: powershell
+        run: python .\tools\Apply-SdoR05FullIdentityWpfFixture.py
 
       - name: Verify focused source contract
         shell: powershell
@@ -67,6 +72,7 @@ jobs:
             'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/DiagnosticsMutationJournal.cs' `
             'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.MutationJournal.cs' `
             'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/DiagnosticsMutationJournalTests.cs' `
+            'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/WpfMainWindowIntegrationTests.cs' `
             'docs/api/design/SDO_OPERATION_MODE_REIMPLEMENTATION_PLAN_20260827.md' `
             'tools/Verify-SdoR05FullIdentity.ps1'
           if (-not (git diff --cached --quiet)) {
