@@ -1,11 +1,11 @@
 # 최우선 API 개발 설계
 
-- 기준일: 2026-08-27
-- current production baseline: `dev@cd89d189a3dd574c1fc1147eba07dff88effc54a`
+- 기준일: 2026-08-28
+- current production baseline: `dev@45fc528c48723cbe3ba20fb11c3a2d7ec0e7ef0b`
 - production posture: **NO-GO**
-- active P0 redesign: issue #46 / PR #47
+- active P0 tracking: issue #46
 
-이 폴더는 current `dev`의 release boundary와 branch-local qualification을 분리해서 관리한다. 최신 통합 요약은 `DEVELOPMENT_STATUS_20260827.md`를 따른다.
+이 폴더는 current `dev`의 release boundary와 branch-local qualification을 분리해서 관리한다. SetOperationMode의 current-state 정본은 `SET_OPERATION_MODE_DESIGN.md`와 `SET_OPERATION_MODE_IMPLEMENTATION_UPDATE_20260828.md`를 함께 따른다.
 
 2026-08-27 Generic SDO / SetOperationMode 재설계 문서:
 
@@ -20,7 +20,7 @@
 | 순서 | API | release-oriented 진행도 | current production 상태 | 설계 |
 |---:|---|---:|---|---|
 | 1 | HomeDS402 | 50% | dormant / bit6 + five-gate OFF | `HOME_DS402_DESIGN.md` |
-| 2 | SetOperationMode | 60% | dormant / bits8-10 OFF | `SET_OPERATION_MODE_DESIGN.md` + SDO/Mode redesign |
+| 2 | SetOperationMode | **65%** | dormant / bits8-10 OFF / production mode mask 0 | `SET_OPERATION_MODE_DESIGN.md` + `SET_OPERATION_MODE_IMPLEMENTATION_UPDATE_20260828.md` |
 | 3 | HomeDS402Ex | 40% | dormant / physical runtime + bit11 OFF | `HOME_DS402_EX_DESIGN.md` |
 | 4 | SetPosition | 25% | dormant | `SET_POSITION_DESIGN.md` |
 
@@ -28,28 +28,44 @@
 
 ---
 
-## 2. 2026-08-27 P0 사용자 요구 audit
+## 2. P0 사용자 요구 audit — 2026-08-28
 
-세 요청의 현재 상태:
+### 2.1 SetOperationMode PP/PV/IP/CSP
 
-1. **SetOperationMode PP/PV/IP/CSP actual transition: 부분 구현 / 미완료**
-   - qualification branch에 multi-mode request/UI 존재
-   - 이전 bench definitive reject
-   - PLC `SupportedModeMask` 미구현
-   - actual multi-mode physical PASS 없음
+현재 판정: **software/source 약 80%, release-oriented 약 65%, physical multi-mode 미완료**
 
-2. **Generic arbitrary-target SDO Write: 미구현**
-   - request model은 arbitrary address를 표현 가능
-   - actual submission policy는 여전히 Axis1 `0x2F00:24` exact allowlist
-   - arbitrary-target WPF editor 없음
+완료된 것:
 
-3. **LMCSdoExecutor manual Server Read/Write: source 구현 완료 / bench 미완료**
-   - dual-entry source 구현
-   - C78 Rebuild/Link 0 errors
-   - PLC download/basic smoke 확인
-   - manual physical Read/Write/arbitration/D5 regression 미완료
+- PP(1)/PV(3)/IP(7)/CSP(8) request path
+- requested mode exact `0x6060` 1-byte mutation + `0x6061` exact verify source path
+- same-mode zero-write
+- cross-mode safe-state preflight
+- PLC `SetOperationModeSupportedMask` wire/SDK/WPF contract
+- WPF selector와 live PLC mask의 fail-closed Start admission
+- MODE-11E PP/PV/IP/CSP warm-start recovery 일반화
+- write-dispatch 이후 original Start/`0x6060` no-replay
+- MODE-11F requested/preflight/observed, DetailCode, DS402/evidence/write-dispatch diagnostics
 
-세 항목의 상세 완료 조건은 `SDO_OPERATION_MODE_REIMPLEMENTATION_PLAN_20260827.md`가 정본이다.
+남은 것:
+
+- current `dev@45fc528c...`에서 qualification branch 재생성
+- fresh current-image C78/ARM Rebuild+Link + generated artifact identity + PLC load
+- Axis1 CSP same-mode formal packet evidence
+- Axis1 `CSP -> PP/PV/IP -> CSP` physical packet/readback matrix
+- timeout/disconnect/mismatch/quarantine/retire matrix
+- mode별 qualification evidence ↔ production mask coupling
+- Axis2..4 확대
+- MODE-14 production paired activation
+
+기존 qualification branch `codex/setopmode-mode11-bench-activation@eae31dd...`는 current `dev`와 diverged하므로 다음 bench 기준으로 사용하지 않는다.
+
+### 2.2 Generic arbitrary-target SDO Write
+
+현재 판정은 별도 `SDO_OPERATION_MODE_REIMPLEMENTATION_PLAN_20260827.md`를 따른다. SetOperationMode semantic owner와 generic raw Write policy는 계속 분리한다. `0x6060`은 semantic SetOperationMode lifecycle을 우회하는 일반 raw path로 허용하지 않는다.
+
+### 2.3 LMCSdoExecutor manual Server Read/Write
+
+`LMCSdoExecutor` dual-entry source는 `dev`에 통합돼 있다. manual Server entry와 tokenized programmatic entry는 shared arbitration을 사용하며, 실제 bench evidence는 generic SDO qualification 문서에서 별도로 추적한다.
 
 ---
 
@@ -59,7 +75,7 @@
 |---|---:|---:|---:|---|
 | HomeDS402 | `0x7D15` | `0x7D16` | `0x7D17` | source/PC/WPF H37 qualification, activation OFF |
 | HomeDS402Ex | `0x7D1B` | `0x7D1C` | `0x7D1D` | route/owner/retained store, physical runtime OFF |
-| SetOperationMode | `0x7D23` | `0x7D24` | `0x7D25` | lifecycle/no-replay 존재, production activation OFF |
+| SetOperationMode | `0x7D23` | `0x7D24` | `0x7D25` | multi-mode source + MODE-11E/11F, production activation OFF |
 | SetPosition | `0x7D12` | `0x7D14` | `0x7D1A` | lifecycle + WPF durable recovery, native runtime activation OFF |
 
 Wire byte offset 정본은 `LMC_Library/LMC_API_Delivery/docs/DINT_PACKET_MAP.txt`다.
@@ -68,35 +84,40 @@ Wire byte offset 정본은 `LMC_Library/LMC_API_Delivery/docs/DINT_PACKET_MAP.tx
 
 ## 4. current P0 개발 큐
 
-### Wave A — PR #47 / SDO-R02 close
+### Wave A — SetOperationMode test baseline
 
-- diff hygiene / focused CI green
-- Axis1..4 executor direct-open
-- Class View manual `0x6061:0` Read
-- safe manual Write + exact readback
-- manual/programmatic BUSY/no-wire arbitration
-- D5 programmatic regression
-- same-image generated artifact identity
+- current `dev@45fc528c...`에서 qualification branch 재생성
+- activation delta-only diff 검증
+- LASAL IDE generated source / `Classes.lcb` 재생성
+- fresh C78/ARM Rebuild+Link
+- exact image identity + PLC load
+- WPF same-tree build
 
-### Wave B — Generic SDO
+### Wave B — SetOperationMode Axis1 physical matrix
 
-- SDO-R03 exact target allowlist 제거 및 capability/owner policy
+- MODE-11A CSP same-mode zero-write
+- MODE-11B `CSP -> PP -> CSP`
+- MODE-11C `CSP -> PV -> CSP`
+- MODE-11D `CSP -> IP -> CSP`
+- exact-one-write / duplicate-zero / `0x6061` exact readback
+
+### Wave C — SetOperationMode failure/release evidence
+
+- MODE-12 timeout/disconnect/mismatch/quarantine/retire
+- MODE-11G mode별 evidence ledger + qualification/release mask coupling
+- Axis2..4 확대
+- MODE-14 paired production activation review
+
+### Wave D — Generic SDO
+
+- SDO-R03 generic Write policy
 - SDO-R04 WPF arbitrary-target editor
 - SDO-R05 exact-request durable no-replay recovery
 
-### Wave C — SetOperationMode multi-mode
+### Wave E — release sync
 
-- MODE-R01 PLC `SupportedModeMask`
-- typed SDK capability
-- WPF selector = SDK-known ∩ PLC-supported
-- detailed rejection/current mode diagnostics
-- MODE-R02 Axis1 PP/PV/IP/CSP matrix
-- Axis2..4 확대
-
-### Wave D — release
-
-- REL-R01 generated/C78/distribution/docs sync
-- production activation 별도 review
+- generated/C78/distribution/docs sync
+- production activation은 별도 review
 
 ---
 
@@ -124,14 +145,24 @@ Remaining:
 Current `dev`:
 
 - OwnerKind 6 / Diagnostics SDO resource 4
+- PP/PV/IP/CSP requested-mode handling
 - `6061 -> 6060 -> 6061`
 - same-mode zero-write
+- cross-mode PhysicalValid/Standstill/Fault/OperationEnabled/conflict preflight
 - irreversible dispatch no-replay
 - safety preemption
-- MODE-10 split/static
+- `SupportedModeMask` wire/SDK/WPF
+- MODE-11E multi-mode warm-start recovery
+- MODE-11F WPF preflight/rejection/write-evidence diagnostics
 - MODE-13 WPF durable recovery
 
-2026-08-27 redesign adds a new requirement: lifecycle capability와 actual mode support를 분리한다. Multi-mode completion은 `SupportedModeMask` + physical matrix가 닫혀야 한다.
+Current release boundary:
+
+- `LMC_DIAG_SET_OPERATION_MODE_ENABLED = FALSE`
+- Admin bits 8/9/10 OFF
+- production `SetOperationModeSupportedMask = 0`
+- qualification mask는 test enable일 뿐 physical PASS 증거가 아님
+- PP/PV/IP physical matrix와 current exact C78/PLC evidence가 닫히기 전 production support로 기록하지 않음
 
 ### HomeDS402Ex
 
@@ -177,34 +208,3 @@ Remaining:
 - timeout/disconnect/corrupt/owner drift를 success로 축소하지 않는다.
 - generic raw access가 semantic owner lifecycle을 우회하지 않는다.
 - capability activation은 final approved image/hardware evidence와 paired한다.
-
----
-
-## 7. Definition of Done
-
-API/기능을 Active/완료로 표시하려면 최소 다음을 구분해서 닫는다.
-
-1. public/model/wire contract
-2. malformed/golden tests
-3. LASAL parser/runtime
-4. ownership/arbitration
-5. durable no-replay
-6. source/static/method-size
-7. IDE-generated artifact identity
-8. fresh C78 build/link
-9. exact PLC load identity
-10. hardware/packet normal + negative matrix
-11. distribution/docs sync
-12. paired capability/activation
-
-한 단계의 PASS를 다음 단계의 PASS로 추정하지 않는다.
-
----
-
-## 8. branch 규칙
-
-- 기능 current 판정은 `dev` 기준이다.
-- PR #47은 P0 redesign/implementation qualification branch이며 merge 전 전체 regression을 다시 확인한다.
-- PR #18은 과거 MODE-11 qualification history로 유지하며 새 redesign의 completion evidence로 사용하지 않는다.
-- generated artifact hash는 fresh same-source evidence 없이 자동 ratchet하지 않는다.
-- user-reported PLC smoke는 해당 smoke만 의미하며 packet/feature matrix PASS로 확대하지 않는다.
