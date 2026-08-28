@@ -1136,7 +1136,9 @@ FUNCTION LMCDiagnosticsService::GetSdoWritePolicyDetail
 		((pSnapshot + axisHealthOffset + 28)^$UDINT <> pSnapshot^$UDINT) then
 		DetailCode := 19;
 	elsif ((pSnapshot + axisHealthOffset + 24)^$DINT <> 0) |
-		((statusWord and 0x0000006F) <> 0x00000040) then
+		(((statusWord and 0x0000006F) <> 0x00000040) &
+		 ((statusWord and 0x0000006F) <> 0x00000021) &
+		 ((statusWord and 0x0000006F) <> 0x00000023)) then
 		DetailCode := 19;
 	end_if;
 

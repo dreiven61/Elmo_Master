@@ -1762,7 +1762,8 @@ namespace LasalMotionControlApiExample
             LMCConnection currentConnection,
             ushort slaveReference,
             string axisObjectName,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            bool requirePowerOff = true)
         {
             var selectedAxis = await SendQualificationCommandAsync(
                 "D5 SDO qualification axis lookup",
@@ -1802,15 +1803,34 @@ namespace LasalMotionControlApiExample
                 EnsureAxisStatusSuccess(
                     "D5 SDO qualification safety status",
                     latestStatus);
-                if (latestStatus.IsPowerOn || !latestStatus.IsStandstill)
+                var ds402BaseState =
+                    (uint)latestStatus.StatusWord & 0x0000006Fu;
+                var ds402Fault =
+                    ((uint)latestStatus.StatusWord & 0x00000008u) != 0;
+                var ds402OperationEnabled =
+                    ((uint)latestStatus.StatusWord & 0x00000004u) != 0;
+
+                if ((requirePowerOff && latestStatus.IsPowerOn)
+                    || !latestStatus.IsStandstill
+                    || ds402Fault
+                    || ds402OperationEnabled)
                 {
+                    var requiredState = requirePowerOff
+                        ? "PowerOn=False, Standstill=True, DS402 Fault=False, and OperationEnabled=False"
+                        : "Standstill=True, DS402 Fault=False, and OperationEnabled=False";
                     throw new InvalidOperationException(
-                        "D5 SDO qualification requires "
+                        "D5 SDO safety preflight requires "
                         + axisObjectName
-                        + " PowerOn=False and Standstill=True. Actual PowerOn="
+                        + " "
+                        + requiredState
+                        + ". Actual PowerOn="
                         + latestStatus.IsPowerOn
                         + ", Standstill="
                         + latestStatus.IsStandstill
+                        + ", StatusWord=0x"
+                        + latestStatus.StatusWord.ToString("X4", CultureInfo.InvariantCulture)
+                        + ", DS402BaseState=0x"
+                        + ds402BaseState.ToString("X2", CultureInfo.InvariantCulture)
                         + ".");
                 }
 
