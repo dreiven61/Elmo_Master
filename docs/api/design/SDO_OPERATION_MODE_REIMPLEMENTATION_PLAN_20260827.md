@@ -259,6 +259,8 @@ Quarantined
 - [ ] unresolved record startup recovery
 - [ ] tamper/corrupt journal fail-closed
 
+2026-08-28 current-dev R05-A: durable SDO metadata를 `Int8/UInt8/Int16/UInt16/Int32/UInt32` canonical 1/2/4-byte scalar로 일반화했다. restart recovery의 legacy `approved target` 용어/전제는 generic exact-request recoverability policy로 교체했고, `0x6060`은 durable metadata 단계에서도 semantic-reserved zero-wire deny로 고정했다. 기존 BootId/MapRevision exact-read no-replay 경계는 유지한다. 다음 R05-B에서 journal v3에 Endpoint IP/port + DiagnosticsBuild를 추가하고 v1/v2 legacy record를 full-identity recovery에서 fail-closed 처리한다.
+
 ---
 
 ## 7. MODE-R01 — SetOperationMode capability/diagnostics

@@ -56,6 +56,12 @@ namespace LasalMotionControlLib.Tests
                 "Qualification.MutationJournal.TypedSdoV2RoundTripIsImmutable",
                 TypedSdoV2RoundTripIsImmutable);
             tests.Add(
+                "Qualification.MutationJournal.GenericScalarMetadataSupportsOneTwoFourBytes",
+                GenericScalarMetadataSupportsOneTwoFourBytes);
+            tests.Add(
+                "Qualification.MutationJournal.SemanticModeObjectIsRejectedForDurableRecovery",
+                SemanticModeObjectIsRejectedForDurableRecovery);
+            tests.Add(
                 "Qualification.MutationJournal.NonCanonicalV2MetadataMarkerFailsClosed",
                 NonCanonicalV2MetadataMarkerFailsClosed);
             tests.Add(
@@ -65,8 +71,8 @@ namespace LasalMotionControlLib.Tests
                 "Qualification.MutationJournal.OutcomeUnverifiedCanBecomeReadbackMismatch",
                 OutcomeUnverifiedCanBecomeReadbackMismatch);
             tests.Add(
-                "Qualification.MutationJournal.RestartRecoveryUnapprovedIsZeroWire",
-                RestartRecoveryUnapprovedIsZeroWire);
+                "Qualification.MutationJournal.RestartRecoveryUnrecoverableIsZeroWire",
+                RestartRecoveryUnrecoverableIsZeroWire);
             tests.Add(
                 "Qualification.MutationJournal.RestartRecoveryExactMatchPersistsResolvedBeforeReturn",
                 RestartRecoveryExactMatchPersistsResolvedBeforeReturn);
@@ -322,6 +328,59 @@ namespace LasalMotionControlLib.Tests
                 });
         }
 
+        private static void GenericScalarMetadataSupportsOneTwoFourBytes()
+        {
+            AssertScalarMetadata(
+                LMCSignalValueType.Int8,
+                1,
+                new byte[] { 0xFE });
+            AssertScalarMetadata(
+                LMCSignalValueType.UInt8,
+                1,
+                new byte[] { 0x7F });
+            AssertScalarMetadata(
+                LMCSignalValueType.Int16,
+                2,
+                new byte[] { 0x34, 0x12 });
+            AssertScalarMetadata(
+                LMCSignalValueType.UInt16,
+                2,
+                new byte[] { 0x78, 0x56 });
+            AssertScalarMetadata(
+                LMCSignalValueType.Int32,
+                4,
+                new byte[] { 1, 2, 3, 4 });
+            AssertScalarMetadata(
+                LMCSignalValueType.UInt32,
+                4,
+                new byte[] { 5, 6, 7, 8 });
+
+            AssertEx.Throws<ArgumentOutOfRangeException>(
+                () => new DiagnosticsSdoWriteMutationMetadata(
+                    2,
+                    0x2000,
+                    3,
+                    LMCSignalValueType.UInt16,
+                    1,
+                    1000,
+                    new byte[] { 0x12 }),
+                "A non-canonical type/length pair must fail before durable arm.");
+        }
+
+        private static void SemanticModeObjectIsRejectedForDurableRecovery()
+        {
+            AssertEx.Throws<ArgumentOutOfRangeException>(
+                () => new DiagnosticsSdoWriteMutationMetadata(
+                    1,
+                    0x6060,
+                    0,
+                    LMCSignalValueType.Int8,
+                    1,
+                    1000,
+                    new byte[] { 8 }),
+                "Generic durable recovery must never make 0x6060 replayable/recoverable as raw SDO Write.");
+        }
+
         private static void NonCanonicalV2MetadataMarkerFailsClosed()
         {
             WithTestDirectory(
@@ -478,7 +537,7 @@ namespace LasalMotionControlLib.Tests
                 });
         }
 
-        private static void RestartRecoveryUnapprovedIsZeroWire()
+        private static void RestartRecoveryUnrecoverableIsZeroWire()
         {
             WithTestDirectory(
                 directoryPath =>
@@ -520,7 +579,7 @@ namespace LasalMotionControlLib.Tests
                                 .GetResult();
                         AssertEx.Equal(
                             DiagnosticsSdoRestartRecoveryDisposition
-                                .TargetNotApproved,
+                                .RequestNotRecoverable,
                             result.Disposition);
                         AssertEx.Equal(0, capabilityCalls);
                         AssertEx.Equal(0, readCalls);
@@ -1457,6 +1516,29 @@ namespace LasalMotionControlLib.Tests
                 SessionGeneration,
                 "Node=0x00010001,IOReference=0x00020001",
                 "Value=0x00000001,Mask=0x00000001");
+        }
+
+        private static void AssertScalarMetadata(
+            LMCSignalValueType valueType,
+            ushort dataLength,
+            byte[] expectedWriteData)
+        {
+            var metadata = new DiagnosticsSdoWriteMutationMetadata(
+                2,
+                0x2000,
+                3,
+                valueType,
+                dataLength,
+                1000,
+                expectedWriteData);
+            AssertEx.Equal((ushort)2, metadata.SlaveReference);
+            AssertEx.Equal((ushort)0x2000, metadata.ObjectIndex);
+            AssertEx.Equal((byte)3, metadata.SubIndex);
+            AssertEx.Equal(valueType, metadata.ValueType);
+            AssertEx.Equal(dataLength, metadata.DataLength);
+            AssertEx.SequenceEqual(
+                expectedWriteData,
+                metadata.ExpectedWriteData);
         }
 
         private static DiagnosticsSdoWriteMutationMetadata CreateSdoMetadata(

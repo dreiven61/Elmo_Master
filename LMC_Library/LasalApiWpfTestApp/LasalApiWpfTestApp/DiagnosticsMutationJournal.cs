@@ -50,18 +50,13 @@ namespace LasalMotionControlApiExample
                     "Durable SDO recovery cannot target a direct motion/control object.");
             }
 
-            if (valueType != LMCSignalValueType.Int32
-                && valueType != LMCSignalValueType.UInt32)
-            {
-                throw new NotSupportedException(
-                    "Durable SDO recovery supports only approved 32-bit integer targets.");
-            }
-
-            if (dataLength != 4)
+            var expectedDataLength = GetCanonicalScalarDataLength(
+                valueType);
+            if (dataLength != expectedDataLength)
             {
                 throw new ArgumentOutOfRangeException(
                     "dataLength",
-                    "Durable SDO recovery requires exactly four data bytes.");
+                    "Durable SDO recovery requires canonical scalar length: 8-bit=1, 16-bit=2, 32-bit=4.");
             }
 
             if (timeoutCycles < 1 || timeoutCycles > 60000)
@@ -99,9 +94,33 @@ namespace LasalMotionControlApiExample
             get { return (byte[])expectedWriteData.Clone(); }
         }
 
+        private static ushort GetCanonicalScalarDataLength(
+            LMCSignalValueType valueType)
+        {
+            switch (valueType)
+            {
+                case LMCSignalValueType.Int8:
+                case LMCSignalValueType.UInt8:
+                    return 1;
+
+                case LMCSignalValueType.Int16:
+                case LMCSignalValueType.UInt16:
+                    return 2;
+
+                case LMCSignalValueType.Int32:
+                case LMCSignalValueType.UInt32:
+                    return 4;
+
+                default:
+                    throw new NotSupportedException(
+                        "Durable SDO recovery supports canonical 1/2/4-byte integer scalar types only.");
+            }
+        }
+
         private static bool IsPermanentlyUnsafeObject(ushort objectIndex)
         {
             return objectIndex == 0x6040
+                || objectIndex == 0x6060
                 || objectIndex == 0x607A
                 || objectIndex == 0x60FF
                 || objectIndex == 0x6071;
@@ -111,7 +130,7 @@ namespace LasalMotionControlApiExample
     internal enum DiagnosticsSdoRestartRecoveryDisposition
     {
         NotEligible = 0,
-        TargetNotApproved = 1,
+        RequestNotRecoverable = 1,
         CapabilitiesUnsupported = 2,
         IdentityMismatch = 3,
         StateChanged = 4,
@@ -210,7 +229,7 @@ namespace LasalMotionControlApiExample
                 bool hasD5TicketOrQuarantine,
                 bool hasUnresolvedDigitalOutputWrite,
                 Func<DiagnosticsSdoWriteMutationMetadata, bool>
-                    exactTargetApproved,
+                    exactRequestRecoverable,
                 Func<Task<DiagnosticsSdoRestartRecoveryCapabilities>>
                     readCapabilitiesAsync,
                 Func<DiagnosticsSdoWriteMutationMetadata, Task<byte[]>>
@@ -221,9 +240,9 @@ namespace LasalMotionControlApiExample
                 throw new ArgumentNullException("journal");
             }
 
-            if (exactTargetApproved == null)
+            if (exactRequestRecoverable == null)
             {
-                throw new ArgumentNullException("exactTargetApproved");
+                throw new ArgumentNullException("exactRequestRecoverable");
             }
 
             if (readCapabilitiesAsync == null)
@@ -253,14 +272,15 @@ namespace LasalMotionControlApiExample
 
             var metadata = record.SdoWriteMetadata;
 
-            // This local allowlist decision deliberately precedes every
-            // capability or SDO delegate. Legacy v1 records and disabled
-            // compile-time targets therefore remain zero-wire.
-            if (!exactTargetApproved(metadata))
+            // Exact-request recoverability is a generic semantic-policy
+            // decision, not a target allowlist. It deliberately precedes every
+            // capability or SDO delegate so legacy/semantic-reserved requests
+            // remain zero-wire.
+            if (!exactRequestRecoverable(metadata))
             {
                 return CreateResult(
                     DiagnosticsSdoRestartRecoveryDisposition
-                        .TargetNotApproved);
+                        .RequestNotRecoverable);
             }
 
             var capabilities = await readCapabilitiesAsync();
