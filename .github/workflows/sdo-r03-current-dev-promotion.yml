@@ -1,0 +1,88 @@
+name: SDO-R03 current-dev promotion
+
+on:
+  push:
+    branches:
+      - codex/sdo-r03-generic-write-current-dev
+    paths:
+      - 'tools/Apply-SdoR03CurrentDev.py'
+      - '.github/workflows/sdo-r03-current-dev-promotion.yml'
+      - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalGenericSdoWrite.ps1'
+
+permissions:
+  contents: write
+
+jobs:
+  promote:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/sdo-r03-generic-write-current-dev
+          fetch-depth: 0
+
+      - name: Apply current-dev R03 patch
+        shell: powershell
+        run: |
+          python '.\tools\Apply-SdoR03CurrentDev.py'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git diff --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify generic scalar write source contract
+        shell: powershell
+        run: |
+          & '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\Verify-LasalGenericSdoWrite.ps1' -RepositoryRoot "$PWD"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Locate MSBuild
+        id: msbuild
+        shell: powershell
+        run: |
+          $candidates = @()
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          if (Test-Path -LiteralPath $vswhere) {
+            $found = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
+            if (-not [string]::IsNullOrWhiteSpace($found)) { $candidates += $found }
+          }
+          $candidates += @(
+            'C:\Program Files\Microsoft Visual Studio\18\Enterprise\MSBuild\Current\Bin\MSBuild.exe',
+            'C:\Program Files\Microsoft Visual Studio\17\Enterprise\MSBuild\Current\Bin\MSBuild.exe',
+            'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\MSBuild.exe'
+          )
+          $msbuild = $candidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+          if ([string]::IsNullOrWhiteSpace($msbuild)) { throw 'MSBuild.exe not found.' }
+          "path=$msbuild" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Build and run SDK contract tests Debug
+        shell: powershell
+        run: |
+          $project = '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\LasalMotionControlLib.Tests.csproj'
+          & '${{ steps.msbuild.outputs.path }}' $project /t:Build /p:Configuration=Debug /p:Platform=AnyCPU /m
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $exe = '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\bin\Debug\LasalMotionControlLib.Tests.exe'
+          & $exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build SDK contract tests Release
+        shell: powershell
+        run: |
+          $project = '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\LasalMotionControlLib.Tests.csproj'
+          & '${{ steps.msbuild.outputs.path }}' $project /t:Build /p:Configuration=Release /p:Platform=AnyCPU /m
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Commit promoted source
+        shell: powershell
+        run: |
+          git rm -- 'tools/Apply-SdoR03CurrentDev.py' '.github/workflows/sdo-r03-current-dev-promotion.yml'
+          git add -- 'LMC_Library/LMC_API_Delivery/src/LmcDiagnosticsD5Models.cs' 'LMC_Library/LMC_API_Delivery/src/LmcDiagnosticsSdoWriteVerification.cs' 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/DiagnosticsD5ContractTests.cs' 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/DiagnosticsSdoWritePolicyEvaluationTests.cs' 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/DiagnosticsSdoWriteVerificationTests.cs' 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/DiagnosticsD45CompletionContractTests.cs' 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st' 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalGenericSdoWrite.ps1'
+          git diff --cached --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'feat(sdo): generalize D5 scalar write policy'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git push origin HEAD:codex/sdo-r03-generic-write-current-dev
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
