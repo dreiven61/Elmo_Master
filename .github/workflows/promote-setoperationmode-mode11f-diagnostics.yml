@@ -6,6 +6,7 @@ on:
       - codex/setopmode-mode11f-diagnostics
     paths:
       - 'tools/Promote-SetOperationModeMode11FDiagnostics.py'
+      - 'tools/Promote-SetOperationModeMode11FLocalization.py'
       - '.github/workflows/promote-setoperationmode-mode11f-diagnostics.yml'
 
 permissions:
@@ -22,10 +23,12 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Apply exact MODE-11F WPF patch
+      - name: Apply exact MODE-11F WPF and localization patch
         shell: powershell
         run: |
           python '.\tools\Promote-SetOperationModeMode11FDiagnostics.py'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python '.\tools\Promote-SetOperationModeMode11FLocalization.py'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Verify exact promotion diff
@@ -35,7 +38,9 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $expected = @(
             'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.AxisSetOperationModeRecovery.cs',
-            'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/WpfAxisSetOperationModeRecoveryIntegrationTests.cs'
+            'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/UiLocalization.cs',
+            'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/WpfAxisSetOperationModeRecoveryIntegrationTests.cs',
+            'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/RecentRecoveryPanelLocalizationTests.cs'
           ) | Sort-Object
           $actual = @(git diff --name-only) | Sort-Object
           $delta = @(Compare-Object -ReferenceObject $expected -DifferenceObject $actual)
@@ -80,7 +85,7 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -- 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.AxisSetOperationModeRecovery.cs' 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/WpfAxisSetOperationModeRecoveryIntegrationTests.cs'
+          git add -- 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.AxisSetOperationModeRecovery.cs' 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/UiLocalization.cs' 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/WpfAxisSetOperationModeRecoveryIntegrationTests.cs' 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/RecentRecoveryPanelLocalizationTests.cs'
           git commit -m 'feat(mode): expose SetOperationMode preflight and write evidence'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           git push origin HEAD:codex/setopmode-mode11f-diagnostics
