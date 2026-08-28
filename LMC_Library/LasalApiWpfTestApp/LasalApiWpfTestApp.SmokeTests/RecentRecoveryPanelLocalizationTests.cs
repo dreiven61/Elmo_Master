@@ -66,7 +66,7 @@ namespace LasalMotionControlApiExample
                     "The dynamically created SetOperationMode axis label was not found in Korean UI.");
                 AssertContains(
                     setOperationModeText,
-                    "소프트웨어 target은 PP(1), PV(3), IP(7), CSP(8)로 제한됩니다. 연결된 PLC가 supported-mode mask를 광고하기 전까지 selector는 비어 있습니다. Homing(6)은 HomeDS402/HomeDS402Ex가 계속 소유합니다.",
+                    "소프트웨어 target은 PP(1), PV(3), IP(7), CSP(8)로 제한됩니다. qualification 중에는 selector를 계속 사용할 수 있지만, 연결된 PLC가 선택한 mode를 광고하지 않으면 Start는 비활성 상태를 유지합니다. Homing(6)은 HomeDS402/HomeDS402Ex가 계속 소유합니다.",
                     "The dynamically created SetOperationMode supported-mode warning was not found in Korean UI.");
                 AssertContains(
                     setOperationModeText,
@@ -113,7 +113,7 @@ namespace LasalMotionControlApiExample
                     "English restore did not recover the SetOperationMode axis label.");
                 AssertContains(
                     setOperationModeText,
-                    "Software targets are limited to PP(1), PV(3), IP(7), and CSP(8). The selector stays empty until the connected PLC advertises a supported-mode mask. Homing(6) remains owned by HomeDS402/HomeDS402Ex.",
+                    "Software targets are limited to PP(1), PV(3), IP(7), and CSP(8). The selector remains usable for qualification, but Start stays disabled unless the connected PLC advertises the selected mode. Homing(6) remains owned by HomeDS402/HomeDS402Ex.",
                     "English restore did not recover the SetOperationMode supported-mode warning.");
                 AssertContains(
                     setOperationModeText,
@@ -150,7 +150,7 @@ namespace LasalMotionControlApiExample
                     "The second Korean pass did not restore the SetOperationMode axis translation.");
                 AssertContains(
                     setOperationModeText,
-                    "소프트웨어 target은 PP(1), PV(3), IP(7), CSP(8)로 제한됩니다. 연결된 PLC가 supported-mode mask를 광고하기 전까지 selector는 비어 있습니다. Homing(6)은 HomeDS402/HomeDS402Ex가 계속 소유합니다.",
+                    "소프트웨어 target은 PP(1), PV(3), IP(7), CSP(8)로 제한됩니다. qualification 중에는 selector를 계속 사용할 수 있지만, 연결된 PLC가 선택한 mode를 광고하지 않으면 Start는 비활성 상태를 유지합니다. Homing(6)은 HomeDS402/HomeDS402Ex가 계속 소유합니다.",
                     "The second Korean pass did not restore the SetOperationMode supported-mode warning translation.");
                 AssertContains(
                     setOperationModeText,
