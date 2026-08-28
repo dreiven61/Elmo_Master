@@ -31,6 +31,10 @@ jobs:
         shell: powershell
         run: python .\tools\Fix-SdoR04PromotionVerifier.py
 
+      - name: Remove generated workflow outside connector permission boundary
+        shell: powershell
+        run: Remove-Item -LiteralPath '.\.github\workflows\sdo-r04-request-preview.yml' -Force
+
       - name: Verify focused source contract
         shell: powershell
         run: .\tools\Verify-SdoR04RequestPreview.ps1
