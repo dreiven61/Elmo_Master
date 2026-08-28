@@ -1658,7 +1658,8 @@ namespace LasalMotionControlApiExample
                                 "_LMCAxis"
                                     + request.SlaveReference.ToString(
                                         CultureInfo.InvariantCulture),
-                                CancellationToken.None);
+                                CancellationToken.None,
+                                false);
                             if (!sdoWriteConfirmationState.TryConsumeOrArm(
                                 currentConnection,
                                 currentConnection.SessionGeneration,
@@ -1687,7 +1688,8 @@ namespace LasalMotionControlApiExample
                                 "_LMCAxis"
                                     + request.SlaveReference.ToString(
                                         CultureInfo.InvariantCulture),
-                                CancellationToken.None);
+                                CancellationToken.None,
+                                false);
                         }
 
                         submissionGuard =

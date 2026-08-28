@@ -671,6 +671,68 @@ namespace LasalMotionControlApiExample
                 StartAxisSetOperationModeOnceAsync);
         }
 
+        private async Task VerifyAxisSetOperationModeTransitionPreflightAsync(
+            LMCSingleAxis currentAxis,
+            LMCDriveOperationMode requestedMode)
+        {
+            if (currentAxis == null)
+            {
+                throw new ArgumentNullException("currentAxis");
+            }
+
+            var driveStatus = await currentAxis.ReadDriveStatusAsync(
+                CancellationToken.None);
+            var axisStatus = driveStatus.AxisStatus;
+            if (axisStatus == null
+                || !axisStatus.IsReadSuccessful
+                || axisStatus.HasAxisError)
+            {
+                throw new InvalidOperationException(
+                    "SetOperationMode preflight could not prove a clean LASAL axis state. No Start was sent.");
+            }
+
+            if (driveStatus.OperationMode == requestedMode)
+            {
+                WriteLog(
+                    "SetOperationMode preflight: current 0x6061 already equals requested mode "
+                    + ((sbyte)requestedMode).ToString(CultureInfo.InvariantCulture)
+                    + ". Start may complete as SucceededNoWrite; this does not prove a 0x6060 cross-mode Write.");
+                return;
+            }
+
+            var statusWord = driveStatus.Ds402StatusWord;
+            var ds402Fault = (statusWord & 0x0008) != 0;
+            var ds402OperationEnabled = (statusWord & 0x0004) != 0;
+            if (!axisStatus.IsStandstill
+                || ds402Fault
+                || ds402OperationEnabled)
+            {
+                throw new InvalidOperationException(
+                    "SetOperationMode cross-mode preflight failed. No Start was sent. "
+                    + "A real 0x6060 transition requires Standstill=True, DS402 Fault=False, and OperationEnabled=False. "
+                    + "Power Off / disable the servo before changing PP/PV/IP/CSP. Actual Standstill="
+                    + axisStatus.IsStandstill
+                    + ", StatusWord=0x"
+                    + statusWord.ToString("X4", CultureInfo.InvariantCulture)
+                    + ", currentMode="
+                    + driveStatus.OperationModeRaw.ToString(CultureInfo.InvariantCulture)
+                    + ", requestedMode="
+                    + ((sbyte)requestedMode).ToString(CultureInfo.InvariantCulture)
+                    + ".");
+            }
+
+            WriteLog(
+                "SetOperationMode cross-mode preflight passed: axis="
+                + currentAxis.AxisReference.ToString(CultureInfo.InvariantCulture)
+                + ", currentMode="
+                + driveStatus.OperationModeRaw.ToString(CultureInfo.InvariantCulture)
+                + ", requestedMode="
+                + ((sbyte)requestedMode).ToString(CultureInfo.InvariantCulture)
+                + ", StatusWord=0x"
+                + statusWord.ToString("X4", CultureInfo.InvariantCulture)
+                + ".");
+        }
+
         private async Task StartAxisSetOperationModeOnceAsync()
         {
             if (!AxisSetOperationModeRecoveryJournalCanArm)
@@ -713,6 +775,9 @@ namespace LasalMotionControlApiExample
                 "SetOperationMode Start");
 
             var currentAxis = await GetPhysicalAxisAsync(axisReference);
+            await VerifyAxisSetOperationModeTransitionPreflightAsync(
+                currentAxis,
+                requestedMode);
             var prepared = currentAxis.PrepareSetOperationMode(
                 requestedMode,
                 timeoutMilliseconds,

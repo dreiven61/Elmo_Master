@@ -483,3 +483,12 @@ docs/architecture/LMC_GENERIC_SDO_AND_OPERATION_MODE_REDESIGN_2026-08-27.md: tra
 - [ ] same-image artifact closure
 
 **세 요청 모두 체크가 닫히기 전에는 issue #46을 완료 처리하거나 production activation을 열지 않는다.**
+
+## 2026-08-28 실기 피드백 corrective tranche
+
+실기에서 `SetOperationMode`는 CSP에서만 성공처럼 보이고 generic `SDO Write`는 동작하지 않는 현상이 확인됐다. corrective source는 다음 두 원인을 분리한다.
+
+- SetOperationMode: CSP->CSP는 `0x6061` already-target 경로의 `SucceededNoWrite`가 될 수 있으므로 실제 `0x6060` cross-mode write 증거가 아니다. PC preflight가 fresh LASAL status + `0x6041` + `0x6061`을 읽고, 다른 mode로 바꿀 때만 `Standstill=True`, Fault clear, OperationEnabled clear를 확인한 뒤 one-shot Start를 허용한다. 안전조건은 완화하지 않는다.
+- Generic SDO Write: ordinary editor가 same-value qualification용 `PowerOn=False` 조건을 재사용해 safe non-semantic write까지 wire 전에 차단하던 경로를 분리한다. qualification은 기존 PowerOff 조건을 유지하고, ordinary generic Write는 `Standstill=True + Fault=False + OperationEnabled=False`를 요구한다. PLC도 semantic/dedicated-owner blocklist를 유지하면서 DS402 `Switch On Disabled(0x40)`, `Ready To Switch On(0x21)`, `Switched On(0x23)`만 허용한다. `Operation Enabled(0x27)` 및 기타 상태는 계속 fail-closed다.
+
+이 tranche는 hardware finding corrective source이며 실기 PASS 자체를 주장하지 않는다. PP/PV/IP 실제 전환과 arbitrary safe-object SDO Write는 재검증 후 qualification evidence를 갱신한다.
