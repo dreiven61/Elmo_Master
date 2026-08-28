@@ -316,12 +316,15 @@ namespace LasalMotionControlLib
             }
 
             ValidateSdoWritePolicy(approvedWriteRequest);
+            var expectedWriteLength = LMCDiagnosticsSdoPolicy
+                .ExpectedReadLength(approvedWriteRequest.ValueType);
             if (!approvedWriteRequest.IsWrite
-                || approvedWriteRequest.DataLength != 4
-                || approvedWriteRequest.WriteDataUnsafe.Length != 4)
+                || approvedWriteRequest.DataLength != expectedWriteLength
+                || approvedWriteRequest.WriteDataUnsafe.Length
+                    != expectedWriteLength)
             {
                 throw new ArgumentException(
-                    "SDO Write verification requires an exact four-byte Write request.",
+                    "SDO Write verification requires an exact canonical 1/2/4-byte scalar Write request.",
                     "approvedWriteRequest");
             }
 

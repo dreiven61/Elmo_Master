@@ -1059,52 +1059,61 @@ FUNCTION LMCDiagnosticsService::GetSdoWritePolicyDetail
 	// 0x6060 is owned exclusively by the SetOperationMode lifecycle.
 	// Generic D5 must never bypass its owner/outcome/no-replay contract.
 	if (ObjectIndex = 0x6040) | (ObjectIndex = 0x6060) |
-		(ObjectIndex = 0x607A) | (ObjectIndex = 0x60FF) |
-		(ObjectIndex = 0x6071) then
+			(ObjectIndex = 0x607A) | (ObjectIndex = 0x60FF) |
+			(ObjectIndex = 0x6071) | (ObjectIndex = 0x3204) |
+			(ObjectIndex = 0x20FC) then
 		DetailCode := 8;
 		RETURN;
 	end_if;
 
-		// Generic UI[24] policy is the only approved 0x7E50 write target.
-		// Encoder maintenance objects are available only through 0x7E53.
+		// Generic scalar D5 Write is admitted by request shape and semantic
+		// ownership, not by a compile-time address list. Dedicated encoder
+		// maintenance remains available only through 0x7E53.
 		if LMC_DIAG_D5_SDO_WRITE_GLOBAL_ENABLED = FALSE then
 			DetailCode := 7;
 			RETURN;
 		end_if;
 		if (SlaveReference < 1) | (SlaveReference > 4) |
-			(ObjectIndex <> 0x2F00) | (SubIndex <> 24) |
-			(ValueType <> 4) | (DataLength <> 4) then
+			(ObjectIndex = 0) then
 			DetailCode := 7;
 			RETURN;
 		end_if;
-		case SlaveReference of
-			1:
-				if LMC_DIAG_D5_SDO_WRITE_UI24_AXIS1_ENABLED = FALSE then
+
+		case ValueType of
+			1, 9, 10, 11:
+				if DataLength <> 1 then
 					DetailCode := 7;
 					RETURN;
 				end_if;
-			2:
-				if LMC_DIAG_D5_SDO_WRITE_UI24_AXIS2_ENABLED = FALSE then
+			2, 3, 7:
+				if DataLength <> 2 then
 					DetailCode := 7;
 					RETURN;
 				end_if;
-			3:
-				if LMC_DIAG_D5_SDO_WRITE_UI24_AXIS3_ENABLED = FALSE then
+			4, 5, 6, 8:
+				if DataLength <> 4 then
 					DetailCode := 7;
 					RETURN;
 				end_if;
-			4:
-				if LMC_DIAG_D5_SDO_WRITE_UI24_AXIS4_ENABLED = FALSE then
-					DetailCode := 7;
-					RETURN;
-				end_if;
+		else
+			DetailCode := 7;
+			RETURN;
 		end_case;
 
-		// Conservative local policy range; this is not the vendor UI range.
-		writeValue := WriteData$DINT;
-		if (writeValue < -1073741823) | (writeValue > 1073741823) then
+		if (ValueType = 1) & (WriteData <> 0) & (WriteData <> 1) then
 			DetailCode := 12;
 			RETURN;
+		end_if;
+
+		// UI[24] is a known preset with a conservative qualification range.
+		// The range does not make UI[24] the generic address admission gate.
+		if (ObjectIndex = 0x2F00) & (SubIndex = 24) &
+			(ValueType = 4) & (DataLength = 4) then
+			writeValue := WriteData$DINT;
+			if (writeValue < -1073741823) | (writeValue > 1073741823) then
+				DetailCode := 12;
+				RETURN;
+			end_if;
 		end_if;
 	if CheckAxisState = FALSE then
 		RETURN;
@@ -8313,11 +8322,7 @@ FUNCTION LMCDiagnosticsService::HandleDiagnosticsCapabilities
 		(pResponse + 36)^$UDINT := 320000;
 		(pResponse + 56)^$UDINT := 1280000;
 		(pResponse + 60)^$UINT := 4;
-		if (LMC_DIAG_D5_SDO_WRITE_GLOBAL_ENABLED = TRUE) &
-			((LMC_DIAG_D5_SDO_WRITE_UI24_AXIS1_ENABLED = TRUE) |
-			 (LMC_DIAG_D5_SDO_WRITE_UI24_AXIS2_ENABLED = TRUE) |
-			 (LMC_DIAG_D5_SDO_WRITE_UI24_AXIS3_ENABLED = TRUE) |
-			 (LMC_DIAG_D5_SDO_WRITE_UI24_AXIS4_ENABLED = TRUE)) then
+		if LMC_DIAG_D5_SDO_WRITE_GLOBAL_ENABLED = TRUE then
 			(pResponse + 20)^$UDINT :=
 				(pResponse + 20)^$UDINT OR 0x00000200;
 		end_if;

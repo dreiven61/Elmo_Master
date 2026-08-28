@@ -443,9 +443,7 @@ namespace LasalMotionControlLib.Tests
                 AssertEx.Equal(1, approved.Count);
             }
 
-            AssertEx.Equal(
-                "Reserved diagnostic UI[24]",
-                approved[0].DisplayName);
+            AssertEx.Equal("Reserved diagnostic UI[24]", approved[0].DisplayName);
             AssertEx.Equal((ushort)1, approved[0].SlaveReference);
             AssertEx.Equal((ushort)0x2F00, approved[0].ObjectIndex);
             AssertEx.Equal((byte)24, approved[0].SubIndex);
@@ -456,155 +454,40 @@ namespace LasalMotionControlLib.Tests
             LMCDiagnosticsWritePolicy.RequireSdoWriteAllowed(
                 approved[0].CreateRequest(0, 100));
 
-            var target = new LMCSdoWriteTarget(
-                "Reserved diagnostic UI[24]",
-                2,
-                0x2F00,
-                24,
-                LMCSignalValueType.Int32,
-                4,
-                -100,
-                100);
-            AssertEx.Equal("Reserved diagnostic UI[24]", target.DisplayName);
-            AssertEx.Equal((ushort)2, target.SlaveReference);
-            AssertEx.Equal((ushort)0x2F00, target.ObjectIndex);
-            AssertEx.Equal((byte)24, target.SubIndex);
-            AssertEx.Equal(LMCSignalValueType.Int32, target.ValueType);
-            AssertEx.Equal((ushort)4, target.DataLength);
-            AssertEx.Equal(-100L, target.MinimumIntegerValue);
-            AssertEx.Equal(100L, target.MaximumIntegerValue);
-            AssertEx.Throws<NotSupportedException>(
-                () => ((IList<LMCSdoWriteTarget>)approved).Add(target));
-            AssertEx.True(
-                target.ToString().Contains("0x2F00:24"));
-
-            AssertEx.Equal(
-                0,
-                LMCDiagnosticsWritePolicy.CreateAllowedSdoWriteTargets(
-                    false,
-                    true,
-                    true,
-                    true,
-                    true).Length);
-            var axis2Only =
-                LMCDiagnosticsWritePolicy.CreateAllowedSdoWriteTargets(
-                    true,
-                    false,
-                    true,
-                    false,
-                    false);
-            AssertEx.Equal(1, axis2Only.Length);
-            AssertEx.Equal((ushort)2, axis2Only[0].SlaveReference);
-            AssertEx.Equal((ushort)0x2F00, axis2Only[0].ObjectIndex);
-            AssertEx.Equal((byte)24, axis2Only[0].SubIndex);
-            AssertEx.Equal(
-                LMCSignalValueType.Int32,
-                axis2Only[0].ValueType);
-            AssertEx.Equal((ushort)4, axis2Only[0].DataLength);
-            AssertEx.Equal(-1073741823L, axis2Only[0].MinimumIntegerValue);
-            AssertEx.Equal(1073741823L, axis2Only[0].MaximumIntegerValue);
-            AssertEx.True(
-                axis2Only[0].Matches(
-                    axis2Only[0].CreateRequest(-1, 100)));
-            var axes1And4 =
-                LMCDiagnosticsWritePolicy.CreateAllowedSdoWriteTargets(
-                    true,
-                    true,
-                    false,
-                    false,
-                    true);
-            AssertEx.Equal(2, axes1And4.Length);
-            AssertEx.Equal((ushort)1, axes1And4[0].SlaveReference);
-            AssertEx.Equal((ushort)4, axes1And4[1].SlaveReference);
-
-            var minimumRequest = target.CreateRequest(-100, 100);
-            AssertEx.SequenceEqual(
-                TestFrame.Hex("9C FF FF FF"),
-                minimumRequest.WriteData);
-            AssertEx.True(
-                target.Matches(minimumRequest));
-            AssertEx.True(
-                target.Matches(
-                    target.CreateRequest(100, 100)));
-            AssertEx.Throws<ArgumentOutOfRangeException>(
-                () => target.CreateRequest(101, 100));
-            AssertEx.Throws<ArgumentOutOfRangeException>(
-                () => target.CreateRequest(0, 0));
-            AssertEx.Throws<ArgumentOutOfRangeException>(
-                () => target.CreateRequest(0, 60001));
-            AssertEx.False(
-                target.Matches(
-                    LMCSdoRequest.CreateWrite(
-                        2,
-                        0x2F00,
-                        24,
-                        LMCSignalValueType.Int32,
-                        TestFrame.Hex("00 00 00 00"),
-                        60001)));
-            AssertEx.False(
-                target.Matches(
-                    LMCSdoRequest.CreateWrite(
-                        2,
-                        0x2F00,
-                        24,
-                        LMCSignalValueType.Int32,
-                        TestFrame.Hex("65 00 00 00"),
-                        100)));
-            AssertEx.False(
-                target.Matches(
-                    LMCSdoRequest.CreateWrite(
-                        1,
-                        0x2F00,
-                        24,
-                        LMCSignalValueType.Int32,
-                        TestFrame.Hex("00 00 00 00"),
-                        100)));
-
-            AssertEx.Throws<ArgumentOutOfRangeException>(
-                () => new LMCSdoWriteTarget(
-                    "Unsafe control word",
-                    1,
-                    0x6040,
-                    0,
-                    LMCSignalValueType.UInt32,
-                    4,
-                    0,
-                    65535));
-            AssertEx.Throws<NotSupportedException>(
-                () => new LMCSdoWriteTarget(
-                    "Unsupported narrow target",
-                    1,
-                    0x2F00,
-                    24,
-                    LMCSignalValueType.UInt16,
-                    4,
-                    0,
-                    100));
-
-            foreach (var blockedAxis in new ushort[] { 2, 3, 4 })
+            var genericWrites = new[]
             {
-                var blocked = LMCSdoRequest.CreateWrite(
-                    blockedAxis,
-                    0x2F00,
-                    24,
-                    LMCSignalValueType.Int32,
-                    TestFrame.Hex("00 00 00 00"),
-                    100);
-                AssertEx.Throws<NotSupportedException>(
-                    () => LMCDiagnosticsWritePolicy
-                        .RequireSdoWriteAllowed(blocked));
+                LMCSdoRequest.CreateWrite(1, 0x2000, 1,
+                    LMCSignalValueType.UInt8, TestFrame.Hex("5A"), 100),
+                LMCSdoRequest.CreateWrite(2, 0x2001, 2,
+                    LMCSignalValueType.UInt16, TestFrame.Hex("34 12"), 100),
+                LMCSdoRequest.CreateWrite(3, 0x3000, 7,
+                    LMCSignalValueType.Int32, TestFrame.Hex("FE FF FF FF"), 100),
+                LMCSdoRequest.CreateWrite(4, 0x3001, 255,
+                    LMCSignalValueType.Real32, TestFrame.Hex("00 00 80 3F"), 100)
+            };
+            foreach (var generic in genericWrites)
+            {
+                LMCDiagnosticsWritePolicy.RequireSdoWriteAllowed(generic);
             }
 
-            var outOfRangeAxis1 = LMCSdoRequest.CreateWrite(
-                1,
-                0x2F00,
-                24,
-                LMCSignalValueType.Int32,
-                TestFrame.Hex("FF FF FF 7F"),
-                100);
+            foreach (var blockedObject in new ushort[]
+            {
+                0x6040, 0x6060, 0x607A, 0x60FF, 0x6071, 0x3204, 0x20FC
+            })
+            {
+                var blocked = LMCSdoRequest.CreateWrite(
+                    1, blockedObject, 0, LMCSignalValueType.UInt16,
+                    TestFrame.Hex("00 00"), 100);
+                AssertEx.Throws<NotSupportedException>(
+                    () => LMCDiagnosticsWritePolicy.RequireSdoWriteAllowed(blocked));
+            }
+
+            var outOfRangeUi24 = LMCSdoRequest.CreateWrite(
+                4, 0x2F00, 24, LMCSignalValueType.Int32,
+                TestFrame.Hex("FF FF FF 7F"), 100);
             AssertEx.Throws<NotSupportedException>(
-                () => LMCDiagnosticsWritePolicy
-                    .RequireSdoWriteAllowed(outOfRangeAxis1));
+                () => LMCDiagnosticsWritePolicy.RequireSdoWriteAllowed(
+                    outOfRangeUi24));
 
             AssertEx.Throws<ArgumentNullException>(
                 () => LMCDiagnosticsWritePolicy
@@ -612,23 +495,17 @@ namespace LasalMotionControlLib.Tests
             AssertEx.Throws<NotSupportedException>(
                 () => LMCDiagnosticsWritePolicy
                     .RequireSdoWriteVerificationCapabilities(
-                        SdoCapabilities(
-                            LMCDiagnosticCapability.SDOWrite
-                                | LMCDiagnosticCapability.SDORead)));
+                        SdoCapabilities(LMCDiagnosticCapability.SDOWrite
+                            | LMCDiagnosticCapability.SDORead)));
             AssertEx.Throws<NotSupportedException>(
                 () => LMCDiagnosticsWritePolicy
                     .RequireSdoWriteVerificationCapabilities(
-                        SdoCapabilities(
-                            LMCDiagnosticCapability.SDOWrite
-                                | LMCDiagnosticCapability
-                                    .SDOReadGeneralInline)));
-            LMCDiagnosticsWritePolicy
-                .RequireSdoWriteVerificationCapabilities(
-                    SdoCapabilities(
-                        LMCDiagnosticCapability.SDOWrite
-                            | LMCDiagnosticCapability.SDORead
-                            | LMCDiagnosticCapability
-                                .SDOReadGeneralInline));
+                        SdoCapabilities(LMCDiagnosticCapability.SDOWrite
+                            | LMCDiagnosticCapability.SDOReadGeneralInline)));
+            LMCDiagnosticsWritePolicy.RequireSdoWriteVerificationCapabilities(
+                SdoCapabilities(LMCDiagnosticCapability.SDOWrite
+                    | LMCDiagnosticCapability.SDORead
+                    | LMCDiagnosticCapability.SDOReadGeneralInline));
         }
 
         private static void SdoRequestValidation()

@@ -435,9 +435,10 @@ namespace LasalMotionControlLib
     }
 
     /// <summary>
-    /// Immutable compile-time SDO Write target intended to be mirrored by the
-    /// PLC policy. Applications must not treat an arbitrary SDO address as a
-    /// writable target, and submission still verifies both policies.
+    /// Immutable known SDO Write preset. Presets provide engineering metadata
+    /// and conservative value ranges, but are not the generic D5 address policy.
+    /// Submission still enforces semantic-owner, scalar-shape, capability,
+    /// journal/no-replay and exact readback contracts.
     /// </summary>
     public sealed class LMCSdoWriteTarget
     {
@@ -706,10 +707,10 @@ namespace LasalMotionControlLib
 
     internal static class LMCDiagnosticsWritePolicy
     {
-        // Axis 1 UI[24] is source-approved for an explicitly supervised live
-        // qualification. Drive-program ownership and hardware behavior still
-        // require PLC/runtime proof, so exact capability, axis-state, target,
-        // confirmation, journal, and readback interlocks remain mandatory.
+        // UI[24] remains a known qualification preset. Generic D5 scalar Write
+        // is admitted by request validity and semantic ownership rather than an
+        // exact address allowlist. Confirmation, journal/no-replay and exact
+        // readback interlocks remain mandatory at the higher-level workflow.
         private static readonly bool SdoWriteEnabled = true;
         private static readonly bool SdoWriteUi24Axis1Enabled = true;
         private static readonly bool SdoWriteUi24Axis2Enabled = false;
@@ -750,7 +751,7 @@ namespace LasalMotionControlLib
             }
 
             var blockers = LMCSdoWritePolicyBlockers.None;
-            if (approvedTargets.Count == 0)
+            if (!SdoWriteEnabled)
             {
                 blockers |= LMCSdoWritePolicyBlockers.NoApprovedTarget;
             }
@@ -859,16 +860,65 @@ namespace LasalMotionControlLib
                 return;
             }
 
-            for (var index = 0; index < AllowedSdoWrites.Length; index++)
+            if (!SdoWriteEnabled)
             {
-                if (AllowedSdoWrites[index].Matches(request))
-                {
-                    return;
-                }
+                throw new NotSupportedException(
+                    "SDO Write is disabled by the SDK policy gate.");
             }
 
-            throw new NotSupportedException(
-                "SDO Write is blocked because the target is not in the SDK compile-time allowlist.");
+            if (request.SlaveReference < 1 || request.SlaveReference > 4)
+            {
+                throw new NotSupportedException(
+                    "Generic SDO Write supports SlaveReference 1 through 4 only.");
+            }
+
+            if (request.ObjectIndex == 0
+                || LMCSdoRequest.IsPermanentlyUnsafeObject(request.ObjectIndex))
+            {
+                throw new NotSupportedException(
+                    "Generic SDO Write cannot target semantic or dedicated-owner objects.");
+            }
+
+            var expectedLength =
+                LMCDiagnosticsSdoPolicy.ExpectedReadLength(request.ValueType);
+            if (request.DataLength != expectedLength
+                || request.DataLength > 4)
+            {
+                throw new NotSupportedException(
+                    "Generic SDO Write requires canonical 1/2/4-byte scalar type lengths.");
+            }
+
+            var data = request.WriteDataUnsafe;
+            if (data == null || data.Length != request.DataLength)
+            {
+                throw new NotSupportedException(
+                    "Generic SDO Write requires an exact canonical payload length.");
+            }
+
+            if (request.ValueType == LMCSignalValueType.Bool && data[0] > 1)
+            {
+                throw new NotSupportedException(
+                    "Generic Bool SDO Write accepts only 0 or 1.");
+            }
+
+            // Keep the conservative qualification range for the known UI[24]
+            // preset without turning the preset into an address allowlist.
+            if (request.ObjectIndex == 0x2F00
+                && request.SubIndex == 24
+                && request.ValueType == LMCSignalValueType.Int32
+                && request.DataLength == 4)
+            {
+                var value = unchecked((int)(
+                    (uint)data[0]
+                    | ((uint)data[1] << 8)
+                    | ((uint)data[2] << 16)
+                    | ((uint)data[3] << 24)));
+                if (value < -1073741823 || value > 1073741823)
+                {
+                    throw new NotSupportedException(
+                        "The UI[24] qualification preset value is outside its conservative range.");
+                }
+            }
         }
 
         internal static void RequireSdoWriteVerificationCapabilities(
@@ -1075,9 +1125,12 @@ namespace LasalMotionControlLib
             switch (signal.PdoIndex)
             {
                 case 0x6040:
+                case 0x6060:
                 case 0x607A:
                 case 0x60FF:
                 case 0x6071:
+                case 0x3204:
+                case 0x20FC:
                     return true;
                 default:
                     return false;
@@ -1278,13 +1331,15 @@ namespace LasalMotionControlLib
                 throw new ArgumentNullException("writeData");
             }
 
-            if (writeData.Length != 4
+            if (writeData.Length != 1
+                && writeData.Length != 2
+                && writeData.Length != 4
                 && writeData.Length != 8
                 && writeData.Length != 12)
             {
                 throw new ArgumentOutOfRangeException(
                     "writeData",
-                    "D5 SDO WriteData must contain exactly 4, 8, or 12 bytes.");
+                    "D5 SDO WriteData must contain exactly 1, 2, 4, 8, or 12 bytes.");
             }
 
             return new LMCSdoRequest(
@@ -1303,9 +1358,12 @@ namespace LasalMotionControlLib
             switch (objectIndex)
             {
                 case 0x6040:
+                case 0x6060:
                 case 0x607A:
                 case 0x60FF:
                 case 0x6071:
+                case 0x3204:
+                case 0x20FC:
                     return true;
                 default:
                     return false;
@@ -1352,7 +1410,9 @@ namespace LasalMotionControlLib
                 || dataLength == 4
                 || dataLength == 8
                 || dataLength == 12;
-            var isWriteInlineLength = dataLength == 4
+            var isWriteInlineLength = dataLength == 1
+                || dataLength == 2
+                || dataLength == 4
                 || dataLength == 8
                 || dataLength == 12;
             if (operationFlags == LMCOperationFlags.Write
@@ -1360,7 +1420,7 @@ namespace LasalMotionControlLib
             {
                 throw new ArgumentOutOfRangeException(
                     "dataLength",
-                    "SDO Write DataLength must be exactly 4, 8, or 12 bytes.");
+                    "SDO Write DataLength must be exactly 1, 2, 4, 8, or 12 bytes.");
             }
 
             if (operationFlags == LMCOperationFlags.None

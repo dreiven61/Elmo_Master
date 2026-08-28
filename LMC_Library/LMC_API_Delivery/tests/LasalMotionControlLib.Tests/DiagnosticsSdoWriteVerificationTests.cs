@@ -46,12 +46,11 @@ namespace LasalMotionControlLib.Tests
                         candidate => true);
                 AssertEx.NotNull(context);
 
-                AssertEx.Throws<NotSupportedException>(
-                    () => connection.Diagnostics
-                        .CreateSdoWriteVerificationContext(
-                            request,
-                            ticket,
-                            terminalStatus));
+                AssertEx.NotNull(connection.Diagnostics
+                    .CreateSdoWriteVerificationContext(
+                        request,
+                        ticket,
+                        terminalStatus));
                 AssertEx.Throws<InvalidOperationException>(
                     () => connection.Diagnostics
                         .CreateSdoWriteVerificationContext(

@@ -41,8 +41,8 @@ namespace LasalMotionControlLib.Tests
                 "Rpc.DiagnosticsD5.CompletedSurfaceSyncAndAsync",
                 D5CompletedSurfaceSyncAndAsync);
             tests.Add(
-                "Policy.DiagnosticsD5.WriteAllowlistFailClosed",
-                D5WriteAllowlistFailClosed);
+                "Policy.DiagnosticsD5.WriteCapabilityFailClosed",
+                D5WriteCapabilityFailClosed);
             tests.Add(
                 "Policy.DiagnosticsD5.GeneralSdoReadCapabilityGate",
                 D5GeneralSdoReadCapabilityGate);
@@ -463,13 +463,13 @@ namespace LasalMotionControlLib.Tests
             }
         }
 
-        private static void D5WriteAllowlistFailClosed()
+        private static void D5WriteCapabilityFailClosed()
         {
-            RunD5WriteAllowlistFailClosed(false);
-            RunD5WriteAllowlistFailClosed(true);
+            RunD5WriteCapabilityFailClosed(false);
+            RunD5WriteCapabilityFailClosed(true);
         }
 
-        private static void RunD5WriteAllowlistFailClosed(bool useAsync)
+        private static void RunD5WriteCapabilityFailClosed(bool useAsync)
         {
             var piWrite = PiWriteRequest();
             var sdoWrite = LMCSdoRequest.CreateWrite(
@@ -489,6 +489,16 @@ namespace LasalMotionControlLib.Tests
                         0,
                         CapabilitiesPayload(
                             1,
+                            LMCDiagnosticCapability.SignalCatalog
+                                | LMCDiagnosticCapability.PIWrite,
+                            0,
+                            0))),
+                new FakeRpcStep(
+                    0x7E00,
+                    TestFrame.Response(
+                        0,
+                        CapabilitiesPayload(
+                            2,
                             LMCDiagnosticCapability.SignalCatalog
                                 | LMCDiagnosticCapability.PIWrite,
                             0,
@@ -751,12 +761,12 @@ namespace LasalMotionControlLib.Tests
 
                 var writeRequest = LMCSdoRequest.CreateWrite(
                     1,
-                    0x2000,
+                    0x6060,
                     0,
-                    LMCSignalValueType.UInt32,
-                    TestFrame.Hex("78 56 34 12"),
+                    LMCSignalValueType.Int8,
+                    TestFrame.Hex("08"),
                     100);
-                var writeError = AssertEx.Throws<NotSupportedException>(
+                var writeError = AssertEx.Throws<InvalidOperationException>(
                     () => connection.Diagnostics.SubmitSdo(writeRequest));
                 var writeContext =
                     RequireSubmissionFailureContext(writeError);
@@ -1089,10 +1099,10 @@ namespace LasalMotionControlLib.Tests
 
                 var writeRequest = LMCSdoRequest.CreateWrite(
                     1,
-                    0x2000,
+                    0x6060,
                     0,
-                    LMCSignalValueType.UInt32,
-                    TestFrame.Hex("78 56 34 12"),
+                    LMCSignalValueType.Int8,
+                    TestFrame.Hex("08"),
                     100);
                 var writeContext = CreateAcceptedSubmissionContext(
                     connection,

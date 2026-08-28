@@ -32,8 +32,8 @@ namespace LasalMotionControlLib.Tests
                 "Policy.DiagnosticsD5.SdoWriteInjectedReadyAndBlockers",
                 InjectedReadyAndBlockerMatrix);
             tests.Add(
-                "Rpc.DiagnosticsD5.SdoWriteNonAllowlistedAxisSubmitIsZeroWire",
-                NonAllowlistedAxisSubmitSyncAndAsyncIsZeroWire);
+                "Rpc.DiagnosticsD5.SdoWriteSemanticOwnerSubmitIsZeroWire",
+                SemanticOwnerSubmitSyncAndAsyncIsZeroWire);
             tests.Add(
                 "Rpc.DiagnosticsD5.EncoderMaintenanceObjectsAreZeroWire",
                 EncoderMaintenanceObjectsSyncAndAsyncAreZeroWire);
@@ -347,7 +347,7 @@ namespace LasalMotionControlLib.Tests
             }
         }
 
-        private static void NonAllowlistedAxisSubmitSyncAndAsyncIsZeroWire()
+        private static void SemanticOwnerSubmitSyncAndAsyncIsZeroWire()
         {
             using (var server = new FakeRpcServer(
                 InitStep(),
@@ -356,29 +356,33 @@ namespace LasalMotionControlLib.Tests
             using (var connection = new LMCConnection())
             {
                 Connect(connection, server.Port);
-                var request = CreateUi24Target(2).CreateRequest(0, 1000);
+                var request = LMCSdoRequest.CreateWrite(
+                    2,
+                    0x6060,
+                    0,
+                    LMCSignalValueType.Int8,
+                    new byte[] { 8 },
+                    1000);
                 var requestCountBeforeSubmissions =
                     server.ReceivedRequests.Count;
 
-                var syncError = AssertEx.Throws<NotSupportedException>(
+                var syncError = AssertEx.Throws<InvalidOperationException>(
                     () => connection.Diagnostics.SubmitSdo(request));
                 AssertRequestValidationNotAttempted(syncError);
                 AssertEx.Equal(
                     requestCountBeforeSubmissions,
                     server.ReceivedRequests.Count,
-                    "Synchronous non-allowlisted axis SDO Write sent an RPC request.");
+                    "Synchronous semantic-owner SDO Write sent an RPC request.");
 
-                var asyncError = AssertEx.Throws<NotSupportedException>(
+                var asyncError = AssertEx.Throws<InvalidOperationException>(
                     () => connection.Diagnostics.SubmitSdoAsync(
-                            request,
-                            CancellationToken.None)
-                        .GetAwaiter()
-                        .GetResult());
+                            request, CancellationToken.None)
+                        .GetAwaiter().GetResult());
                 AssertRequestValidationNotAttempted(asyncError);
                 AssertEx.Equal(
                     requestCountBeforeSubmissions,
                     server.ReceivedRequests.Count,
-                    "Asynchronous non-allowlisted axis SDO Write sent an RPC request.");
+                    "Asynchronous semantic-owner SDO Write sent an RPC request.");
 
                 connection.CloseConnection();
                 server.Verify();
@@ -407,11 +411,11 @@ namespace LasalMotionControlLib.Tests
 
                 foreach (var request in requests)
                 {
-                    var syncError = AssertEx.Throws<NotSupportedException>(
+                    var syncError = AssertEx.Throws<InvalidOperationException>(
                         () => connection.Diagnostics.SubmitSdo(request));
                     AssertRequestValidationNotAttempted(syncError);
 
-                    var asyncError = AssertEx.Throws<NotSupportedException>(
+                    var asyncError = AssertEx.Throws<InvalidOperationException>(
                         () => connection.Diagnostics.SubmitSdoAsync(
                                 request,
                                 CancellationToken.None)
