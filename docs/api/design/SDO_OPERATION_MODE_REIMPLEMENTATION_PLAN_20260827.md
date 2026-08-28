@@ -252,14 +252,14 @@ Quarantined
 
 ### invariants
 
-- [ ] wire dispatch 가능성 이후 original Write automatic replay 0회
-- [ ] reconnect는 ticket status 또는 exact target Read만 수행
-- [ ] exact identity mismatch -> zero-wire
-- [ ] terminal success라도 readback 전 mutation block 유지
-- [ ] unresolved record startup recovery
-- [ ] tamper/corrupt journal fail-closed
+- [x] wire dispatch 가능성 이후 original Write automatic replay 0회
+- [x] reconnect는 ticket status 또는 exact target Read만 수행
+- [x] exact identity mismatch -> zero-wire
+- [x] terminal success라도 readback 전 mutation block 유지
+- [x] unresolved record startup recovery
+- [x] tamper/corrupt journal fail-closed
 
-2026-08-28 current-dev R05-A: durable SDO metadata를 `Int8/UInt8/Int16/UInt16/Int32/UInt32` canonical 1/2/4-byte scalar로 일반화했다. restart recovery의 legacy `approved target` 용어/전제는 generic exact-request recoverability policy로 교체했고, `0x6060`은 durable metadata 단계에서도 semantic-reserved zero-wire deny로 고정했다. 기존 BootId/MapRevision exact-read no-replay 경계는 유지한다. 다음 R05-B에서 journal v3에 Endpoint IP/port + DiagnosticsBuild를 추가하고 v1/v2 legacy record를 full-identity recovery에서 fail-closed 처리한다.
+2026-08-28 current-dev R05-A: durable SDO metadata를 `Int8/UInt8/Int16/UInt16/Int32/UInt32` canonical 1/2/4-byte scalar로 일반화했다. restart recovery의 legacy `approved target` 용어/전제는 generic exact-request recoverability policy로 교체했고, `0x6060`은 durable metadata 단계에서도 semantic-reserved zero-wire deny로 고정했다. 기존 BootId/MapRevision exact-read no-replay 경계는 유지한다. R05-B에서는 journal format을 v3로 올려 SDO metadata에 Endpoint IP/port + DiagnosticsBuild를 함께 영속화했다. 새 SDO Write durable arm은 fresh current-session DiagnosticsBuild/BootId/MapRevision과 connected endpoint를 캡처하며, restart exact-read는 Endpoint + DiagnosticsBuild + BootId + MapRevision이 모두 일치할 때만 wire를 허용한다. v1/v2 record는 계속 읽을 수 있지만 full durable identity가 없으므로 automatic exact-read recovery는 zero-wire `NotEligible`이다.
 
 ---
 
