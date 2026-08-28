@@ -1,11 +1,11 @@
 # 개발 상태 스냅샷 — 2026-08-28
 
 - current production branch: `dev`
-- current production HEAD: `996e7df0be215f3c485612427ccfd3db76c30b98`
+- current source baseline: `dev@996e7df0be215f3c485612427ccfd3db76c30b98`
 - production 판정: **NO-GO**
 - current P0 tracking: issue #46
 
-이 문서는 2026-08-28 기준으로 **현재까지 실제로 통합된 내용**과 **앞으로 닫아야 할 qualification/release gate**를 분리해 기록한다. source 구현, PC/static test, generated artifact, C78 build, PLC load, hardware/packet evidence와 production activation은 서로 다른 완료 단계로 취급한다.
+이 문서는 2026-08-28 기준으로 **현재까지 실제로 통합된 내용**과 **앞으로 닫아야 할 qualification/release gate**를 분리해 기록한다. 여기서 source baseline은 MODE-11E/11F가 통합되고 current-state 설계가 동기화된 코드/설계 기준점이며, 이후 문서-only commit은 구현 완료 판정을 바꾸지 않는다. source 구현, PC/static test, generated artifact, C78 build, PLC load, hardware/packet evidence와 production activation은 서로 다른 완료 단계로 취급한다.
 
 ---
 
@@ -98,7 +98,7 @@ Korean/English localization round-trip과 WPF Debug/Release recovery workflow가
 
 기존 `codex/setopmode-mode11-bench-activation@eae31dd...`는 current `dev`와 diverged되어 다음 실기 기준으로 사용할 수 없다.
 
-다음 qualification branch는 반드시 current `dev@996e7df0...` 또는 그 후속 exact current head에서 새로 만든다.
+다음 qualification branch는 반드시 current `dev@996e7df0...` 또는 그 후속 exact current source head에서 새로 만든다.
 
 허용되는 production 대비 delta는 원칙적으로 다음뿐이다.
 
