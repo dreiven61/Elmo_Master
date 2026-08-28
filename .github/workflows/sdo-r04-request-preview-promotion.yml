@@ -1,0 +1,52 @@
+name: SDO-R04 request preview promotion
+
+on:
+  push:
+    branches:
+      - codex/sdo-r04-request-preview-current-dev
+    paths:
+      - 'tools/Apply-SdoR04RequestPreview.py'
+      - '.github/workflows/sdo-r04-request-preview-promotion.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  promote:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: microsoft/setup-msbuild@v2
+      - name: Apply current-dev patch
+        shell: powershell
+        run: python .\tools\Apply-SdoR04RequestPreview.py
+      - name: Verify focused source contract
+        shell: powershell
+        run: .\tools\Verify-SdoR04RequestPreview.ps1
+      - name: Build Debug smoke suite
+        shell: powershell
+        run: msbuild .\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\LasalApiWpfTestApp.SmokeTests.csproj /t:Build /p:Configuration=Debug /m
+      - name: Run WPF smoke suite
+        shell: powershell
+        run: .\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\bin\Debug\LasalApiWpfTestApp.SmokeTests.exe
+      - name: Build Release smoke suite
+        shell: powershell
+        run: msbuild .\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\LasalApiWpfTestApp.SmokeTests.csproj /t:Build /p:Configuration=Release /m
+      - name: Diff hygiene
+        shell: powershell
+        run: git diff --check
+      - name: Commit promoted implementation
+        shell: powershell
+        run: |
+          if (-not (git status --porcelain)) {
+            throw 'Promotion produced no implementation diff.'
+          }
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --all
+          git commit -m 'feat(sdo): add exact request preview and reserved warning'
+          git push origin HEAD:codex/sdo-r04-request-preview-current-dev
