@@ -1,11 +1,12 @@
 # 최우선 API 개발 설계
 
 - 기준일: 2026-08-28
-- current production baseline: `dev@45fc528c48723cbe3ba20fb11c3a2d7ec0e7ef0b`
+- current source baseline: `dev@996e7df0be215f3c485612427ccfd3db76c30b98`
 - production posture: **NO-GO**
 - active P0 tracking: issue #46
+- current status snapshot: `DEVELOPMENT_STATUS_20260828.md`
 
-이 폴더는 current `dev`의 release boundary와 branch-local qualification을 분리해서 관리한다. SetOperationMode의 current-state 정본은 `SET_OPERATION_MODE_DESIGN.md`와 `SET_OPERATION_MODE_IMPLEMENTATION_UPDATE_20260828.md`를 함께 따른다.
+이 폴더는 current `dev`의 release boundary와 branch-local qualification을 분리해서 관리한다. 전체 P0의 현재 진행/다음 작업은 `DEVELOPMENT_STATUS_20260828.md`, SetOperationMode의 상세 current-state는 `SET_OPERATION_MODE_DESIGN.md`와 `SET_OPERATION_MODE_IMPLEMENTATION_UPDATE_20260828.md`를 함께 따른다. 기존 본문과 current addendum이 충돌하면 2026-08-28 status/addendum의 current 판정을 우선한다.
 
 2026-08-27 Generic SDO / SetOperationMode 재설계 문서:
 
@@ -45,10 +46,11 @@
 - MODE-11E PP/PV/IP/CSP warm-start recovery 일반화
 - write-dispatch 이후 original Start/`0x6060` no-replay
 - MODE-11F requested/preflight/observed, DetailCode, DS402/evidence/write-dispatch diagnostics
+- MODE-13 WPF durable startup/reconnect no-replay recovery
 
 남은 것:
 
-- current `dev@45fc528c...`에서 qualification branch 재생성
+- current source baseline `dev@996e7df0...`에서 qualification branch 재생성
 - fresh current-image C78/ARM Rebuild+Link + generated artifact identity + PLC load
 - Axis1 CSP same-mode formal packet evidence
 - Axis1 `CSP -> PP/PV/IP -> CSP` physical packet/readback matrix
@@ -75,7 +77,7 @@
 |---|---:|---:|---:|---|
 | HomeDS402 | `0x7D15` | `0x7D16` | `0x7D17` | source/PC/WPF H37 qualification, activation OFF |
 | HomeDS402Ex | `0x7D1B` | `0x7D1C` | `0x7D1D` | route/owner/retained store, physical runtime OFF |
-| SetOperationMode | `0x7D23` | `0x7D24` | `0x7D25` | multi-mode source + MODE-11E/11F, production activation OFF |
+| SetOperationMode | `0x7D23` | `0x7D24` | `0x7D25` | multi-mode source + MODE-11E/11F/13, production activation OFF |
 | SetPosition | `0x7D12` | `0x7D14` | `0x7D1A` | lifecycle + WPF durable recovery, native runtime activation OFF |
 
 Wire byte offset 정본은 `LMC_Library/LMC_API_Delivery/docs/DINT_PACKET_MAP.txt`다.
@@ -86,7 +88,7 @@ Wire byte offset 정본은 `LMC_Library/LMC_API_Delivery/docs/DINT_PACKET_MAP.tx
 
 ### Wave A — SetOperationMode test baseline
 
-- current `dev@45fc528c...`에서 qualification branch 재생성
+- current source baseline `dev@996e7df0...`에서 qualification branch 재생성
 - activation delta-only diff 검증
 - LASAL IDE generated source / `Classes.lcb` 재생성
 - fresh C78/ARM Rebuild+Link
@@ -103,20 +105,21 @@ Wire byte offset 정본은 `LMC_Library/LMC_API_Delivery/docs/DINT_PACKET_MAP.tx
 
 ### Wave C — SetOperationMode failure/release evidence
 
-- MODE-12 timeout/disconnect/mismatch/quarantine/retire
+- MODE-12A timeout/disconnect/mismatch/quarantine/retire
 - MODE-11G mode별 evidence ledger + qualification/release mask coupling
-- Axis2..4 확대
+- MODE-12B Axis2..4 확대
 - MODE-14 paired production activation review
 
 ### Wave D — Generic SDO
 
+- manual Server physical bench qualification closure
 - SDO-R03 generic Write policy
 - SDO-R04 WPF arbitrary-target editor
 - SDO-R05 exact-request durable no-replay recovery
 
 ### Wave E — release sync
 
-- generated/C78/distribution/docs sync
+- generated/C78/distribution/manual/WPF/docs sync
 - production activation은 별도 review
 
 ---
@@ -142,7 +145,7 @@ Remaining:
 
 ### SetOperationMode
 
-Current `dev`:
+Current `dev` source:
 
 - OwnerKind 6 / Diagnostics SDO resource 4
 - PP/PV/IP/CSP requested-mode handling
