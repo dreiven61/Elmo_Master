@@ -290,7 +290,7 @@ namespace LasalMotionControlApiExample
                 Foreground = Brushes.DarkOrange,
                 TextWrapping = TextWrapping.Wrap,
                 Text = "Software targets are limited to PP(1), PV(3), IP(7), and CSP(8). "
-                    + "The selector stays empty until the connected PLC advertises a supported-mode mask. "
+                    + "The selector remains usable for qualification, but Start stays disabled unless the connected PLC advertises the selected mode. "
                     + "Homing(6) remains owned by HomeDS402/HomeDS402Ex."
             });
             inputs.Children.Add(modePanel);
@@ -757,11 +757,18 @@ namespace LasalMotionControlApiExample
                 PromoteAxisSetOperationModeRecoveryIfArmed(
                     record,
                     "definitive Start rejection");
+                var rejectionDiagnostics =
+                    FormatAxisSetOperationModeStartRejection(
+                        error,
+                        prepared.RecoveryKey);
                 RefreshAxisSetOperationModeRecoveryUi(
-                    "START REJECTED: "
-                    + error.Response.DetailCode
+                    "START REJECTED. "
+                    + rejectionDiagnostics
                     + ". The durable identity is retained conservatively; no Start replay is allowed. "
                     + "Use the exact outcome query path before any future Start.");
+                WriteLog(
+                    "SetOperationMode definitive Start rejection | "
+                    + rejectionDiagnostics);
                 throw;
             }
             catch (LMCAxisSetOperationModeOutcomeUncertainException)
@@ -874,17 +881,19 @@ namespace LasalMotionControlApiExample
                 return;
             }
 
+            var outcomeDiagnostics =
+                FormatAxisSetOperationModeOutcomeDiagnostics(outcome);
             record = axisSetOperationModeRecoveryJournal.RecordTerminalOutcome(
                 record,
                 outcome,
                 MonotonicAxisSetOperationModeUtc(record.UpdatedUtc));
             RefreshAxisSetOperationModeRecoveryUi(
-                "TERMINAL OUTCOME STORED DURABLY. State="
-                + outcome.RecordState
-                + ", Generation="
-                + outcome.RecordGeneration.ToString(
-                    CultureInfo.InvariantCulture)
+                "TERMINAL OUTCOME STORED DURABLY. "
+                + outcomeDiagnostics
                 + ". Attempting exact-generation 0x7D25 retirement; Start remains blocked.");
+            WriteLog(
+                "SetOperationMode terminal outcome | "
+                + outcomeDiagnostics);
 
             await RetireObservedAxisSetOperationModeOutcomeAsync(
                 currentAxis,
@@ -1217,6 +1226,187 @@ namespace LasalMotionControlApiExample
                 + ". Current PLC activation is expected to keep Start disabled until bits 8/9/10 are explicitly enabled after MODE-13 evidence passes.";
         }
 
+        private static string FormatAxisSetOperationModeStartRejection(
+            LMCAxisSetOperationModeRejectedException error,
+            LMCAxisSetOperationModeRecoveryKey key)
+        {
+            if (error == null || error.Response == null || key == null)
+            {
+                return "Response=<unavailable>";
+            }
+
+            var response = error.Response;
+            return "Requested="
+                + FormatAxisSetOperationModeValue(key.RequestedModeRaw)
+                + ", Axis="
+                + key.AxisReference.ToString(CultureInfo.InvariantCulture)
+                + ", RequestId="
+                + response.RequestId.ToString(CultureInfo.InvariantCulture)
+                + ", Status="
+                + response.CommandStatus.ToString(CultureInfo.InvariantCulture)
+                + ", ErrorId="
+                + response.ErrorId.ToString(CultureInfo.InvariantCulture)
+                + ", Detail="
+                + FormatAxisSetOperationModeDetail(response.DetailCodeValue)
+                + ", Build/Boot/Map=0x"
+                + key.DiagnosticsBuild.ToString("X8")
+                + "/0x"
+                + key.DiagnosticsBootId.ToString("X8")
+                + "/0x"
+                + key.MapRevision.ToString("X8");
+        }
+
+        private static string FormatAxisSetOperationModeOutcomeDiagnostics(
+            LMCAxisSetOperationModeOutcomeResult outcome)
+        {
+            if (outcome == null || outcome.RecoveryKey == null)
+            {
+                return "Outcome=<null>";
+            }
+
+            return FormatAxisSetOperationModeOutcomeDiagnosticsCore(
+                outcome.RecoveryKey.RequestedModeRaw,
+                outcome.PreviousModeRaw,
+                outcome.ObservedModeRaw,
+                outcome.RecordState,
+                outcome.OriginalCommandStatus,
+                outcome.OriginalErrorId,
+                outcome.OriginalDetailCodeValue,
+                outcome.EvidenceFlags,
+                outcome.Ds402StatusWord,
+                outcome.ContextCheck,
+                outcome.QuarantineReason,
+                outcome.RecordGeneration);
+        }
+
+        internal static string
+            FormatAxisSetOperationModeOutcomeDiagnosticsForTests(
+                sbyte requestedModeRaw,
+                sbyte previousModeRaw,
+                sbyte observedModeRaw,
+                LMCAxisSetOperationModeOutcomeRecordState recordState,
+                ushort originalCommandStatus,
+                short originalErrorId,
+                uint originalDetailCode,
+                LMCAxisSetOperationModeEvidenceFlags evidenceFlags,
+                ushort ds402StatusWord,
+                uint contextCheck,
+                uint quarantineReason,
+                uint recordGeneration)
+        {
+            return FormatAxisSetOperationModeOutcomeDiagnosticsCore(
+                requestedModeRaw,
+                previousModeRaw,
+                observedModeRaw,
+                recordState,
+                originalCommandStatus,
+                originalErrorId,
+                originalDetailCode,
+                evidenceFlags,
+                ds402StatusWord,
+                contextCheck,
+                quarantineReason,
+                recordGeneration);
+        }
+
+        private static string FormatAxisSetOperationModeOutcomeDiagnosticsCore(
+            sbyte requestedModeRaw,
+            sbyte previousModeRaw,
+            sbyte observedModeRaw,
+            LMCAxisSetOperationModeOutcomeRecordState recordState,
+            ushort originalCommandStatus,
+            short originalErrorId,
+            uint originalDetailCode,
+            LMCAxisSetOperationModeEvidenceFlags evidenceFlags,
+            ushort ds402StatusWord,
+            uint contextCheck,
+            uint quarantineReason,
+            uint recordGeneration)
+        {
+            var fault = (ds402StatusWord & 0x0008) != 0;
+            var operationEnabled = (ds402StatusWord & 0x0004) != 0;
+            var physicalValid = (contextCheck & 0x00000001u) != 0;
+
+            return "State="
+                + recordState
+                + ", Requested="
+                + FormatAxisSetOperationModeValue(requestedModeRaw)
+                + ", PreflightMode="
+                + FormatAxisSetOperationModeValue(previousModeRaw)
+                + ", Observed="
+                + FormatAxisSetOperationModeValue(observedModeRaw)
+                + ", Status="
+                + originalCommandStatus.ToString(CultureInfo.InvariantCulture)
+                + ", ErrorId="
+                + originalErrorId.ToString(CultureInfo.InvariantCulture)
+                + ", Detail="
+                + FormatAxisSetOperationModeDetail(originalDetailCode)
+                + ", DS402=0x"
+                + ds402StatusWord.ToString("X4")
+                + ", Fault="
+                + fault
+                + ", OperationEnabled="
+                + operationEnabled
+                + ", PhysicalValid="
+                + physicalValid
+                + ", Standstill=not-exported"
+                + ", Evidence="
+                + evidenceFlags
+                + ", WriteRequested="
+                + HasAxisSetOperationModeEvidence(
+                    evidenceFlags,
+                    LMCAxisSetOperationModeEvidenceFlags.WriteRequested)
+                + ", WriteDispatched="
+                + HasAxisSetOperationModeEvidence(
+                    evidenceFlags,
+                    LMCAxisSetOperationModeEvidenceFlags.WriteDispatched)
+                + ", VerifyReadDispatched="
+                + HasAxisSetOperationModeEvidence(
+                    evidenceFlags,
+                    LMCAxisSetOperationModeEvidenceFlags.VerifyReadDispatched)
+                + ", VerifyReadCompleted="
+                + HasAxisSetOperationModeEvidence(
+                    evidenceFlags,
+                    LMCAxisSetOperationModeEvidenceFlags.VerifyReadCompleted)
+                + ", OwnerReleased="
+                + HasAxisSetOperationModeEvidence(
+                    evidenceFlags,
+                    LMCAxisSetOperationModeEvidenceFlags.OwnerReleased)
+                + ", ExecutorReusable="
+                + HasAxisSetOperationModeEvidence(
+                    evidenceFlags,
+                    LMCAxisSetOperationModeEvidenceFlags.ExecutorReusable)
+                + ", Context=0x"
+                + contextCheck.ToString("X8")
+                + ", QuarantineReason="
+                + quarantineReason.ToString(CultureInfo.InvariantCulture)
+                + ", Generation="
+                + recordGeneration.ToString(CultureInfo.InvariantCulture);
+        }
+
+        private static bool HasAxisSetOperationModeEvidence(
+            LMCAxisSetOperationModeEvidenceFlags value,
+            LMCAxisSetOperationModeEvidenceFlags flag)
+        {
+            return (value & flag) == flag;
+        }
+
+        private static string FormatAxisSetOperationModeValue(sbyte raw)
+        {
+            return ((LMCDriveOperationMode)raw)
+                + "("
+                + raw.ToString(CultureInfo.InvariantCulture)
+                + ")";
+        }
+
+        private static string FormatAxisSetOperationModeDetail(uint raw)
+        {
+            return ((LMCAdminDetailCode)raw)
+                + "("
+                + raw.ToString(CultureInfo.InvariantCulture)
+                + ")";
+        }
+
         private static string FormatAxisSetOperationModeRecoveryRecord(
             AxisSetOperationModeRecoveryRecord record)
         {
@@ -1251,6 +1441,19 @@ namespace LasalMotionControlApiExample
                     ? string.Empty
                     : ", Terminal="
                         + record.TerminalOutcomeProof.RecordState
+                        + ", PreflightMode="
+                        + FormatAxisSetOperationModeValue(
+                            record.TerminalOutcomeProof.PreviousModeRaw)
+                        + ", Observed="
+                        + FormatAxisSetOperationModeValue(
+                            record.TerminalOutcomeProof.ObservedModeRaw)
+                        + ", Detail="
+                        + FormatAxisSetOperationModeDetail(
+                            record.TerminalOutcomeProof.OriginalDetailCode)
+                        + ", DS402=0x"
+                        + record.TerminalOutcomeProof.Ds402StatusWord.ToString("X4")
+                        + ", Evidence="
+                        + record.TerminalOutcomeProof.EvidenceFlags
                         + ", Generation="
                         + record.TerminalOutcomeProof.RecordGeneration.ToString(
                             CultureInfo.InvariantCulture));

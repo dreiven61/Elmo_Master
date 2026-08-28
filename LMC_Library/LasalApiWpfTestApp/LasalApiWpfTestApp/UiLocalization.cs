@@ -809,8 +809,8 @@ namespace LasalMotionControlApiExample
                 "Operation Mode 설정 - PLC 지원 target / durable 재전송 방지 복구";
             values["Requested mode (PLC-advertised only)"] =
                 "요청 mode (PLC 광고 항목만)";
-            values["Software targets are limited to PP(1), PV(3), IP(7), and CSP(8). The selector stays empty until the connected PLC advertises a supported-mode mask. Homing(6) remains owned by HomeDS402/HomeDS402Ex."] =
-                "소프트웨어 target은 PP(1), PV(3), IP(7), CSP(8)로 제한됩니다. 연결된 PLC가 supported-mode mask를 광고하기 전까지 selector는 비어 있습니다. Homing(6)은 HomeDS402/HomeDS402Ex가 계속 소유합니다.";
+            values["Software targets are limited to PP(1), PV(3), IP(7), and CSP(8). The selector remains usable for qualification, but Start stays disabled unless the connected PLC advertises the selected mode. Homing(6) remains owned by HomeDS402/HomeDS402Ex."] =
+                "소프트웨어 target은 PP(1), PV(3), IP(7), CSP(8)로 제한됩니다. qualification 중에는 selector를 계속 사용할 수 있지만, 연결된 PLC가 선택한 mode를 광고하지 않으면 Start는 비활성 상태를 유지합니다. Homing(6)은 HomeDS402/HomeDS402Ex가 계속 소유합니다.";
             values["I verified the exact drive/axis and understand that this may write DS402 0x6060:0 to the selected PLC-advertised mode once only. If the response or completion is uncertain I will use the durable recovery query and will not send Start again."] =
                 "정확한 drive/축을 확인했으며 PLC가 광고한 선택 mode를 DS402 0x6060:0에 한 번만 쓸 수 있음을 이해했습니다. 응답 또는 완료가 불확실하면 durable 복구 조회만 사용하고 Start를 다시 전송하지 않습니다.";
             values["Start Selected Mode Once (0x7D23)"] =

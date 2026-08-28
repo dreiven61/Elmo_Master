@@ -23,6 +23,9 @@ namespace LasalApiWpfTestApp.SmokeTests
                 "Wpf.SetOperationModeRecovery.SelectorRemainsUsableWithoutPlcMask",
                 SetOperationModeSelectorRemainsUsableWithoutPlcMask);
             tests.Add(
+                "Wpf.SetOperationModeRecovery.OutcomeDiagnosticsExposePreflightAndWriteEvidence",
+                SetOperationModeOutcomeDiagnosticsExposePreflightAndWriteEvidence);
+            tests.Add(
                 "Wpf.SetOperationModeRecovery.DefinitiveRejectArchivesAndClearsInterlock",
                 SetOperationModeDefinitiveRejectArchivesAndClearsInterlock);
             tests.Add(
@@ -155,6 +158,48 @@ namespace LasalApiWpfTestApp.SmokeTests
                 }
                 DeleteSetOperationModeTemporaryDirectory(root);
             }
+        }
+
+        private static void
+            SetOperationModeOutcomeDiagnosticsExposePreflightAndWriteEvidence()
+        {
+            var diagnostics = MainWindow
+                .FormatAxisSetOperationModeOutcomeDiagnosticsForTests(
+                    (sbyte)LMCDriveOperationMode.ProfilePosition,
+                    (sbyte)LMCDriveOperationMode.CyclicSynchronousPosition,
+                    (sbyte)LMCDriveOperationMode.CyclicSynchronousPosition,
+                    LMCAxisSetOperationModeOutcomeRecordState.Failed,
+                    1,
+                    -31000,
+                    (uint)LMCAdminDetailCode.SetOperationModeUnsafeState,
+                    LMCAxisSetOperationModeEvidenceFlags.OwnerReleased
+                        | LMCAxisSetOperationModeEvidenceFlags.ExecutorReusable,
+                    0x0004,
+                    0x00000001u,
+                    0,
+                    7);
+
+            AssertEx.Contains("State=Failed", diagnostics);
+            AssertEx.Contains("Requested=ProfilePosition(1)", diagnostics);
+            AssertEx.Contains(
+                "PreflightMode=CyclicSynchronousPosition(8)",
+                diagnostics);
+            AssertEx.Contains(
+                "Observed=CyclicSynchronousPosition(8)",
+                diagnostics);
+            AssertEx.Contains(
+                "Detail=SetOperationModeUnsafeState(44)",
+                diagnostics);
+            AssertEx.Contains("DS402=0x0004", diagnostics);
+            AssertEx.Contains("Fault=False", diagnostics);
+            AssertEx.Contains("OperationEnabled=True", diagnostics);
+            AssertEx.Contains("PhysicalValid=True", diagnostics);
+            AssertEx.Contains("Standstill=not-exported", diagnostics);
+            AssertEx.Contains("WriteRequested=False", diagnostics);
+            AssertEx.Contains("WriteDispatched=False", diagnostics);
+            AssertEx.Contains("OwnerReleased=True", diagnostics);
+            AssertEx.Contains("ExecutorReusable=True", diagnostics);
+            AssertEx.Contains("Generation=7", diagnostics);
         }
 
         private static void
