@@ -1246,6 +1246,8 @@ namespace LasalMotionControlApiExample
                     ButtonSubmitSdo,
                     currentUiLanguage);
             }
+
+            UpdateSdoRequestPreview();
         }
 
         private void SdoWriteTarget_SelectionChanged(
@@ -1259,6 +1261,7 @@ namespace LasalMotionControlApiExample
 
             sdoWriteConfirmationState.Clear();
             ApplySelectedSdoWriteTarget();
+            UpdateSdoRequestPreview();
             if (ButtonConnect != null)
             {
                 UpdateUiState();
@@ -3481,6 +3484,165 @@ namespace LasalMotionControlApiExample
                 TextDiagnosticOperationSummary.Text =
                     "SDO Read supports exact 1/2/4-byte typed values. Read SDO Inline waits for and displays the terminal typed/raw result in one action; Submit/Refresh remains available for low-level ticket diagnostics. Bit 13 enables editable nonzero object index and sub-index; a bit-8-only PLC uses fixed 0x1000:0 UInt32/4.";
             }
+
+            UpdateSdoRequestPreview();
+        }
+
+        private void UpdateSdoRequestPreview()
+        {
+            if (TextSdoRequestPreview == null
+                || TextSdoSemanticWarning == null
+                || ComboSdoOperation == null
+                || TextSdoSlaveReference == null
+                || TextSdoIndex == null
+                || TextSdoSubIndex == null
+                || ComboSdoValueType == null
+                || ComboSdoDataLength == null
+                || TextSdoTimeoutCycles == null
+                || TextSdoWriteData == null)
+            {
+                return;
+            }
+
+            TextSdoSemanticWarning.Text = string.Empty;
+            TextSdoSemanticWarning.Visibility = Visibility.Collapsed;
+
+            try
+            {
+                var mode = RequireSelectedEnum<SdoOperationMode>(
+                    ComboSdoOperation,
+                    "SDO operation");
+                var slaveReference = ParseUInt16Wire(
+                    TextSdoSlaveReference.Text,
+                    "SDO slave reference",
+                    false);
+                if (slaveReference < 1 || slaveReference > 4)
+                {
+                    throw new InvalidOperationException(
+                        "Slave reference must be between 1 and 4.");
+                }
+
+                var objectIndex = ParseUInt16Wire(
+                    TextSdoIndex.Text,
+                    "SDO object index",
+                    false);
+                var subIndex = ParseByteWire(
+                    TextSdoSubIndex.Text,
+                    "SDO sub-index");
+                var valueType = RequireSelectedEnum<LMCSignalValueType>(
+                    ComboSdoValueType,
+                    "SDO value type");
+                var dataLength = ParseUInt16Wire(
+                    ComboSdoDataLength.Text,
+                    "SDO data length",
+                    false);
+                var expectedLength = GetSdoReadDataLength(valueType);
+                if (dataLength != expectedLength)
+                {
+                    throw new InvalidOperationException(
+                        "Data length must match the selected type: 8-bit types=1, 16-bit types=2, 32-bit types=4.");
+                }
+
+                var timeoutCycles = ParseUInt32(
+                    TextSdoTimeoutCycles.Text,
+                    "SDO timeout cycles");
+                if (timeoutCycles < 1 || timeoutCycles > 60000)
+                {
+                    throw new InvalidOperationException(
+                        "Timeout must be between 1 and 60000 cycles.");
+                }
+
+                LMCSdoRequest request;
+                if (mode == SdoOperationMode.Write)
+                {
+                    var writeData = ParseSdoWriteScalarData(
+                        TextSdoWriteData.Text,
+                        valueType,
+                        dataLength);
+                    request = LMCSdoRequest.CreateWrite(
+                        slaveReference,
+                        objectIndex,
+                        subIndex,
+                        valueType,
+                        writeData,
+                        timeoutCycles);
+                    try
+                    {
+                        LMCDiagnosticsWritePolicy.RequireSdoWriteAllowed(request);
+                    }
+                    catch (NotSupportedException error)
+                    {
+                        TextSdoRequestPreview.Text =
+                            "BLOCKED REQUEST | NOT SUBMITTED | "
+                            + FormatSdoExactRequestPreview(request);
+                        TextSdoSemanticWarning.Text =
+                            "BLOCKED RESERVED SDO WRITE | NOT SUBMITTED | "
+                            + error.Message;
+                        TextSdoSemanticWarning.Visibility = Visibility.Visible;
+                        return;
+                    }
+                }
+                else
+                {
+                    request = LMCSdoRequest.CreateRead(
+                        slaveReference,
+                        objectIndex,
+                        subIndex,
+                        valueType,
+                        dataLength,
+                        timeoutCycles);
+                }
+
+                TextSdoRequestPreview.Text =
+                    FormatSdoExactRequestPreview(request);
+            }
+            catch (Exception error)
+                when (error is ArgumentException
+                    || error is InvalidOperationException
+                    || error is NotSupportedException
+                    || error is FormatException
+                    || error is OverflowException)
+            {
+                TextSdoRequestPreview.Text =
+                    "INVALID REQUEST DRAFT | NOT SUBMITTED | "
+                    + error.Message;
+            }
+        }
+
+        private static string FormatSdoExactRequestPreview(
+            LMCSdoRequest request)
+        {
+            if (request == null)
+            {
+                throw new ArgumentNullException("request");
+            }
+
+            var preview = new StringBuilder();
+            preview.Append("EXACT REQUEST | Operation=")
+                .Append(request.IsWrite ? "Write" : "Read")
+                .Append(" | Slave=")
+                .Append(request.SlaveReference.ToString(
+                    CultureInfo.InvariantCulture))
+                .Append(" | Object=0x")
+                .Append(request.ObjectIndex.ToString("X4"))
+                .Append(':')
+                .Append(request.SubIndex.ToString(
+                    CultureInfo.InvariantCulture))
+                .Append(" | Type=")
+                .Append(request.ValueType)
+                .Append(" | Length=")
+                .Append(request.DataLength.ToString(
+                    CultureInfo.InvariantCulture))
+                .Append(" | TimeoutCycles=")
+                .Append(request.TimeoutCycles.ToString(
+                    CultureInfo.InvariantCulture));
+            if (request.IsWrite)
+            {
+                preview.Append(" | WriteData=")
+                    .Append(BitConverter.ToString(request.WriteData));
+            }
+
+            return preview.ToString();
         }
 
         private void ApplySelectedSdoWriteTarget()

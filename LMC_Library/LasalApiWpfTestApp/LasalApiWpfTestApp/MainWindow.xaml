@@ -2024,6 +2024,7 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
 
                                 <StackPanel Grid.Row="0" Grid.Column="0">
@@ -2099,7 +2100,25 @@
                                         SelectionChanged="SdoWriteTarget_SelectionChanged" />
                                 </StackPanel>
 
-                                <WrapPanel Grid.Row="3" Grid.ColumnSpan="5">
+                                <StackPanel Grid.Row="3" Grid.ColumnSpan="5" Margin="0,2,0,6">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Exact request preview" />
+                                    <TextBlock
+                                        x:Name="TextSdoRequestPreview"
+                                        FontFamily="Consolas"
+                                        Tag="UiLocalization.Preserve"
+                                        Text="REQUEST DRAFT | edit the fields above"
+                                        TextWrapping="Wrap" />
+                                    <TextBlock
+                                        x:Name="TextSdoSemanticWarning"
+                                        Margin="0,2,0,0"
+                                        Foreground="#8A4A00"
+                                        FontWeight="SemiBold"
+                                        Tag="UiLocalization.Preserve"
+                                        TextWrapping="Wrap"
+                                        Visibility="Collapsed" />
+                                </StackPanel>
+
+                                <WrapPanel Grid.Row="4" Grid.ColumnSpan="5">
                                     <Button
                                         x:Name="ButtonSubmitSdo"
                                         Click="ButtonSubmitSdo_Click"
@@ -2132,7 +2151,7 @@
 
                                 <TextBlock
                                     x:Name="TextDiagnosticOperationSummary"
-                                    Grid.Row="4"
+                                    Grid.Row="5"
                                     Grid.ColumnSpan="5"
                                     FontFamily="Consolas"
                                     Text="SDO Read and Generic Write support exact 1/2/4-byte typed values. Known targets are optional presets. Semantic motion objects remain blocked; Write Once requires two-click confirmation, durable no-replay journal, and exact readback."
