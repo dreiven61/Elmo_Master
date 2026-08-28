@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
@@ -35,6 +36,59 @@ namespace LasalMotionControlApiExample
             ushort dataLength,
             uint timeoutCycles,
             byte[] expectedWriteData)
+            : this(
+                slaveReference,
+                objectIndex,
+                subIndex,
+                valueType,
+                dataLength,
+                timeoutCycles,
+                null,
+                0,
+                0,
+                expectedWriteData,
+                true)
+        {
+        }
+
+        internal DiagnosticsSdoWriteMutationMetadata(
+            ushort slaveReference,
+            ushort objectIndex,
+            byte subIndex,
+            LMCSignalValueType valueType,
+            ushort dataLength,
+            uint timeoutCycles,
+            string endpointIp,
+            int endpointPort,
+            uint diagnosticsBuild,
+            byte[] expectedWriteData)
+            : this(
+                slaveReference,
+                objectIndex,
+                subIndex,
+                valueType,
+                dataLength,
+                timeoutCycles,
+                endpointIp,
+                endpointPort,
+                diagnosticsBuild,
+                expectedWriteData,
+                false)
+        {
+        }
+
+        private DiagnosticsSdoWriteMutationMetadata(
+            ushort slaveReference,
+            ushort objectIndex,
+            byte subIndex,
+            LMCSignalValueType valueType,
+            ushort dataLength,
+            uint timeoutCycles,
+            string endpointIp,
+            int endpointPort,
+            uint diagnosticsBuild,
+            byte[] expectedWriteData,
+            bool allowLegacyIdentity)
         {
             if (slaveReference < 1 || slaveReference > 4)
             {
@@ -50,18 +104,13 @@ namespace LasalMotionControlApiExample
                     "Durable SDO recovery cannot target a direct motion/control object.");
             }
 
-            if (valueType != LMCSignalValueType.Int32
-                && valueType != LMCSignalValueType.UInt32)
-            {
-                throw new NotSupportedException(
-                    "Durable SDO recovery supports only approved 32-bit integer targets.");
-            }
-
-            if (dataLength != 4)
+            var expectedDataLength = GetCanonicalScalarDataLength(
+                valueType);
+            if (dataLength != expectedDataLength)
             {
                 throw new ArgumentOutOfRangeException(
                     "dataLength",
-                    "Durable SDO recovery requires exactly four data bytes.");
+                    "Durable SDO recovery requires canonical scalar length: 8-bit=1, 16-bit=2, 32-bit=4.");
             }
 
             if (timeoutCycles < 1 || timeoutCycles > 60000)
@@ -79,12 +128,37 @@ namespace LasalMotionControlApiExample
                     "expectedWriteData");
             }
 
+            if (allowLegacyIdentity)
+            {
+                if (endpointIp != null || endpointPort != 0 || diagnosticsBuild != 0)
+                {
+                    throw new ArgumentException(
+                        "Legacy SDO durable identity must be completely absent.",
+                        "endpointIp");
+                }
+            }
+            else
+            {
+                endpointIp = NormalizeEndpointIp(endpointIp);
+                if (endpointPort < 1 || endpointPort > 65535)
+                {
+                    throw new ArgumentOutOfRangeException("endpointPort");
+                }
+                if (diagnosticsBuild == 0)
+                {
+                    throw new ArgumentOutOfRangeException("diagnosticsBuild");
+                }
+            }
+
             SlaveReference = slaveReference;
             ObjectIndex = objectIndex;
             SubIndex = subIndex;
             ValueType = valueType;
             DataLength = dataLength;
             TimeoutCycles = timeoutCycles;
+            EndpointIp = endpointIp;
+            EndpointPort = endpointPort;
+            DiagnosticsBuild = diagnosticsBuild;
             this.expectedWriteData = (byte[])expectedWriteData.Clone();
         }
 
@@ -94,14 +168,63 @@ namespace LasalMotionControlApiExample
         internal LMCSignalValueType ValueType { get; private set; }
         internal ushort DataLength { get; private set; }
         internal uint TimeoutCycles { get; private set; }
+        internal string EndpointIp { get; private set; }
+        internal int EndpointPort { get; private set; }
+        internal uint DiagnosticsBuild { get; private set; }
+        internal bool HasFullDurableIdentity
+        {
+            get
+            {
+                return !string.IsNullOrEmpty(EndpointIp)
+                    && EndpointPort > 0
+                    && DiagnosticsBuild != 0;
+            }
+        }
         internal byte[] ExpectedWriteData
         {
             get { return (byte[])expectedWriteData.Clone(); }
         }
 
+        private static string NormalizeEndpointIp(string endpointIp)
+        {
+            IPAddress parsed;
+            if (string.IsNullOrWhiteSpace(endpointIp)
+                || !IPAddress.TryParse(endpointIp, out parsed))
+            {
+                throw new ArgumentException(
+                    "Durable SDO recovery requires a canonical IP endpoint.",
+                    "endpointIp");
+            }
+            return parsed.ToString();
+        }
+
+        private static ushort GetCanonicalScalarDataLength(
+            LMCSignalValueType valueType)
+        {
+            switch (valueType)
+            {
+                case LMCSignalValueType.Int8:
+                case LMCSignalValueType.UInt8:
+                    return 1;
+
+                case LMCSignalValueType.Int16:
+                case LMCSignalValueType.UInt16:
+                    return 2;
+
+                case LMCSignalValueType.Int32:
+                case LMCSignalValueType.UInt32:
+                    return 4;
+
+                default:
+                    throw new NotSupportedException(
+                        "Durable SDO recovery supports canonical 1/2/4-byte integer scalar types only.");
+            }
+        }
+
         private static bool IsPermanentlyUnsafeObject(ushort objectIndex)
         {
             return objectIndex == 0x6040
+                || objectIndex == 0x6060
                 || objectIndex == 0x607A
                 || objectIndex == 0x60FF
                 || objectIndex == 0x6071;
@@ -111,7 +234,7 @@ namespace LasalMotionControlApiExample
     internal enum DiagnosticsSdoRestartRecoveryDisposition
     {
         NotEligible = 0,
-        TargetNotApproved = 1,
+        RequestNotRecoverable = 1,
         CapabilitiesUnsupported = 2,
         IdentityMismatch = 3,
         StateChanged = 4,
@@ -122,12 +245,29 @@ namespace LasalMotionControlApiExample
     internal sealed class DiagnosticsSdoRestartRecoveryCapabilities
     {
         internal DiagnosticsSdoRestartRecoveryCapabilities(
+            string endpointIp,
+            int endpointPort,
+            uint diagnosticsBuild,
             uint diagnosticsBootId,
             uint mapRevision,
             bool supportsSdoRead,
             bool supportsGeneralInlineSdoRead,
             ushort maxSdoDataBytes)
         {
+            IPAddress parsedEndpoint;
+            if (string.IsNullOrWhiteSpace(endpointIp)
+                || !IPAddress.TryParse(endpointIp, out parsedEndpoint))
+            {
+                throw new ArgumentException("endpointIp");
+            }
+            if (endpointPort < 1 || endpointPort > 65535)
+            {
+                throw new ArgumentOutOfRangeException("endpointPort");
+            }
+            if (diagnosticsBuild == 0)
+            {
+                throw new ArgumentOutOfRangeException("diagnosticsBuild");
+            }
             if (diagnosticsBootId == 0)
             {
                 throw new ArgumentOutOfRangeException(
@@ -139,6 +279,9 @@ namespace LasalMotionControlApiExample
                 throw new ArgumentOutOfRangeException("mapRevision");
             }
 
+            EndpointIp = parsedEndpoint.ToString();
+            EndpointPort = endpointPort;
+            DiagnosticsBuild = diagnosticsBuild;
             DiagnosticsBootId = diagnosticsBootId;
             MapRevision = mapRevision;
             SupportsSdoRead = supportsSdoRead;
@@ -147,6 +290,9 @@ namespace LasalMotionControlApiExample
             MaxSdoDataBytes = maxSdoDataBytes;
         }
 
+        internal string EndpointIp { get; private set; }
+        internal int EndpointPort { get; private set; }
+        internal uint DiagnosticsBuild { get; private set; }
         internal uint DiagnosticsBootId { get; private set; }
         internal uint MapRevision { get; private set; }
         internal bool SupportsSdoRead { get; private set; }
@@ -188,6 +334,7 @@ namespace LasalMotionControlApiExample
                     == DiagnosticsMutationState
                         .TerminalSuccessPendingReadback
                 && record.HasTypedSdoWriteMetadata
+                && record.SdoWriteMetadata.HasFullDurableIdentity
                 && recoveredAtStartup
                 && idle
                 && connected
@@ -210,7 +357,7 @@ namespace LasalMotionControlApiExample
                 bool hasD5TicketOrQuarantine,
                 bool hasUnresolvedDigitalOutputWrite,
                 Func<DiagnosticsSdoWriteMutationMetadata, bool>
-                    exactTargetApproved,
+                    exactRequestRecoverable,
                 Func<Task<DiagnosticsSdoRestartRecoveryCapabilities>>
                     readCapabilitiesAsync,
                 Func<DiagnosticsSdoWriteMutationMetadata, Task<byte[]>>
@@ -221,9 +368,9 @@ namespace LasalMotionControlApiExample
                 throw new ArgumentNullException("journal");
             }
 
-            if (exactTargetApproved == null)
+            if (exactRequestRecoverable == null)
             {
-                throw new ArgumentNullException("exactTargetApproved");
+                throw new ArgumentNullException("exactRequestRecoverable");
             }
 
             if (readCapabilitiesAsync == null)
@@ -253,14 +400,15 @@ namespace LasalMotionControlApiExample
 
             var metadata = record.SdoWriteMetadata;
 
-            // This local allowlist decision deliberately precedes every
-            // capability or SDO delegate. Legacy v1 records and disabled
-            // compile-time targets therefore remain zero-wire.
-            if (!exactTargetApproved(metadata))
+            // Exact-request recoverability is a generic semantic-policy
+            // decision, not a target allowlist. It deliberately precedes every
+            // capability or SDO delegate so legacy/semantic-reserved requests
+            // remain zero-wire.
+            if (!exactRequestRecoverable(metadata))
             {
                 return CreateResult(
                     DiagnosticsSdoRestartRecoveryDisposition
-                        .TargetNotApproved);
+                        .RequestNotRecoverable);
             }
 
             var capabilities = await readCapabilitiesAsync();
@@ -368,7 +516,18 @@ namespace LasalMotionControlApiExample
             DiagnosticsSdoRestartRecoveryCapabilities capabilities,
             DiagnosticsMutationRecord record)
         {
+            var metadata = record == null
+                ? null
+                : record.SdoWriteMetadata;
             return capabilities != null
+                && metadata != null
+                && metadata.HasFullDurableIdentity
+                && string.Equals(
+                    capabilities.EndpointIp,
+                    metadata.EndpointIp,
+                    StringComparison.Ordinal)
+                && capabilities.EndpointPort == metadata.EndpointPort
+                && capabilities.DiagnosticsBuild == metadata.DiagnosticsBuild
                 && capabilities.DiagnosticsBootId
                     == record.DiagnosticsBootId
                 && capabilities.MapRevision == record.IdentityRevision;
@@ -699,7 +858,8 @@ namespace LasalMotionControlApiExample
         internal const string LockFileName = "journal.lock";
 
         private const int LegacyFormatVersion = 1;
-        private const int FormatVersion = 2;
+        private const int TypedSdoFormatVersion = 2;
+        private const int FormatVersion = 3;
         private const int ChecksumLength = 32;
         private const int MaximumFileLength = 65536;
         private const int MaximumTextByteLength = 8192;
@@ -1151,6 +1311,14 @@ namespace LasalMotionControlApiExample
                 && left.ValueType == right.ValueType
                 && left.DataLength == right.DataLength
                 && left.TimeoutCycles == right.TimeoutCycles
+                && left.HasFullDurableIdentity
+                    == right.HasFullDurableIdentity
+                && string.Equals(
+                    left.EndpointIp,
+                    right.EndpointIp,
+                    StringComparison.Ordinal)
+                && left.EndpointPort == right.EndpointPort
+                && left.DiagnosticsBuild == right.DiagnosticsBuild
                 && ByteArraysEqual(
                     left.ExpectedWriteData,
                     right.ExpectedWriteData);
@@ -1362,6 +1530,7 @@ namespace LasalMotionControlApiExample
 
                 var version = reader.ReadInt32();
                 if (version != LegacyFormatVersion
+                    && version != TypedSdoFormatVersion
                     && version != FormatVersion)
                 {
                     throw new InvalidDataException(
@@ -1421,8 +1590,8 @@ namespace LasalMotionControlApiExample
                 var ticketId = reader.ReadUInt32();
                 var targetText = ReadText(reader);
                 var expectedText = ReadText(reader);
-                var sdoWriteMetadata = version >= FormatVersion
-                    ? ReadSdoWriteMetadata(reader)
+                var sdoWriteMetadata = version >= TypedSdoFormatVersion
+                    ? ReadSdoWriteMetadata(reader, version)
                     : null;
                 if (stream.Position != stream.Length)
                 {
@@ -1487,10 +1656,17 @@ namespace LasalMotionControlApiExample
             var expectedData = metadata.ExpectedWriteData;
             writer.Write(expectedData.Length);
             writer.Write(expectedData);
+            writer.Write(metadata.HasFullDurableIdentity);
+            if (metadata.HasFullDurableIdentity)
+            {
+                WriteText(writer, metadata.EndpointIp);
+                writer.Write(metadata.EndpointPort);
+                writer.Write(metadata.DiagnosticsBuild);
+            }
         }
 
         private static DiagnosticsSdoWriteMutationMetadata
-            ReadSdoWriteMetadata(BinaryReader reader)
+            ReadSdoWriteMetadata(BinaryReader reader, int version)
         {
             var presenceMarker = reader.ReadByte();
             if (presenceMarker == 0)
@@ -1524,6 +1700,39 @@ namespace LasalMotionControlApiExample
                     "Diagnostics mutation SDO data is incomplete.");
             }
 
+            if (version < FormatVersion)
+            {
+                return new DiagnosticsSdoWriteMutationMetadata(
+                    slaveReference,
+                    objectIndex,
+                    subIndex,
+                    valueType,
+                    dataLength,
+                    timeoutCycles,
+                    expectedData);
+            }
+
+            var durableIdentityMarker = reader.ReadByte();
+            if (durableIdentityMarker == 0)
+            {
+                return new DiagnosticsSdoWriteMutationMetadata(
+                    slaveReference,
+                    objectIndex,
+                    subIndex,
+                    valueType,
+                    dataLength,
+                    timeoutCycles,
+                    expectedData);
+            }
+            if (durableIdentityMarker != 1)
+            {
+                throw new InvalidDataException(
+                    "Diagnostics mutation durable identity marker is non-canonical.");
+            }
+
+            var endpointIp = ReadText(reader);
+            var endpointPort = reader.ReadInt32();
+            var diagnosticsBuild = reader.ReadUInt32();
             return new DiagnosticsSdoWriteMutationMetadata(
                 slaveReference,
                 objectIndex,
@@ -1531,6 +1740,9 @@ namespace LasalMotionControlApiExample
                 valueType,
                 dataLength,
                 timeoutCycles,
+                endpointIp,
+                endpointPort,
+                diagnosticsBuild,
                 expectedData);
         }
 

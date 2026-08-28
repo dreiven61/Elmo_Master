@@ -6648,6 +6648,7 @@ namespace LasalApiWpfTestApp.SmokeTests
             var steps = CreateConnectAndTopologySteps(capabilities);
             steps.Add(CloseStep());
 
+            var server = new FakeRpcServer(steps.ToArray());
             var journalDirectory = CreateJournalDirectory();
             var identity = Guid.NewGuid();
             var createdUtc = DateTime.UtcNow;
@@ -6670,6 +6671,9 @@ namespace LasalApiWpfTestApp.SmokeTests
                         LMCSignalValueType.Int32,
                         4,
                         1000,
+                        "127.0.0.1",
+                        server.Port,
+                        1u,
                         new byte[] { 0x2A, 0, 0, 0 }));
                 journal.Transition(
                     identity,
@@ -6687,7 +6691,7 @@ namespace LasalApiWpfTestApp.SmokeTests
             MainWindow window = null;
             try
             {
-                using (var server = new FakeRpcServer(steps.ToArray()))
+                using (server)
                 {
                     window = CreateWindow(journalDirectory, server.Port);
                     Click(window.ButtonConnect);

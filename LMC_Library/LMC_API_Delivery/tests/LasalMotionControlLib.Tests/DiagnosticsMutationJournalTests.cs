@@ -15,6 +15,9 @@ namespace LasalMotionControlLib.Tests
 {
     internal static class DiagnosticsMutationJournalTests
     {
+        private const string SdoEndpointIp = "127.0.0.1";
+        private const int SdoEndpointPort = 7010;
+        private const uint DiagnosticsBuild = 0x01020304u;
         private const uint BootId = 0x12345678u;
         private const uint SdoMapRevision = 0x10203040u;
         private const uint OutputTopologyRevision = 0x50607080u;
@@ -53,20 +56,29 @@ namespace LasalMotionControlLib.Tests
                 "Qualification.MutationJournal.AnonymousStdinEofReopenPreservesInterlock",
                 AnonymousStdinEofReopenPreservesInterlock);
             tests.Add(
-                "Qualification.MutationJournal.TypedSdoV2RoundTripIsImmutable",
-                TypedSdoV2RoundTripIsImmutable);
+                "Qualification.MutationJournal.TypedSdoV3RoundTripIsImmutable",
+                TypedSdoV3RoundTripIsImmutable);
             tests.Add(
-                "Qualification.MutationJournal.NonCanonicalV2MetadataMarkerFailsClosed",
-                NonCanonicalV2MetadataMarkerFailsClosed);
+                "Qualification.MutationJournal.GenericScalarMetadataSupportsOneTwoFourBytes",
+                GenericScalarMetadataSupportsOneTwoFourBytes);
+            tests.Add(
+                "Qualification.MutationJournal.SemanticModeObjectIsRejectedForDurableRecovery",
+                SemanticModeObjectIsRejectedForDurableRecovery);
+            tests.Add(
+                "Qualification.MutationJournal.NonCanonicalV3MetadataMarkerFailsClosed",
+                NonCanonicalV3MetadataMarkerFailsClosed);
             tests.Add(
                 "Qualification.MutationJournal.LegacyV1RecoveryIsZeroWire",
                 LegacyV1RecoveryIsZeroWire);
             tests.Add(
+                "Qualification.MutationJournal.LegacyV2TypedRecoveryIsZeroWire",
+                LegacyV2TypedRecoveryIsZeroWire);
+            tests.Add(
                 "Qualification.MutationJournal.OutcomeUnverifiedCanBecomeReadbackMismatch",
                 OutcomeUnverifiedCanBecomeReadbackMismatch);
             tests.Add(
-                "Qualification.MutationJournal.RestartRecoveryUnapprovedIsZeroWire",
-                RestartRecoveryUnapprovedIsZeroWire);
+                "Qualification.MutationJournal.RestartRecoveryUnrecoverableIsZeroWire",
+                RestartRecoveryUnrecoverableIsZeroWire);
             tests.Add(
                 "Qualification.MutationJournal.RestartRecoveryExactMatchPersistsResolvedBeforeReturn",
                 RestartRecoveryExactMatchPersistsResolvedBeforeReturn);
@@ -76,6 +88,12 @@ namespace LasalMotionControlLib.Tests
             tests.Add(
                 "Qualification.MutationJournal.RestartRecoveryIdentityMismatchDoesNotRead",
                 RestartRecoveryIdentityMismatchDoesNotRead);
+            tests.Add(
+                "Qualification.MutationJournal.RestartRecoveryEndpointMismatchDoesNotRead",
+                RestartRecoveryEndpointMismatchDoesNotRead);
+            tests.Add(
+                "Qualification.MutationJournal.RestartRecoveryBuildMismatchDoesNotRead",
+                RestartRecoveryBuildMismatchDoesNotRead);
             tests.Add(
                 "Qualification.MutationJournal.RestartRecoveryCapabilityStateChangeDoesNotReadOrCommit",
                 RestartRecoveryCapabilityStateChangeDoesNotReadOrCommit);
@@ -246,7 +264,7 @@ namespace LasalMotionControlLib.Tests
                 });
         }
 
-        private static void TypedSdoV2RoundTripIsImmutable()
+        private static void TypedSdoV3RoundTripIsImmutable()
         {
             WithTestDirectory(
                 directoryPath =>
@@ -289,9 +307,9 @@ namespace LasalMotionControlLib.Tests
                         var encoded = File.ReadAllBytes(
                             journal.JournalFilePath);
                         AssertEx.Equal(
-                            2,
+                            3,
                             BitConverter.ToInt32(encoded, 8),
-                            "New durable records must use journal format v2.");
+                            "New durable SDO records must use journal format v3.");
                     }
 
                     using (var reopened =
@@ -308,6 +326,10 @@ namespace LasalMotionControlLib.Tests
                             metadata.ValueType);
                         AssertEx.Equal((ushort)4, metadata.DataLength);
                         AssertEx.Equal((uint)1000, metadata.TimeoutCycles);
+                        AssertEx.True(metadata.HasFullDurableIdentity);
+                        AssertEx.Equal(SdoEndpointIp, metadata.EndpointIp);
+                        AssertEx.Equal(SdoEndpointPort, metadata.EndpointPort);
+                        AssertEx.Equal(DiagnosticsBuild, metadata.DiagnosticsBuild);
                         AssertEx.SequenceEqual(
                             new byte[] { 0x2A, 0x00, 0x00, 0x00 },
                             metadata.ExpectedWriteData);
@@ -322,7 +344,60 @@ namespace LasalMotionControlLib.Tests
                 });
         }
 
-        private static void NonCanonicalV2MetadataMarkerFailsClosed()
+        private static void GenericScalarMetadataSupportsOneTwoFourBytes()
+        {
+            AssertScalarMetadata(
+                LMCSignalValueType.Int8,
+                1,
+                new byte[] { 0xFE });
+            AssertScalarMetadata(
+                LMCSignalValueType.UInt8,
+                1,
+                new byte[] { 0x7F });
+            AssertScalarMetadata(
+                LMCSignalValueType.Int16,
+                2,
+                new byte[] { 0x34, 0x12 });
+            AssertScalarMetadata(
+                LMCSignalValueType.UInt16,
+                2,
+                new byte[] { 0x78, 0x56 });
+            AssertScalarMetadata(
+                LMCSignalValueType.Int32,
+                4,
+                new byte[] { 1, 2, 3, 4 });
+            AssertScalarMetadata(
+                LMCSignalValueType.UInt32,
+                4,
+                new byte[] { 5, 6, 7, 8 });
+
+            AssertEx.Throws<ArgumentOutOfRangeException>(
+                () => new DiagnosticsSdoWriteMutationMetadata(
+                    2,
+                    0x2000,
+                    3,
+                    LMCSignalValueType.UInt16,
+                    1,
+                    1000,
+                    new byte[] { 0x12 }),
+                "A non-canonical type/length pair must fail before durable arm.");
+        }
+
+        private static void SemanticModeObjectIsRejectedForDurableRecovery()
+        {
+            AssertEx.Throws<ArgumentOutOfRangeException>(
+                () => new DiagnosticsSdoWriteMutationMetadata(
+                    1,
+                    0x6060,
+                    0,
+                    LMCSignalValueType.Int8,
+                    1,
+                    1000,
+                    new byte[] { 8 }),
+                "Generic durable recovery must never make 0x6060 replayable/recoverable as raw SDO Write.");
+        }
+
+        private static void NonCanonicalV3MetadataMarkerFailsClosed()
         {
             WithTestDirectory(
                 directoryPath =>
@@ -340,7 +415,7 @@ namespace LasalMotionControlLib.Tests
                     }
 
                     var bytes = File.ReadAllBytes(journalPath);
-                    var markerOffset = FindV2MetadataMarkerOffset(bytes);
+                    var markerOffset = FindV3MetadataMarkerOffset(bytes);
                     AssertEx.Equal((byte)1, bytes[markerOffset]);
                     bytes[markerOffset] = 2;
                     RewriteJournalChecksum(bytes);
@@ -434,6 +509,74 @@ namespace LasalMotionControlLib.Tests
                 });
         }
 
+        private static void LegacyV2TypedRecoveryIsZeroWire()
+        {
+            WithTestDirectory(
+                directoryPath =>
+                {
+                    var identity = Guid.NewGuid();
+                    var createdUtc = DateTime.UtcNow;
+                    var journalPath = Path.Combine(
+                        directoryPath,
+                        DiagnosticsMutationJournal.JournalFileName);
+                    WriteLegacyV2TypedSdoRecord(
+                        journalPath,
+                        identity,
+                        createdUtc,
+                        77);
+                    var persistedBefore = File.ReadAllBytes(journalPath);
+                    var recoverabilityCalls = 0;
+                    var capabilityCalls = 0;
+                    var readCalls = 0;
+                    using (var journal =
+                        DiagnosticsMutationJournal.Open(directoryPath))
+                    {
+                        AssertEx.True(journal.CurrentRecord.HasTypedSdoWriteMetadata);
+                        AssertEx.False(
+                            journal.CurrentRecord.SdoWriteMetadata
+                                .HasFullDurableIdentity);
+                        var result = DiagnosticsSdoRestartRecoveryOrchestrator
+                            .TryRecoverAsync(
+                                journal,
+                                true,
+                                true,
+                                true,
+                                false,
+                                false,
+                                false,
+                                metadata =>
+                                {
+                                    recoverabilityCalls++;
+                                    return true;
+                                },
+                                () =>
+                                {
+                                    capabilityCalls++;
+                                    return Task.FromResult(
+                                        CreateRecoveryCapabilities());
+                                },
+                                metadata =>
+                                {
+                                    readCalls++;
+                                    return Task.FromResult(
+                                        new byte[] { 1, 0, 0, 0 });
+                                })
+                            .GetAwaiter()
+                            .GetResult();
+                        AssertEx.Equal(
+                            DiagnosticsSdoRestartRecoveryDisposition.NotEligible,
+                            result.Disposition);
+                        AssertEx.Equal(0, recoverabilityCalls);
+                        AssertEx.Equal(0, capabilityCalls);
+                        AssertEx.Equal(0, readCalls);
+                    }
+                    AssertEx.SequenceEqual(
+                        persistedBefore,
+                        File.ReadAllBytes(journalPath),
+                        "Legacy v2 exact recovery must remain zero-wire and byte-preserving.");
+                });
+        }
+
         private static void OutcomeUnverifiedCanBecomeReadbackMismatch()
         {
             WithTestDirectory(
@@ -478,7 +621,7 @@ namespace LasalMotionControlLib.Tests
                 });
         }
 
-        private static void RestartRecoveryUnapprovedIsZeroWire()
+        private static void RestartRecoveryUnrecoverableIsZeroWire()
         {
             WithTestDirectory(
                 directoryPath =>
@@ -520,7 +663,7 @@ namespace LasalMotionControlLib.Tests
                                 .GetResult();
                         AssertEx.Equal(
                             DiagnosticsSdoRestartRecoveryDisposition
-                                .TargetNotApproved,
+                                .RequestNotRecoverable,
                             result.Disposition);
                         AssertEx.Equal(0, capabilityCalls);
                         AssertEx.Equal(0, readCalls);
@@ -707,6 +850,91 @@ namespace LasalMotionControlLib.Tests
                             DiagnosticsMutationState
                                 .TerminalSuccessPendingReadback,
                             journal.CurrentRecord.State);
+                    }
+                });
+        }
+
+        private static void RestartRecoveryEndpointMismatchDoesNotRead()
+        {
+            AssertFullIdentityMismatchDoesNotRead(
+                "127.0.0.2",
+                SdoEndpointPort,
+                DiagnosticsBuild,
+                BootId,
+                SdoMapRevision,
+                "endpoint");
+        }
+
+        private static void RestartRecoveryBuildMismatchDoesNotRead()
+        {
+            AssertFullIdentityMismatchDoesNotRead(
+                SdoEndpointIp,
+                SdoEndpointPort,
+                DiagnosticsBuild + 1,
+                BootId,
+                SdoMapRevision,
+                "DiagnosticsBuild");
+        }
+
+        private static void AssertFullIdentityMismatchDoesNotRead(
+            string endpointIp,
+            int endpointPort,
+            uint diagnosticsBuild,
+            uint bootId,
+            uint mapRevision,
+            string mismatchLabel)
+        {
+            WithTestDirectory(
+                directoryPath =>
+                {
+                    var capabilityCalls = 0;
+                    var readCalls = 0;
+                    using (var journal =
+                        DiagnosticsMutationJournal.Open(directoryPath))
+                    {
+                        ArmTypedTerminalSdo(
+                            journal,
+                            Guid.NewGuid(),
+                            DateTime.UtcNow,
+                            new byte[] { 1, 0, 0, 0 });
+                        var result = DiagnosticsSdoRestartRecoveryOrchestrator
+                            .TryRecoverAsync(
+                                journal,
+                                true,
+                                true,
+                                true,
+                                false,
+                                false,
+                                false,
+                                metadata => true,
+                                () =>
+                                {
+                                    capabilityCalls++;
+                                    return Task.FromResult(
+                                        new DiagnosticsSdoRestartRecoveryCapabilities(
+                                            endpointIp,
+                                            endpointPort,
+                                            diagnosticsBuild,
+                                            bootId,
+                                            mapRevision,
+                                            true,
+                                            true,
+                                            4));
+                                },
+                                metadata =>
+                                {
+                                    readCalls++;
+                                    return Task.FromResult(
+                                        new byte[] { 1, 0, 0, 0 });
+                                })
+                            .GetAwaiter()
+                            .GetResult();
+                        AssertEx.Equal(
+                            DiagnosticsSdoRestartRecoveryDisposition.IdentityMismatch,
+                            result.Disposition,
+                            mismatchLabel + " mismatch must fail before exact SDO Read.");
+                        AssertEx.Equal(1, capabilityCalls);
+                        AssertEx.Equal(0, readCalls);
                     }
                 });
         }
@@ -1459,6 +1687,32 @@ namespace LasalMotionControlLib.Tests
                 "Value=0x00000001,Mask=0x00000001");
         }
 
+        private static void AssertScalarMetadata(
+            LMCSignalValueType valueType,
+            ushort dataLength,
+            byte[] expectedWriteData)
+        {
+            var metadata = new DiagnosticsSdoWriteMutationMetadata(
+                2,
+                0x2000,
+                3,
+                valueType,
+                dataLength,
+                1000,
+                SdoEndpointIp,
+                SdoEndpointPort,
+                DiagnosticsBuild,
+                expectedWriteData);
+            AssertEx.Equal((ushort)2, metadata.SlaveReference);
+            AssertEx.Equal((ushort)0x2000, metadata.ObjectIndex);
+            AssertEx.Equal((byte)3, metadata.SubIndex);
+            AssertEx.Equal(valueType, metadata.ValueType);
+            AssertEx.Equal(dataLength, metadata.DataLength);
+            AssertEx.SequenceEqual(
+                expectedWriteData,
+                metadata.ExpectedWriteData);
+        }
+
         private static DiagnosticsSdoWriteMutationMetadata CreateSdoMetadata(
             byte[] expectedWriteData)
         {
@@ -1469,6 +1723,9 @@ namespace LasalMotionControlLib.Tests
                 LMCSignalValueType.Int32,
                 4,
                 1000,
+                SdoEndpointIp,
+                SdoEndpointPort,
+                DiagnosticsBuild,
                 expectedWriteData);
         }
 
@@ -1512,6 +1769,9 @@ namespace LasalMotionControlLib.Tests
                 uint mapRevision)
         {
             return new DiagnosticsSdoRestartRecoveryCapabilities(
+                SdoEndpointIp,
+                SdoEndpointPort,
+                DiagnosticsBuild,
                 bootId,
                 mapRevision,
                 true,
@@ -1588,6 +1848,82 @@ namespace LasalMotionControlLib.Tests
             File.WriteAllBytes(path, bytes);
         }
 
+        private static void WriteLegacyV2TypedSdoRecord(
+            string path,
+            Guid identity,
+            DateTime createdUtc,
+            uint ticketId)
+        {
+            byte[] payload;
+            using (var payloadStream = new MemoryStream())
+            {
+                using (var writer = new BinaryWriter(
+                    payloadStream,
+                    Encoding.UTF8,
+                    true))
+                {
+                    writer.Write(identity.ToByteArray());
+                    writer.Write((int)DiagnosticsMutationKind.SdoWrite);
+                    writer.Write((int)DiagnosticsMutationState
+                        .TerminalSuccessPendingReadback);
+                    writer.Write(createdUtc.Ticks);
+                    writer.Write(createdUtc.AddMilliseconds(2).Ticks);
+                    writer.Write(BootId);
+                    writer.Write(SdoMapRevision);
+                    writer.Write(SessionGeneration);
+                    writer.Write(ticketId);
+                    WriteLegacyText(
+                        writer,
+                        "Slave=1,Object=0x2F00,SubIndex=24");
+                    WriteLegacyText(writer, "WriteData=01-00-00-00");
+                    writer.Write(true);
+                    writer.Write((ushort)1);
+                    writer.Write((ushort)0x2F00);
+                    writer.Write((byte)24);
+                    writer.Write((int)LMCSignalValueType.Int32);
+                    writer.Write((ushort)4);
+                    writer.Write((uint)1000);
+                    writer.Write(4);
+                    writer.Write(new byte[] { 1, 0, 0, 0 });
+                    writer.Flush();
+                }
+                payload = payloadStream.ToArray();
+            }
+            WriteLegacyJournal(path, 2, payload);
+        }
+
+        private static void WriteLegacyJournal(
+            string path,
+            int version,
+            byte[] payload)
+        {
+            byte[] prefix;
+            using (var stream = new MemoryStream())
+            {
+                using (var writer = new BinaryWriter(
+                    stream,
+                    Encoding.UTF8,
+                    true))
+                {
+                    writer.Write(Encoding.ASCII.GetBytes("ELMODMJ1"));
+                    writer.Write(version);
+                    writer.Write(payload.Length);
+                    writer.Write(payload);
+                    writer.Flush();
+                }
+                prefix = stream.ToArray();
+            }
+            byte[] checksum;
+            using (var sha256 = SHA256.Create())
+            {
+                checksum = sha256.ComputeHash(prefix);
+            }
+            var bytes = new byte[prefix.Length + checksum.Length];
+            Buffer.BlockCopy(prefix, 0, bytes, 0, prefix.Length);
+            Buffer.BlockCopy(checksum, 0, bytes, prefix.Length, checksum.Length);
+            File.WriteAllBytes(path, bytes);
+        }
+
         private static void WriteLegacyText(
             BinaryWriter writer,
             string value)
@@ -1597,7 +1933,7 @@ namespace LasalMotionControlLib.Tests
             writer.Write(bytes);
         }
 
-        private static int FindV2MetadataMarkerOffset(byte[] bytes)
+        private static int FindV3MetadataMarkerOffset(byte[] bytes)
         {
             using (var stream = new MemoryStream(bytes, false))
             using (var reader = new BinaryReader(
@@ -1608,7 +1944,7 @@ namespace LasalMotionControlLib.Tests
                 AssertEx.SequenceEqual(
                     Encoding.ASCII.GetBytes("ELMODMJ1"),
                     reader.ReadBytes(8));
-                AssertEx.Equal(2, reader.ReadInt32());
+                AssertEx.Equal(3, reader.ReadInt32());
                 var payloadLength = reader.ReadInt32();
                 AssertEx.True(payloadLength > 0);
                 reader.ReadBytes(16);

@@ -231,6 +231,20 @@ namespace LasalMotionControlApiExample
             }
 
             EnsureDiagnosticsMutationJournalCanArm("SDO Write");
+            var capabilities = diagnosticCapabilities;
+            if (capabilities == null
+                || capabilities.DiagnosticsBuild == 0
+                || capabilities.DiagnosticsBootId != diagnosticsBootId
+                || capabilities.MapRevision != mapRevision
+                || !capabilities.IsBoundTo(
+                    ownerConnection.Diagnostics,
+                    ownerConnection.SessionGeneration))
+            {
+                throw new InvalidOperationException(
+                    "SDO Write durable arm requires fresh current-session DiagnosticsBuild/BootId/MapRevision evidence.");
+            }
+            var durableEndpointIp = RequiredConnectedRemoteIp();
+            var durableEndpointPort = RequiredConnectedRemotePort();
             try
             {
                 diagnosticsMutationJournal.Arm(
@@ -261,6 +275,9 @@ namespace LasalMotionControlApiExample
                         request.ValueType,
                         request.DataLength,
                         request.TimeoutCycles,
+                        durableEndpointIp,
+                        durableEndpointPort,
+                        capabilities.DiagnosticsBuild,
                         request.WriteData));
             }
             catch (Exception error)
@@ -616,6 +633,18 @@ namespace LasalMotionControlApiExample
                     ? "UNKNOWN"
                     : record.TicketId.ToString(
                         CultureInfo.InvariantCulture))
+                + (record.SdoWriteMetadata != null
+                    && record.SdoWriteMetadata.HasFullDurableIdentity
+                    ? ", Endpoint="
+                        + record.SdoWriteMetadata.EndpointIp
+                        + ":"
+                        + record.SdoWriteMetadata.EndpointPort.ToString(
+                            CultureInfo.InvariantCulture)
+                        + ", DiagnosticsBuild=0x"
+                        + record.SdoWriteMetadata.DiagnosticsBuild.ToString("X8")
+                    : record.Kind == DiagnosticsMutationKind.SdoWrite
+                        ? ", DurableIdentity=LEGACY_INCOMPLETE"
+                        : string.Empty)
                 + ", BootId=0x"
                 + record.DiagnosticsBootId.ToString("X8")
                 + ", Revision=0x"
@@ -1017,6 +1046,9 @@ namespace LasalMotionControlApiExample
                                     true);
                             return new
                                 DiagnosticsSdoRestartRecoveryCapabilities(
+                                    RequiredConnectedRemoteIp(),
+                                    RequiredConnectedRemotePort(),
+                                    observedCapabilities.DiagnosticsBuild,
                                     observedCapabilities.DiagnosticsBootId,
                                     observedCapabilities.MapRevision,
                                     observedCapabilities.Supports(
