@@ -789,6 +789,8 @@ namespace LasalMotionControlApiExample
                 "SDK 승인 SDO Write target";
             values["Known SDO Write preset (optional)"] =
                 "알려진 SDO Write preset (선택 사항)";
+            values["Exact request preview"] =
+                "정확 요청 미리보기";
             values["Single SDK-approved target"] = "SDK 승인 단일 target";
             values["Readiness matrix / next attempt (cached, no wire)"] =
                 "준비 상태 matrix / 다음 시도 (cache, wire 전송 없음)";

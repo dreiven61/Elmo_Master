@@ -199,15 +199,17 @@ Exact Readback
 
 ### 완료 gate
 
-- [ ] `0x2F00` combo 선택 없이 arbitrary target 입력 가능
-- [ ] type/length/value canonical validation
-- [ ] exact request preview
-- [ ] semantic reserved warning
-- [ ] Write Once explicit arm
-- [ ] ticket/status/abort 표시
-- [ ] exact readback 표시
-- [ ] Korean/English localization round-trip
-- [ ] Debug/Release WPF smoke
+- [x] `0x2F00` combo 선택 없이 arbitrary target 입력 가능
+- [x] type/length/value canonical validation
+- [x] exact request preview
+- [x] semantic reserved warning
+- [x] Write Once explicit arm
+- [x] ticket/status/abort 표시
+- [x] exact readback 표시
+- [x] Korean/English localization round-trip
+- [x] Debug/Release WPF smoke
+
+2026-08-28 current-dev update: arbitrary 1/2/4-byte scalar draft input, optional preset, exact two-click Write Once, durable exact readback/no-replay 경계에 더해 wire 직전 canonical request preview와 semantic/dedicated-owner zero-wire warning surface를 추가했다. Preview는 capability refresh와 독립된 draft validation이며 실제 Submit admission/policy를 완화하지 않는다.
 
 ---
 

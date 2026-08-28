@@ -6093,6 +6093,31 @@ namespace LasalApiWpfTestApp.SmokeTests
                     AssertEx.SequenceEqual(
                         new byte[] { 0x34, 0x12 },
                         genericRequest.WriteData);
+                    InvokePrivate(window, "UpdateSdoRequestPreview");
+                    AssertEx.Contains(
+                        "EXACT REQUEST",
+                        window.TextSdoRequestPreview.Text);
+                    AssertEx.Contains(
+                        "Operation=Write",
+                        window.TextSdoRequestPreview.Text);
+                    AssertEx.Contains(
+                        "Slave=2",
+                        window.TextSdoRequestPreview.Text);
+                    AssertEx.Contains(
+                        "Object=0x2000:3",
+                        window.TextSdoRequestPreview.Text);
+                    AssertEx.Contains(
+                        "Type=UInt16",
+                        window.TextSdoRequestPreview.Text);
+                    AssertEx.Contains(
+                        "Length=2",
+                        window.TextSdoRequestPreview.Text);
+                    AssertEx.Contains(
+                        "WriteData=34-12",
+                        window.TextSdoRequestPreview.Text);
+                    AssertEx.Equal(
+                        System.Windows.Visibility.Collapsed,
+                        window.TextSdoSemanticWarning.Visibility);
 
                     window.TextSdoIndex.Text = "0x6060";
                     var reservedRequestArguments = new object[] { null, null };
@@ -6107,6 +6132,19 @@ namespace LasalApiWpfTestApp.SmokeTests
                         Convert.ToString(
                             reservedRequestArguments[1],
                             CultureInfo.InvariantCulture));
+                    InvokePrivate(window, "UpdateSdoRequestPreview");
+                    AssertEx.Equal(
+                        System.Windows.Visibility.Visible,
+                        window.TextSdoSemanticWarning.Visibility);
+                    AssertEx.Contains(
+                        "BLOCKED RESERVED SDO WRITE",
+                        window.TextSdoSemanticWarning.Text);
+                    AssertEx.Contains(
+                        "NOT SUBMITTED",
+                        window.TextSdoSemanticWarning.Text);
+                    AssertEx.Contains(
+                        "semantic or dedicated-owner objects",
+                        window.TextSdoSemanticWarning.Text);
 
                     AssertEx.False(
                         window.ButtonRunD5SdoWriteSameValueQualification
