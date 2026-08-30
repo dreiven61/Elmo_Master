@@ -1,14 +1,11 @@
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
 <head>
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
   <title>API_DEVELOPMENT_PROGRESS</title>
   <style>
-    /* Default styles provided by pandoc.
-    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
-    */
     html {
       color: #1a1a1a;
       background-color: #fdfdfd;
@@ -63,10 +60,6 @@
     img {
       max-width: 100%;
     }
-    svg {
-      height: auto;
-      max-width: 100%;
-    }
     h1, h2, h3, h4, h5, h6 {
       margin-top: 1.4em;
     }
@@ -91,7 +84,6 @@
       color: #606060;
     }
     code {
-      white-space: pre-wrap;
       font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
       font-size: 85%;
       margin: 0;
@@ -111,8 +103,8 @@
      overflow: visible;
     }
     hr {
+      background-color: #1a1a1a;
       border: none;
-      border-top: 1px solid #1a1a1a;
       height: 1px;
       margin: 1em 0;
     }
@@ -155,6 +147,7 @@
     #TOC a:not(:hover) {
       text-decoration: none;
     }
+    code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
     div.columns{display: flex; gap: min(4vw, 1.5em);}
     div.column{flex: auto; overflow-x: auto;}
@@ -172,147 +165,193 @@
   </style>
 </head>
 <body>
-<header id="title-block-header">
-<h1 class="title">API_DEVELOPMENT_PROGRESS</h1>
-</header>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#lasal-motion-control-api-개발-진척도"
+id="toc-lasal-motion-control-api-개발-진척도">LASAL Motion Control API
+개발 진척도</a>
+<ul>
+<li><a href="#판정-기준" id="toc-판정-기준">1. 판정 기준</a></li>
+<li><a href="#current-요약" id="toc-current-요약">2. current
+요약</a></li>
+<li><a href="#요구사항-커버리지" id="toc-요구사항-커버리지">3. 요구사항
+커버리지</a></li>
+<li><a href="#기능별-current-상태" id="toc-기능별-current-상태">4.
+기능별 current 상태</a></li>
+<li><a href="#homeds402-h37-current-checkpoint"
+id="toc-homeds402-h37-current-checkpoint">5. HomeDS402 H37 current
+checkpoint</a></li>
+<li><a href="#setoperationmode-current-checkpoint"
+id="toc-setoperationmode-current-checkpoint">6. SetOperationMode current
+checkpoint</a></li>
+<li><a href="#homeds402ex-current-checkpoint"
+id="toc-homeds402ex-current-checkpoint">7. HomeDS402Ex current
+checkpoint</a></li>
+<li><a href="#setposition-current-checkpoint"
+id="toc-setposition-current-checkpoint">8. SetPosition current
+checkpoint</a></li>
+<li><a href="#current-개발-우선순위" id="toc-current-개발-우선순위">9.
+current 개발 우선순위</a></li>
+<li><a href="#branch-qualification-상태"
+id="toc-branch-qualification-상태">10. branch / qualification
+상태</a></li>
+<li><a href="#production-release-gate"
+id="toc-production-release-gate">11. production release gate</a></li>
+</ul></li>
+</ul>
+</nav>
 <h1 id="lasal-motion-control-api-개발-진척도">LASAL Motion Control API
 개발 진척도</h1>
 <ul>
-<li>문서 버전: 1.0-current</li>
-<li>기준일: 2026-08-20</li>
+<li>문서 버전: 1.3-current</li>
+<li>기준일: 2026-08-31</li>
 <li>API: <code>LasalMotionControlLib 0.9.1-preview</code></li>
-<li>기준 branch/HEAD: <code>main@5c80afe94685</code> + 현재 working
-tree</li>
+<li>current integration branch: <code>dev</code></li>
+<li>reviewed source baseline before this docs sync:
+<code>db954731c27c30f43f706b101276b81b022bd60a</code></li>
 <li>릴리스 판정: <strong>production NO-GO</strong></li>
 </ul>
-<p>이 문서는 API 구현률, 최신 검증 결과, artifact identity, 제한과 다음
-작업의 단일 current 정본이다. API 사용법은 <a href="API_MANUAL.md">API
-설명서</a>, byte offset과 frame shape는 <a
+<p>이 문서는 API 구현률, latest current qualification, 제한과 다음
+작업의 current 정본이다. API 사용법은 <a href="API_MANUAL.md">API
+설명서</a>, exact byte offset과 frame shape는 <a
 href="../../LMC_Library/LMC_API_Delivery/docs/DINT_PACKET_MAP.txt">DINT
-packet map</a>을 따른다. 설계 이유와 과거 실험은 architecture/history
-문서에 남기고 이 문서에 override를 누적하지 않는다.</p>
-<h2 id="1-판정-기준">1. 판정 기준</h2>
+packet map</a>, 최우선 API 상세 설계는 <a
+href="design/README.md">design/README.md</a>를 따른다. 과거 tranche별
+상세 evidence는 design/evidence와 history 문서에 남기고 이 문서에는
+current 판정만 유지한다.</p>
+<h2 id="판정-기준">1. 판정 기준</h2>
 <p><code>구현</code>, <code>빌드</code>, <code>다운로드</code>,
 <code>실행</code>, <code>실축 효과</code>를 같은 PASS로 취급하지
 않는다.</p>
 <table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
 <thead>
-<tr>
+<tr class="header">
 <th>등급</th>
 <th>뜻</th>
-<th>현재 문서에서 증명하지 않는 것</th>
+<th>이 등급만으로 증명하지 않는 것</th>
 </tr>
 </thead>
 <tbody>
-<tr>
+<tr class="odd">
 <td>PC</td>
 <td>C# build, fake-RPC, parser, WPF 회귀</td>
 <td>PLC source 실행, 실축 효과</td>
 </tr>
-<tr>
+<tr class="even">
 <td>Source/static</td>
 <td>LASAL source/route/ABI/mutation contract</td>
 <td>C78 compile, PLC runtime</td>
 </tr>
-<tr>
+<tr class="odd">
 <td>IDE/artifact</td>
 <td>C78 compile/link와 generated artifact</td>
 <td>PLC download 후 실행</td>
 </tr>
-<tr>
+<tr class="even">
 <td>PLC load</td>
 <td>PLC link/download/SystemInit/project load</td>
 <td>command terminal, motion, fault/soak</td>
 </tr>
-<tr>
+<tr class="odd">
 <td>PLC runtime</td>
 <td>online state와 command terminal/readback</td>
 <td>물리 좌표·토크·encoder 효과</td>
 </tr>
-<tr>
+<tr class="even">
 <td>Hardware/packet</td>
 <td>실축 결과와 packet causal evidence</td>
 <td>다른 축·fault·restart matrix 전체</td>
 </tr>
 </tbody>
 </table>
-<p>상태 표기는 다음 네 가지로 제한한다.</p>
+<p>상태 표기는 다음으로 제한한다.</p>
 <ul>
-<li><code>Active</code>: current route와 gate가 열려 있고 지원 계약으로
-호출 가능</li>
-<li><code>Limited</code>: route는 열려 있지만 축/대상/기능 또는 적격성
-범위가 제한됨</li>
-<li><code>Dormant</code>: source와 route 일부가 있어도 capability/gate가
-닫혀 정상 호출 금지</li>
+<li><code>Active</code>: current route와 gate가 열려 지원 계약으로 호출
+가능</li>
+<li><code>Limited</code>: route는 열려 있으나 축/대상/기능 또는
+qualification 범위 제한</li>
+<li><code>Dormant</code>: source/runtime이 있어도 capability/gate가 닫혀
+정상 호출 금지</li>
 <li><code>Missing</code>: public surface 또는 요구사항에 대응하는
-current LASAL 실행 경로가 없음</li>
+current LASAL 실행 경로 없음</li>
 </ul>
-<h2 id="2-요약-결론">2. 요약 결론</h2>
+<h2 id="current-요약">2. current 요약</h2>
 <ul>
-<li>C# protocol ID는 77개, current LASAL route는 73개다. C#-only 명령은
-<code>0x7E23 SubmitDigitalOutputWrite</code>와 신규 SetOperationMode
-<code>0x7D23/24/25</code>다.</li>
-<li>요구사항 workbook 65개 중 완전/적응 구현은 <code>40/65</code>, 부분
-구현 포함은 <code>53/65</code>다. 이는 semantic coverage이며 PLC 시험
+<li>C# protocol ID는 77개, current LASAL route는 76개다. C#-only
+command는 <code>0x7E23 SubmitDigitalOutputWrite</code> 하나다.</li>
+<li>요구사항 workbook 65개 중 완전/적응 구현 <code>40/65</code>, 부분
+포함 <code>53/65</code>다. 이는 semantic coverage이며 PLC/hardware 시험
 통과율이 아니다.</li>
 <li>Connection, Axis/Group core, Admin read, LMC Home, Diagnostics
-D1/D2/D3와 제한된 D5는 source-active다. 각 기능의 실제 장비 적격성
-범위는 서로 다르다.</li>
-<li>SetPosition <code>0x7D12/0x7D14/0x7D1A</code>는 SDK, wire, route와
-P1 async lifecycle source를 구현했지만 current runtime은 의도적으로
-fail-closed다.</li>
-<li>SetOperationMode <code>0x7D23/0x7D24/0x7D25</code>는 PC/SDK
-immutable lifecycle과 exact frame/parser를 구현했다. LASAL
-route/owner/SDO executor가 없어 current PLC에서는 Missing이며 capability
-bits 8/9/10 preflight가 Start를 wire 전에 차단한다.</li>
-<li>RETAIN 할당 실패를 없애기 위해 SetPosition backing을 1,344-byte
-ordinary volatile <code>VAR_GLOBAL</code>로 변경했다. current
-build/download/project load에서 이전
-<code>alloc for retain var failed, size=1344</code>가 재현되지
-않았다.</li>
-<li>최신 C78 build와 PLC link/download/SystemInit/project load는
-성공했다. 이 결과를 SetPosition 실행, 전체 motion 회귀 또는 production
-승인으로 확대하지 않는다.</li>
-<li>마지막 IDE build가 <code>Classes.lcb</code>를 다시 생성해 current
-SHA가 승인 ratchet과 달라졌다. 따라서 UDP artifact verifier와 이를
-포함한 full SourceOnly는 현재 <strong>FAIL/STOP</strong>이다.</li>
+D1/D2/D3와 제한된 D5는 source-active다.</li>
+<li>SetPosition은 SDK/wire/route/P1 async lifecycle이 있으나
+execution/native exactly-once와 durable backend가 미완료라
+<code>Dormant</code>다.</li>
+<li>HomeDS402는 method 37 source/runtime에 더해 H37-02/03/04/10
+hardware-independent qualification이 current <code>dev</code>에
+통합됐다. fresh C78/generated artifact, PLC/hardware와 activation은
+미완료다.</li>
+<li>SetOperationMode는 PP/PV/IP/CSP lifecycle, supported mask
+<code>0x018A</code>, durable no-replay recovery와 live cross-mode
+preflight까지 qualification-active다. 17:28 실기에서 preflight 후
+Diagnostics capability observation이 stale되는 host ordering blocker가
+확인됐으며 실제 <code>0x6060</code> mutation은 아직 미도달이다.</li>
+<li>Generic SDO는 R03 generic 1/2/4-byte scalar Write, R04 exact
+editor/preview, R05 durable no-replay recovery와 safe-state corrective가
+통합됐다. source gate는 ON이지만 physical Write/readback PASS는 아직
+아니다.</li>
+<li>HomeDS402Ex는 wire/SDK/WPF/scaffold/full-identity ownership/retained
+store/profile preparation/source-static collector까지 통합됐지만
+physical runtime은 no-op이고 bit 11은 OFF다.</li>
+<li>WPF dynamic SetOperationMode/HomeDS402Ex recovery localization은
+current <code>dev</code>에서 양쪽 Debug/Release workflow가
+green이다.</li>
+<li>full SourceOnly의 current known downstream blocker는 generated
+<code>Classes.lcb</code> physical identity ratchet이다. artifact
+identity는 fresh C78 build + review 없이 자동 갱신하지 않는다.</li>
+<li>production 판정은 계속 <strong>NO-GO</strong>다.</li>
 </ul>
-<h2 id="3-요구사항-커버리지">3. 요구사항 커버리지</h2>
+<h2 id="요구사항-커버리지">3. 요구사항 커버리지</h2>
 <table>
 <thead>
-<tr>
+<tr class="header">
 <th>분류</th>
 <th style="text-align: right;">개수</th>
 <th>의미</th>
 </tr>
 </thead>
 <tbody>
-<tr>
+<tr class="odd">
 <td>D</td>
 <td style="text-align: right;">16</td>
 <td>직접 대응 구현</td>
 </tr>
-<tr>
+<tr class="even">
 <td>E</td>
 <td style="text-align: right;">24</td>
 <td>SIGMATEK/LASAL 방식으로 적응 구현</td>
 </tr>
-<tr>
+<tr class="odd">
 <td>P</td>
 <td style="text-align: right;">13</td>
 <td>부분 구현 또는 제한 활성화</td>
 </tr>
-<tr>
+<tr class="even">
 <td>G</td>
 <td style="text-align: right;">8</td>
 <td>설계/게이트만 존재</td>
 </tr>
-<tr>
+<tr class="odd">
 <td>X</td>
 <td style="text-align: right;">4</td>
-<td>current scope에서 제외 또는 미구현</td>
+<td>current scope 제외 또는 미구현</td>
 </tr>
-<tr>
+<tr class="even">
 <td>합계</td>
 <td style="text-align: right;">65</td>
 <td>workbook 요구사항 수</td>
@@ -320,15 +359,21 @@ SHA가 승인 ratchet과 달라졌다. 따라서 UDP artifact verifier와 이를
 </tbody>
 </table>
 <ul>
-<li>완전/적응 구현: <code>D + E = 40/65 = 61.5%</code></li>
-<li>부분 포함: <code>D + E + P = 53/65 = 81.5%</code></li>
+<li>완전/적응 구현: <code>40/65 = 61.5%</code></li>
+<li>부분 포함: <code>53/65 = 81.5%</code></li>
 <li>High-priority 21개 관점: Active 17, Partial 3(SetPosition, DS402
-Home, SetOperationMode PC/SDK), Missing 1(<code>HomeDS402Ex</code>)</li>
+Home, SetOperationMode), Dormant 1(HomeDS402Ex)</li>
 </ul>
-<h2 id="4-기능별-current-상태">4. 기능별 current 상태</h2>
+<h2 id="기능별-current-상태">4. 기능별 current 상태</h2>
 <table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
 <thead>
-<tr>
+<tr class="header">
 <th>영역</th>
 <th>Command / API</th>
 <th>상태</th>
@@ -336,578 +381,359 @@ Home, SetOperationMode PC/SDK), Missing 1(<code>HomeDS402Ex</code>)</li>
 </tr>
 </thead>
 <tbody>
-<tr>
+<tr class="odd">
 <td>Connection/RPC</td>
 <td><code>0x8080</code>, <code>0x405C</code>, <code>0x405D</code>,
 <code>0x103C</code>, <code>0x1042</code>, <code>0x202B</code></td>
 <td>Active</td>
-<td>bounded fresh-TCP reconnect와 callback registration; callback은 wake
-hint이며 final state는 TCP readback 필요</td>
+<td>bounded fresh-TCP reconnect; callback은 wake hint이며 final state는
+TCP readback</td>
 </tr>
-<tr>
+<tr class="even">
 <td>Axis core</td>
 <td><code>0x2022/23/24/28/2E/209F/20A0/20A2</code></td>
 <td>Active/Limited</td>
-<td>accepted-once wait와 no-replay recovery 제공; 전체 축/fault/race
-적격성 미완료</td>
+<td>accepted-once wait/no-replay recovery; 전체 축/fault/race matrix
+미완료</td>
 </tr>
-<tr>
+<tr class="odd">
 <td>Group core</td>
 <td><code>0x20D2/2045/2047-4B/2051/2085/20A4/20E7/7D22</code></td>
 <td>Active/Limited</td>
-<td>X/Y/Z/U static identity와 bounded profile 계약; 전체 live matrix
-미완료</td>
+<td>X/Y/Z/U static identity; 전체 live matrix 미완료</td>
 </tr>
-<tr>
+<tr class="even">
 <td>Admin read</td>
 <td><code>0x7D00/7D10/7D20/7D22</code></td>
 <td>Active</td>
-<td>capability와 allowlisted semantic key를 사용; raw parameter
-passthrough 아님</td>
+<td>capability + allowlisted semantic key</td>
 </tr>
-<tr>
+<tr class="odd">
 <td>LMC Home</td>
 <td><code>0x7D13/7D18/7D19</code></td>
 <td>Active/Limited</td>
-<td>Admin bit 4 ON; no-motion CurrentPositionZero이며 switch-search
-Home이 아님</td>
+<td>Admin bit 4 ON; no-motion CurrentPositionZero</td>
 </tr>
-<tr>
+<tr class="even">
 <td>SetPosition</td>
 <td><code>0x7D12/7D14/7D1A</code></td>
 <td>Dormant</td>
-<td>Store/ownership FALSE, max-jump 0, bits 3/5/7 OFF, volatile backing,
-native call 0, detail 24</td>
+<td>volatile store, runtime/native execution fail-closed</td>
 </tr>
-<tr>
+<tr class="odd">
 <td>DS402 Home</td>
 <td><code>0x7D15/7D16/7D17</code></td>
 <td>Dormant</td>
-<td>method 37 source, gate FALSE, Admin bit 6 OFF;
-<code>HomeDS402Ex</code> 실행은 없음</td>
+<td>H37 software/source qualification current-dev PASS, five activation
+gates + bit 6 OFF, fresh C78/hardware 미완료</td>
 </tr>
-<tr>
+<tr class="even">
+<td>HomeDS402Ex</td>
+<td><code>0x7D1B/7D1C/7D1D</code></td>
+<td>Dormant</td>
+<td>full identity/retained store/profile preparation/source-static 존재;
+physical runtime no-op, bit 11 OFF</td>
+</tr>
+<tr class="odd">
 <td>SetOperationMode</td>
 <td><code>0x7D23/7D24/7D25</code></td>
-<td>Missing runtime</td>
-<td>PC/SDK lifecycle만 구현; LASAL route 없음, bits 8/9/10 OFF, wire
-송신 전 차단</td>
+<td>Limited</td>
+<td>PP/PV/IP/CSP qualification-active; current blocker는 preflight 뒤
+Diagnostics capability freshness ordering, physical <code>0x6060</code>
+dispatch 미도달</td>
 </tr>
-<tr>
+<tr class="even">
 <td>Diagnostics capability</td>
 <td><code>0x7E00</code></td>
 <td>Active</td>
-<td>매 connection에서 fresh <code>BootId</code>,
-<code>MapRevision</code>, mask를 읽어야 함</td>
+<td>매 connection fresh BootId/MapRevision/mask 필요</td>
 </tr>
-<tr>
+<tr class="odd">
 <td>D1/D2</td>
 <td><code>0x7E01/02/10/20</code>, <code>0x7E30-33</code></td>
 <td>Active/Limited</td>
-<td>typed catalog/PI/Bulk 경로; fault/partial/soak 확대 필요</td>
+<td>typed catalog/PI/Bulk; fault/partial/soak 확대 필요</td>
 </tr>
-<tr>
+<tr class="even">
 <td>D3 Recorder</td>
 <td><code>0x7E40-49</code></td>
 <td>Active/Limited</td>
-<td>Single/Ring/Trigger, single recorder owner; capture 적격성 확대
-필요</td>
+<td>Single/Ring/Trigger, single recorder owner</td>
 </tr>
-<tr>
+<tr class="odd">
 <td>D4 Double</td>
 <td><code>0x7E4A-4D</code></td>
 <td>Dormant</td>
 <td>capability/proof gate OFF</td>
 </tr>
-<tr>
+<tr class="even">
 <td>D5 SDO Read</td>
 <td><code>0x7E50</code> read</td>
 <td>Active/Limited</td>
-<td>general inline read; ticket terminal과 exact identity 필요</td>
+<td>general inline read, exact ticket identity 필요</td>
 </tr>
-<tr>
+<tr class="odd">
 <td>D5 SDO Write</td>
 <td><code>0x7E50</code> write</td>
 <td>Limited</td>
-<td>Axis1 exact <code>0x2F00:24 Int32/4</code>만; Axis2~4와 다른 target
-차단</td>
+<td>generic safe non-semantic 1/2/4-byte scalar policy + durable
+recovery 통합; OperationEnabled/semantic raw object deny, hardware
+readback matrix 미완료</td>
 </tr>
-<tr>
+<tr class="even">
 <td>Encoder maintenance</td>
 <td><code>0x7E53/54/55</code></td>
 <td>Active/Limited</td>
-<td>TW20/TW19 fixed payload만; terminal과 실제 drive effect를 구분</td>
+<td>TW20/TW19 fixed payload; terminal과 actual drive effect 구분</td>
 </tr>
-<tr>
+<tr class="odd">
 <td>Static topology</td>
 <td><code>0x7E11/12</code></td>
 <td>Active</td>
-<td>configured inventory; runtime health 증거가 아님</td>
+<td>configured inventory, runtime health 증거 아님</td>
 </tr>
-<tr>
+<tr class="even">
 <td>Dynamic node/DI</td>
 <td><code>0x7E13/22</code></td>
 <td>Dormant</td>
-<td>route/source는 있으나 bits 15/16 OFF</td>
+<td>route/source 존재, bits 15/16 OFF</td>
 </tr>
-<tr>
+<tr class="odd">
 <td>Digital output write</td>
 <td><code>0x7E23</code></td>
 <td>Missing</td>
-<td>C# surface만 있고 LASAL route 없음, bit 17 OFF</td>
+<td>C# surface만 존재, LASAL route/bit17 없음</td>
 </tr>
-<tr>
+<tr class="even">
 <td>PI Write</td>
 <td><code>0x7E21</code></td>
 <td>Dormant</td>
 <td>capability/allowlist OFF</td>
 </tr>
-<tr>
+<tr class="odd">
 <td>Extended SDO result</td>
 <td><code>0x7E51</code></td>
 <td>Dormant</td>
 <td>bit 12 OFF</td>
 </tr>
-<tr>
+<tr class="even">
 <td>Distribution</td>
 <td>SDK/WPF candidate</td>
 <td>Blocked</td>
-<td>새 2.4-development manual과 기존 2.3 semantic policy/DOCX/PDF가 달라
-build가 fail-fast</td>
+<td>development manual/semantic policy/distribution artifact release
+alignment 필요</td>
 </tr>
 </tbody>
 </table>
-<p>추가 미구현/제한 항목은 SetOperationMode PLC runtime, generic Axis
-<code>SetParameter</code>, Group parameter write, Axis override, typed
-emergency callback producer, profile conditioning pair와 SDO
-Real64/8-byte다.</p>
-<h2 id="5-이번-개발-내용">5. 이번 개발 내용</h2>
-<h3 id="51-setposition-p1-async-controltcp">5.1 SetPosition P1 async
-Control/TCP</h3>
+<h2 id="homeds402-h37-current-checkpoint">5. HomeDS402 H37 current
+checkpoint</h2>
+<p>PR #40
+<code>test(h37): qualify HomeDS402 source and recovery on current dev</code>가
+<code>dev@1f741bfd08e9d75a52f7edd03862ef26ac562edd</code>로
+통합됐다.</p>
+<p>qualification:</p>
 <ul>
-<li><code>ProcessAdminSetPositionAsync</code>를 별도 private method로
-분리해 LASAL 32 KiB method budget을 지켰다.</li>
-<li><code>HandleAdminSetPosition</code>은 async processor로 위임하고
-Control lifecycle은 cross-cycle context로 유지한다.</li>
-<li>TCP는 <code>-13</code> pending, <code>-14</code> quarantine close와
-기존 <code>-12</code> terminal durability uncertainty를 구분한다.</li>
-<li>duplicated pending tail, exact session/socket/request identity,
-closed-session notification, no-response quarantine와 queue retention
-계약을 구현했다.</li>
-<li>RT preflight mailbox는 atomic publication, first coherent sequence,
-exact tuple revalidation과 claim/native-zero를 검사한다.</li>
-<li>P1의 ready path는 ownership active까지 진행한 뒤 pending으로 멈춘다.
-execution/native exactly-once 단계는 아직 구현하지 않았다.</li>
-</ul>
-<h3 id="52-setposition-store와-retain-결정">5.2 SetPosition Store와
-RETAIN 결정</h3>
+<li>atomic five-value activation contract: <strong>43 checks
+PASS</strong></li>
+<li>exact method37 <code>0x7D15/16/17</code> PC Start/Outcome/Retire
+contract: PASS</li>
+<li>shared ownership/preemption: <strong>21 checks PASS</strong></li>
+<li>method-size verifier: <strong>10 checks PASS</strong>
 <ul>
-<li>Store ABI와 336-UDINT layout은 유지했다.</li>
-<li><code>VAR_GLOBAL RETAIN</code>과 header의 <code>RETAIN</code>
-qualifier를 제거해 backing을 ordinary volatile <code>VAR_GLOBAL</code>로
-바꿨다.</li>
-<li>이유는 target PLC에서 special SRAMRETAIN allocation이 0이고
-1,344-byte RETAIN 선언이 runtime link를 실패시켰기 때문이다.</li>
-<li><code>autoexec.lsl</code>의 <code>SET SRAMRETAIN</code>은 장비별
-배포 설정이 되므로 수정하지 않았다.</li>
-<li>durable query/replay/retirement 계약은 현재 충족하지 않는다. stock
-<code>RAMex UseFile=1</code>은 request별 write 결과와 physical
-reopen/readback ABI가 없어 production 후보에서 제외했다. 다음 경로는
-<code>_FileSys</code> 기반 fixed A/B file, committed async write,
-request별 completion, reopen/readback, power-cut, CRC/marker-last와
-tombstone durability 검증이다.</li>
+<li><code>HandleAxisDs402HomeStart</code>: 22,041 bytes</li>
+<li><code>HandleAxisDs402HomeOutcome</code>: 7,255 bytes</li>
+<li><code>HandleAxisDs402HomeRetire</code>: 4,221 bytes</li>
+<li><code>ProcessAxisDs402Home</code>: 29,497 bytes &lt; 32,768</li>
+</ul></li>
+<li>WPF durable no-replay source contract: <strong>36 checks
+PASS</strong></li>
+<li>unresolved durable journal startup recovery-key reconstruction:
+PASS</li>
+<li>API Debug/Release full suites: PASS</li>
+<li>WPF Debug/Release MaintenanceJournal + Ds402Home smoke: PASS</li>
+<li>diff hygiene: PASS</li>
 </ul>
-<h3 id="53-안전한-비활성-경계">5.3 안전한 비활성 경계</h3>
+<p>Evidence:</p>
 <ul>
-<li><code>LMC_ADMIN_SET_POSITION_STORE_CONFIGURED = FALSE</code></li>
-<li>ordinary ownership gate <code>FALSE</code></li>
-<li>축 1~4 <code>SetPositionMaxJump = 0</code></li>
-<li>Admin feature mask <code>0x00000017</code>, bits 3/5/7 OFF</li>
-<li>Admin SetPosition processor 안 native <code>.SetPosition()</code>
-call 0</li>
-<li>exact raw <code>0x7D12/14/1A</code> 요청은 detail 24
-<code>StorageUnavailable</code></li>
+<li>qualified head
+<code>f39fe0e9b56b0994619aed3f68b22c33a86d3b24</code></li>
+<li>workflow run <code>33026506170</code></li>
+<li>successful rerun job <code>98369296568</code></li>
 </ul>
-<p>이 값은 결함이 아니라 current image에서 좌표 mutation과 비내구성
-replay를 막는 의도된 release fence다. static/build PASS를 이유로 gate를
-켜면 안 된다.</p>
-<h2 id="6-최신-검증-현황">6. 최신 검증 현황</h2>
-<h3 id="61-pc와-sourcestatic">6.1 PC와 source/static</h3>
-<table>
-<thead>
-<tr>
-<th>검증</th>
-<th style="text-align: right;">결과</th>
-<th>증거 등급</th>
-<th>제한</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>SDK Debug</td>
-<td style="text-align: right;"><code>1164/1164 PASS</code></td>
-<td>PC</td>
-<td>SetOperationMode 11개 포함; PLC 증거 아님</td>
-</tr>
-<tr>
-<td>SDK Release</td>
-<td style="text-align: right;"><code>1164/1164 PASS</code></td>
-<td>PC</td>
-<td>위와 동일</td>
-</tr>
-<tr>
-<td>WPF Debug</td>
-<td style="text-align: right;"><code>356/356 PASS</code></td>
-<td>PC</td>
-<td>fake-RPC/UI smoke</td>
-</tr>
-<tr>
-<td>WPF Release</td>
-<td style="text-align: right;"><code>356/356 PASS</code></td>
-<td>PC</td>
-<td>fake-RPC/UI smoke</td>
-</tr>
-<tr>
-<td>SetPosition P1 mutation</td>
-<td style="text-align: right;"><code>84/84 PASS</code></td>
-<td>Source/static</td>
-<td>current Control/TCP 계약 포함</td>
-</tr>
-<tr>
-<td>Close-without-response</td>
-<td style="text-align: right;"><code>40/40 PASS</code></td>
-<td>Source/static</td>
-<td><code>-12/-13/-14</code> transport 분리</td>
-</tr>
-<tr>
-<td>Store scan</td>
-<td style="text-align: right;"><code>293/293 PASS</code></td>
-<td>Source/static</td>
-<td>volatile global/header contract 포함</td>
-</tr>
-<tr>
-<td>Generated Store wiring</td>
-<td style="text-align: right;"><code>41/41 PASS</code></td>
-<td>Source/static</td>
-<td>object/network reference</td>
-</tr>
-<tr>
-<td>Method budget self-test</td>
-<td style="text-align: right;"><code>16/16 PASS</code></td>
-<td>Source/static</td>
-<td>verifier 자체 시험</td>
-</tr>
-<tr>
-<td>LASAL method budget</td>
-<td style="text-align: right;">6 classes / 108 methods / 105 under / 3
-accepted debt</td>
-<td>Source/static</td>
-<td>새 P1 method는 모두 32 KiB 미만</td>
-</tr>
-<tr>
-<td>UDP callback self-test</td>
-<td style="text-align: right;"><code>336/336</code> 마지막 fixture
-checkpoint</td>
-<td>Source/static</td>
-<td>current artifact 승인과 별개</td>
-</tr>
-<tr>
-<td>UDP current artifact</td>
-<td style="text-align: right;"><strong>FAIL</strong></td>
-<td>Source/artifact</td>
-<td>current <code>Classes.lcb</code> SHA가 ratchet의
-<code>33C1...49A8</code>과 다름</td>
-</tr>
-</tbody>
-</table>
-<p>독립 Debug 전체 실행에서 기존
-<code>GroupDisableWait.Compound.ResumeOwnershipIsReserved</code>가 한 번
-실패해 <code>1163/1164</code>가 기록됐고, 같은 tree의 즉시 재실행과 최종
-Debug/Release 실행은 모두 <code>1164/1164 PASS</code>였다.
-SetOperationMode 11개는 모든 실행에서 PASS했지만, 이 기존 간헐 실패는
-별도 안정화 대상으로 남긴다.</p>
-<p>전체 <code>SourceOnly</code>는 이 문서 생성 시점의 current tree에서
-exit 1로 중단됐다. 첫 blocker는
-<code>SetPosition-augmented Classes.lcb physical identity drifted</code>다.
-focused gate PASS를 full SourceOnly PASS로 대신하지 않는다.</p>
-<h3 id="62-ide-build와-artifact">6.2 IDE build와 artifact</h3>
-<table>
-<thead>
-<tr>
-<th>항목</th>
-<th>current 결과</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Target</td>
-<td>C78 / ARM</td>
-</tr>
-<tr>
-<td>Compiler</td>
-<td><code>0 errors / 79 warnings</code></td>
-</tr>
-<tr>
-<td>Linker</td>
-<td><code>Done</code></td>
-</tr>
-<tr>
-<td>새 <code>CInvalidArgException</code></td>
-<td>0</td>
-</tr>
-<tr>
-<td><code>Class/Classes.lcb</code></td>
-<td>8,610,206 bytes / SHA-256
-<code>568FE55148D734BE4DB0BB5ED9AF4D7800DB33672A5FCE21ECCFE15EE3CAC5A7</code></td>
-</tr>
-<tr>
-<td>project <code>.lcb</code></td>
-<td>634,865 bytes / SHA-256
-<code>FE640A0683466FC1C68537A1CF5E9B96EEFBBBC5EE4885A78F25AF2557193A0E</code></td>
-</tr>
-<tr>
-<td>UDP identity</td>
-<td><strong>FAIL</strong>: verifier pin은
-<code>33C1C2A6...B649A8</code>; current artifact는
-<code>568FE551...C5A7</code></td>
-</tr>
-</tbody>
-</table>
-<p>79 compiler warnings과 별도의 toolchain/version 경고는 error가
-아니지만 release 전에 warning histogram과 intentional baseline을 다시
-검토해야 한다. artifact hash는 source semantics를 대신하지 않으며
-source/static gate와 함께 사용한다.</p>
-<h3 id="63-plc-linkdownloadload">6.3 PLC link/download/load</h3>
-<p>2026-08-20 current image에서 다음 순서를 확인했다.</p>
-<table>
-<thead>
-<tr>
-<th>시각</th>
-<th>확인 로그</th>
-<th>판정</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>13:06:22</td>
-<td><code>Linking at the PLC successful</code></td>
-<td>PLC link PASS</td>
-</tr>
-<tr>
-<td>13:06:23</td>
-<td><code>Download Ok</code>, <code>SystemInit: OK</code></td>
-<td>download/startup PASS</td>
-</tr>
-<tr>
-<td>13:06:30</td>
-<td><code>Project successfully loaded</code></td>
-<td>project load PASS</td>
-</tr>
-<tr>
-<td>13:06:41</td>
-<td>IDE 종료 후 offline/disconnect</td>
-<td>사용자 종료 동작; PLC fault 증거 아님</td>
-</tr>
-</tbody>
-</table>
-<p>이 세션에서는 이전 image의
-<code>alloc for retain var failed, size=1344</code>가 재현되지 않았다.
-기존 <code>salamander-log.txt</code>는 volatile 변경 전 실패를 담은 역사
-자료이며 current PASS 자료가 아니다. startup의
-<code>No SDIAS Client objects projected/connected</code>는 별도 topology
-warning으로 남아 있다.</p>
-<h3 id="64-아직-없는-증거">6.4 아직 없는 증거</h3>
+<p>첫 attempt는 four verifier PASS 후 hosted Windows runner MSBuild
+discovery에서만 중단됐고, 동일 head의 failed job rerun이 전체
+green이었다. product/source workaround는 추가하지 않았다.</p>
+<p>full SourceOnly은 source/static contract를 통과한 뒤 exact known
+generated-artifact boundary에서 멈춘다.</p>
+<p><code>LASAL.UdpCallbackContract blocker: SetPosition-augmented Classes.lcb physical identity drifted.</code></p>
+<p>따라서 current 판정:</p>
 <ul>
-<li>download image와 함께 기록한 fresh <code>BootId</code>,
-<code>MapRevision</code>, Diagnostics build tuple</li>
-<li>축 1~4의 실제 RT task id/core/priority 동등성</li>
-<li>SetPosition <code>0x7D12</code> 실행, native call, coordinate 변화
-또는 packet capture</li>
-<li>latest image의 전체 Axis/Group motion, power, stop, fault,
-reconnect와 soak matrix</li>
-<li>live UDP callback wake + causal TCP terminal packet evidence</li>
-<li>fresh PLC OS/SYSMSG log를 포함한 장시간 무재시작 증거</li>
+<li>H37-01/02/03/04/10: 완료</li>
+<li>H37-05: method-size/source portion PASS, generated artifact closure
+미완료</li>
+<li>H37-06: fresh C78/direct-open/network smoke 미완료</li>
+<li>H37-07/08: hardware matrix 미완료</li>
+<li>H37-09: activation 미완료</li>
 </ul>
-<p>따라서 현재 PLC가 정상 구동된 관찰은 PLC load/smoke 증거이며
-production runtime 또는 SetPosition hardware PASS가 아니다.</p>
-<h2 id="7-release-blockers와-우선순위">7. Release blockers와
-우선순위</h2>
-<h3 id="p0-api---우선순위-상-75-미만-4개">P0-API - 우선순위 상, 75% 미만
-4개</h3>
-<p>아래 4개를 신규 기능 개발의 최우선 묶음으로 고정한다. 공통 순서와
-command ID 예약, activation 원칙은 <a href="design/README.md">최우선 API
-개발 설계</a>를 따른다.</p>
-<table>
-<thead>
-<tr>
-<th style="text-align: right;">순서</th>
-<th>API</th>
-<th style="text-align: right;">진행도</th>
-<th>다음 구현 gate</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align: right;">1</td>
-<td><a href="design/HOME_DS402_DESIGN.md">HomeDS402</a></td>
-<td style="text-align: right;">50%</td>
-<td>기존 method 37 lifecycle의 5-part atomic activation과 축 1~4 실기
-적격화</td>
-</tr>
-<tr>
-<td style="text-align: right;">2</td>
-<td><a href="design/SET_OPERATION_MODE_DESIGN.md">SetOpMode</a></td>
-<td style="text-align: right;">25%</td>
-<td>PC/SDK contract 완료; CSP mode owner, LASAL lifecycle와 no-replay
-runtime recovery</td>
-</tr>
-<tr>
-<td style="text-align: right;">3</td>
-<td><a href="design/HOME_DS402_EX_DESIGN.md">HomeDS402Ex</a></td>
-<td style="text-align: right;">0%</td>
-<td>axis profile/scale 승인 후 <code>0x7D1B/1C/1D</code> dormant
-lifecycle</td>
-</tr>
-<tr>
-<td style="text-align: right;">4</td>
-<td><a href="design/SET_POSITION_DESIGN.md">SetPosition</a></td>
-<td style="text-align: right;">25%</td>
-<td>RAMex production NO-GO; <code>_FileSys</code> dual-file backend, RT
-claim/native와 terminal durability</td>
-</tr>
-</tbody>
-</table>
-<p><code>HomeDS402</code>와 <code>SetOpMode</code> contract를 먼저 닫고,
-SetPosition의 durable backend/task proof는 동시에 시작한다. capability와
-native mutation은 각 설계의 hardware gate 전까지 OFF다.</p>
-<h3 id="p0---current-baseline-고정">P0 - current baseline 고정</h3>
+<p>HomeDS402 capability bit 6과 five activation values는 계속 OFF다.</p>
+<h2 id="setoperationmode-current-checkpoint">6. SetOperationMode current
+checkpoint</h2>
+<p>current <code>dev</code> source truth:</p>
+<ul>
+<li>qualification activation ON</li>
+<li>Admin Start/Outcome/Retire triad ON</li>
+<li><code>SetOperationModeSupportedMask=0x018A</code> = PP(1), PV(3),
+IP(7), CSP(8)</li>
+<li>Homing(6)은 HomeDS402/HomeDS402Ex 소유</li>
+<li>durable pre-dispatch arm, exact outcome, exact-generation
+retirement</li>
+<li>Write-dispatched 이후 original Start/<code>0x6060</code> replay
+금지</li>
+<li>raw Generic SDO <code>0x6060</code> permanent deny</li>
+<li>same-target <code>SucceededNoWrite</code>와 real cross-mode를
+구분</li>
+<li>cross-mode preflight: Standstill=True, Fault=False,
+OperationEnabled=False</li>
+</ul>
+<p>PR #58 software evidence:</p>
+<ul>
+<li>API Debug full suite 1200/1200 PASS</li>
+<li>Generic SDO WPF focused smoke 17/17 PASS</li>
+<li>API/WPF Debug + Release build PASS</li>
+<li>corrective/static verifier PASS</li>
+</ul>
+<p>이 evidence는 physical SetOperationMode PASS가 아니다.</p>
+<p>2026-08-28 17:28 live finding:</p>
+<pre class="text"><code>Axis1 currentMode=8 -&gt; requestedMode=3 : preflight PASS, StatusWord=0x02D0
+Axis1 currentMode=8 -&gt; requestedMode=1 : preflight PASS, StatusWord=0x02D0
+Axis1 currentMode=8 -&gt; requestedMode=7 : preflight PASS, StatusWord=0x02D0
+Axis1 currentMode=8 -&gt; requestedMode=8 : same-target no-write candidate</code></pre>
+<p>모든 시도는 이후 다음 host exception으로 종료됐다.</p>
+<pre class="text"><code>The supplied diagnostics capabilities are not the current observation.</code></pre>
+<p>root cause는 capability freshness ordering이다.</p>
+<pre class="text"><code>RefreshDiagnosticsCapabilities -&gt; observation N
+ReadDriveStatusAsync
+  -&gt; 0x6041 inline D5 -&gt; Diagnostics.GetCapabilities -&gt; N+1
+  -&gt; 0x6061 inline D5 -&gt; Diagnostics.GetCapabilities -&gt; N+2
+PrepareSetOperationMode(cached N)
+  -&gt; requireCurrentObservation=true
+  -&gt; stale reject / ZERO mutation wire</code></pre>
+<p>따라서 현재 blocker는 PLC supported-mode reject가 아니며
+<code>0x7D23</code>/<code>0x6060</code>까지 도달하지 않았다.
+corrective는 freshness fence 제거가 아니라 preflight 뒤 FINAL
+Diagnostics capability refresh를 수행하는 ordering fix다.</p>
+<p>완료 조건:</p>
 <ol type="1">
-<li>current full SourceOnly, focused verifier, method budget와 UDP
-identity를 같은 tree에서 모두 재실행한다.</li>
-<li><code>Classes.lcb</code> current delta를 source/generated ABI와
-대조하고, 의미 변화가 없다는 검토 뒤에만 UDP physical identity ratchet을
-<code>568FE551...C5A7</code>로 갱신한다. hash만 보고 승인하지
-않는다.</li>
-<li>목적별 source/verifier/docs/artifact 변경을 분리해 commit하고 clean
-checkout에서 재현한다.</li>
-<li>latest image의 <code>BootId</code>, <code>MapRevision</code>,
-Diagnostics build와 artifact tuple을 한 evidence로 묶는다.</li>
+<li>old observation이 preflight 후 stale reject되는 safety regression
+유지</li>
+<li>preflight 후 final Diagnostics refresh한 current observation으로
+Prepare 성공</li>
+<li>final refresh와 Prepare 사이 capability-producing call 없음</li>
+<li>Prepare 성공 전 journal/Start mutation 0회</li>
+<li>software regression green 후 Axis1 PP/PV/IP/CSP physical matrix
+재개</li>
 </ol>
-<h3 id="p1---기존-기능-current-image-회귀">P1 - 기존 기능 current image
-회귀</h3>
-<ol type="1">
-<li>축 1~4 EtherCAT/DS402 연결과 정지 상태를 확인한다.</li>
-<li>Connection/lookup, representative Axis/Group read와 안전한
-non-motion command를 재검증한다.</li>
-<li>callback/reconnect, fault, timeout/cancel과 stable final readback을
-packet/runtime 증거로 닫는다.</li>
-</ol>
-<h3 id="p2---setposition-durable-backend와-executor">P2 - SetPosition
-durable backend와 executor</h3>
-<ol type="1">
-<li>stock <code>RAMex UseFile=1</code>은 request별 completion/physical
-readback 부재로 production에서 제외한다.</li>
-<li><code>_FileSys</code> 기반 2 x 2,048-byte fixed A/B file, request별
-completion, committed write, reopen/readback, CRC, marker-last와 exact
-tombstone을 구현·검증한다.</li>
-<li>axis task/core/priority를 확인하고 claim-before-native exactly-once
-executor를 구현한다.</li>
-<li>3-sample terminal proof, retained terminal-before-response/release,
-crash/quarantine와 WPF journal recovery를 완성한다.</li>
-<li>위 증거 전에는 Store/ownership/max-jump/capability gate를 변경하지
-않는다.</li>
-</ol>
-<h3 id="p3---미완료-api와-배포">P3 - 미완료 API와 배포</h3>
+<h2 id="homeds402ex-current-checkpoint">7. HomeDS402Ex current
+checkpoint</h2>
+<p>current <code>dev</code> software tranche:</p>
 <ul>
-<li><code>HomeDS402Ex</code>와 <code>SetOpMode</code>는 위
-<code>P0-API</code>로 승격했다. 이 절에서 다시 범위를 결정하거나
-후순위로 내리지 않는다.</li>
-<li><code>0x7E23</code>과 나머지 generic parameter/override API 범위를
-결정한다.</li>
-<li>D4, dynamic node/DI, PI Write와 SDO Write의 capability와 실기
-적격성을 순차 승인한다.</li>
-<li>새 <code>API_MANUAL.md</code>를 입력으로 generator를 재검증하고 기존
-<code>2.3-candidate</code> semantic policy를 <code>2.4</code> release
-candidate로 승격할 때 별도 update/test한다.</li>
-<li>DOCX/PDF는 새 Markdown과 semantic/render gate가 통과하기 전까지 기존
-2.3 artifact로 유지한다.</li>
-<li><code>Build-LmcApiDistribution.ps1</code>의
-2.4-development/2.3-candidate mismatch blocker는 위 승격이 끝난 뒤에만
-제거한다.</li>
+<li>HOMEEX-03 wire/capability contract</li>
+<li>HOMEEX-04 approved-plan lifecycle gate</li>
+<li>HOMEEX-05 retained exact-key/duplicate/replay/retire-retry
+store</li>
+<li>HOMEEX-06 gate-OFF parser/state scaffold</li>
+<li>HOMEEX-07 full 116-byte owner identity + shared DS402 Home resource
+admission</li>
+<li>HOMEEX-12 WPF durable no-replay recovery</li>
+<li>HOMEEX-08 approved-profile -&gt; frozen DINT internal preparation
+gate</li>
+<li>HOMEEX-09 source/static verifier + C78 evidence collector</li>
 </ul>
-<h2 id="8-system-of-record와-문서-관리">8. System of record와 문서
-관리</h2>
-<table>
-<thead>
-<tr>
-<th>사실</th>
-<th>정본</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Public API signature/behavior</td>
-<td><code>LMC_API_Delivery/src/**/*.cs</code> + <a
-href="API_MANUAL.md">API 설명서</a></td>
-</tr>
-<tr>
-<td>LASAL route/gate/runtime source</td>
-<td><code>TCPMotionInterface.st</code>,
-<code>LMCControlCommandService.st</code>,
-<code>LMCDiagnosticsService.st</code></td>
-</tr>
-<tr>
-<td>Wire offset/frame</td>
-<td><a
-href="../../LMC_Library/LMC_API_Delivery/docs/DINT_PACKET_MAP.txt">DINT
-packet map</a></td>
-</tr>
-<tr>
-<td>Current 구현률/시험/artifact/next step</td>
-<td>이 문서</td>
-</tr>
-<tr>
-<td>설계 이유</td>
-<td><code>docs/architecture/**</code></td>
-</tr>
-<tr>
-<td>원시 작업 이력</td>
-<td><code>docs/history/**</code></td>
-</tr>
-</tbody>
-</table>
-<p>이 문서만 current 진척도를 가진다. dated plan/progress/backlog,
-generated HTML/PDF/DOCX와 history는 과거 증거 또는 배포 산출물이며
-current 상태를 override하지 않는다. 시험 수치나 artifact identity가
-바뀌면 이 문서를 교체하고 다른 문서에 중복 복사하지 않는다.</p>
-<h2 id="9-직접-근거">9. 직접 근거</h2>
+<p>retained store:</p>
 <ul>
-<li><a href="../../LMC_Library/LMC_API_Delivery/src/LmcProtocol.cs">API
-command ID</a></li>
-<li><a
-href="../../LMC_Library/LMC_API_Delivery/src/LmcAxisSetPosition.cs">SetPosition
-public API</a></li>
-<li><a
-href="../../LMC_Library/LMC_API_Delivery/src/LmcAxisSetPositionOutcomeRetirement.cs">SetPosition
-outcome retirement</a></li>
-<li><a
-href="../../Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st">Control
-service</a></li>
-<li><a
-href="../../Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st">TCP
-interface</a></li>
-<li><a
-href="../../Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st">Diagnostics
-service</a></li>
-<li><a
-href="../../Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCSetPositionStore/global_LMCSetPositionStore.st">SetPosition
-volatile global</a></li>
-<li><a
-href="../architecture/ELMO_MASTER_CURRENT_ARCHITECTURE_AND_RELEASE_STATUS_2026-07-16.md">Current
-architecture</a></li>
-<li><a
-href="../architecture/AXIS_SET_POSITION_ASYNC_RT_EXECUTOR_AND_RECOVERY_DESIGN_2026-08-19.md">SetPosition
-async design</a></li>
+<li>4축 active 40-DINT + retired full-outcome 40-DINT records</li>
+<li>176-byte Outcome/Retire exact serialization</li>
+<li>retained-store verifier 48/48 PASS</li>
 </ul>
+<p>current hard gates:</p>
+<ul>
+<li>issue #28 actual axis 1..4
+wiring/polarity/method/scale/range/rounding/MapRevision approval</li>
+<li>issue #35 same-tree fresh C78/generated artifact review + SourceOnly
+ratchet closure</li>
+</ul>
+<p>그 전에는 다음을 열지 않는다.</p>
+<ul>
+<li>parameter SDO snapshot/program/restore</li>
+<li>mode 6 / controlword bit4 physical execution</li>
+<li>RT owner + physical homing observation</li>
+<li>capability bit 11</li>
+<li>WPF HomeDS402Ex Start UI</li>
+</ul>
+<h2 id="setposition-current-checkpoint">8. SetPosition current
+checkpoint</h2>
+<ul>
+<li>SDK/wire/route와 P1 async lifecycle source 존재</li>
+<li>volatile <code>VAR_GLOBAL</code> backing 유지</li>
+<li>current production candidate에서 special RETAIN allocation 사용 안
+함</li>
+<li>durable backend target은 <code>_FileSys</code> fixed dual-file
+A/B</li>
+<li>RT claim/native execution/stable observer와 exactly-once execution은
+미완료</li>
+<li>capability/runtime은 fail-closed 유지</li>
+</ul>
+<h2 id="current-개발-우선순위">9. current 개발 우선순위</h2>
+<ol type="1">
+<li><strong>SetOperationMode capability freshness ordering fix</strong>
+— fresh drive preflight 뒤 FINAL Diagnostics capability refresh</li>
+<li>focused regression — stale old observation reject + final-current
+observation Prepare success + zero-wire boundary</li>
+<li>updated <code>dev</code> API/WPF Debug/Release validation</li>
+<li>Axis1 SetOperationMode PP/PV/IP/CSP physical matrix
+(<code>0x6060</code> exact-one-write / <code>0x6061</code>
+readback)</li>
+<li>Axis1 Generic SDO safe non-semantic 1/2/4-byte Write + exact
+readback matrix</li>
+<li>SetOperationMode/Generic SDO timeout, disconnect, response-loss,
+durable no-replay recovery matrix</li>
+<li>Axis2..4 확대</li>
+<li>HomeDS402 fresh C78/generated artifact + hardware matrix</li>
+<li>HomeDS402Ex approved profile / artifact closure</li>
+<li>SetPosition issue #44 external blocker closure 후 durable A/B
+backend + RT exactly-once</li>
+</ol>
+<h2 id="branch-qualification-상태">10. branch / qualification 상태</h2>
+<ul>
+<li>remote branch는 현재 <code>main</code>, <code>dev</code> 두 개만
+유지한다.</li>
+<li>2026-08-28 cleanup에서 기존 <code>codex/*</code> 29개가 모두
+<code>dev</code> ancestor임을 확인한 뒤 삭제했다.</li>
+<li>열린 PR은 현재 없다.</li>
+<li><code>dev</code>가 유일한 integration / current qualification source
+truth다.</li>
+<li>qualification 중 blocker를 찾았다는 이유로 장기 branch를 새로
+누적하지 않는다.</li>
+<li>기능 작업 branch가 필요한 경우 작업 -&gt; 검증 -&gt;
+<code>dev</code> merge -&gt; 즉시 삭제 원칙을 적용한다.</li>
+<li>source SHA, generated artifact, PLC loaded image, WPF binary
+identity를 같은 qualification evidence set으로 기록한다.</li>
+</ul>
+<h2 id="production-release-gate">11. production release gate</h2>
+<p>production <code>Active</code> 승격에는 API별로 같은 승인 세트에서
+다음이 모두 필요하다.</p>
+<ol type="1">
+<li>PC contract</li>
+<li>Source/static + method-size</li>
+<li>fresh C78/ARM + generated artifact review</li>
+<li>same-image PLC load/runtime</li>
+<li>normal/fault/timeout/disconnect/response-loss hardware/packet
+matrix</li>
+<li>paired capability/gate activation</li>
+<li>manual/progress/WPF release synchronization</li>
+</ol>
+<p>현재 HomeDS402, SetOperationMode, HomeDS402Ex, SetPosition은 이 전체
+gate를 닫지 못했으므로 production 판정은 계속
+<strong>NO-GO</strong>다.</p>
 </body>
 </html>

@@ -1,9 +1,9 @@
 # LASAL Motion Control API 설명서
 
-문서 버전: 2.4-development
+문서 버전: 2.5-development
 적용 API: LasalMotionControlLib 0.9.1-preview
 대상 환경: Windows, .NET Framework 4.8
-기준일: 2026-08-20
+기준일: 2026-08-31
 
 \pagebreak
 
@@ -26,6 +26,7 @@
 | 2.2-candidate | 2026-08-11 | `14ccf58` exact canonical `-1` bounded fresh-TCP reconnect, complete local cleanup, startup identity와 PC 검증 경계 추가 |
 | 2.3-candidate | 2026-08-12 | `cbf2548` actual EXE X 종료/재실행과 binary identity gate, `3c63dea` 13-role active Python dependency closure, `d4204b4` exact Gate D PC/static snapshot 승인, `RPC_INIT_FRESH_TCP_ONCE_V2` bounded pre-response transport recovery와 canonical tracked release-input 경계 추가 |
 | 2.4-development | 2026-08-20 | current API 문서 위치 통합, SetPosition P1/volatile backing/fail-closed 계약과 최신 PLC image load 경계 반영 |
+| 2.5-development | 2026-08-31 | SetOperationMode PP/PV/IP/CSP qualification-active 계약, Generic SDO R03~R05, branch cleanup, 17:28 capability freshness ordering blocker와 current 실기 절차 반영 |
 
 이 문서는 `LasalMotionControlLib.dll`의 API 기능, 호출 인자, UNIT, 반환값과 안전 제약을
 설명하는 current 기준 문서다. 구현률, 시험 수치, artifact identity와 다음 작업은
@@ -135,7 +136,7 @@ production 승인이나 전체 실제 장비 검증을 뜻하지 않는다.
 | D1/D2/Recorder/D5 Read | C# facade와 PLC route가 단계별 구현 | capability를 먼저 읽고 fault, reconnect, soak와 physical readback evidence를 추가해야 함 |
 | Static EtherCAT topology `0x7E11/12` | configured 7-entry inventory | topology qualifier durable report와 current PLC identity 확인 필요 |
 | Node Health / Digital I/O `0x7E13/22/23` | `0x7E13/22` LASAL source 구현, capability OFF; `0x7E23` 없음 | capability activation과 runtime/hardware proof 전에는 정상 UI/API에서 호출하지 않음 |
-| SDO Write | 축 1 UI[24] exact target만 source/IDE build 승인 | bit 9와 exact identity를 확인한 제한 시험만 허용; current 실기 mutation evidence 미완료 |
+| SDO Write | Generic scalar policy source-active / qualification-active | physical axis 1..4의 safe non-semantic 1/2/4-byte Write 계약이 구현됐으나 hardware PASS는 미완료; semantic/dedicated-owner raw object는 계속 차단 |
 | PI Write / Recorder Double | gate 또는 allowlist OFF | 별도 승인과 실제 장비 mutation evidence 전까지 사용하지 않음 |
 
 완료 판정은 `ACK -> typed status polling -> stable sample -> final readback` 순서로 한다.
@@ -834,24 +835,61 @@ ticket/status를 보존한다. 제출 뒤 async cancellation은 ticket을 포함
 ticket을 자동 cancel하지 않는다. 이미 진행 중인 status RPC는 응답을 끝까지 수신한 뒤
 취소를 보고하므로 connection은 유지되고 보존된 ticket을 다시 조회할 수 있다.
 
-### 3.11.1 SetOperationMode 개발 SDK
+### 3.11.1 SetOperationMode current qualification contract
 
-2.4-development SDK에는 CSP mode 8 복구 전용 SetOperationMode lifecycle이 들어 있다.
-현재 PLC source에는 `0x7D23/0x7D24/0x7D25` dormant route/handler가 있으나 Admin capability
-bits 8/9/10은 OFF이므로 지원 API로 실행할 수 없다. `PrepareSetOperationMode`는 fresh capability triad와
-ErrorCatalogVersion 6을 요구하며, 조건이 없으면 Start는 wire를 보내기 전에 실패한다.
+2.5-development SDK/source의 SetOperationMode는 CSP-only scaffold가 아니다. current `dev`는
+PP(1), PV(3), IP(7), CSP(8)를 `0x018A` supported-mode mask로 광고하고 Admin
+Start/Outcome/Retire triad를 활성화한다. Homing(6)은 이 API가 아니라 HomeDS402 계열이 소유한다.
 
-| 단계 | `LMCSingleAxis` API | Command | current PLC |
+| 단계 | `LMCSingleAxis` API | Command | current source |
 |---|---|---:|---|
-| Prepare | `PrepareSetOperationMode` | wire 없음 | PC validation only |
-| Start once | `SetOperationMode[Async]` | `0x7D23` | dormant failure route, SDK zero-wire 차단 |
-| Exact outcome query | `ReadSetOperationModeOutcome[Async]` | `0x7D24` | dormant failure route |
-| Exact terminal retirement | `RetireSetOperationModeOutcome[Async]` | `0x7D25` | dormant failure route |
+| Prepare | `PrepareSetOperationMode` | wire 없음 | current capability/identity validation |
+| Start once | `SetOperationMode[Async]` | `0x7D23` | qualification-active |
+| Exact outcome query | `ReadSetOperationModeOutcome[Async]` | `0x7D24` | qualification-active |
+| Exact terminal retirement | `RetireSetOperationModeOutcome[Async]` | `0x7D25` | qualification-active |
 
-schema v1은 physical axis 1..4, Immediate-only, requested mode 8만 허용한다. Start ACK는
-terminal이 아니며 prepared command는 one-shot이다. TCP write 결과가 불확실해도 Start를
-자동 재전송하지 않는다. recovery는 original key로 outcome만 읽고 exact terminal generation만
-retire한다. Mode 1/3/6/7, arbitrary `0x6060` write와 `HomeDS402Ex`는 이 API 범위가 아니다.
+Start ACK는 completion evidence가 아니며 prepared command는 one-shot이다. result가 불확실한
+경우 `0x7D23` 또는 원 `0x6060` Write를 자동 replay하지 않는다. recovery는 exact durable
+identity로 outcome/current-mode observation/retirement만 수행한다. raw Generic SDO로
+`0x6060`을 직접 쓰는 것은 계속 금지한다.
+
+실제 cross-mode 후보는 Start 전에 fresh `ReadDriveStatusAsync()`로 LASAL status,
+DS402 `0x6041`, `0x6061`을 읽고 `Standstill=True`, DS402 Fault=False,
+OperationEnabled=False를 요구한다. current mode가 requested mode와 같으면 PLC lifecycle은
+`SucceededNoWrite`가 될 수 있으므로 CSP->CSP 성공만으로 `0x6060` Write 성공을 증명하지 않는다.
+
+### 3.11.2 2026-08-28 17:28 실기 blocker
+
+Axis1 current CSP(8)에서 PP/PV/IP 요청은 모두 `StatusWord=0x02D0`으로 cross-mode preflight를
+통과했다. 그러나 다음 단계에서 아래 host exception으로 종료됐다.
+
+```text
+The supplied diagnostics capabilities are not the current observation.
+```
+
+현재 원인은 PLC reject가 아니라 capability observation ordering이다. WPF가 Diagnostics capability
+observation N을 저장한 뒤 `ReadDriveStatusAsync()`가 `0x6041`/`0x6061` inline D5 Read를 수행하고,
+각 submission 내부 `Diagnostics.GetCapabilities()`가 observation을 N+1/N+2로 진행시킨다. 이후
+`PrepareSetOperationMode(... observation N ...)`이 `requireCurrentObservation=true`에서 stale로
+거부된다.
+
+따라서 이 재현에서는 durable journal arm, `0x7D23`, 실제 `0x6060` mutation까지 도달하지 않았다.
+현재 corrective ordering은 다음으로 고정한다.
+
+```text
+Admin capability / selected-mode 확인
+-> GetPhysicalAxis
+-> fresh ReadDriveStatus preflight
+-> FINAL Diagnostics capability refresh
+-> capability/admission validation
+-> PrepareSetOperationMode
+-> durable ArmBeforeDispatch
+-> Start exactly once
+```
+
+freshness fence, Build/BootId/MapRevision identity, one-shot confirmation, DS402 safety fence와
+no-replay 정책을 완화해서 해결하지 않는다. 해당 ordering fix와 regression이 `dev`에 반영되기 전까지
+PP/PV/IP physical mode-change PASS로 판정하지 않는다.
 
 ## 3.12 Move 완료와 restart recovery 경계
 
@@ -1682,7 +1720,7 @@ connection에서 다시 읽은 실제 반환값과 새 `BootId`/`MapRevision`을
 | Static Topology | source-active | configured inventory이며 runtime health 증거가 아님 |
 | EtherCAT Health | source-active | fault/stale/soak 실기 적격성은 별도 확인 |
 | Recorder Single/Ring/Trigger | source-active | capture 적격성과 storage 한계를 별도 확인 |
-| SDO Write | 축 1 UI[24] exact target만 제한 | fresh identity와 read-before/write/readback 절차가 필수; 축 2~4 차단 |
+| SDO Write | Generic scalar qualification-active | fresh identity, safe drive state, exact request preview와 durable no-replay가 필수; hardware write/readback matrix는 미완료 |
 | PI/DO Write, Recorder Double | 현재 차단 또는 미구현 | capability, route 또는 allowlist OFF |
 | Node Health/DI | dormant source | capability OFF이며 정상 UI/API에서 호출 금지 |
 
@@ -1825,38 +1863,38 @@ handler와 allowlist가 모두 없다.
 
 ## 6.10 Mutation API 정책
 
-| Public API 계약 | 현재 차단 근거 | 판정 |
+| Public API 계약 | current source / 차단 근거 | 판정 |
 |---|---|---|
-| `SubmitPIWrite[Async]` | PI Write capability OFF, SDK/PLC allowlist 비어 있음, `0x7E21` unsupported | 실행 금지 |
-| SDO `CreateWrite` + `SubmitSdo[Async]` | 축 1, `0x2F00:24`, Int32, 4-byte만 SDK/PLC source 승인 | 조건부 제한 허용 |
+| `SubmitPIWrite[Async]` | PI Write capability/allowlist OFF | 실행 금지 |
+| SDO `CreateWrite` + `SubmitSdo[Async]` | R03 generic scalar policy + R04 exact editor/preview + R05 durable recovery 통합 | qualification-active / hardware PASS 미완료 |
 | `SubmitDigitalOutputWrite[Async]` | DO capability/route/owner/allowlist 없음 | 실행 금지 |
 | Recoverable Double Recorder | Double capability/route gate OFF, single bank | 실행 금지 |
 
-`GetApprovedSdoWriteTargets()`는 현재 축 1의 Gold UI[24] `0x2F00:24`, Int32/4-byte target 한
-건만 반환한다. 축 2~4, 다른 index/subindex/type/length/value range 및 DS402 핵심 객체
-`0x6040`, `0x607A`, `0x60FF`, `0x6071`은 SDK에서 wire 전에 차단된다.
+Generic SDO Write는 physical axis 1..4의 canonical scalar width 1/2/4 byte를 대상으로 한다.
+ordinary Write는 live axis가 `Standstill=True`, DS402 Fault=False, OperationEnabled=False여야 하며,
+PLC generic admission은 non-enabled base state `0x40`(Switch On Disabled), `0x21`(Ready To Switch On),
+`0x23`(Switched On)만 허용한다. `0x27` Operation Enabled와 기타 unsafe state는 차단한다.
 
-규범적으로 유일한 SDO Write target은 Axis 1 `0x2F00:24`(UI[24]) Int32/4-byte다.
-Axis 2 through 4와 그 밖의 모든 target은 blocked 상태다. Manual SDO Write는 current-session
-identity-pinned 절차이며 `DiagnosticsBuild`, `BootId`, `MapRevision`과 exact target을 고정한
-four-ticket same-value proof가 모두 PASS해야 한다.
+다음 raw object는 semantic/dedicated-owner 경로가 있으므로 Generic SDO Write에서 계속 금지한다.
 
-`EvaluateSdoWritePolicy()`가 ready가 되려면 현재 connection에서 읽은 fresh capability의
-`SDOWrite` bit 9, `SDORead`, `SDOReadGeneralInline`, nonzero BootId/MapRevision과
-payload 한도가 모두 일치해야 한다. 기존 PLC가 bit 9를 광고하지 않으면 source 승인 target이
-있어도 제출할 수 없다.
+```text
+0x6040 Controlword
+0x6060 Modes of operation
+0x607A Target position
+0x60FF Target velocity
+0x6071 Target torque
+0x3204 / 0x20FC project-owned maintenance objects
+```
 
-실제 Write 전에 축 1 drive program에서 UI[24]가 미사용임을 확인하고 PowerOff/Standstill,
-position 안정, 작업자 승인과 mutation journal을 모두 통과해야 한다. 최초 실기 시험은 baseline
-Read, 값 불변 pre-Write guard, byte-identical same-value Write, exact readback의 서로 다른 4개
-ticket으로 제한한다. 이 4-ticket qualification이 PASS해야 일반 수동 Write 버튼이 열린다.
-활성 proof는 exact `LMCConnection` 인스턴스, session generation, `DiagnosticsBuild`, `BootId`,
-`MapRevision`과 승인 target 전체 tuple에 묶이며 reconnect나 PLC identity 변경 시 폐기된다.
-identity mismatch나 disconnect를 한 번 관측하면 영구 폐기되며, 실제 second-click은 SDK가
-mutation gate 안에서 fresh Build/BootId/MapRevision을 proof와 다시 비교한 뒤에만 `0x7E50`을
-전송한다. mismatch는 `NotAttempted`이며 Write frame은 0회다.
-결과가 불명확한 Write는 자동 재전송하지 않는다. current image load와 별개로 UI[24] 실제
-소유권, 안전 절차와 EtherCAT mailbox mutation은 미검증이다.
+WPF ordinary editor는 exact request preview와 reserved/semantic warning을 표시한다. Write 결과가
+불확실한 경우 자동 재전송하지 않으며 R05 durable record는 endpoint + DiagnosticsBuild + BootId +
+MapRevision + exact request identity에 묶인다. restart recovery는 read-only 결과 확인 경로만 허용한다.
+
+과거 Axis1 UI[24] `0x2F00:24` same-value four-ticket qualification은 특정 live qualification preset으로
+남아 있지만, 더 이상 Generic SDO API 전체의 유일한 허용 target으로 해석하지 않는다.
+
+현재 source/PC regression은 통과했지만 실제 safe non-semantic object의 1/2/4-byte Write + exact
+readback hardware matrix는 아직 완료되지 않았다. 따라서 production mutation 승인으로 해석하지 않는다.
 
 ## 6.11 Request/result와 provenance 확인
 
