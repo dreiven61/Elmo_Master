@@ -146,12 +146,20 @@ Assert-Regex $control '(?m)^#define[\t ]+LMC_OWNER_KIND_AXIS_OPERATION_MODE[\t ]
 Assert-Regex $control '(?m)^#define[\t ]+LMC_OWNER_RESOURCE_DIAGNOSTICS_SDO_ENGINE[\t ]+4[\t ]*$' 'diagnostics SDO owner resource is 4' -ExpectedCount 1
 Assert-Regex $tcp '0x7D23,[\t ]*0x7D24,[\t ]*0x7D25' 'TCP routes Start/ReadOutcome/Retire together' -MinimumCount 1
 Assert-Regex $tcp 'diagnosticsOwnerKind[\t ]*:=[\t ]*6;[\s\S]{0,160}diagnosticsResourceKind[\t ]*:=[\t ]*4;' 'TCP Start admission uses owner kind 6/resource 4' -MinimumCount 1
+Assert-Regex $tcp 'RequestBuf\[54\]\$SINT = 8[\s\S]{0,160}RequestBuf\[54\]\$SINT = 1[\s\S]{0,160}RequestBuf\[54\]\$SINT = 3[\s\S]{0,160}RequestBuf\[54\]\$SINT = 7' 'TCP Start admission accepts PP/PV/IP/CSP requested-mode allowlist' -ExpectedCount 1
 Assert-Regex $diagnostics '(?m)^#define[\t ]+LMC_DIAG_MODE_DETAIL_OWNERSHIP_CHANNEL[\t ]+52[\t ]*$' 'SetOperationMode has a dedicated AxisOwnership-channel unavailable detail' -ExpectedCount 1
 Assert-Regex $diagnostics '(?m)^#define[\t ]+LMC_DIAG_MODE_DETAIL_ADMISSION_IDENTITY[\t ]+63[\t ]*$' 'SetOperationMode has a dedicated admission-identity unavailable detail' -ExpectedCount 1
 Assert-Regex $diagnostics '(?m)^#define[\t ]+LMC_DIAG_MODE_DETAIL_FEATURE_DISABLED[\t ]+64[\t ]*$' 'SetOperationMode has a dedicated feature-disabled detail' -ExpectedCount 1
 Assert-Regex $diagnostics '<Client Name="InputLatch" Required="true" Internal="false"/>[\s\S]{0,120}<Client Name="AxisOwnership" Required="true" Internal="false"/>' 'LASAL metadata client order matches generated declaration order' -ExpectedCount 1
 Assert-Regex $diagnostics 'LMC_DIAG_SET_OPERATION_MODE_ENABLED = FALSE then[\s\S]{0,180}LMC_DIAG_MODE_DETAIL_FEATURE_DISABLED;' 'SetOperationMode distinguishes disabled feature gate from retained-store availability' -ExpectedCount 1
 Assert-Regex $diagnostics 'CallerSessionEpoch = 0\) \| \(RequestSequence = 0\)[\s\S]{0,180}OwnerGeneration = 0\) then[\s\S]{0,140}LMC_DIAG_MODE_DETAIL_ADMISSION_IDENTITY;[\s\S]{0,140}elsif IsClientConnected\(#AxisOwnership\) = FALSE then[\s\S]{0,140}LMC_DIAG_MODE_DETAIL_OWNERSHIP_CHANNEL;' 'SetOperationMode distinguishes invalid admission identity from disconnected AxisOwnership channel' -ExpectedCount 1
+
+# Detail 63 is the only Start failure allowed to carry the non-sensitive
+# A/B/C admission evidence bitmap in NativeCommandState.
+Assert-Regex $control 'CommandId = 0x7D23[\s\S]{0,900}pEffectiveAxisMask\^ := pEffectiveAxisMask\^ OR 0x01000000;[\s\S]{0,900}pEffectiveAxisMask\^ := pEffectiveAxisMask\^ OR 0x10000000;' 'ReserveAxisOwnership emits the five-bit server admission bitmap for SetOperationMode' -MinimumCount 2
+Assert-Regex $tcp 'diagnosticsEffectiveAxisMask AND 0x01000000[\s\S]{0,900}diagnosticsEffectiveAxisMask := diagnosticsEffectiveAxisMask AND 0x0000000F;' 'TCP extracts server evidence and restores the physical effective-axis mask' -ExpectedCount 1
+Assert-Regex $tcp 'diagnosticsTcpAdmissionBitmap[\s\S]{0,1100}diagnosticsEntryAdmissionBitmap \* 0x00010000' 'TCP packs post-Reserve and Diagnostics-entry evidence into Detail 63 only' -MinimumCount 1
+Assert-Regex $diagnostics 'admissionEvidenceBitmap := 0;[\s\S]{0,12000}detailCode = LMC_DIAG_MODE_DETAIL_ADMISSION_IDENTITY then[\s\S]{0,100}\(pResponse \+ 20\)\^\$UDINT := admissionEvidenceBitmap;' 'Diagnostics emits only a non-sensitive entry bitmap for Detail 63' -ExpectedCount 1
 
 # Relevant custom methods must stay below the LASAL 32 KiB method limit.
 foreach ($functionName in @(

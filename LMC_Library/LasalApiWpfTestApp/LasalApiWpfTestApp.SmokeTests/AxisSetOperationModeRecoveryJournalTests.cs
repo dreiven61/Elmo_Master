@@ -30,6 +30,40 @@ namespace LasalMotionControlApiExample
             tests.Add("Wpf.AxisSetOperationModeJournal.StaleCopy", StaleCopiesCannotAdvanceDurableState);
             tests.Add("Wpf.AxisSetOperationModeJournal.TerminalValidation", NonTerminalOrWeakSuccessProofIsRejected);
             tests.Add("Wpf.AxisSetOperationModeJournal.Integrity", TamperedJournalIsRejected);
+            tests.Add("Wpf.AxisSetOperationModeJournal.OperatorRetirementExactEvidence", OperatorRetirementRequiresCommittedExactEvidence);
+        }
+
+        private static void OperatorRetirementRequiresCommittedExactEvidence()
+        {
+            var directory = CreateTemporaryDirectory();
+            try
+            {
+                using (var journal = AxisSetOperationModeRecoveryJournal.Open(directory))
+                using (var ledger = RecoveryRecordRetirementLedger.Open(Path.Combine(directory, "ledger")))
+                {
+                    var armed = Arm(journal);
+                    var record = journal.PromoteToRecoveryRequired(armed, FixedUtc().AddSeconds(1));
+                    var evidence = journal.CaptureActiveRetirementEvidence();
+                    var original = File.ReadAllBytes(journal.JournalFilePath);
+                    AssertEx.Throws<InvalidOperationException>(() => journal.ResolveOperatorRetirement(
+                        evidence, null, FixedUtc().AddSeconds(2)));
+                    AssertBytesEqual(original, File.ReadAllBytes(journal.JournalFilePath));
+                    var decision = ledger.CommitOperatorRetirement(evidence, EndpointIp, 4000,
+                        DiagnosticsBuild, DiagnosticsBootId + 1, MapRevision,
+                        "test-operator", "Old outcome remains unknown.", FixedUtc().AddSeconds(2));
+                    journal.RecordTerminalOutcomeProof(record, RecoveryKey(),
+                        SuccessfulTerminalProof(), FixedUtc().AddSeconds(3));
+                    var changed = File.ReadAllBytes(journal.JournalFilePath);
+                    AssertEx.Throws<InvalidOperationException>(() => journal.ResolveOperatorRetirement(
+                        evidence, decision, FixedUtc().AddSeconds(4)));
+                    AssertBytesEqual(changed, File.ReadAllBytes(journal.JournalFilePath));
+                    AssertEx.True(journal.HasActiveRecord);
+                }
+            }
+            finally
+            {
+                DeleteTemporaryDirectory(directory);
+            }
         }
 
         private static void SurfaceAndDefaultPathAreStable()

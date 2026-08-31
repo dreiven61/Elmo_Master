@@ -364,6 +364,18 @@ namespace LasalMotionControlLib
         }
         public LMCDriveOperationMode RequestedMode { get; private set; }
         public uint NativeCommandState { get; private set; }
+        public uint AdmissionServerBitmap
+        {
+            get { return NativeCommandState & 0x0000001Fu; }
+        }
+        public uint AdmissionTcpBitmap
+        {
+            get { return (NativeCommandState >> 8) & 0x0000001Fu; }
+        }
+        public uint AdmissionDiagnosticsBitmap
+        {
+            get { return (NativeCommandState >> 16) & 0x0000000Fu; }
+        }
         public bool IsAccepted
         {
             get { return Response != null && Response.IsSuccess; }

@@ -186,8 +186,12 @@ namespace LasalMotionControlLib
             var nativeCommandState = LMC_Frame.ReadUInt32(
                 transport.Payload,
                 20);
+            var isAdmissionIdentityEvidence = !response.IsSuccess
+                && response.DetailCode
+                    == LMCAdminDetailCode.SetOperationModeAdmissionIdentityUnavailable
+                && IsValidAdmissionIdentityEvidence(nativeCommandState);
             if (requestedModeValue != (sbyte)expectedRequestedMode
-                || nativeCommandState != 0
+                || (nativeCommandState != 0 && !isAdmissionIdentityEvidence)
                 || (!response.IsSuccess
                     && !IsStartAxisSetOperationModeFailure(
                         response.DetailCode)))
@@ -226,6 +230,16 @@ namespace LasalMotionControlLib
                         .SetOperationModeFeatureDisabled
                 || detailCode
                     == LMCAdminDetailCode.SetOperationModeOutcomeSlotOccupied;
+        }
+
+        private static bool IsValidAdmissionIdentityEvidence(
+            uint nativeCommandState)
+        {
+            const uint allowedMask = 0x000F1F1Fu;
+            const uint diagnosticsBitmapMask = 0x000F0000u;
+            return (nativeCommandState & ~allowedMask) == 0
+                && (nativeCommandState & diagnosticsBitmapMask)
+                    != diagnosticsBitmapMask;
         }
     }
 }

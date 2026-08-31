@@ -1,6 +1,6 @@
 # SetOperationMode Detail 49 observability implementation result - 2026-08-31
 
-> Status: **OBSERVABILITY PHYSICALLY CONFIRMED / ADMISSION BOUNDARY DEFECT OPEN**
+> Status: **OBSERVABILITY PHYSICALLY CONFIRMED / ADMISSION BITMAP SOURCE IMPLEMENTED / PLC REQUALIFICATION PENDING**
 >
 > implementation baseline: `dev@1ab539c4b82918d1e2095e73c03799415d9d06d0`
 >
@@ -134,6 +134,75 @@ GenerationNonZero
 Expected = `0x0F`.
 
 Do not log raw token/generation values in normal operator output.
+
+### P0-A implementation follow-up
+
+The source implementation now carries the non-sensitive bitmap only on a
+`Detail 63` Start rejection. It does not change the request length, response
+length, ownership tuple, rollback rule, or `0x6060` mutation path.
+
+`NativeCommandState` is otherwise required to remain zero. For this one
+failure shape it is packed as follows:
+
+```text
+bits  0.. 4 = A ReserveAxisOwnership server bitmap
+bits  8..12 = B TCP post-Reserve bitmap
+bits 16..19 = C Diagnostics Start-entry bitmap
+all other bits = 0
+```
+
+`A` and `B` use Session/Sequence/Token/Generation/EffectiveAxisMask in that
+order; `C` uses the first four fields. The PC parser accepts a nonzero native
+state only for Detail 63, rejects reserved bits and rejects a complete C
+bitmap (`0x0F`) paired with Detail 63. The WPF rejection message displays
+`AdmissionBitmap(A/B/C)` without printing token or generation values.
+
+Source/PC verification completed for this follow-up:
+
+- API Debug build: PASS;
+- API contract regression: `1200/1200 PASS`;
+- MODE-10 static verifier: 73 checks PASS; one existing generated-metadata
+  ordering check remains FAIL and is retained for P0-B regeneration.
+
+No fresh C78 artifact, PLC download, or physical bitmap result exists yet.
+
+Subsequent fresh-BootId `0x0000006C` physical evidence found the remaining
+cross-mode gate: TCP accepted only requested CSP(8), skipped ownership
+reservation for PP/PV/IP, and therefore produced Detail 63 with
+`A/B/C=0x00/0x00/0x03`. The TCP request-shape allowlist has been corrected in
+source to PP/PV/IP/CSP. The prior same-target `SucceededNoWrite` pass remains
+non-mutation evidence; a new cross-mode physical run is required.
+
+### P0-A recovery-query observability follow-up
+
+When an accepted Start leaves the PC durable journal in `RecoveryRequired`,
+the WPF recovery path now logs the PLC `0x7D24` response fields before it
+rethrows the typed query exception:
+
+```text
+RequestedMode, Axis, QueryRequestId, OriginalRequestId,
+Status, ErrorId, Detail, Diagnostics Build/Boot/Map
+```
+
+This is observation only. It does not retry `0x7D23`, retire a record, clear
+the journal, or relax the UI recovery interlock. The next PLC run must retain
+the single `SetOperationMode outcome query rejected | ... Detail=...` line;
+that Detail selects the LASAL record-state correction.
+
+### P0-A reconnect identity follow-up
+
+The startup recovery-identity gate now includes active SetOperationMode
+records. A changed Diagnostics BootId or MapRevision enters the existing
+read-only quarantine before any mutation is enabled, exposes the stale-record
+archive/retire panel, and keeps the old outcome explicitly unknown. This fixes
+the prior omission where only pressing the SetOperationMode recovery button
+could detect its stale identity.
+
+The stale-record retirement ledger now also captures and resolves active
+SetOperationMode journals using their exact on-disk bytes. An operator-confirmed
+PLC identity change can therefore archive the old record as `Resolved` without
+sending `0x7D23`, `0x7D24`, `0x7D25`, SDO, motion, or cleanup traffic. The old
+command result remains explicitly unknown.
 
 ### P0-B: generated ABI regeneration and fingerprint
 

@@ -257,9 +257,11 @@ namespace LasalMotionControlApiExample
             ComboGroupBuffer.SelectedItem = LMC_BUFFER_MODE.Aborting;
 
             InitializeDiagnosticsUi();
+            // Read-only API initialization opens SetOperationMode recovery and
+            // must see already committed operator-retirement decisions.
+            InitializeRecoveryRecordRetirementLedger();
             InitializeReadOnlyApiUi();
             InitializeQualificationUi();
-            InitializeRecoveryRecordRetirementLedger();
             InitializeDiagnosticsMutationJournal();
             InitializeRecorderDoubleRecoveryJournal();
             InitializeGroupProfileLockRecoveryJournal();
@@ -773,6 +775,8 @@ namespace LasalMotionControlApiExample
                             "Reconnect Group Reset recovery identity");
                         await EnsureMaintenanceRecoveryConnectionIdentityAsync(
                             "Reconnect Home/Test recovery identity");
+                        await EnsureAxisSetOperationModeRecoveryConnectionIdentityAsync(
+                            "Reconnect SetOperationMode recovery identity");
                         await EnsureDiagnosticsMutationRecoveryConnectionIdentityAsync(
                             "Reconnect diagnostics mutation recovery identity");
                         ClearRecoveryIdentityReadOnlyQuarantine();

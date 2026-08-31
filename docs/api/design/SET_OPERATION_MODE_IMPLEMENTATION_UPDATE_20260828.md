@@ -59,6 +59,39 @@ Detail=SetOperationModeAdmissionIdentityUnavailable(63)
 
 이번 결과는 이전 Detail 49와 동일한 오류로 취급하지 않는다. 63이 반환됐다는 것은 current implementation의 분리 진단이 실제 PLC에서 동작했고, 원인이 **feature disabled(64), owner channel disconnected(52), ownership validate/commit failure(42)**가 아니라 admission identity zero-state branch까지 좁혀졌다는 의미다.
 
+### 1.1 2026-08-31 P0-A source follow-up
+
+Detail 63의 다음 원인을 물리 실행 한 번으로 분리할 수 있도록 source가 업데이트됐다.
+
+```text
+NativeCommandState (Detail 63 only)
+  bits  0.. 4: A ReserveAxisOwnership server bitmap
+  bits  8..12: B TCP post-Reserve bitmap
+  bits 16..19: C Diagnostics entry bitmap
+```
+
+A/B는 session, sequence, token, generation, effective-axis-mask 순서의
+five-bit map이고 C는 앞 네 field의 four-bit map이다. raw token/generation은
+전송하거나 log에 출력하지 않는다. 다른 모든 Start 응답의 native state는
+0을 유지한다.
+
+PC parser/WPF까지 같은 contract로 연결했으며 API Debug build와 full contract
+regression은 `1200/1200 PASS`다. C78 build/download/physical result는 아직
+없다. generated class declaration/command ABI regeneration은 별도 P0-B로
+남아 있으며 수동 declaration reorder로 대체하지 않는다.
+
+### 1.2 2026-08-31 cross-mode admission correction
+
+Fresh BootId `0x0000006C` test proved that CSP(8)->CSP(8) can reserve, start,
+complete and retire as `SucceededNoWrite`, while CSP(8)->PP(1) reached Detail
+63 with `AdmissionBitmap(A/B/C)=0x00/0x00/0x03`.
+
+The cause is a TCP request-shape guard that still accepted only requested
+mode 8. It skipped `ReserveAxisOwnership()` for PP/PV/IP, then dispatched
+Diagnostics with zero token/generation. The TCP guard now admits the same
+PP(1)/PV(3)/IP(7)/CSP(8) allowlist already advertised by the Diagnostics and
+SDK contracts. No ownership or DS402 safety condition was relaxed.
+
 ---
 
 ## 2. current implementation baseline audit

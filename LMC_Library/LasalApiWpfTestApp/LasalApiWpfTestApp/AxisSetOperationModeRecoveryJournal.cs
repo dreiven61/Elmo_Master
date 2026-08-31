@@ -14,7 +14,8 @@ namespace LasalMotionControlApiExample
         ArmedBeforeDispatch = 1,
         RecoveryRequired = 2,
         Resolved = 3,
-        TerminalOutcomeObserved = 4
+        TerminalOutcomeObserved = 4,
+        OperatorRetired = 5
     }
 
     internal sealed class AxisSetOperationModeTerminalOutcomeProof
@@ -398,7 +399,14 @@ namespace LasalMotionControlApiExample
         internal DateTime UpdatedUtc { get; private set; }
         internal AxisSetOperationModeTerminalOutcomeProof TerminalOutcomeProof { get; private set; }
         internal uint RetirementRequestId { get; private set; }
-        internal bool IsActive { get { return State != AxisSetOperationModeRecoveryState.Resolved; } }
+        internal bool IsActive
+        {
+            get
+            {
+                return State != AxisSetOperationModeRecoveryState.Resolved
+                    && State != AxisSetOperationModeRecoveryState.OperatorRetired;
+            }
+        }
         internal bool HasTerminalOutcomeProof { get { return TerminalOutcomeProof != null; } }
 
         internal LMCAxisSetOperationModeRecoveryKey ToRecoveryKey()
@@ -707,6 +715,88 @@ namespace LasalMotionControlApiExample
                 retireRequestId);
             PersistAndPublish(next);
             return next;
+        }
+
+        internal RecoveryJournalSourceEvidence
+            CaptureActiveRetirementEvidence()
+        {
+            if (CurrentRecord == null || !CurrentRecord.IsActive)
+            {
+                throw new InvalidOperationException(
+                    "No active SetOperationMode recovery record exists for operator retirement.");
+            }
+
+            var originalBytes = File.ReadAllBytes(JournalFilePath);
+            var diskRecord = Deserialize(originalBytes);
+            if (!Serialize(CurrentRecord).SequenceEqual(originalBytes)
+                || diskRecord.Identity != CurrentRecord.Identity
+                || diskRecord.Revision != CurrentRecord.Revision
+                || diskRecord.State != CurrentRecord.State)
+            {
+                throw new InvalidDataException(
+                    "SetOperationMode recovery memory state does not match the exact durable source bytes.");
+            }
+
+            return new RecoveryJournalSourceEvidence(
+                RecoveryRecordOwner.AxisSetOperationMode,
+                diskRecord.Identity,
+                (int)diskRecord.State,
+                diskRecord.CreatedUtc,
+                diskRecord.UpdatedUtc,
+                diskRecord.EndpointIp,
+                diskRecord.EndpointPort,
+                diskRecord.DiagnosticsBuild,
+                diskRecord.DiagnosticsBootId,
+                diskRecord.MapRevision,
+                "Axis",
+                diskRecord.AxisName,
+                diskRecord.AxisReference,
+                "SetOperationMode/0x7D23",
+                "Revision=" + diskRecord.Revision.ToString(CultureInfo.InvariantCulture)
+                    + ";RequestId=" + diskRecord.OriginalRequestId.ToString(CultureInfo.InvariantCulture)
+                    + ";RequestedMode=" + diskRecord.RequestedModeRaw.ToString(CultureInfo.InvariantCulture)
+                    + ";TimeoutMs=" + diskRecord.TimeoutMilliseconds.ToString(CultureInfo.InvariantCulture)
+                    + ";Flags=" + diskRecord.Flags.ToString(CultureInfo.InvariantCulture),
+                originalBytes);
+        }
+
+        internal AxisSetOperationModeRecoveryRecord ResolveOperatorRetirement(
+            RecoveryJournalSourceEvidence expectedEvidence,
+            RecoveryRecordRetirementDecision committedDecision,
+            DateTime updatedUtc)
+        {
+            if (expectedEvidence == null)
+            {
+                throw new ArgumentNullException("expectedEvidence");
+            }
+            if (committedDecision == null || !committedDecision.IsDurablyCommitted)
+            {
+                throw new InvalidOperationException(
+                    "SetOperationMode operator retirement requires a durably committed ledger decision.");
+            }
+            if (!committedDecision.MatchesSourceEvidence(expectedEvidence))
+            {
+                throw new InvalidOperationException(
+                    "The committed retirement decision does not match the expected SetOperationMode source evidence.");
+            }
+
+            var currentEvidence = CaptureActiveRetirementEvidence();
+            if (!expectedEvidence.ExactSourceEquals(currentEvidence)
+                || !committedDecision.MatchesSourceEvidence(currentEvidence))
+            {
+                throw new InvalidOperationException(
+                    "SetOperationMode recovery changed after operator confirmation; retirement was not applied.");
+            }
+
+            var resolved = Clone(
+                CurrentRecord,
+                AxisSetOperationModeRecoveryState.OperatorRetired,
+                CheckedIncrement(CurrentRecord.Revision),
+                updatedUtc,
+                CurrentRecord.TerminalOutcomeProof,
+                0);
+            PersistAndPublish(resolved);
+            return resolved;
         }
 
         public void Dispose()

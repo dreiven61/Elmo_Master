@@ -151,6 +151,7 @@ namespace LasalMotionControlApiExample
                 axisSetOperationModeRecoveryJournal =
                     AxisSetOperationModeRecoveryJournal.Open(directory);
                 axisSetOperationModeRecoveryJournalError = null;
+                TryFinalizeCommittedAxisSetOperationModeRetirementAtStartup();
 
                 if (axisSetOperationModeRecoveryJournal.HasActiveRecord)
                 {
@@ -459,6 +460,14 @@ namespace LasalMotionControlApiExample
             if (button == null)
             {
                 return false;
+            }
+
+            // This local evidence action has its own acknowledgement, identity,
+            // and ledger gates. Do not disable it again in the deferred sweep
+            // or swallow its mouse/keyboard input while in stale quarantine.
+            if (ReferenceEquals(button, ButtonArchiveAndRetireStaleRecovery))
+            {
+                return IsRecoveryIdentityReadOnlyConnection(connection);
             }
 
             if (ReferenceEquals(
@@ -1019,11 +1028,30 @@ namespace LasalMotionControlApiExample
                     + ".");
             }
 
-            var outcome = await currentAxis.ReadSetOperationModeOutcomeAsync(
-                key,
-                adminCapabilities,
-                diagnosticCapabilities,
-                CancellationToken.None);
+            LMCAxisSetOperationModeOutcomeResult outcome;
+            try
+            {
+                outcome = await currentAxis.ReadSetOperationModeOutcomeAsync(
+                    key,
+                    adminCapabilities,
+                    diagnosticCapabilities,
+                    CancellationToken.None);
+            }
+            catch (LMCAxisSetOperationModeOutcomeQueryException error)
+            {
+                var diagnostics = FormatAxisSetOperationModeOutcomeQueryFailure(
+                    error,
+                    key);
+                RefreshAxisSetOperationModeRecoveryUi(
+                    "OUTCOME QUERY REJECTED. "
+                    + diagnostics
+                    + ". The durable record remains active; no Start replay or retirement was sent.");
+                WriteLog(
+                    "SetOperationMode outcome query rejected | "
+                    + diagnostics
+                    + ". No Start replay or retirement was sent.");
+                throw;
+            }
             if (!outcome.IsTerminal)
             {
                 RefreshAxisSetOperationModeRecoveryUi(
@@ -1156,6 +1184,37 @@ namespace LasalMotionControlApiExample
             }
 
             return record;
+        }
+
+        private async Task
+            EnsureAxisSetOperationModeRecoveryConnectionIdentityAsync(
+                string operation)
+        {
+            if (AxisSetOperationModeRecoveryJournalUnavailable
+                || !HasActiveAxisSetOperationModeRecoveryRecord)
+            {
+                return;
+            }
+
+            var record = RequireActiveAxisSetOperationModeRecoveryRecord(
+                operation);
+            var currentConnection = RequireConnection();
+            EnsureAxisSetOperationModeRecoveryEndpointMatchesCurrent(
+                record,
+                operation);
+
+            var capabilities = diagnosticCapabilities;
+            if (capabilities == null
+                || capabilities.DiagnosticsBootId == 0
+                || capabilities.MapRevision == 0
+                || !capabilities.IsBoundTo(
+                    currentConnection.Diagnostics,
+                    currentConnection.SessionGeneration))
+            {
+                await RefreshDiagnosticsCapabilitiesAsync(currentConnection);
+            }
+
+            EnsureAxisSetOperationModeRecoveryIdentity(record, operation);
         }
 
         private void EnsureAxisSetOperationModeRecoveryEndpointMatchesCurrent(
@@ -1426,7 +1485,61 @@ namespace LasalMotionControlApiExample
                 + "/0x"
                 + key.DiagnosticsBootId.ToString("X8")
                 + "/0x"
+                + key.MapRevision.ToString("X8")
+                + FormatAxisSetOperationModeAdmissionEvidence(error);
+        }
+
+        private static string FormatAxisSetOperationModeOutcomeQueryFailure(
+            LMCAxisSetOperationModeOutcomeQueryException error,
+            LMCAxisSetOperationModeRecoveryKey key)
+        {
+            if (error == null || error.Response == null || key == null)
+            {
+                return "Response=<unavailable>";
+            }
+
+            var response = error.Response;
+            return "Requested="
+                + FormatAxisSetOperationModeValue(key.RequestedModeRaw)
+                + ", Axis="
+                + key.AxisReference.ToString(CultureInfo.InvariantCulture)
+                + ", QueryRequestId="
+                + response.RequestId.ToString(CultureInfo.InvariantCulture)
+                + ", OriginalRequestId="
+                + key.OriginalRequestId.ToString(CultureInfo.InvariantCulture)
+                + ", Status="
+                + response.CommandStatus.ToString(CultureInfo.InvariantCulture)
+                + ", ErrorId="
+                + response.ErrorId.ToString(CultureInfo.InvariantCulture)
+                + ", Detail="
+                + FormatAxisSetOperationModeDetail(response.DetailCodeValue)
+                + ", Build/Boot/Map=0x"
+                + key.DiagnosticsBuild.ToString("X8")
+                + "/0x"
+                + key.DiagnosticsBootId.ToString("X8")
+                + "/0x"
                 + key.MapRevision.ToString("X8");
+        }
+
+        private static string FormatAxisSetOperationModeAdmissionEvidence(
+            LMCAxisSetOperationModeRejectedException error)
+        {
+            if (error == null
+                || error.Response == null
+                || error.Response.DetailCode
+                    != LMCAdminDetailCode
+                        .SetOperationModeAdmissionIdentityUnavailable
+                || error.Acknowledgement == null)
+            {
+                return string.Empty;
+            }
+
+            return ", AdmissionBitmap(A/B/C)=0x"
+                + error.Acknowledgement.AdmissionServerBitmap.ToString("X2")
+                + "/0x"
+                + error.Acknowledgement.AdmissionTcpBitmap.ToString("X2")
+                + "/0x"
+                + error.Acknowledgement.AdmissionDiagnosticsBitmap.ToString("X2");
         }
 
         private static string FormatAxisSetOperationModeOutcomeDiagnostics(

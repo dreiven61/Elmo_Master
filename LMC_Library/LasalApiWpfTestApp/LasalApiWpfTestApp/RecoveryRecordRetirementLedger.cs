@@ -21,7 +21,8 @@ namespace LasalMotionControlApiExample
         GroupPower = 5,
         GroupReset = 6,
         AxisQualification = 7,
-        DiagnosticsMutation = 8
+        DiagnosticsMutation = 8,
+        AxisSetOperationMode = 9
     }
 
     internal enum RecoveryEndpointEvidenceKind
@@ -84,7 +85,8 @@ namespace LasalMotionControlApiExample
                 throw new ArgumentOutOfRangeException("mapRevision");
             }
             if ((owner == RecoveryRecordOwner.GroupReset
-                    || owner == RecoveryRecordOwner.AxisQualification)
+                    || owner == RecoveryRecordOwner.AxisQualification
+                    || owner == RecoveryRecordOwner.AxisSetOperationMode)
                 && diagnosticsBuild == 0)
             {
                 throw new ArgumentOutOfRangeException(
@@ -94,7 +96,8 @@ namespace LasalMotionControlApiExample
             ValidateText(targetKind, "targetKind", 64);
             if ((owner == RecoveryRecordOwner.AxisPower
                     || owner == RecoveryRecordOwner.AxisCommand
-                    || owner == RecoveryRecordOwner.AxisQualification)
+                    || owner == RecoveryRecordOwner.AxisQualification
+                    || owner == RecoveryRecordOwner.AxisSetOperationMode)
                 && !string.Equals(
                     targetKind,
                     "Axis",
@@ -336,7 +339,8 @@ namespace LasalMotionControlApiExample
                 && owner != RecoveryRecordOwner.GroupPower
                 && owner != RecoveryRecordOwner.GroupReset
                 && owner != RecoveryRecordOwner.AxisQualification
-                && owner != RecoveryRecordOwner.DiagnosticsMutation)
+                && owner != RecoveryRecordOwner.DiagnosticsMutation
+                && owner != RecoveryRecordOwner.AxisSetOperationMode)
             {
                 throw new ArgumentOutOfRangeException("owner");
             }
@@ -395,6 +399,10 @@ namespace LasalMotionControlApiExample
             if (owner == RecoveryRecordOwner.AxisQualification)
             {
                 return stateCode >= 1 && stateCode <= 9;
+            }
+            if (owner == RecoveryRecordOwner.AxisSetOperationMode)
+            {
+                return stateCode == 1 || stateCode == 2 || stateCode == 4;
             }
             if (owner == RecoveryRecordOwner.DiagnosticsMutation)
             {

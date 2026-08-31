@@ -192,6 +192,36 @@ namespace LasalMotionControlLib.Tests
                 AssertEx.Equal(startRejection, diagnosticParsed.Response.DetailCode);
             }
 
+            var admissionEvidence = FailurePayload(
+                OriginalRequestId,
+                LMCAdminDetailCode.SetOperationModeAdmissionIdentityUnavailable,
+                24);
+            TestFrame.WriteInt32(admissionEvidence, 16, 8);
+            TestFrame.WriteUInt32(admissionEvidence, 20, 0x000B1F1Fu);
+            var admissionParsed = LMC_AdminParser
+                .ParseStartAxisSetOperationMode(
+                    TestFrame.Response(0, admissionEvidence),
+                    OriginalRequestId,
+                    LMCDriveOperationMode.CyclicSynchronousPosition);
+            AssertEx.False(admissionParsed.Response.IsSuccess);
+            AssertEx.Equal(0x000B1F1Fu, admissionParsed.NativeCommandState);
+
+            var completeAdmissionEvidence = FailurePayload(
+                OriginalRequestId,
+                LMCAdminDetailCode.SetOperationModeAdmissionIdentityUnavailable,
+                24);
+            TestFrame.WriteInt32(completeAdmissionEvidence, 16, 8);
+            TestFrame.WriteUInt32(completeAdmissionEvidence, 20, 0x000F1F1Fu);
+            AssertStartMalformed(completeAdmissionEvidence);
+
+            var unsafeEvidence = FailurePayload(
+                OriginalRequestId,
+                LMCAdminDetailCode.SetOperationModeUnsafeState,
+                24);
+            TestFrame.WriteInt32(unsafeEvidence, 16, 8);
+            TestFrame.WriteUInt32(unsafeEvidence, 20, 0x000B1F1Fu);
+            AssertStartMalformed(unsafeEvidence);
+
             var queryOnlyFailure = FailurePayload(
                 OriginalRequestId,
                 LMCAdminDetailCode.SetOperationModeOutcomeNotFound,

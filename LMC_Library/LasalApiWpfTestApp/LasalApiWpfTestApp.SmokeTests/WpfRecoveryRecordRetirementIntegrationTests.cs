@@ -20,6 +20,12 @@ namespace LasalApiWpfTestApp.SmokeTests
             ICollection<TestCase> tests)
         {
             tests.Add(
+                "Wpf.RecoveryRetirement.SetOperationModeStaleArchivesAfterIdleInterlock",
+                SetOperationModeStaleArchivesAfterIdleInterlock);
+            tests.Add(
+                "Wpf.RecoveryRetirement.SetOperationModeCommittedDecisionFinalizesAtStartup",
+                SetOperationModeCommittedDecisionFinalizesAtStartup);
+            tests.Add(
                 "Wpf.RecoveryRetirement.MismatchedRecordsArchiveResolveDisconnectAndRequireRestart",
                 MismatchedRecordsArchiveResolveDisconnectAndRequireRestart);
             tests.Add(
@@ -58,6 +64,145 @@ namespace LasalApiWpfTestApp.SmokeTests
             tests.Add(
                 "Wpf.RecoveryRetirement.AxisQualificationVolatilePendingDecisionFinalizesBeforePromotion",
                 AxisQualificationVolatilePendingDecisionFinalizesBeforePromotion);
+        }
+
+        private static void SetOperationModeStaleArchivesAfterIdleInterlock()
+        {
+            var capabilities = LMCDiagnosticCapability.EtherCATTopology;
+            var steps = CreateConnectAndTopologySteps(capabilities);
+            steps.Add(CapabilitiesStep(11, capabilities));
+            steps.Add(CapabilitiesStep(12, capabilities));
+            steps.Add(CloseStep());
+            var root = CreateRetirementTemporaryDirectory();
+            MainWindow window = null;
+            try
+            {
+                using (var server = new FakeRpcServer(steps.ToArray()))
+                {
+                    var key = new LMCAxisSetOperationModeRecoveryKey(
+                        1, 8, 1, checked(DiagnosticsBootId - 1),
+                        DiagnosticMapRevision, 1, 2, 3, 4, 1,
+                        LMCDriveOperationMode.ProfilePosition, 5000);
+                    var journalPath = Path.Combine(root, "AxisSetOperationModeRecovery");
+                    using (var journal = AxisSetOperationModeRecoveryJournal.Open(journalPath))
+                    {
+                        var armed = journal.ArmBeforeDispatch(
+                            Guid.NewGuid(), "127.0.0.1", server.Port,
+                            "_LMCAxis1", key, DateTime.UtcNow.AddMinutes(-1));
+                        journal.PromoteToRecoveryRequired(armed, DateTime.UtcNow);
+                    }
+                    window = CreateWindow(root, server.Port);
+                    ConnectIntoRetirementQuarantineWithDiagnostics(window, server, "SetOperationMode");
+                    window.ExpanderSafetyAndRecoveryDetails.IsExpanded = true;
+                    window.UpdateLayout();
+                    var journalSource = window.AxisSetOperationModeRecoveryJournalForTests;
+                    var originalBytes = File.ReadAllBytes(journalSource.JournalFilePath);
+                    var requestsBeforeAcknowledgement = server.ReceivedRequests.Count;
+                    AssertEx.Contains("RETIRE STALE | AxisSetOperationMode",
+                        window.TextRecoveryIdentityRetirementSnapshot.Text);
+                    AssertEx.True(window.CheckConfirmStaleRecoveryRetirement.IsEnabled);
+                    AssertEx.False(window.ButtonArchiveAndRetireStaleRecovery.IsEnabled);
+                    window.CheckConfirmStaleRecoveryRetirement.IsChecked = true;
+                    // Drain the deferred ContextIdle traversal; immediate assertions miss this bug.
+                    window.Dispatcher.Invoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle,
+                        new Action(() => { }));
+                    AssertEx.True(window.ButtonArchiveAndRetireStaleRecovery.IsEnabled,
+                        "Stale retirement must remain enabled after the deferred global interlock.");
+                    AssertEx.True((bool)InvokePrivate(window,
+                        "IsAllowedDuringAxisSetOperationModeRecovery",
+                        window.ButtonArchiveAndRetireStaleRecovery));
+                    AssertEx.False(window.AxisSetOperationModeStartButtonForTests.IsEnabled);
+                    AssertEx.False(window.ButtonPowerOn.IsEnabled);
+                    AssertEx.Equal(requestsBeforeAcknowledgement, server.ReceivedRequests.Count);
+                    AssertControlCenterIsHitTestVisible(window,
+                        window.ButtonArchiveAndRetireStaleRecovery, "Stale SetOperationMode retirement");
+
+                    var exitCalled = false;
+                    window.RecoveryRecordRetirementConfirmationOverride = (message, caption) =>
+                    {
+                        AssertEx.Contains("AxisSetOperationMode", message);
+                        AssertEx.Contains("UNKNOWN", message);
+                        return MessageBoxResult.Yes;
+                    };
+                    window.RecoveryRecordRetirementExitOverride = () => exitCalled = true;
+                    Click(window.ButtonArchiveAndRetireStaleRecovery);
+                    WaitUntil(() => exitCalled || window.TextOperationState.Text ==
+                        "Archive and Retire Stale Recovery failed", "Retirement did not settle.");
+                    AssertEx.True(exitCalled, window.TextExecutionLog.Text);
+                    WaitForRetirementOperationToSettle(window);
+                    AssertEx.False(journalSource.HasActiveRecord);
+                    AssertEx.False(journalSource.CurrentRecord.HasTerminalOutcomeProof);
+                    AssertEx.Equal(0u, journalSource.CurrentRecord.RetirementRequestId);
+                    AssertEx.True(window.RecoveryRecordRetirementRestartRequired);
+                    AssertEx.Equal("Disconnected", window.TextConnectionState.Text);
+                    var ledger = (RecoveryRecordRetirementLedger)GetPrivateField(window,
+                        "recoveryRecordRetirementLedger");
+                    AssertEx.Equal(1, ledger.CommittedDecisions.Count);
+                    AssertEx.SequenceEqual(originalBytes,
+                        ledger.CommittedDecisions[0].SourceEvidence.GetOriginalBytes());
+                    AssertEx.True(server.ReceivedRequests.All(request =>
+                    {
+                        var command = TestFrame.ReadUInt16(request, 0);
+                        return command == 0x8080 || command == 0x405C || command == 0x405D
+                            || command == 0x7E00 || command == 0x7E11 || command == 0x7E12;
+                    }), "Archival may send only initialization, read-only diagnostics and close.");
+                    using (var reopened = AxisSetOperationModeRecoveryJournal.Open(journalPath))
+                    {
+                        AssertEx.False(reopened.HasActiveRecord);
+                        AssertEx.Equal(AxisSetOperationModeRecoveryState.OperatorRetired,
+                            reopened.CurrentRecord.State);
+                        AssertEx.False(reopened.CurrentRecord.HasTerminalOutcomeProof);
+                    }
+                    window.Close();
+                    WaitUntil(() => !window.IsLoaded, "Retired window did not finish closing.");
+                    window = CreateWindow(root, server.Port);
+                    AssertEx.False(window.AxisSetOperationModeRecoveryInterlockForTests);
+                    AssertEx.True(window.AxisSetOperationModeRecoveryJournalForTests.CurrentRecord != null);
+                    window.Close();
+                    WaitUntil(() => !window.IsLoaded, "Restarted window did not finish closing.");
+                    window = null;
+                }
+            }
+            finally
+            {
+                CloseWindowBestEffort(window);
+                DeleteRetirementTemporaryDirectory(root);
+            }
+        }
+
+        private static void SetOperationModeCommittedDecisionFinalizesAtStartup()
+        {
+            var root = CreateRetirementTemporaryDirectory();
+            MainWindow window = null;
+            try
+            {
+                using (var journal = AxisSetOperationModeRecoveryJournal.Open(
+                    Path.Combine(root, "AxisSetOperationModeRecovery")))
+                using (var ledger = RecoveryRecordRetirementLedger.Open(
+                    Path.Combine(root, "RecoveryRecordRetirementLedger")))
+                {
+                    var key = CreateSetOperationModeRecoveryKey();
+                    var armed = journal.ArmBeforeDispatch(Guid.NewGuid(),
+                        "127.0.0.1", 4000, "_LMCAxis1", key, DateTime.UtcNow.AddMinutes(-1));
+                    journal.PromoteToRecoveryRequired(armed, DateTime.UtcNow);
+                    var evidence = journal.CaptureActiveRetirementEvidence();
+                    ledger.CommitOperatorRetirement(evidence, "127.0.0.1", 4000,
+                        key.DiagnosticsBuild, key.DiagnosticsBootId + 1, key.MapRevision,
+                        RetirementTestOperator, RetirementTestReason, DateTime.UtcNow);
+                    AssertEx.True(journal.HasActiveRecord);
+                    // Simulate exit after durable decision but before source retirement.
+                }
+                window = CreateWindow(root, 4000);
+                AssertEx.False(window.AxisSetOperationModeRecoveryInterlockForTests);
+                AssertEx.Equal(AxisSetOperationModeRecoveryState.OperatorRetired,
+                    window.AxisSetOperationModeRecoveryJournalForTests.CurrentRecord.State);
+                AssertEx.Contains("crash-finalization applied exact-byte CAS", window.TextExecutionLog.Text);
+            }
+            finally
+            {
+                CloseWindowBestEffort(window);
+                DeleteRetirementTemporaryDirectory(root);
+            }
         }
 
         private static void

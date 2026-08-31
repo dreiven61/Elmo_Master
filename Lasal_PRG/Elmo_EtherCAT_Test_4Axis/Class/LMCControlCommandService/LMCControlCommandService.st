@@ -4396,6 +4396,23 @@ FUNCTION GLOBAL LMCControlCommandService::ReserveAxisOwnership
 		pEffectiveAxisMask^ := repeatAxisMask;
 		pAdmissionToken^ := repeatAdmissionToken;
 		pOwnerGeneration^ := repeatOwnerGeneration;
+		if CommandId = 0x7D23 then
+			if CallerSessionEpoch <> 0 then
+				pEffectiveAxisMask^ := pEffectiveAxisMask^ OR 0x01000000;
+			end_if;
+			if RequestSequence <> 0 then
+				pEffectiveAxisMask^ := pEffectiveAxisMask^ OR 0x02000000;
+			end_if;
+			if repeatAdmissionToken <> 0 then
+				pEffectiveAxisMask^ := pEffectiveAxisMask^ OR 0x04000000;
+			end_if;
+			if repeatOwnerGeneration <> 0 then
+				pEffectiveAxisMask^ := pEffectiveAxisMask^ OR 0x08000000;
+			end_if;
+			if repeatAxisMask <> 0 then
+				pEffectiveAxisMask^ := pEffectiveAxisMask^ OR 0x10000000;
+			end_if;
+		end_if;
 		Result := repeatMode;
 		RETURN;
 	end_if;
@@ -4726,6 +4743,23 @@ FUNCTION GLOBAL LMCControlCommandService::ReserveAxisOwnership
 	pEffectiveAxisMask^ := effectiveAxisMask;
 	pAdmissionToken^ := nextToken;
 	pOwnerGeneration^ := nextGeneration;
+	if CommandId = 0x7D23 then
+		if CallerSessionEpoch <> 0 then
+			pEffectiveAxisMask^ := pEffectiveAxisMask^ OR 0x01000000;
+		end_if;
+		if RequestSequence <> 0 then
+			pEffectiveAxisMask^ := pEffectiveAxisMask^ OR 0x02000000;
+		end_if;
+		if nextToken <> 0 then
+			pEffectiveAxisMask^ := pEffectiveAxisMask^ OR 0x04000000;
+		end_if;
+		if nextGeneration <> 0 then
+			pEffectiveAxisMask^ := pEffectiveAxisMask^ OR 0x08000000;
+		end_if;
+		if effectiveAxisMask <> 0 then
+			pEffectiveAxisMask^ := pEffectiveAxisMask^ OR 0x10000000;
+		end_if;
+	end_if;
 	Result := 0;
 
 END_FUNCTION

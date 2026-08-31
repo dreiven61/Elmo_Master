@@ -269,6 +269,32 @@ namespace LasalMotionControlApiExample
             return true;
         }
 
+        private bool TryFinalizeCommittedAxisSetOperationModeRetirementAtStartup()
+        {
+            if (RecoveryRecordRetirementLedgerUnavailable
+                || axisSetOperationModeRecoveryJournal == null
+                || !axisSetOperationModeRecoveryJournal.HasActiveRecord)
+            {
+                return false;
+            }
+
+            var evidence = axisSetOperationModeRecoveryJournal
+                .CaptureActiveRetirementEvidence();
+            var decision = recoveryRecordRetirementLedger
+                .FindPendingDecision(evidence);
+            if (decision == null)
+            {
+                return false;
+            }
+
+            axisSetOperationModeRecoveryJournal.ResolveOperatorRetirement(
+                evidence,
+                decision,
+                MonotonicRetirementUtcNow(evidence.UpdatedUtc));
+            LogCommittedRetirementFinalizedAtStartup(evidence, decision);
+            return true;
+        }
+
         private bool
             TryFinalizeCommittedDiagnosticsMutationRetirementAtStartup()
         {
@@ -693,6 +719,11 @@ namespace LasalMotionControlApiExample
                     axisQualificationRecoveryJournal
                         .CaptureActiveRetirementEvidence());
             }
+            if (axisSetOperationModeRecoveryJournal.HasActiveRecord)
+            {
+                evidence.Add(axisSetOperationModeRecoveryJournal
+                    .CaptureActiveRetirementEvidence());
+            }
             if (HasRetirableLegacyDiagnosticsMutationRecord)
             {
                 evidence.Add(
@@ -751,21 +782,30 @@ namespace LasalMotionControlApiExample
                 && evidence.MapRevision == currentCapabilities.MapRevision;
         }
 
+        private bool RecoveryRetirementSourceJournalsUnavailable
+        {
+            get
+            {
+                return AxisPowerOnRecoveryJournalUnavailable
+                    || AxisCommandRecoveryJournalUnavailable
+                    || MotionUncertaintyJournalUnavailable
+                    || GroupProfileLockRecoveryJournalUnavailable
+                    || GroupPowerRecoveryJournalUnavailable
+                    || GroupResetRecoveryJournalUnavailable
+                    || AxisQualificationRecoveryJournalUnavailable
+                    || DiagnosticsMutationJournalUnavailable
+                    || AxisSetOperationModeRecoveryJournalUnavailable;
+            }
+        }
+
         private void EnsureRecoveryRetirementInfrastructureAvailable()
         {
             if (RecoveryRecordRetirementLedgerUnavailable
-                || AxisPowerOnRecoveryJournalUnavailable
-                || AxisCommandRecoveryJournalUnavailable
-                || MotionUncertaintyJournalUnavailable
-                || GroupProfileLockRecoveryJournalUnavailable
-                || GroupPowerRecoveryJournalUnavailable
-                || GroupResetRecoveryJournalUnavailable
-                || AxisQualificationRecoveryJournalUnavailable
-                || DiagnosticsMutationJournalUnavailable)
+                || RecoveryRetirementSourceJournalsUnavailable)
             {
                 throw new InvalidOperationException(
                     "Stale recovery retirement is fail-closed because its "
-                    + "ledger or one of the eight durable recovery journals is "
+                    + "ledger or one of the durable recovery journals is "
                     + "unavailable. "
                     + GetRecoveryRecordRetirementUnavailableGuidance());
             }
@@ -885,6 +925,13 @@ namespace LasalMotionControlApiExample
                         decision,
                         updatedUtc);
                     diagnosticsMutationRecoveredAtStartup = false;
+                    break;
+
+                case RecoveryRecordOwner.AxisSetOperationMode:
+                    axisSetOperationModeRecoveryJournal.ResolveOperatorRetirement(
+                        evidence,
+                        decision,
+                        updatedUtc);
                     break;
 
                 default:
@@ -1035,10 +1082,15 @@ namespace LasalMotionControlApiExample
                 return;
             }
 
-            TextRecoveryIdentityRetirementSnapshot.Text =
-                BuildRecoveryIdentityRetirementSnapshot();
             var canPrepareRetirement =
-                CanRetireStaleRecoveryEvidenceFromUi();
+                CanRetireStaleRecoveryEvidenceFromUi(out var preparationBlocker);
+            TextRecoveryIdentityRetirementSnapshot.Text =
+                BuildRecoveryIdentityRetirementSnapshot()
+                + Environment.NewLine
+                + "Retirement readiness: "
+                + (canPrepareRetirement
+                    ? "READY - acknowledgement can enable archival."
+                    : preparationBlocker);
             CheckConfirmStaleRecoveryRetirement.IsEnabled =
                 canPrepareRetirement;
             ButtonArchiveAndRetireStaleRecovery.IsEnabled =
@@ -1046,7 +1098,8 @@ namespace LasalMotionControlApiExample
                 && canPrepareRetirement;
         }
 
-        private bool CanRetireStaleRecoveryEvidenceFromUi()
+        private bool CanRetireStaleRecoveryEvidenceFromUi(
+            out string preparationBlocker)
         {
             if (recoveryRecordRetirementRestartRequired
                 || operationRunning
@@ -1057,15 +1110,9 @@ namespace LasalMotionControlApiExample
                     && (diagnosticOperationStatus == null
                         || !diagnosticOperationStatus.IsTerminal))
                 || RecoveryRecordRetirementLedgerUnavailable
-                || AxisPowerOnRecoveryJournalUnavailable
-                || AxisCommandRecoveryJournalUnavailable
-                || MotionUncertaintyJournalUnavailable
-                || GroupProfileLockRecoveryJournalUnavailable
-                || GroupPowerRecoveryJournalUnavailable
-                || GroupResetRecoveryJournalUnavailable
-                || AxisQualificationRecoveryJournalUnavailable
-                || DiagnosticsMutationJournalUnavailable)
+                || RecoveryRetirementSourceJournalsUnavailable)
             {
+                preparationBlocker = "BLOCKED - the retirement operation, immutable ledger, or source journals are not ready.";
                 return false;
             }
 
@@ -1074,6 +1121,7 @@ namespace LasalMotionControlApiExample
                 || !currentConnection.IsConnected
                 || !IsRecoveryIdentityReadOnlyConnection(currentConnection))
             {
+                preparationBlocker = "BLOCKED - the current connection is not the required recovery-identity read-only quarantine.";
                 return false;
             }
 
@@ -1085,6 +1133,7 @@ namespace LasalMotionControlApiExample
                     currentConnection.Diagnostics,
                     currentConnection.SessionGeneration))
             {
+                preparationBlocker = "BLOCKED - current PLC diagnostics identity is not fresh for this quarantined TCP session.";
                 return false;
             }
 
@@ -1094,7 +1143,7 @@ namespace LasalMotionControlApiExample
                 records = GetActiveRecoveryRetirementMetadata();
                 var endpointIp = RequiredConnectedRemoteIp();
                 var endpointPort = RequiredConnectedRemotePort();
-                return records.Count > 0
+                var hasStaleRecord = records.Count > 0
                     && (!records.Any(item =>
                             RecoveryRetirementEndpointMatches(
                                 item,
@@ -1110,9 +1159,14 @@ namespace LasalMotionControlApiExample
                         && !RecoveryRetirementIdentityMatches(
                             item,
                             capabilities));
+                preparationBlocker = hasStaleRecord
+                    ? null
+                    : "BLOCKED - no stale record matches the current quarantined endpoint and PLC identity.";
+                return hasStaleRecord;
             }
             catch
             {
+                preparationBlocker = "BLOCKED - stale recovery evidence could not be read without mutation.";
                 return false;
             }
         }
@@ -1389,6 +1443,26 @@ namespace LasalMotionControlApiExample
                         record.AxisName,
                         record.AxisReference,
                         "SingleAxisQualification/" + record.Stage));
+                }
+            }
+            if (axisSetOperationModeRecoveryJournal != null)
+            {
+                var record = axisSetOperationModeRecoveryJournal.CurrentRecord;
+                if (record != null && record.IsActive)
+                {
+                    values.Add(new RecoveryRetirementMetadata(
+                        RecoveryRecordOwner.AxisSetOperationMode,
+                        record.Identity,
+                        record.EndpointIp,
+                        record.EndpointPort,
+                        record.DiagnosticsBuild,
+                        record.DiagnosticsBootId,
+                        record.MapRevision,
+                        record.AxisName,
+                        record.AxisReference,
+                        "SetOperationMode/"
+                            + ((LMCDriveOperationMode)record.RequestedModeRaw)
+                                .ToString()));
                 }
             }
             if (CanListLegacyDiagnosticsMutationForRetirement())

@@ -194,6 +194,24 @@ expected = `0x0F`.
 
 raw admission token/generation을 일반 log에 노출하지 않는다.
 
+### 6.1 P0-A source implementation status
+
+P0-A source instrumentation is implemented after this physical finding. It
+uses the existing Start response `NativeCommandState` word only for Detail 63:
+
+```text
+A server bitmap       = bits 0..4
+B TCP bitmap          = bits 8..12
+C Diagnostics bitmap  = bits 16..19
+other bits            = 0
+```
+
+It preserves the 24-byte response and does not expose raw token/generation.
+The PC parser fails closed for non-Detail-63 nonzero values, reserved bits, or
+a contradictory complete C bitmap. This is source/PC evidence only; the
+BootId `0x0000006A` physical observation predates this implementation and
+cannot be used as bitmap evidence.
+
 ## 7. Corrective design order
 
 1. Boundary A/B/C nonzero bitmap instrumentation.

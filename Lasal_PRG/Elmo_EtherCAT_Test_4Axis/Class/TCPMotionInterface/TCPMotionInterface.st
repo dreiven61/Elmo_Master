@@ -2424,6 +2424,9 @@ FUNCTION TCPMotionInterface::MsgPaser
 		diagnosticsEffectiveAxisMask : UDINT;
 		diagnosticsAdmissionToken : UDINT;
 		diagnosticsOwnerGeneration : UDINT;
+		diagnosticsServerAdmissionBitmap : UDINT;
+		diagnosticsTcpAdmissionBitmap : UDINT;
+		diagnosticsEntryAdmissionBitmap : UDINT;
 		diagnosticsAdmissionResult : DINT;
 		diagnosticsRollbackResult : DINT;
 		diagnosticsPublishResult : DINT;
@@ -2491,6 +2494,9 @@ case CommandID of
 	  diagnosticsEffectiveAxisMask := 0;
 	  diagnosticsAdmissionToken := 0;
 	  diagnosticsOwnerGeneration := 0;
+	  diagnosticsServerAdmissionBitmap := 0;
+	  diagnosticsTcpAdmissionBitmap := 0;
+	  diagnosticsEntryAdmissionBitmap := 0;
 	  diagnosticsAdmissionResult := -1;
 	  diagnosticsRollbackResult := 0;
 	  diagnosticsPublishResult := 0;
@@ -2610,7 +2616,10 @@ case CommandID of
 		   (RequestBuf[44]$UDINT <> 0) |
 		   (RequestBuf[48]$UDINT <> 0)) &
 		  (RequestBuf[52]$UINT = AxisRef$UINT) &
-		  (RequestBuf[54]$SINT = 8) &
+		  ((RequestBuf[54]$SINT = 8) |
+		   (RequestBuf[54]$SINT = 1) |
+		   (RequestBuf[54]$SINT = 3) |
+		   (RequestBuf[54]$SINT = 7)) &
 		  (RequestBuf[55]$USINT = 0) &
 		  (RequestBuf[56]$UDINT <> 0) &
 		  (RequestBuf[60]$UDINT = 0);
@@ -2656,6 +2665,39 @@ case CommandID of
 			pEffectiveAxisMask:=#diagnosticsEffectiveAxisMask,
 			pAdmissionToken:=#diagnosticsAdmissionToken,
 			pOwnerGeneration:=#diagnosticsOwnerGeneration);
+		if CommandID = 0x7D23 then
+			if (diagnosticsEffectiveAxisMask AND 0x01000000) <> 0 then
+				diagnosticsServerAdmissionBitmap := diagnosticsServerAdmissionBitmap OR 0x00000001;
+			end_if;
+			if (diagnosticsEffectiveAxisMask AND 0x02000000) <> 0 then
+				diagnosticsServerAdmissionBitmap := diagnosticsServerAdmissionBitmap OR 0x00000002;
+			end_if;
+			if (diagnosticsEffectiveAxisMask AND 0x04000000) <> 0 then
+				diagnosticsServerAdmissionBitmap := diagnosticsServerAdmissionBitmap OR 0x00000004;
+			end_if;
+			if (diagnosticsEffectiveAxisMask AND 0x08000000) <> 0 then
+				diagnosticsServerAdmissionBitmap := diagnosticsServerAdmissionBitmap OR 0x00000008;
+			end_if;
+			if (diagnosticsEffectiveAxisMask AND 0x10000000) <> 0 then
+				diagnosticsServerAdmissionBitmap := diagnosticsServerAdmissionBitmap OR 0x00000010;
+			end_if;
+			diagnosticsEffectiveAxisMask := diagnosticsEffectiveAxisMask AND 0x0000000F;
+			if ActiveRequest.SessionEpoch <> 0 then
+				diagnosticsTcpAdmissionBitmap := diagnosticsTcpAdmissionBitmap OR 0x00000001;
+			end_if;
+			if ActiveRequest.Sequence <> 0 then
+				diagnosticsTcpAdmissionBitmap := diagnosticsTcpAdmissionBitmap OR 0x00000002;
+			end_if;
+			if diagnosticsAdmissionToken <> 0 then
+				diagnosticsTcpAdmissionBitmap := diagnosticsTcpAdmissionBitmap OR 0x00000004;
+			end_if;
+			if diagnosticsOwnerGeneration <> 0 then
+				diagnosticsTcpAdmissionBitmap := diagnosticsTcpAdmissionBitmap OR 0x00000008;
+			end_if;
+			if diagnosticsEffectiveAxisMask <> 0 then
+				diagnosticsTcpAdmissionBitmap := diagnosticsTcpAdmissionBitmap OR 0x00000010;
+			end_if;
+		end_if;
 		if diagnosticsAdmissionResult = 0 then
 		  diagnosticsReserved := TRUE;
 		end_if;
@@ -2709,6 +2751,13 @@ case CommandID of
 		  AdmissionToken:=diagnosticsAdmissionToken,
 		  OwnerGeneration:=diagnosticsOwnerGeneration
       );
+		if (CommandID = 0x7D23) & (diagnosticsResponseSize = 24) &
+		   (Sendbuf[20]$UDINT = 63) then
+			diagnosticsEntryAdmissionBitmap := Sendbuf[28]$UDINT AND 0x0000000F;
+			Sendbuf[28]$UDINT := diagnosticsServerAdmissionBitmap OR
+				(diagnosticsTcpAdmissionBitmap * 0x00000100) OR
+				(diagnosticsEntryAdmissionBitmap * 0x00010000);
+		end_if;
     end_if;
 
 	  if diagnosticsReserved then
@@ -2746,7 +2795,11 @@ case CommandID of
 			(Sendbuf[16]$UDINT = RequestBuf[12]$UDINT) &
 			(Sendbuf[20]$UDINT <> 0) &
 			(Sendbuf[24]$DINT = 8) &
-			(Sendbuf[28]$UDINT = 0);
+			(((Sendbuf[20]$UDINT = 63) &
+			  ((Sendbuf[28]$UDINT AND 0xFFF0E0E0) = 0) &
+			  ((Sendbuf[28]$UDINT AND 0x000F0000) <> 0x000F0000)) |
+			 ((Sendbuf[20]$UDINT <> 63) &
+			  (Sendbuf[28]$UDINT = 0)));
 		elsif CommandID = 0x7D1B then
 		  // HOMEEX-07 remains gate-OFF. Any apparent success is not accepted.
 		  diagnosticsExactAccepted := FALSE;

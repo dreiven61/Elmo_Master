@@ -8824,10 +8824,11 @@ FUNCTION LMCDiagnosticsService::HandleAxisSetOperationModeStart
 	END_VAR
 	VAR
 		schemaVersion, requestFlags, keySchema, keyReserved : UINT;
-		requestId, diagnosticsBuild, bootId, mapRevision : UDINT;
-		originalRequestId, intent0, intent1, intent2, intent3 : UDINT;
-		timeoutMilliseconds, operationFlags, currentBootId, detailCode : UDINT;
-		axisMask, nextRecordGeneration, nextOperationToken : UDINT;
+	requestId, diagnosticsBuild, bootId, mapRevision : UDINT;
+	originalRequestId, intent0, intent1, intent2, intent3 : UDINT;
+	timeoutMilliseconds, operationFlags, currentBootId, detailCode : UDINT;
+	axisMask, nextRecordGeneration, nextOperationToken : UDINT;
+	admissionEvidenceBitmap : UDINT;
 		currentCycle, contextCheck, ds402StatusWord : UDINT;
 		requestedMode : SINT;
 		axisReference : UINT;
@@ -8849,6 +8850,19 @@ FUNCTION LMCDiagnosticsService::HandleAxisSetOperationModeStart
 	detailCode := 5;
 	requestId := 0;
 	requestedMode := 0;
+	admissionEvidenceBitmap := 0;
+	if CallerSessionEpoch <> 0 then
+		admissionEvidenceBitmap := admissionEvidenceBitmap OR 0x00000001;
+	end_if;
+	if RequestSequence <> 0 then
+		admissionEvidenceBitmap := admissionEvidenceBitmap OR 0x00000002;
+	end_if;
+	if AdmissionToken <> 0 then
+		admissionEvidenceBitmap := admissionEvidenceBitmap OR 0x00000004;
+	end_if;
+	if OwnerGeneration <> 0 then
+		admissionEvidenceBitmap := admissionEvidenceBitmap OR 0x00000008;
+	end_if;
 	if (pRequest <> NIL) & (RequestSize >= 8) then
 		requestId := (pRequest + 4)^$UDINT;
 	end_if;
@@ -9091,7 +9105,11 @@ FUNCTION LMCDiagnosticsService::HandleAxisSetOperationModeStart
 		(pResponse + 8)^$UDINT := requestId;
 		(pResponse + 12)^$UDINT := detailCode;
 		(pResponse + 16)^$DINT := TO_DINT(requestedMode);
-		(pResponse + 20)^$UDINT := 0;
+		if detailCode = LMC_DIAG_MODE_DETAIL_ADMISSION_IDENTITY then
+			(pResponse + 20)^$UDINT := admissionEvidenceBitmap;
+		else
+			(pResponse + 20)^$UDINT := 0;
+		end_if;
 		ResponseSize := 24;
 		RETURN;
 	end_if;
