@@ -115,6 +115,7 @@ namespace LasalMotionControlLib
         SetOperationModeOutcomeStorageUnavailable = 49,
         SetOperationModeExecutionFailed = 50,
         SetOperationModeOutcomeSlotOccupied = 51,
+        SetOperationModeOwnershipChannelUnavailable = 52,
         Ds402HomeExOutcomeNotFound = 53,
         Ds402HomeExOutcomeIndeterminate = 54,
         Ds402HomeExOutcomeStoreCorrupt = 55,

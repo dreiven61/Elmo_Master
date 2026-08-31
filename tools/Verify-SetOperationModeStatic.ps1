@@ -146,6 +146,9 @@ Assert-Regex $control '(?m)^#define[\t ]+LMC_OWNER_KIND_AXIS_OPERATION_MODE[\t ]
 Assert-Regex $control '(?m)^#define[\t ]+LMC_OWNER_RESOURCE_DIAGNOSTICS_SDO_ENGINE[\t ]+4[\t ]*$' 'diagnostics SDO owner resource is 4' -ExpectedCount 1
 Assert-Regex $tcp '0x7D23,[\t ]*0x7D24,[\t ]*0x7D25' 'TCP routes Start/ReadOutcome/Retire together' -MinimumCount 1
 Assert-Regex $tcp 'diagnosticsOwnerKind[\t ]*:=[\t ]*6;[\s\S]{0,160}diagnosticsResourceKind[\t ]*:=[\t ]*4;' 'TCP Start admission uses owner kind 6/resource 4' -MinimumCount 1
+Assert-Regex $diagnostics '(?m)^#define[\t ]+LMC_DIAG_MODE_DETAIL_OWNERSHIP_CHANNEL[\t ]+52[\t ]*$' 'SetOperationMode has a dedicated AxisOwnership-channel unavailable detail' -ExpectedCount 1
+Assert-Regex $diagnostics '<Client Name="InputLatch" Required="true" Internal="false"/>[\s\S]{0,120}<Client Name="AxisOwnership" Required="true" Internal="false"/>' 'LASAL metadata client order matches generated declaration order' -ExpectedCount 1
+Assert-Regex $diagnostics 'CallerSessionEpoch = 0\) \| \(RequestSequence = 0\)[\s\S]{0,180}OwnerGeneration = 0\) then[\s\S]{0,140}LMC_DIAG_MODE_DETAIL_STORAGE;[\s\S]{0,140}elsif IsClientConnected\(#AxisOwnership\) = FALSE then[\s\S]{0,140}LMC_DIAG_MODE_DETAIL_OWNERSHIP_CHANNEL;' 'SetOperationMode distinguishes invalid admission identity from disconnected AxisOwnership channel' -ExpectedCount 1
 
 # Relevant custom methods must stay below the LASAL 32 KiB method limit.
 foreach ($functionName in @(

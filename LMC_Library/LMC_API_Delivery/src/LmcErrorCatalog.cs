@@ -344,6 +344,9 @@ namespace LasalMotionControlLib
             AddAdmin(entries, LMCAdminDetailCode.SetOperationModeOutcomeStorageUnavailable,
                 "The SetOperationMode retained outcome storage is unavailable.",
                 "Do not submit SetOperationMode until storage is healthy and the complete capability triad is advertised.");
+            AddAdmin(entries, LMCAdminDetailCode.SetOperationModeOwnershipChannelUnavailable,
+                "The LMCDiagnosticsService AxisOwnership client is not connected to LMCControlCommandService at runtime.",
+                "Do not bypass ownership. Rebuild/link the LASAL communication network and verify the AxisOwnership client connection before retrying SetOperationMode.");
             AddAdmin(entries, LMCAdminDetailCode.SetOperationModeExecutionFailed,
                 "The accepted SetOperationMode operation failed during the bounded 0x6061/0x6060/0x6061 lifecycle.",
                 "Inspect the retained evidence flags, observed mode, status word, and quarantine reason before recovery.");
