@@ -1,215 +1,55 @@
 # Generic SDO / SetOperationMode 재구현 및 qualification 계획
 
 - 최초 기준일: 2026-08-27
-- current revision: 2026-08-28
+- current revision: 2026-08-31
 - current integration / qualification source: `dev`
-- corrective functional baseline: `687a78c6e97616870c4fec4a5da043046bb735f6` (PR #58)
 - tracking: issue #46
 - production release posture: **NO-GO**
 
-이 문서는 2026-08-27에 시작한 Generic SDO / SetOperationMode 재구현 계획을 현재 source truth에 맞게 갱신한다. 과거 branch-local 상태표는 Git history에 남기고, 이 파일은 앞으로 **현재 `dev` 구현과 남은 physical/release gate만 관리**한다.
+이 문서는 Generic SDO / SetOperationMode의 current source truth와 남은 physical/release gate를 관리한다.
 
 ---
 
-## 0. 사용자 요청 3건 current audit
+## 0. current executive status
 
-| ID | 사용자 요청 | current `dev` 상태 | 완료 판정 |
+| ID | 목표 | current 상태 | 완료 판정 |
 |---|---|---|---|
-| P0-1 | SetOperationMode를 CSP 외 PP/PV/IP로 실제 전환 | PP/PV/IP/CSP lifecycle, mask, recovery, corrective preflight 구현 및 qualification activation ON | **software 구현 완료 / physical 미완료** |
-| P0-2 | Generic SDO Write를 `0x2F00:24` 외 arbitrary safe object에 사용 | generic 1/2/4-byte scalar policy + WPF editor + durable exact-request recovery + corrective safe-state policy 통합 | **software 구현 완료 / physical 미완료** |
-| P0-3 | `LMCSdoExecutor` 기존 Server Read/Write와 programmatic API 공존 | dual-entry arbitration source 통합, C78/basic smoke 이력 존재 | **source 구현 완료 / detailed bench 미완료** |
+| P0-1 | SetOperationMode PP/PV/IP/CSP 실제 전환 | software lifecycle은 구현됨. Axis1 CSP->PP는 host preflight/Prepare/journal까지 PASS하지만 PLC Start가 Detail 49로 reject | **software path 구현 / PLC Start admission blocker OPEN** |
+| P0-2 | Generic SDO arbitrary safe object Write | generic 1/2/4-byte scalar policy + editor + durable recovery + safe-state correction 통합 | **software 구현 완료 / physical 미완료** |
+| P0-3 | `LMCSdoExecutor` manual/programmatic 공존 | dual-entry arbitration source 통합 | **source 구현 완료 / detailed bench 미완료** |
 
-현재 병목은 R03/R04/R05 source 구현이 아니라 **PR #58까지 포함한 exact current `dev`를 fresh C78/PLC image로 만들고 물리 동작을 검증하는 것**이다.
+SetOperationMode의 current blocker는 더 이상 host capability freshness ordering이 아니다. 2026-08-31 physical retest에서 BootId `0x66`, `0x67`, `0x68` 모두 PLC Start가 `SetOperationModeOutcomeStorageUnavailable(49)`로 reject됐다.
 
 ---
 
 ## 1. tranche status
 
-| ID | 내용 | current 상태 | software evidence | 다음 gate |
-|---|---|---|---|---|
-| SDO-R01 | regression fixture | **완료** | generic width/policy/WPF/durable regression 존재 | physical regression에 재사용 |
-| SDO-R02 | `LMCSdoExecutor` dual-entry | **source 구현 완료** | source verifier + prior C78/basic PLC smoke | manual/programmatic physical contention |
-| SDO-R03 | Generic Write policy 일반화 | **완료** | PR #55 + policy verifier | safe-object physical Write/readback |
-| SDO-R04 | WPF arbitrary-target editor / preview | **완료** | PR #56 + focused WPF smoke | physical operator path |
-| SDO-R05 | Generic Write durable recovery | **완료** | PR #57 + API full suite | timeout/disconnect physical recovery |
-| SDO-R06 | 2026-08-28 live-bench corrective safe-state policy | **완료** | PR #58, corrective verifier | current-image physical retest |
-| MODE-R01 | supported mode capability + diagnostics | **완료** | `0x018A`, WPF/SDK coupling, MODE-11F | current-image live check |
-| MODE-R02 | PP/PV/IP/CSP software execution | **완료** | requested-mode lifecycle, warm recovery | physical cross-mode matrix |
-| MODE-R03 | live-bench corrective preflight/gate visibility | **완료** | PR #58 | physical cross-mode matrix |
-| REL-R01 | release/distribution | **미완료** | qualification-active source | physical matrix 후 release review |
+| ID | 내용 | current 상태 | 다음 gate |
+|---|---|---|---|
+| SDO-R01 | regression fixture | 완료 | physical regression 재사용 |
+| SDO-R02 | `LMCSdoExecutor` dual-entry | source 구현 완료 | manual/programmatic physical contention |
+| SDO-R03 | Generic Write policy 일반화 | 완료 | safe-object physical Write/readback |
+| SDO-R04 | WPF arbitrary-target editor/preview | 완료 | physical operator path |
+| SDO-R05 | Generic Write durable recovery | 완료 | timeout/disconnect physical recovery |
+| SDO-R06 | ordinary Write safe-state correction | 완료 | current-image physical retest |
+| MODE-R01 | supported mode capability + diagnostics | 완료 | live mask/identity 유지 |
+| MODE-R02 | PP/PV/IP/CSP software execution | 완료 | PLC Start admission blocker 해소 후 physical matrix |
+| MODE-R03 | cross-mode fresh preflight/final diagnostics refresh | 완료 | Axis1 CSP->PP host path PASS |
+| MODE-R04 | Detail 49 physical blocker analysis | **OPEN** | feature-disabled vs admission-identity-zero observability 분리 |
+| REL-R01 | release/distribution | 미완료 | physical matrix 후 release review |
 
 ---
 
 ## 2. current activation truth
 
-### SetOperationMode
-
-`LMCDiagnosticsService.st`:
+### SetOperationMode source expectation
 
 ```text
 LMC_DIAG_SET_OPERATION_MODE_ENABLED TRUE
 LMC_DIAG_SET_OPERATION_MODE_SOFTWARE_MODES TRUE
-```
-
-`LMCControlCommandService.st`:
-
-```text
 Admin FeatureMask = 0x00000717
 SetOperationModeSupportedMask = 0x018A
 ```
-
-현재 `dev`는 SetOperationMode에 대해 **qualification-active**다. 과거 `gate OFF` 설명은 current source에 적용하지 않는다.
-
-### Generic SDO
-
-```text
-LMC_DIAG_D5_SDO_WRITE_GLOBAL_ENABLED TRUE
-LMC_DIAG_D5_SDO_WRITE_UI24_AXIS1_ENABLED TRUE
-```
-
-R03 이후 arbitrary generic scalar Write admission은 Axis1 UI24 exact-address preset과 분리된 global policy를 사용한다.
-
-qualification activation ON은 production release 승인과 동의어가 아니다.
-
----
-
-## 3. SDO-R02 — `LMCSdoExecutor` dual-entry
-
-current source contract:
-
-- `RequestSource = NONE / MANUAL_SERVER / PROGRAMMATIC`
-- manual `ParaReadWrite::Write`가 실제 vendor Read/Write dispatch
-- programmatic `TryStartRead/TryStartWrite`
-- manual/programmatic BUSY arbitration
-- callback source identity 분기
-- programmatic ticket/session/token identity fence
-- orphan/drain/reusable contract
-
-남은 bench:
-
-1. manual `0x6061` Read
-2. safe manual Write + exact readback
-3. manual request 중 programmatic request BUSY/no-wire
-4. programmatic request 중 manual request BUSY/no-wire
-5. completion 후 executor reusable
-
----
-
-## 4. SDO-R03 — Generic scalar Write policy
-
-### 구현 완료
-
-physical axis 1..4의 generic scalar shape:
-
-- 8-bit: 1 byte
-- 16-bit: 2 bytes
-- 32-bit: 4 bytes
-
-request ValueType와 wire width가 canonical하게 일치해야 한다.
-
-Bool raw value는 canonical 0/1만 허용한다.
-
-### semantic/dedicated-owner raw blocklist
-
-다음 object는 generic raw Write에서 계속 fail-closed다.
-
-- `0x6040` Controlword
-- `0x6060` Modes of operation
-- `0x607A` Target position
-- `0x60FF` Target velocity
-- `0x6071` Target torque
-- `0x3204`
-- `0x20FC`
-
-SetOperationMode의 mode mutation을 generic SDO로 우회하지 않는다.
-
----
-
-## 5. SDO-R04 — WPF arbitrary-target editor
-
-구현 완료:
-
-- slave/axis reference
-- object index
-- subindex
-- value type
-- scalar value
-- timeout
-- exact request preview
-- little-endian WriteData preview
-- semantic/reserved Write warning
-- submission 전 동일 policy boundary 재검사
-
-WPF 화면에 입력 surface가 있다고 hardware Write가 성공한 것으로 간주하지 않는다.
-
----
-
-## 6. SDO-R05 — durable exact-request no-replay recovery
-
-new durable record는 v3 identity를 사용한다.
-
-- endpoint IP/port
-- DiagnosticsBuild
-- BootId
-- MapRevision
-- exact slave/index/subindex/type/length/value
-
-recovery 원칙:
-
-- original Write 자동 replay 금지
-- exact readback으로 terminal proof
-- identity mismatch는 zero-wire
-- legacy v1/v2는 읽을 수 있어도 automatic recovery wire는 금지
-- semantic/dedicated-owner target은 durable generic recovery 대상으로 만들지 않음
-
----
-
-## 7. SDO-R06 — 2026-08-28 Generic SDO bench corrective
-
-실기에서 ordinary Write가 동작하지 않은 software 원인을 두 층에서 수정했다.
-
-### WPF
-
-ordinary Write가 same-value qualification helper의 `PowerOn=False`를 재사용하던 것을 분리했다.
-
-same-value qualification:
-
-```text
-PowerOn=False
-Standstill=True
-Fault=False
-OperationEnabled=False
-```
-
-ordinary generic Write:
-
-```text
-Standstill=True
-Fault=False
-OperationEnabled=False
-```
-
-### PLC
-
-기존 generic policy는 safe axis state를 사실상 DS402 base `0x40` 하나로 제한했다.
-
-현재 허용:
-
-- `0x40` Switch On Disabled
-- `0x21` Ready To Switch On
-- `0x23` Switched On
-
-계속 거부:
-
-- `0x27` Operation Enabled
-- fault/unsafe state
-- semantic/dedicated-owner blocklist
-
-안전 fence를 제거한 것이 아니라 ordinary engineering Write에 필요한 non-enabled safe states를 정확히 분리한 것이다.
-
----
-
-## 8. MODE-R01/R02 — SetOperationMode current path
 
 지원 mode:
 
@@ -220,100 +60,224 @@ OperationEnabled=False
 
 Homing(6)은 별도 semantic owner가 담당한다.
 
-normal semantic sequence:
+### Generic SDO
 
 ```text
-fresh 0x6061 / axis status / 0x6041 preflight
-    -> same target: no 0x6060 Write
-    -> cross-mode: exact one-byte 0x6060 Write(requested mode)
-    -> 0x6061 verify
-    -> terminal outcome
-    -> exact-generation retire
+LMC_DIAG_D5_SDO_WRITE_GLOBAL_ENABLED TRUE
+LMC_DIAG_D5_SDO_WRITE_UI24_AXIS1_ENABLED TRUE
 ```
 
-post-write uncertainty에서는 original Start/`0x6060` Write를 replay하지 않는다.
+qualification activation ON은 production release 승인과 동의어가 아니다.
 
 ---
 
-## 9. MODE-R03 — 2026-08-28 SetOperationMode bench corrective
+## 3. Generic SDO contract
 
-### CSP-only 오판
+physical axis 1..4 generic scalar shape:
 
-CSP -> CSP는 current `0x6061`이 이미 8이면 `SucceededNoWrite`가 가능하다. 이 결과는 실제 `0x6060` Write evidence가 아니다.
+- 8-bit: 1 byte
+- 16-bit: 2 bytes
+- 32-bit: 4 bytes
 
-### cross-mode fresh preflight
+request ValueType/wire width가 canonical하게 일치해야 한다.
 
-다른 mode로 전환할 때 WPF가 durable Start 전에 fresh drive status를 읽고 다음을 요구한다.
+semantic/dedicated-owner raw blocklist는 계속 fail-closed다.
 
-- `Standstill=True`
+- `0x6040`
+- `0x6060`
+- `0x607A`
+- `0x60FF`
+- `0x6071`
+- `0x3204`
+- `0x20FC`
+
+ordinary Generic SDO Write safe-state:
+
+```text
+Standstill=True
+Fault=False
+OperationEnabled=False
+```
+
+PLC 허용 DS402 base state:
+
+- `0x40`
+- `0x21`
+- `0x23`
+
+`0x27` Operation Enabled 및 unsafe/fault state는 거부한다.
+
+---
+
+## 4. SetOperationMode semantic lifecycle
+
+normal sequence:
+
+```text
+fresh 0x6061 / axis / 0x6041 preflight
+-> final Diagnostics identity refresh
+-> Prepare one-shot request
+-> durable journal ArmBeforeDispatch
+-> Start exactly once
+-> PLC ownership/outcome admission
+-> exact one-byte 0x6060 Write(requested mode)
+-> 0x6061 verify
+-> terminal outcome
+-> exact-generation retire
+```
+
+same target는 zero-write `SucceededNoWrite`가 가능하다.
+
+cross-mode는 다음을 요구한다.
+
+- Standstill=True
 - DS402 Fault=False
 - DS402 OperationEnabled=False
 
-OperationEnabled에서 mode change를 허용하도록 완화하지 않는다.
-
-### actual WPF gate diagnostics
-
-Start status는 다음을 직접 표시한다.
-
-- `AdminTriad`
-- `SupportedModeMask`
-- `DiagnosticsIdentity`
-- `Confirmed`
-- `SelectedModeAdvertised`
-- `AdmissionAllowed`
-- `JournalReady`
-
-one-shot confirmation checkbox가 unchecked이면 `Confirmed=False`이며 Start disabled가 정상이다.
+post-write uncertainty에서는 Start/`0x6060` Write를 replay하지 않는다.
 
 ---
 
-## 10. software validation checkpoint
+## 5. 2026-08-31 physical finding
 
-PR #58 corrective source 기준:
+latest evidence:
 
-- API Debug full suite: **1200/1200 PASS**
-- Generic SDO WPF focused smoke: **17/17 PASS**
-- API Debug/Release build: PASS
-- WPF Debug/Release build: PASS
-- `Verify-HardwareFindingFix.ps1`: PASS
-- `Verify-LasalGenericSdoWrite.ps1`: PASS
-- diff hygiene: PASS
+```text
+WPF BuildUtc=2026-08-31 02:33:22 UTC
+SDK BuildUtc=2026-08-31 02:33:19 UTC
+Axis=1
+currentMode=8
+requestedMode=1
+StatusWord=0x02D0
+Build=1
+BootId=0x00000068
+MapRevision=0x957F101E
+Prepare PASS
+journal arm PASS
+PLC Start reject
+ErrorId=-31000
+Detail=SetOperationModeOutcomeStorageUnavailable(49)
+```
 
-이 checkpoint는 hardware PASS를 주장하지 않는다.
+BootId history:
+
+```text
+0x66 -> Detail 49
+0x67 -> Detail 49
+0x68 -> Detail 49
+```
+
+아직 `0x6060` Write는 도달하지 못했다.
 
 ---
 
-## 11. branch 정리
+## 6. owner-channel correction 재분류
 
-기존 `codex/setopmode-mode11-bench-activation` / PR #18은 old gate-OFF baseline에서 activation-only 용도로 만들어졌다.
+commit `c670bd6fbc816116eacbe19b94199479d1a8cacf`:
 
-2026-08-28 재검토 결과:
+- embedded LASAL client metadata order 정렬;
+- disconnected `AxisOwnership`을 Detail 52로 분리;
+- SDK/error catalog/static verifier 동기화.
 
-- current `dev` 자체가 qualification-active
-- PR #18 closed as superseded
-- branch ref를 current `dev`와 동일하게 정렬
-- independent diff 제거
+이 변경은 source consistency correction으로 유지하지만, BootId `0x68`에서도 Detail 49가 재현됐으므로 physical root-cause fix로 간주하지 않는다.
 
-추가 SetOperationMode qualification branch를 만들지 않는다.
+current corrected Start admission semantics:
+
+```text
+zero CallerSessionEpoch / RequestSequence /
+AdmissionToken / OwnerGeneration -> 49
+
+AxisOwnership disconnected -> 52
+
+ownership identity validate/commit failure -> 42
+
+runtime feature gate OFF -> 49
+```
+
+따라서 corrected image가 실행된다는 전제에서는 현재 49를 AxisOwnership disconnected로 해석하지 않는다.
 
 ---
 
-## 12. physical qualification plan
+## 7. MODE-R04 — Detail 49 observability redesign
 
-### 12.1 exact-source identity gate
+### 목적
 
-실기 전 하나의 evidence set에 기록:
+현재 49는 적어도 다음 두 원인을 구분하지 못한다.
 
-- current `dev` SHA
-- LASAL build start/end
-- fresh `Classes.lcb` / project lcb / Network lcb identity
-- C78/ARM zero-error/link success
-- loaded PLC image identity
-- WPF source SHA
+1. runtime SetOperationMode feature disabled;
+2. ownership admission identity tuple zero.
 
-이 identity가 어긋나면 기능 failure 분석을 진행하지 않고 먼저 stale-image 문제를 해결한다.
+원인 discriminator 없이 safety/ownership functional path를 계속 수정하지 않는다.
 
-### 12.2 Axis1 SetOperationMode matrix
+### proposed detail split
+
+다음 63/64는 설계 예약이며 아직 구현되지 않았다.
+
+```text
+49 SetOperationModeOutcomeStorageUnavailable
+   실제 outcome/storage infrastructure unavailable 전용
+
+52 SetOperationModeOwnershipChannelUnavailable
+   기존 구현 유지
+
+63 SetOperationModeAdmissionIdentityUnavailable [PROPOSED]
+   session/sequence/token/generation 중 하나가 zero
+
+64 SetOperationModeFeatureDisabled [PROPOSED]
+   runtime feature activation OFF
+```
+
+### required evidence
+
+다음 implementation은 최소 다음을 분리해 기록한다.
+
+- FeatureEnabled
+- CallerSessionEpochNonZero
+- RequestSequenceNonZero
+- AdmissionTokenNonZero
+- OwnerGenerationNonZero
+- AxisOwnershipConnected
+- OwnershipIdentityValidated
+- OwnershipCommitted
+
+정상 token raw value를 운영 로그에 노출할 필요는 없다.
+
+### decision gate
+
+- FeatureDisabled -> generated/runtime activation path 수정
+- AdmissionIdentityUnavailable -> TCP reserve -> Diagnostics forwarding contract 수정
+- Detail 52 -> LASAL network/channel binding 수정
+- Detail 42 -> ownership identity/state mismatch 분석
+- Start accepted -> physical mode SDO lifecycle qualification 진행
+
+---
+
+## 8. safety contract — 변경 금지
+
+MODE-R04 observability 작업에서도 다음은 유지한다.
+
+- `requireCurrentObservation=true`
+- Build/BootId/MapRevision identity fence
+- Standstill/Fault/OperationEnabled cross-mode fence
+- one-shot confirmation
+- durable pre-dispatch journal
+- no-replay invariant
+- ownership validation/commit
+- raw Generic SDO `0x6060` block
+
+admission token/generation을 임의 생성하거나 ownership을 우회하지 않는다.
+
+---
+
+## 9. physical qualification plan
+
+### 9.1 SetOperationMode blocker close criteria
+
+먼저 Axis1 CSP->PP에서 PLC Start가 accepted되어야 한다.
+
+그 전까지 PP/PV/IP physical matrix는 BLOCKED로 취급한다.
+
+### 9.2 Axis1 normal matrix
 
 | current | requested | expected mutation |
 |---|---|---|
@@ -326,7 +290,7 @@ PR #58 corrective source 기준:
 
 각 cross-mode row는 `0x6061` exact readback까지 확인한다.
 
-### 12.3 Axis1 Generic SDO matrix
+### 9.3 Generic SDO matrix
 
 safe non-semantic object를 선정해:
 
@@ -336,19 +300,35 @@ safe non-semantic object를 선정해:
 - manual/programmatic contention
 - timeout/disconnect/readback mismatch recovery
 
-object는 semantic/dedicated-owner blocklist 밖이어야 한다.
-
-### 12.4 확대
+### 9.4 확대
 
 Axis1 정상/실패 matrix가 닫힌 뒤 Axis2..4로 확대한다.
 
 ---
 
-## 13. release boundary
+## 10. current work order
 
-physical qualification이 모두 PASS하더라도 current qualification-active 값을 그대로 production release로 간주하지 않는다.
+1. **DONE** — host preflight/final Diagnostics ordering correction
+2. **DONE** — BootId `0x66/0x67/0x68` physical Detail 49 reproduction 기록
+3. **DONE** — owner-channel correction을 physical fix에서 source-consistency correction으로 재분류
+4. **NOW / DESIGN ONLY** — MODE-R04 Detail 49 observability redesign 문서화
+5. 다음 implementation에서 feature-disabled / admission-identity-zero를 별도 detail로 분리
+6. 원인 확정 후 해당 path만 수정
+7. Start accepted 후 Axis1 PP/PV/IP/CSP physical matrix
+8. Generic SDO hardware matrix
+9. recovery/failure matrix
+10. Axis2..4 확대
+11. production release review
 
-release review에서 별도로 결정:
+이번 단계에서는 사용자 요청에 따라 functional source를 추가 수정하지 않는다.
+
+---
+
+## 11. release boundary
+
+physical qualification이 모두 PASS하더라도 qualification-active 값을 그대로 production release로 간주하지 않는다.
+
+release review에서 별도로 결정한다.
 
 - SetOperationMode activation 유지 여부
 - Generic SDO global Write activation 범위
