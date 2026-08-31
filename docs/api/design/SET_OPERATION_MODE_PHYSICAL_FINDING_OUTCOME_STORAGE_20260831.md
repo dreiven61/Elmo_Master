@@ -1,196 +1,252 @@
-# SetOperationMode physical finding — repeated OutcomeStorageUnavailable(49)
+# SetOperationMode physical finding — admission identity unavailable after Detail 49 split
 
 - Date: 2026-08-31
-- latest evidence: Axis1 CSP(8) -> ProfilePosition(1), WPF BuildUtc `2026-08-31 02:33:22 UTC`, SDK BuildUtc `2026-08-31 02:33:19 UTC`
-- latest PLC identity: `Build=1 / BootId=0x00000068 / MapRevision=0x957F101E`
-- status: **HOST PREFLIGHT PASS / PLC START REJECT / 0x6060 NOT REACHED**
-- physical mode-change PASS: **NOT ESTABLISHED**
+- analyzed implementation: `dev@1ab539c4b82918d1e2095e73c03799415d9d06d0`
+- latest WPF BuildUtc: `2026-08-31 04:17:26 UTC`
+- latest SDK BuildUtc: `2026-08-31 04:17:24 UTC`
+- latest PLC identity: `Build=1 / BootId=0x0000006A / MapRevision=0x957F101E`
+- latest request: Axis1 CSP(8) -> ProfilePosition(1), RequestId=4
+- status: **HOST PATH PASS / PLC ADMISSION IDENTITY REJECT / 0x6060 NOT REACHED**
 - production release: **NO-GO**
 
 ## 1. Physical reproduction history
 
-Axis1 current mode CSP(8)에서 ProfilePosition(1) cross-mode 요청은 host-side preflight를 통과한다.
+이전 fresh boot에서는 SetOperationMode Start가 Detail 49로 거절됐다.
 
-```text
-SetOperationMode Start UI handler entered
-SetOperationMode cross-mode preflight passed
-  axis=1
-  currentMode=8
-  requestedMode=1
-  StatusWord=0x02D0
-SetOperationMode final Diagnostics refreshed
-SetOperationMode prepared
-SetOperationMode journal armed before dispatch
-```
-
-그 뒤 PLC Start가 mutation 전에 definitive reject된다.
-
-```text
-Status=1
-ErrorId=-31000
-Detail=SetOperationModeOutcomeStorageUnavailable(49)
-```
-
-확인된 boot sequence:
-
-| BootId | 결과 | 비고 |
+| BootId | result | interpretation at that time |
 |---|---|---|
-| `0x00000066` | Detail 49 반복 | RequestId 3/5/7/9에서 재현 |
-| `0x00000067` | Detail 49 | 새 PLC boot/download 후 재현 |
-| `0x00000068` | Detail 49 | owner-channel diagnostic correction 이후 재현 |
+| `0x00000066` | Detail 49 | storage/admission ambiguity |
+| `0x00000067` | Detail 49 | stale-running-boot explanation weakened |
+| `0x00000068` | Detail 49 | owner-channel correction did not solve physical blocker |
 
-`0x66 -> 0x67 -> 0x68`의 BootId 변화 때문에 단순히 동일 runtime boot가 남아 있었다는 설명은 더 이상 주 원인으로 취급하지 않는다.
-
-최신 `0x68` 로그에서도 성공 Start acknowledgement가 없으므로 실제 `0x6060` Write evidence는 없다.
-
-## 2. 이전 owner-channel correction 판정
-
-commit `c670bd6fbc816116eacbe19b94199479d1a8cacf`에서 다음을 수행했다.
-
-1. `LMCDiagnosticsService` embedded LASAL metadata의 client 순서를 generated declaration/class table과 일치시킴;
-2. `AxisOwnership` runtime disconnected를 Detail 49에서 분리하여 Detail 52 `SetOperationModeOwnershipChannelUnavailable`로 정의;
-3. SDK enum/error catalog와 static verifier를 동기화.
-
-이 수정은 source consistency와 fault discrimination 관점에서는 유효하지만, **physical blocker를 해결했다는 증거는 없다.** 최신 boot `0x68`에서도 결과는 여전히 Detail 49다.
-
-따라서 이 correction의 현재 판정은 다음과 같다.
+그 후 current `dev`에 observability split이 구현됐다.
 
 ```text
-source consistency correction: PASS
-physical SetOperationMode fix: NOT PROVEN / latest retest FAILED
+49 = SetOperationModeOutcomeStorageUnavailable
+52 = SetOperationModeOwnershipChannelUnavailable
+63 = SetOperationModeAdmissionIdentityUnavailable
+64 = SetOperationModeFeatureDisabled
+42 = ownership validation/commit failure
 ```
 
-향후 문서/분석에서 이 commit을 SetOperationMode physical fix로 표현하지 않는다.
+latest BootId `0x0000006A`에서 결과가 처음으로 Detail 63으로 좁혀졌다.
 
-## 3. Detail 49가 현재 의미하는 범위
+```text
+[13:18:04.205] cross-mode preflight passed: currentMode=8, requestedMode=1, StatusWord=0x02D0
+[13:18:04.208] final Diagnostics refreshed: Build=1, BootId=0x0000006A, MapRevision=0x957F101E
+[13:18:04.212] prepared: RequestId=4
+[13:18:04.220] journal armed before dispatch
+[13:18:04.334] definitive Start rejection
+  ErrorId=-31000
+  Detail=SetOperationModeAdmissionIdentityUnavailable(63)
+```
 
-현재 corrected `HandleAxisSetOperationModeStart()`에서 owner admission 직전 분기는 다음과 같이 분리돼 있다.
+성공 Start acknowledgement는 없으며 실제 `0x6060` Write evidence도 없다.
+
+## 2. What Detail 63 proves
+
+current PLC source에서 Detail 63은 다음 조건에만 사용된다.
 
 ```text
 CallerSessionEpoch == 0
-or RequestSequence == 0
-or AdmissionToken == 0
-or OwnerGeneration == 0
-    -> Detail 49
-
-AxisOwnership client disconnected
-    -> Detail 52
-
-ValidateAxisOwnershipIdentity failure
-    -> Detail 42
+OR RequestSequence == 0
+OR AdmissionToken == 0
+OR OwnerGeneration == 0
 ```
 
-또한 SetOperationMode feature gate가 runtime image에서 OFF이면 Detail 49가 사용된다.
+따라서 latest physical evidence가 직접 증명하는 것은:
+
+> `LMCDiagnosticsService.HandleAxisSetOperationModeStart()`가 실행될 때 네 admission identity field 중 최소 하나가 zero였다.
+
+반대로 이번 run에서 current primary cause로 보지 않는 것:
+
+- feature gate OFF: dedicated Detail 64가 존재;
+- AxisOwnership disconnected: dedicated Detail 52가 존재;
+- ownership validation/commit rejection: Detail 42 path;
+- host stale capability: final refresh/Prepare PASS;
+- unsupported/unsafe cross-mode: preflight PASS;
+- drive 0x6060 failure: 아직 write stage 미도달.
+
+## 3. Source contradiction found
+
+`TCPMotionInterface`는 diagnostics admission outputs를 zero로 초기화하고 `ControlCommands.ReserveAxisOwnership()`을 호출한다.
+
+SetOperationMode는 다음 조건에서만 `Diagnostics.HandleRequest()`로 전달된다.
 
 ```text
-LMC_DIAG_SET_OPERATION_MODE_ENABLED = FALSE
-    -> Detail 49
+diagnosticsOperationModeStartValid
+AND diagnosticsAdmissionResult == 0
+AND Diagnostics connected
 ```
 
-반면 outcome record corruption/occupied와 SDO executor/safety 문제는 각각 다른 detail로 분기된다.
-
-따라서 **corrected image가 실제로 로드됐다는 전제에서 최신 Detail 49를 `AxisOwnership` disconnected로 계속 해석하면 안 된다.** 남은 high-value candidate는 다음 두 부류다.
-
-- runtime feature activation/generation identity가 source expectation과 다름;
-- TCP ownership reservation 이후 Diagnostics로 전달되는 admission tuple 중 하나가 0이거나 손실됨.
-
-현재 로그만으로 둘 중 어느 쪽인지 확정할 수 없다.
-
-## 4. 설계 결론 — 추가 추측성 functional patch 중단
-
-세 번의 fresh-boot reproduction 후에는 증거 없이 다른 safety/ownership 코드를 계속 변경하지 않는다.
-
-다음 functional correction은 **Detail 49 내부 원인을 추가로 분리하는 observability가 확보된 후** 결정한다.
-
-특히 다음 항목은 원인 확인 없이 수정하지 않는다.
-
-- SetOperationMode enable gate를 강제로 우회;
-- ownership reservation/validation 제거;
-- admission token/generation을 임의 생성;
-- Standstill/Fault/OperationEnabled fence 완화;
-- raw Generic SDO로 `0x6060` Write;
-- retained outcome/no-replay 계약 제거.
-
-## 5. 다음 수정 설계안 — 구현 전 문서 상태
-
-현재 Detail 49는 서로 다른 조건을 다시 하나로 묶고 있다. 다음 구현에서는 이 ambiguity를 제거하는 방향으로 설계한다.
-
-### 5.1 proposed diagnostic split
-
-다음 숫자는 **설계 예약안이며 아직 구현된 protocol contract가 아니다.**
+전달 값은:
 
 ```text
-49  SetOperationModeOutcomeStorageUnavailable
-    실제 retained outcome infrastructure unavailable 전용
-
-52  SetOperationModeOwnershipChannelUnavailable
-    기존 구현 유지: AxisOwnership client disconnected
-
-63  SetOperationModeAdmissionIdentityUnavailable   [PROPOSED]
-    CallerSessionEpoch / RequestSequence /
-    AdmissionToken / OwnerGeneration 중 하나가 zero
-
-64  SetOperationModeFeatureDisabled                [PROPOSED]
-    runtime SetOperationMode activation gate OFF
+CallerSessionEpoch = ActiveRequest.SessionEpoch
+RequestSequence = ActiveRequest.Sequence
+AdmissionToken = diagnosticsAdmissionToken
+OwnerGeneration = diagnosticsOwnerGeneration
 ```
 
-구현 시 SDK parser/error catalog/WPF log/static contract를 함께 갱신해야 한다.
+반면 `LMCControlCommandService.ReserveAxisOwnership()`의 contract는:
 
-### 5.2 required diagnostic evidence
+- zero `CallerSessionEpoch` / `RequestSequence`를 valid reservation으로 허용하지 않음;
+- normal success에서 token을 증가시키고 wrap-to-zero이면 1로 교정;
+- generation도 증가시키고 wrap-to-zero이면 1로 교정;
+- success 직전에 `pAdmissionToken` / `pOwnerGeneration`에 값을 기록;
+- 최종 `Result := 0`.
 
-다음 code change 전/후에 Start reject evidence가 최소 다음을 구분해야 한다.
+repeat reservation path도 valid existing nonzero token/generation을 output에 기록한 뒤 반환한다.
 
-- feature gate runtime value;
-- caller session epoch zero/nonzero;
-- request sequence zero/nonzero;
-- admission token zero/nonzero;
-- owner generation zero/nonzero;
-- AxisOwnership connected/disconnected;
-- ownership identity validate result;
-- ownership commit result.
+따라서 정상 동일 ABI라면 다음 상태는 모순이다.
 
-민감하지 않은 boolean/zero-nonzero 상태만 로그에 노출하고, 정상 token 값을 운영 로그에 그대로 출력할 필요는 없다.
+```text
+Reserve Result == 0
+-> Diagnostics Start dispatched
+-> Diagnostics sees a zero admission identity field
+```
 
-### 5.3 implementation decision gate
+이번 Detail 63은 바로 이 **cross-service admission-boundary invariant violation**을 관측한 것이다.
 
-다음 physical run에서 원인이 분리된 뒤에만 수정 방향을 정한다.
+## 4. Root-cause classification
 
-- feature-disabled가 확인되면 generated/runtime activation path를 수정;
-- admission-identity zero가 확인되면 TCP reserve -> Diagnostics forwarding contract를 수정;
-- Detail 52가 확인되면 LASAL channel/network binding을 수정;
-- Detail 42가 확인되면 exact ownership identity mismatch를 분석;
-- Start가 accepted되면 그때부터 `0x6060` one-write / `0x6061` verify lifecycle을 qualification한다.
+### Proven
 
-## 6. physical qualification boundary
+- PLC Start rejection point는 ownership admission identity validation 전의 zero-tuple gate다.
+- 적어도 한 admission field가 Diagnostics entry에서 zero다.
+- no `0x6060` mutation occurred.
 
-현재까지 physical PASS로 인정할 수 있는 것은 다음뿐이다.
+### Not yet proven
 
-- connection/topology load;
-- SetOperationMode capability refresh;
-- Axis1 CSP(8) current-mode observation;
-- CSP -> PP cross-mode host preflight with `StatusWord=0x02D0`;
-- final Diagnostics identity refresh;
+어느 field가 zero인지 current response/log는 알려주지 않는다.
+
+### Highest-priority candidate class
+
+1. `CltChCmd_LMCControlCommandService` generated client/server ABI mismatch;
+2. `ReserveAxisOwnership` output-pointer marshalling mismatch;
+3. server successful reservation output이 TCP caller variables에 반영되지 않음;
+4. TCP caller에서 Reserve return 후 Diagnostics forwarding 전 tuple corruption;
+5. generated artifact/runtime identity mismatch.
+
+현재 source만으로 이 중 하나를 단정하지 않는다.
+
+## 5. Generated source observations
+
+current generated ST files에는 source consistency drift가 남아 있다.
+
+`LMCDiagnosticsService` embedded metadata:
+
+```text
+AxisOwnership
+InputLatch
+RecorderStore
+```
+
+actual class declaration:
+
+```text
+InputLatch
+AxisOwnership
+RecorderStore
+```
+
+또한 `TCPMotionInterface` embedded metadata client ordering과 actual ST client declaration ordering도 완전히 동일하지 않다.
+
+communication generated table에는 이름 기준으로 다음 connection이 존재한다.
+
+```text
+TCPMotionInterface1.ControlCommands -> LMCControlCommandService1.ClassSvr
+TCPMotionInterface1.Diagnostics -> LMCDiagnosticsService1.ClassSvr
+LMCDiagnosticsService1.AxisOwnership -> LMCControlCommandService1.ClassSvr
+```
+
+따라서 이 finding은 단순 missing network line으로 결론 내리지 않는다. generated code가 수동 편집/부분 regeneration 없이 **하나의 code-generator generation에서 client/server method ABI까지 동기화됐는지**가 다음 qualification 대상이다.
+
+## 6. Required corrective evidence
+
+다음 코드 수정 전에 세 boundary에서 admission bitmap을 확보한다.
+
+### A. Reservation server successful exit
+
+```text
+SessionNonZero
+SequenceNonZero
+AdmissionTokenNonZero
+OwnerGenerationNonZero
+EffectiveAxisMaskNonZero
+```
+
+expected bitmap = `0x1F`.
+
+### B. TCP immediately after Reserve call
+
+동일 five-bit bitmap을 기록한다.
+
+- A=0x1F, B!=0x1F -> ControlCommands client/output marshalling defect.
+
+### C. Diagnostics Start entry
+
+session/sequence/token/generation four-bit bitmap을 기록한다.
+
+expected = `0x0F`.
+
+- A=0x1F, B=0x1F, C!=0x0F -> TCP -> Diagnostics method ABI/marshalling defect.
+
+raw admission token/generation을 일반 log에 노출하지 않는다.
+
+## 7. Corrective design order
+
+1. Boundary A/B/C nonzero bitmap instrumentation.
+2. current LASAL generated class declarations/command interface full regeneration.
+3. generated `CltChCmd_LMCControlCommandService` / `CltChCmd_LMCDiagnosticsService` ABI fingerprint verification.
+4. fresh `Classes.lcb` / project `.lcb` / communication artifact Rebuild + Link.
+5. exact generated artifact PLC download.
+6. single CSP->PP retry.
+7. evidence에 따라 server logic / ControlCommands marshalling / Diagnostics forwarding 중 한 경로만 수정.
+
+이 순서 전에는 mutation lifecycle이나 drive SDO 로직을 수정하지 않는다.
+
+## 8. Fail-closed rule
+
+`ReserveResult==0`인데 TCP post-call admission bitmap이 invalid라면 이것은 정상 Start가 아니다.
+
+그러나 server가 이미 ownership reservation을 만들었을 가능성이 있으므로 missing token을 임의 생성해 rollback하거나 새 Start를 replay해서는 안 된다.
+
+correction은 server-side reservation evidence와 exact session/sequence reconciliation을 이용해 ownership leak 없이 fail-closed하도록 설계해야 한다.
+
+## 9. Physical qualification boundary
+
+현재 physical PASS로 인정되는 항목:
+
+- connection/topology;
+- Admin/SetOperationMode capabilities refresh;
+- CSP current-mode observation;
+- CSP->PP cross-mode preflight;
+- final Diagnostics refresh;
+- Prepare;
 - durable pre-dispatch journal arm;
-- definitive PLC Start rejection handling/no automatic replay.
+- definitive rejection handling/no automatic replay;
+- Detail 63 discriminator physical operation.
 
-아직 PASS가 아닌 것:
+아직 PASS가 아닌 항목:
 
-- SetOperationMode Start acceptance;
-- `0x6060=1/3/7/8` mutation;
+- admission identity transfer;
+- Start acceptance;
+- `0x6060` one-write;
 - `0x6061` target verification;
-- terminal outcome/retire lifecycle;
-- restart/reconnect recovery after an accepted or uncertain mutation.
+- terminal outcome/retire;
+- accepted/uncertain recovery matrix.
 
-## 7. Safety boundaries retained
+## 10. Safety boundaries retained
 
-이 finding은 다음을 허용하지 않는다.
+금지:
 
-- `requireCurrentObservation=true` 제거;
-- OperationEnabled 상태 cross-mode 허용;
-- Standstill/Fault fence 제거;
-- ownership validation 우회;
-- retained outcome storage 우회;
+- admission token/generation 임의 생성;
+- ownership validation bypass;
+- missing identity 상태에서 Diagnostics mutation 강행;
+- Standstill/Fault/OperationEnabled fence 완화;
+- current-observation freshness 제거;
 - accepted/uncertain Start replay;
-- Generic SDO를 통한 `0x6060` mutation.
+- Generic SDO로 `0x6060` mutation.
 
 현재 release 판정은 계속 **NO-GO**다.
