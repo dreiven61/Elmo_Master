@@ -1,0 +1,140 @@
+name: Temporary recovery fix continuation
+
+on:
+  push:
+    branches:
+      - dev
+    paths:
+      - '.github/workflows/temp-continue-recovery-fix.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-verify-commit:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout dev
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: dev
+
+      - name: Apply focused fixes
+        shell: powershell
+        run: |
+          @'
+          from pathlib import Path
+
+          def replace_exact(path, old, new, count=1):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              actual = text.count(old)
+              if actual != count:
+                  raise SystemExit(f'{path}: expected {count} occurrence(s), found {actual}')
+              p.write_text(text.replace(old, new), encoding='utf-8', newline='')
+
+          # Keep the temporary publish file in the same directory for atomic
+          # MoveFileEx publication, but do not append a GUID to the already
+          # long immutable final filename. This avoids .NET Framework MAX_PATH.
+          replace_exact(
+              r'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/RecoveryRecordRetirementLedger.cs',
+              '''            var temporaryPath = finalPath
+                + "."
+                + Guid.NewGuid().ToString("N")
+                + ".tmp";''',
+              '''            var temporaryPath = Path.Combine(
+                directoryPath,
+                ".retirement-"
+                    + Guid.NewGuid().ToString("N")
+                    + ".tmp");''')
+
+          # Align the dynamic-control translation with the already frozen
+          # localization smoke-test wording.
+          replace_exact(
+              r'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/UiLocalization.cs',
+              '"Mode Capability 새로고침"',
+              '"Mode capability 새로고침"')
+          replace_exact(
+              r'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/UiLocalization.cs',
+              '"HomeEx Capability 새로고침"',
+              '"HomeEx capability 새로고침"')
+
+          # Generated declaration order is InputLatch then AxisOwnership. Keep
+          # embedded class metadata in the same order; named network wiring is
+          # unchanged.
+          replace_exact(
+              r'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st',
+              '''\t\t<Client Name="AxisOwnership" Required="true" Internal="false"/>\n\t\t<Client Name="InputLatch" Required="true" Internal="false"/>''',
+              '''\t\t<Client Name="InputLatch" Required="true" Internal="false"/>\n\t\t<Client Name="AxisOwnership" Required="true" Internal="false"/>''')
+
+          # dev is the qualification-active source. The verifier intentionally
+          # supports both production-closed and qualification-active modes;
+          # this dev workflow must invoke the latter explicitly.
+          replace_exact(
+              r'.github/workflows/set-operation-mode-static-qualification.yml',
+              "& '.\\tools\\Verify-SetOperationModeStatic.ps1' -ExpectedSdoWriteAxis 1",
+              "& '.\\tools\\Verify-SetOperationModeStatic.ps1' -ExpectedSdoWriteAxis 1 -QualificationActivation")
+          '@ | python -
+
+      - name: Locate MSBuild
+        id: msbuild
+        shell: powershell
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $msbuild = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
+          if ([string]::IsNullOrWhiteSpace($msbuild)) { throw 'MSBuild.exe not found.' }
+          "path=$msbuild" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Build and run focused WPF Debug
+        shell: powershell
+        run: |
+          $project = '.\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\LasalApiWpfTestApp.SmokeTests.csproj'
+          & '${{ steps.msbuild.outputs.path }}' $project /t:Build /p:Configuration=Debug /p:Platform=AnyCPU /m
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $exe = '.\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\bin\Debug\LasalApiWpfTestApp.SmokeTests.exe'
+          & $exe --filter RecoveryRetirement
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $exe --filter SetOperationMode
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build and run focused WPF Release
+        shell: powershell
+        run: |
+          $project = '.\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\LasalApiWpfTestApp.SmokeTests.csproj'
+          & '${{ steps.msbuild.outputs.path }}' $project /t:Build /p:Configuration=Release /p:Platform=AnyCPU /m
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $exe = '.\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\bin\Release\LasalApiWpfTestApp.SmokeTests.exe'
+          & $exe --filter RecoveryRetirement
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $exe --filter SetOperationMode
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify SetOperationMode qualification-active source
+        shell: powershell
+        run: |
+          & '.\tools\Verify-SetOperationModeStatic.ps1' -ExpectedSdoWriteAxis 1 -QualificationActivation
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & '.\tools\Verify-SetOperationModeDefineOrder.ps1'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Diff hygiene
+        shell: powershell
+        run: |
+          git diff --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git status --short
+
+      - name: Commit verified fixes to dev
+        shell: powershell
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- \
+            'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/RecoveryRecordRetirementLedger.cs' \
+            'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/UiLocalization.cs' \
+            'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st' \
+            '.github/workflows/set-operation-mode-static-qualification.yml'
+          git commit -m 'fix(wpf): complete stale recovery retirement flow'
+          git push origin HEAD:dev
