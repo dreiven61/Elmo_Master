@@ -51,14 +51,15 @@ jobs:
               '            var temporaryPath = Path.Combine(\n                directoryPath,\n                ".retirement-"\n                    + Guid.NewGuid().ToString("N")\n                    + ".tmp");')
 
           localization = r'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/UiLocalization.cs'
+          refresh_word = ''.join(chr(v) for v in (0xC0C8, 0xB85C, 0xACE0, 0xCE68))
           replace_regex(
               localization,
               r'(values\["Refresh Mode Capabilities"\]\s*=\s*\n\s*)"[^"]*";',
-              r'\1"Mode capability \uc0c8\ub85c\uace0\uce68";')
+              r'\1"Mode capability ' + refresh_word + '";')
           replace_regex(
               localization,
               r'(values\["Refresh HomeEx Capabilities"\]\s*=\s*\n\s*)"[^"]*";',
-              r'\1"HomeEx capability \uc0c8\ub85c\uace0\uce68";')
+              r'\1"HomeEx capability ' + refresh_word + '";')
 
           diagnostics = r'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
           replace_regex(
