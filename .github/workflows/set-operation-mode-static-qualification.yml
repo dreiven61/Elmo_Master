@@ -44,7 +44,7 @@ jobs:
       - name: Run SetOperationMode invariants
         shell: powershell
         run: |
-          & '.\tools\Verify-SetOperationModeStatic.ps1' -ExpectedSdoWriteAxis 1
+          & '.\tools\Verify-SetOperationModeStatic.ps1' -ExpectedSdoWriteAxis 1 -QualificationActivation
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Verify SetOperationMode define order
