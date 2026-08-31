@@ -3,13 +3,14 @@
 - 기준일: 2026-08-31
 - current integration / qualification source: `dev`
 - current status snapshot: `DEVELOPMENT_STATUS_20260831.md`
-- current SetOperationMode implementation plan: `SET_OPERATION_MODE_START_EXECUTION_REFACTOR_PLAN_20260831.md`
+- current SetOperationMode implementation result: `SET_OPERATION_MODE_START_EXECUTION_IMPLEMENTATION_RESULT_20260831.md`
+- implementation contract: `SET_OPERATION_MODE_START_EXECUTION_REFACTOR_PLAN_20260831.md`
 - current API progress: `../API_DEVELOPMENT_PROGRESS.md`
 - current API manual: `../API_MANUAL.md`
 - production release posture: **NO-GO**
 - active P0 tracking: issue #46
 
-이 폴더의 current 판정은 branch 이름/PR 개수보다 `dev`의 실제 source와 최신 실기 evidence를 우선한다. `DEVELOPMENT_STATUS_20260827.md`, `DEVELOPMENT_STATUS_20260828.md`는 historical snapshot으로 보존하고, 현재 상태는 `DEVELOPMENT_STATUS_20260831.md`를 우선한다.
+이 폴더의 current 판정은 branch 이름/PR 개수보다 `dev`의 실제 source와 최신 실기 evidence를 우선한다. `DEVELOPMENT_STATUS_20260827.md`, `DEVELOPMENT_STATUS_20260828.md`는 historical snapshot으로 보존하고, 현재 상태는 `DEVELOPMENT_STATUS_20260831.md` 및 최신 implementation result를 우선한다.
 
 ---
 
@@ -35,63 +36,15 @@ SetOperationModeSupportedMask = 0x018A
 - WPF actual Start-gate diagnostics
 - raw Generic SDO `0x6060` permanent deny
 
-### 현재 blocker A — Diagnostics capability freshness ordering
+### Software blocker A — Diagnostics capability freshness ordering: CLOSED
 
-2026-08-28 17:28 실기에서 Axis1 current CSP(8) -> PP/PV/IP 요청이 모두 `StatusWord=0x02D0`으로 cross-mode preflight를 통과했다. 이후 동일하게 다음 host exception으로 종료됐다.
+2026-08-28 17:28 실기에서는 preflight의 inline D5 `0x6041`/`0x6061` read가 Diagnostics observation sequence를 진행시킨 뒤 old observation으로 `PrepareSetOperationMode()`를 호출해 다음 host exception이 발생했다.
 
 ```text
 The supplied diagnostics capabilities are not the current observation.
 ```
 
-원인:
-
-```text
-RefreshDiagnosticsCapabilities -> observation N
-ReadDriveStatusAsync
-  -> 0x6041 inline D5 -> GetCapabilities -> N+1
-  -> 0x6061 inline D5 -> GetCapabilities -> N+2
-PrepareSetOperationMode(cached N)
-  -> requireCurrentObservation=true
-  -> stale reject
-```
-
-따라서 현재 로그에서는 `0x7D23`과 실제 `0x6060` mutation까지 도달하지 않았다.
-
-### 현재 blocker B — Start Click handler ownership이 불명확함
-
-현재 WPF는 `MainWindow.AxisSetOperationModeRecovery.cs`에서 button 생성 시
-
-```text
-ButtonStartAxisSetOperationMode_Click
-```
-
-을 등록한 뒤, `MainWindow.ReadOnlyApi.cs`의 `InitializeReadOnlyApiUi()`에서 다시 detach하고
-
-```text
-ButtonStartAxisSetOperationModeWithRejectResolution_Click
-```
-
-으로 교체한다. 따라서 이름상 canonical handler인 `ButtonStartAxisSetOperationMode_Click()`은 runtime에서 호출되지 않는다.
-
-이 구조는 기능 미구현 gate가 아니라 **불필요한 handler indirection / dead-handler 구조**다. 구현 시 다음으로 단일화한다.
-
-```text
-Start button
--> ButtonStartAxisSetOperationMode_Click            // 유일한 UI handler
--> StartAxisSetOperationModeOnceAsync               // 유일한 Start orchestration
--> preflight
--> FINAL Diagnostics capability refresh
--> PrepareSetOperationMode
--> durable ArmBeforeDispatch
--> SetOperationModeAsync exactly once
--> outcome/recovery
-```
-
-`ButtonStartAxisSetOperationModeWithRejectResolution_Click()`은 제거하고 definitive rejection resolution을 canonical handler에 통합한다.
-
-상세 구현 계약은 `SET_OPERATION_MODE_START_EXECUTION_REFACTOR_PLAN_20260831.md`를 따른다.
-
-corrective ordering:
+2026-08-31 functional commit `d4ce1b2f9c2a41f5117e0bd769533d0483c1ff91`에서 순서를 다음으로 수정했다.
 
 ```text
 Admin capability / selected mode 확인
@@ -99,22 +52,55 @@ Admin capability / selected mode 확인
 -> fresh ReadDriveStatus preflight
 -> FINAL Diagnostics capability refresh
 -> capability/admission 확인
--> PrepareSetOperationMode
+-> PrepareSetOperationMode(final current observation)
 -> durable ArmBeforeDispatch
--> Start exactly once
+-> SetOperationModeAsync exactly once
+-> outcome/recovery
 ```
 
-freshness fence, Build/BootId/MapRevision identity, Standstill/Fault/OperationEnabled fence, one-shot confirmation과 no-replay를 완화하지 않는다.
+FINAL Diagnostics refresh와 Prepare 사이에는 capability-producing/read helper를 삽입하지 않는다. `requireCurrentObservation=true`, Build/BootId/MapRevision identity 및 Standstill/Fault/OperationEnabled fence는 그대로 유지한다.
 
-다음 gate:
+### Software blocker B — Start Click handler ownership: CLOSED
 
-1. canonical Start Click handler 단일화 + obsolete handler 제거
-2. preflight -> final Diagnostics refresh -> Prepare ordering fix
-3. single-handler / stale-old / current-final capability regression
-4. API/WPF Debug/Release regression
-5. Axis1 PP/PV/IP/CSP physical `0x6060`/`0x6061` matrix
-6. failure/recovery matrix
-7. Axis2..4 확대
+기존에는 button 생성 시 `ButtonStartAxisSetOperationMode_Click()`을 등록한 뒤 `InitializeReadOnlyApiUi()`에서 detach하고 `ButtonStartAxisSetOperationModeWithRejectResolution_Click()`으로 교체했다.
+
+현재는 다음 하나의 runtime UI path만 유지한다.
+
+```text
+Start button
+-> ButtonStartAxisSetOperationMode_Click
+-> RunOperationAsync
+-> StartAxisSetOperationModeOnceAsync
+```
+
+`ButtonStartAxisSetOperationModeWithRejectResolution_Click()`은 제거했다. definitive rejection archival/active-journal clear/UI update는 canonical handler에 통합했다.
+
+software qualification evidence:
+
+```text
+API Debug full                       1200/1200 PASS
+WPF SetOperationModeRecovery Debug       7/7 PASS
+WPF AxisSetOperationModeJournal Debug    7/7 PASS
+WPF SetOperationModeSdk Debug            1/1 PASS
+Generic SDO Wpf.Sdo Debug               17/17 PASS
+API Release build                       PASS
+WPF Release build                       PASS
+WPF focused SetOperationMode Release    PASS
+git diff --check                        PASS
+Start execution verifier               PASS
+```
+
+상세 구현 결과는 `SET_OPERATION_MODE_START_EXECUTION_IMPLEMENTATION_RESULT_20260831.md`를 따른다.
+
+### 현재 P0 gate — physical qualification
+
+software blocker가 닫혔다고 physical mode-change PASS로 판정하지 않는다. exact updated source/image에서 다음 순서로 진행한다.
+
+1. Axis1 CSP -> CSP no-write 확인
+2. Axis1 CSP -> PP/PV/IP real `0x6060` 최대 1회 + 최종 `0x6061` 확인
+3. PP/PV/IP -> CSP 확인
+4. failure/recovery matrix
+5. Axis2..4 확대
 
 CSP -> CSP `SucceededNoWrite`는 실제 `0x6060` cross-mode Write PASS가 아니다.
 
@@ -179,12 +165,14 @@ Axis1 UI24 same-value four-ticket 경로는 특정 qualification preset이다. G
 전체 current truth:
 
 - `DEVELOPMENT_STATUS_20260831.md`
+- `SET_OPERATION_MODE_START_EXECUTION_IMPLEMENTATION_RESULT_20260831.md`
 - `../API_DEVELOPMENT_PROGRESS.md`
 - `../API_MANUAL.md`
 
 SetOperationMode 상세:
 
-- `SET_OPERATION_MODE_START_EXECUTION_REFACTOR_PLAN_20260831.md` — **현재 구현 지시서**
+- `SET_OPERATION_MODE_START_EXECUTION_IMPLEMENTATION_RESULT_20260831.md` — **현재 구현 결과**
+- `SET_OPERATION_MODE_START_EXECUTION_REFACTOR_PLAN_20260831.md` — 구현 계약
 - `SET_OPERATION_MODE_DESIGN.md`
 - `SET_OPERATION_MODE_IMPLEMENTATION_UPDATE_20260828.md`
 - `SDO_OPERATION_MODE_REIMPLEMENTATION_PLAN_20260827.md`
@@ -194,7 +182,7 @@ Generic SDO 상세:
 - `../../architecture/LMC_GENERIC_SDO_AND_OPERATION_MODE_REDESIGN_2026-08-27.md`
 - `SDO_OPERATION_MODE_REIMPLEMENTATION_PLAN_20260827.md`
 
-문서 간 current activation/지원 상태가 충돌하면 `dev` source와 최신 current snapshot을 기준으로 판정하고 문서를 다시 동기화한다.
+문서 간 current activation/지원 상태가 충돌하면 `dev` source와 최신 current snapshot/implementation result를 기준으로 판정하고 문서를 다시 동기화한다.
 
 ---
 
