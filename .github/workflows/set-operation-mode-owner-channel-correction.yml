@@ -1,0 +1,150 @@
+name: SetOperationMode owner channel correction
+
+on:
+  push:
+    branches:
+      - dev
+    paths:
+      - '.github/workflows/set-operation-mode-owner-channel-correction.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  correct-owner-channel:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Apply exact SetOperationMode owner-channel correction
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          def read(path):
+              return Path(path).read_text(encoding='utf-8')
+
+          def write(path, text):
+              Path(path).write_text(text, encoding='utf-8', newline='\n')
+
+          def replace_once(path, old, new, label):
+              text = read(path)
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected exactly one match, got {count}')
+              write(path, text.replace(old, new, 1))
+              print(f'PATCHED {label}')
+
+          diag = 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
+          models = 'LMC_Library/LMC_API_Delivery/src/LmcAdminModels.cs'
+          catalog = 'LMC_Library/LMC_API_Delivery/src/LmcErrorCatalog.cs'
+          verifier = 'tools/Verify-SetOperationModeStatic.ps1'
+
+          # Keep the embedded LASAL channel metadata in the same order as the
+          # generated ST declaration and class table. AxisOwnership had been
+          # inserted ahead of InputLatch only in the metadata block.
+          replace_once(
+              diag,
+              '\t\t<Client Name="AxisOwnership" Required="true" Internal="false"/>\n'
+              '\t\t<Client Name="InputLatch" Required="true" Internal="false"/>',
+              '\t\t<Client Name="InputLatch" Required="true" Internal="false"/>\n'
+              '\t\t<Client Name="AxisOwnership" Required="true" Internal="false"/>',
+              'LASAL client metadata order')
+
+          replace_once(
+              diag,
+              '#define LMC_DIAG_MODE_DETAIL_SLOT_OCCUPIED 51\n'
+              '#define LMC_DIAG_MODE_AXIS_STANDSTILL 0x02000000',
+              '#define LMC_DIAG_MODE_DETAIL_SLOT_OCCUPIED 51\n'
+              '#define LMC_DIAG_MODE_DETAIL_OWNERSHIP_CHANNEL 52\n'
+              '#define LMC_DIAG_MODE_AXIS_STANDSTILL 0x02000000',
+              'SetOperationMode detail 52 definition')
+
+          text = read(diag)
+          start = text.index('FUNCTION LMCDiagnosticsService::HandleAxisSetOperationModeStart')
+          end = text.index('END_FUNCTION', start) + len('END_FUNCTION')
+          body = text[start:end]
+          pattern = re.compile(
+              r'if \(CallerSessionEpoch = 0\) \| \(RequestSequence = 0\) \|\s*'
+              r'\(AdmissionToken = 0\) \| \(OwnerGeneration = 0\) \|\s*'
+              r'\(IsClientConnected\(#AxisOwnership\) = FALSE\) then\s*'
+              r'detailCode := LMC_DIAG_MODE_DETAIL_STORAGE;\s*else')
+          replacement = (
+              'if (CallerSessionEpoch = 0) | (RequestSequence = 0) |\n'
+              '\t\t   (AdmissionToken = 0) | (OwnerGeneration = 0) then\n'
+              '\t\t\tdetailCode := LMC_DIAG_MODE_DETAIL_STORAGE;\n'
+              '\t\telsif IsClientConnected(#AxisOwnership) = FALSE then\n'
+              '\t\t\tdetailCode := LMC_DIAG_MODE_DETAIL_OWNERSHIP_CHANNEL;\n'
+              '\t\telse')
+          body2, count = pattern.subn(replacement, body, count=1)
+          if count != 1:
+              raise SystemExit(f'SetOperationMode Start ownership split: expected 1 match, got {count}')
+          write(diag, text[:start] + body2 + text[end:])
+          print('PATCHED SetOperationMode Start ownership split')
+
+          replace_once(
+              models,
+              '        SetOperationModeOutcomeSlotOccupied = 51,\n'
+              '        Ds402HomeExOutcomeNotFound = 53,',
+              '        SetOperationModeOutcomeSlotOccupied = 51,\n'
+              '        SetOperationModeOwnershipChannelUnavailable = 52,\n'
+              '        Ds402HomeExOutcomeNotFound = 53,',
+              'SDK admin detail 52 enum')
+
+          replace_once(
+              catalog,
+              '            AddAdmin(entries, LMCAdminDetailCode.SetOperationModeExecutionFailed,',
+              '            AddAdmin(entries, LMCAdminDetailCode.SetOperationModeOwnershipChannelUnavailable,\n'
+              '                "The LMCDiagnosticsService AxisOwnership client is not connected to LMCControlCommandService at runtime.",\n'
+              '                "Do not bypass ownership. Rebuild/link the LASAL communication network and verify the AxisOwnership client connection before retrying SetOperationMode.");\n'
+              '            AddAdmin(entries, LMCAdminDetailCode.SetOperationModeExecutionFailed,',
+              'SDK error catalog detail 52')
+
+          anchor = "Assert-Regex $tcp 'diagnosticsOwnerKind[\\t ]*:=[\\t ]*6;[\\s\\S]{0,160}diagnosticsResourceKind[\\t ]*:=[\\t ]*4;' 'TCP Start admission uses owner kind 6/resource 4' -MinimumCount 1\n"
+          addition = anchor + "Assert-Regex $diagnostics '(?m)^#define[\\t ]+LMC_DIAG_MODE_DETAIL_OWNERSHIP_CHANNEL[\\t ]+52[\\t ]*$' 'SetOperationMode has a dedicated AxisOwnership-channel unavailable detail' -ExpectedCount 1\nAssert-Regex $diagnostics '<Client Name=\"InputLatch\" Required=\"true\" Internal=\"false\"/>[\\s\\S]{0,120}<Client Name=\"AxisOwnership\" Required=\"true\" Internal=\"false\"/>' 'LASAL metadata client order matches generated declaration order' -ExpectedCount 1\nAssert-Regex $diagnostics 'CallerSessionEpoch = 0\\) \\| \\(RequestSequence = 0\\)[\\s\\S]{0,180}OwnerGeneration = 0\\) then[\\s\\S]{0,140}LMC_DIAG_MODE_DETAIL_STORAGE;[\\s\\S]{0,140}elsif IsClientConnected\\(#AxisOwnership\\) = FALSE then[\\s\\S]{0,140}LMC_DIAG_MODE_DETAIL_OWNERSHIP_CHANNEL;' 'SetOperationMode distinguishes invalid admission identity from disconnected AxisOwnership channel' -ExpectedCount 1\n"
+          replace_once(verifier, anchor, addition, 'static owner-channel regression checks')
+
+          print('All exact corrective patches applied.')
+
+      - name: Verify SetOperationMode static contract
+        shell: powershell
+        run: |
+          & '.\tools\Verify-SetOperationModeStatic.ps1' -ExpectedSdoWriteAxis 1 -QualificationActivation
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build SDK Debug and Release
+        shell: powershell
+        run: |
+          msbuild '.\LMC_Library\LMC_API_Delivery\src\LasalMotionControlLib.csproj' /m /p:Configuration=Debug /v:minimal
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          msbuild '.\LMC_Library\LMC_API_Delivery\src\LasalMotionControlLib.csproj' /m /p:Configuration=Release /v:minimal
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Diff hygiene
+        shell: powershell
+        run: |
+          git diff --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git status --short
+
+      - name: Commit correction directly to dev
+        shell: powershell
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add `
+            'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st' `
+            'LMC_Library/LMC_API_Delivery/src/LmcAdminModels.cs' `
+            'LMC_Library/LMC_API_Delivery/src/LmcErrorCatalog.cs' `
+            'tools/Verify-SetOperationModeStatic.ps1'
+          git commit -m 'fix(setopmode): correct owner channel binding diagnostics'
+          git push origin HEAD:dev
