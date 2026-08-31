@@ -10,9 +10,19 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+function Assert-EvidenceCondition {
+    param(
+        [Parameter(Mandatory = $true)][bool]$Condition,
+        [Parameter(Mandatory = $true)][string]$Message
+    )
+
+    if (-not $Condition) {
+        throw $Message
+    }
+}
+
 function Get-Sha256Hex {
     param([Parameter(Mandatory = $true)][string]$Path)
-
     return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToUpperInvariant()
 }
 
@@ -28,11 +38,9 @@ function Get-GitText {
     if ($exitCode -ne 0 -and -not $AllowFailure) {
         throw "git $($Arguments -join ' ') failed with exit code ${exitCode}: $($output -join [Environment]::NewLine)"
     }
-
     if ($exitCode -ne 0) {
         return $null
     }
-
     return (($output | ForEach-Object { $_.ToString() }) -join "`n").Trim()
 }
 
@@ -45,19 +53,50 @@ function Get-RelativeRepoPath {
     $rootWithSeparator = $Root.TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
     $rootUri = [System.Uri]$rootWithSeparator
     $pathUri = [System.Uri]$Path
-    return [System.Uri]::UnescapeDataString(
-        $rootUri.MakeRelativeUri($pathUri).ToString()).Replace('/', '\')
+    return [System.Uri]::UnescapeDataString($rootUri.MakeRelativeUri($pathUri).ToString()).Replace('/', '\')
 }
 
-function Assert-EvidenceCondition {
-    param(
-        [Parameter(Mandatory = $true)][bool]$Condition,
-        [Parameter(Mandatory = $true)][string]$Message
-    )
+function Assert-SetOperationModeQualificationSource {
+    param([Parameter(Mandatory = $true)][string]$Root)
 
-    if (-not $Condition) {
-        throw $Message
+    $diagnosticsPath = Join-Path $Root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st'
+    $controlPath = Join-Path $Root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCControlCommandService\LMCControlCommandService.st'
+    $networkPath = Join-Path $Root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Network\Comm_Network\Comm_Network.lcn'
+    $generatedNetworkPath = Join-Path $Root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Network\Comm_Network\ONE_Comm_Network_Table.st'
+
+    foreach ($path in @($diagnosticsPath, $controlPath, $networkPath, $generatedNetworkPath)) {
+        Assert-EvidenceCondition (Test-Path -LiteralPath $path -PathType Leaf) "Required SetOperationMode qualification source is missing: $path"
     }
+
+    $diagnostics = [System.IO.File]::ReadAllText($diagnosticsPath)
+    $control = [System.IO.File]::ReadAllText($controlPath)
+    $network = [System.IO.File]::ReadAllText($networkPath)
+    $generatedNetwork = [System.IO.File]::ReadAllText($generatedNetworkPath)
+
+    Assert-EvidenceCondition ([regex]::IsMatch(
+        $diagnostics,
+        '(?m)^#define[\t ]+LMC_DIAG_SET_OPERATION_MODE_ENABLED[\t ]+TRUE[\t ]*$')) `
+        'Current source does not have LMC_DIAG_SET_OPERATION_MODE_ENABLED TRUE.'
+    Assert-EvidenceCondition ([regex]::IsMatch(
+        $diagnostics,
+        '(?m)^#define[\t ]+LMC_DIAG_SET_OPERATION_MODE_SOFTWARE_MODES[\t ]+TRUE[\t ]*$')) `
+        'Current source does not have LMC_DIAG_SET_OPERATION_MODE_SOFTWARE_MODES TRUE.'
+    Assert-EvidenceCondition ($control.Contains('(pResponseFrame + 24)^$UDINT := 0x00000717;')) `
+        'Admin capability mask does not advertise the SetOperationMode triad (0x00000717).'
+    Assert-EvidenceCondition ($control.Contains('(pResponseFrame + 46)^$UINT := 0x018A;')) `
+        'Admin supported-mode mask is not PP/PV/IP/CSP (0x018A).'
+    Assert-EvidenceCondition ($network.Contains(
+        '<Connection Source="LMCDiagnosticsService1.AxisOwnership" Destination="LMCControlCommandService1.ClassSvr"')) `
+        'Comm_Network.lcn does not connect LMCDiagnosticsService1.AxisOwnership to LMCControlCommandService1.ClassSvr.'
+    Assert-EvidenceCondition ([regex]::IsMatch(
+        $generatedNetwork,
+        'TO_UDINT\(6\),[\t ]*"AxisOwnership",[\t ]*TO_UDINT\(5\),[\t ]*"ClassSvr"')) `
+        'Generated ONE_Comm_Network_Table.st does not contain the AxisOwnership connection.'
+
+    Write-Host 'PASS qualification gate is ON in current source'
+    Write-Host 'PASS PP/PV/IP/CSP software-mode mask is active'
+    Write-Host 'PASS AxisOwnership is present in Comm_Network.lcn'
+    Write-Host 'PASS AxisOwnership is present in generated ONE_Comm_Network_Table.st'
 }
 
 function Invoke-SetOperationModeC78EvidenceCapture {
@@ -76,15 +115,20 @@ function Invoke-SetOperationModeC78EvidenceCapture {
     $evidenceFull = [System.IO.Path]::GetFullPath($EvidencePath)
     $buildStart = $BuildStartUtc.ToUniversalTime()
 
+    Assert-SetOperationModeQualificationSource -Root $rootFull
+
     $classesPath = Join-Path $rootFull 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\Classes.lcb'
     $projectLcbPath = Join-Path $rootFull 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Elmo_EtherCAT_Test_4Axis.lcb'
-    $criticalPaths = @(
+    $criticalRelativePaths = @(
         'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCControlCommandService\LMCControlCommandService.st',
         'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st',
         'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\TCPMotionInterface\TCPMotionInterface.st',
+        'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Network\Comm_Network\Comm_Network.lcn',
+        'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Network\Comm_Network\ONE_Comm_Network_Table.st',
         'tools\Verify-SetOperationModeStatic.ps1',
         'docs\api\design\SET_OPERATION_MODE_DESIGN.md'
-    ) | ForEach-Object { Join-Path $rootFull $_ }
+    )
+    $criticalPaths = $criticalRelativePaths | ForEach-Object { Join-Path $rootFull $_ }
 
     foreach ($required in @($classesPath, $projectLcbPath, $logFull) + $criticalPaths) {
         Assert-EvidenceCondition (Test-Path -LiteralPath $required -PathType Leaf) "Required evidence input is missing: $required"
@@ -107,10 +151,6 @@ function Invoke-SetOperationModeC78EvidenceCapture {
 
     $gitHead = '<self-test-no-git>'
     $gitStatus = '<self-test-no-git>'
-    $headClassesBlob = '<self-test-no-git>'
-    $workingClassesBlob = '<self-test-no-git>'
-    $headProjectBlob = '<self-test-no-git>'
-    $workingProjectBlob = '<self-test-no-git>'
     if (-not $SkipGitRequirements) {
         $gitHead = Get-GitText -Root $rootFull -Arguments @('rev-parse', 'HEAD')
         Assert-EvidenceCondition (-not [string]::IsNullOrWhiteSpace($gitHead)) 'Unable to resolve repository HEAD.'
@@ -118,25 +158,11 @@ function Invoke-SetOperationModeC78EvidenceCapture {
         if ([string]::IsNullOrEmpty($gitStatus)) {
             $gitStatus = '<clean>'
         }
-
-        $classesRelative = (Get-RelativeRepoPath -Root $rootFull -Path $classesPath).Replace('\', '/')
-        $projectRelative = (Get-RelativeRepoPath -Root $rootFull -Path $projectLcbPath).Replace('\', '/')
-        $headClassesBlob = Get-GitText -Root $rootFull -Arguments @('rev-parse', "HEAD:$classesRelative") -AllowFailure
-        if ([string]::IsNullOrWhiteSpace($headClassesBlob)) {
-            $headClassesBlob = '<untracked-at-head>'
-        }
-        $headProjectBlob = Get-GitText -Root $rootFull -Arguments @('rev-parse', "HEAD:$projectRelative") -AllowFailure
-        if ([string]::IsNullOrWhiteSpace($headProjectBlob)) {
-            $headProjectBlob = '<untracked-at-head>'
-        }
-        $workingClassesBlob = Get-GitText -Root $rootFull -Arguments @('hash-object', '--', $classesPath)
-        $workingProjectBlob = Get-GitText -Root $rootFull -Arguments @('hash-object', '--', $projectLcbPath)
     }
 
     $sourceRows = New-Object System.Collections.Generic.List[string]
     foreach ($sourcePath in $criticalPaths) {
-        $sourceRows.Add(
-            "| ``$(Get-RelativeRepoPath -Root $rootFull -Path $sourcePath)`` | ``$(Get-Sha256Hex -Path $sourcePath)`` | $((Get-Item -LiteralPath $sourcePath).Length) |")
+        $sourceRows.Add("| ``$(Get-RelativeRepoPath -Root $rootFull -Path $sourcePath)`` | ``$(Get-Sha256Hex -Path $sourcePath)`` | $((Get-Item -LiteralPath $sourcePath).Length) |")
     }
 
     $capturedUtc = [datetime]::UtcNow
@@ -145,7 +171,7 @@ function Invoke-SetOperationModeC78EvidenceCapture {
     $logSha = Get-Sha256Hex -Path $logFull
 
     $markdown = @"
-# SetOperationMode Fresh C78 Artifact Capture
+# SetOperationMode Fresh C78 Qualification Artifact Capture
 
 - CapturedUtc: ``$($capturedUtc.ToString('o'))``
 - BuildStartedUtc: ``$($buildStart.ToString('o'))``
@@ -153,21 +179,25 @@ function Invoke-SetOperationModeC78EvidenceCapture {
 - Target evidence: ``C78 / ARM``
 - Compiler evidence: ``0 errors``
 - Link evidence: ``PASS pattern found``
-- GateResult: **CAPTURED_FOR_REVIEW**
-- ArtifactRatchetDecision: **REVIEW_REQUIRED**
-- CapabilityActivation: **KEEP_OFF**
+- QualificationActivation: **ON_EXPECTED**
+- AxisOwnershipSourceWiring: **PASS**
+- AxisOwnershipGeneratedWiring: **PASS**
+- ProductionRelease: **NO-GO**
+- RuntimeLoadedImageIdentity: **NOT_PROVEN_BY_THIS_CAPTURE**
 
-This file is evidence capture, not automatic IDE/artifact approval. Do not update the physical artifact
-ratchet or enable SetOperationMode capability bits 8/9/10 until generated ABI review, same-image PLC
-identity, MODE-11 packet evidence, and MODE-12 hardware/recovery evidence are complete.
+This capture proves that the source tree used for the fresh C78/ARM build has the SetOperationMode
+qualification gate enabled and contains the required AxisOwnership wiring in both the network source and
+generated network table. It does not prove that the exact captured artifact was downloaded to the PLC.
+After PLC download, record DiagnosticsBuild, DiagnosticsBootId, MapRevision and the runtime SetOperationMode
+result as one evidence set. Production release remains NO-GO until the physical matrix is complete.
 
 ## Artifact identity
 
-| Artifact | Bytes | LastWriteUtc | SHA-256 | HEAD blob | Working blob |
-|---|---:|---|---|---|---|
-| ``Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\Classes.lcb`` | $($classesInfo.Length) | ``$($classesInfo.LastWriteTimeUtc.ToString('o'))`` | ``$classesSha`` | ``$headClassesBlob`` | ``$workingClassesBlob`` |
-| ``Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Elmo_EtherCAT_Test_4Axis.lcb`` | $($projectInfo.Length) | ``$($projectInfo.LastWriteTimeUtc.ToString('o'))`` | ``$projectSha`` | ``$headProjectBlob`` | ``$workingProjectBlob`` |
-| ``$(Get-RelativeRepoPath -Root $rootFull -Path $logFull)`` | $($logInfo.Length) | ``$($logInfo.LastWriteTimeUtc.ToString('o'))`` | ``$logSha`` | n/a | n/a |
+| Artifact | Bytes | LastWriteUtc | SHA-256 |
+|---|---:|---|---|
+| ``Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\Classes.lcb`` | $($classesInfo.Length) | ``$($classesInfo.LastWriteTimeUtc.ToString('o'))`` | ``$classesSha`` |
+| ``Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Elmo_EtherCAT_Test_4Axis.lcb`` | $($projectInfo.Length) | ``$($projectInfo.LastWriteTimeUtc.ToString('o'))`` | ``$projectSha`` |
+| ``$(Get-RelativeRepoPath -Root $rootFull -Path $logFull)`` | $($logInfo.Length) | ``$($logInfo.LastWriteTimeUtc.ToString('o'))`` | ``$logSha`` |
 
 ## Critical source identity
 
@@ -179,14 +209,14 @@ $($sourceRows -join "`n")
 
     $($gitStatus.Replace("`n", "`n    "))
 
-## Mandatory next review
+## Mandatory physical follow-up
 
-1. Compare generated declarations/ABI against tracked source expectations.
-2. Confirm the new ``Classes.lcb`` is from the same fresh C78/ARM build represented by the supplied log.
-3. Record same-image DiagnosticsBuild, DiagnosticsBootId, and MapRevision after PLC download/load.
-4. Do not approve the artifact identity ratchet from hash change alone.
-5. Run MODE-11 same-mode/no-write and exact one-write/readback packet qualification.
-6. Run MODE-12 timeout/disconnect/mismatch/quarantine/retire matrix starting with axis 1.
+1. Download/load the exact fresh C78/ARM artifact represented above to the PLC.
+2. Record same-image DiagnosticsBuild, DiagnosticsBootId and MapRevision after load.
+3. If Start returns SetOperationModeOutcomeStorageUnavailable(49), do not infer a 0x6060 write; the PLC rejected before mutation.
+4. For a fresh qualification-active image, investigate runtime ``LMCDiagnosticsService1.AxisOwnership`` connectivity/ownership admission before changing any safety fence.
+5. Run CSP->CSP no-write and CSP->PP/PV/IP exact one-write/readback qualification.
+6. Keep production release NO-GO until failure/recovery and Axis2..4 matrices are complete.
 "@
 
     $evidenceDirectory = Split-Path -Parent $evidenceFull
@@ -198,43 +228,56 @@ $($sourceRows -join "`n")
         $markdown.Replace("`r`n", "`n"),
         (New-Object System.Text.UTF8Encoding($false)))
 
-    Write-Host "PASS fresh C78 evidence inputs exist"
-    Write-Host "PASS artifact/log freshness >= BuildStartedUtc"
-    Write-Host "PASS build log C78/ARM + zero-error + link evidence"
+    Write-Host 'PASS current SetOperationMode qualification source contract'
+    Write-Host 'PASS artifact/log freshness >= BuildStartedUtc'
+    Write-Host 'PASS build log C78/ARM + zero-error + link evidence'
     Write-Host "PASS evidence captured: $evidenceFull"
-    Write-Host "REVIEW_REQUIRED artifact ratchet and activation remain closed"
+    Write-Host 'NOTE exact PLC loaded-image identity still requires post-download runtime evidence'
+    Write-Host 'NO-GO production release remains closed'
     return $evidenceFull
 }
 
 function Invoke-SelfTest {
-    $root = Join-Path ([System.IO.Path]::GetTempPath()) ('ElmoC78EvidenceSelfTest-' + [guid]::NewGuid().ToString('N'))
+    $root = Join-Path ([System.IO.Path]::GetTempPath()) ('ElmoSetOperationModeC78EvidenceSelfTest-' + [guid]::NewGuid().ToString('N'))
     try {
-        $paths = @(
+        foreach ($relative in @(
             'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCControlCommandService',
             'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService',
             'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\TCPMotionInterface',
+            'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Network\Comm_Network',
             'tools',
-            'docs\api\design'
-        )
-        foreach ($relative in $paths) {
+            'docs\api\design')) {
             New-Item -ItemType Directory -Path (Join-Path $root $relative) -Force | Out-Null
         }
 
         $buildStart = [datetime]::UtcNow.AddSeconds(-2)
+        [System.IO.File]::WriteAllText(
+            (Join-Path $root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st'),
+            "#define LMC_DIAG_SET_OPERATION_MODE_ENABLED TRUE`n#define LMC_DIAG_SET_OPERATION_MODE_SOFTWARE_MODES TRUE`n")
+        [System.IO.File]::WriteAllText(
+            (Join-Path $root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCControlCommandService\LMCControlCommandService.st'),
+            "(pResponseFrame + 24)^`$UDINT := 0x00000717;`n(pResponseFrame + 46)^`$UINT := 0x018A;`n")
+        [System.IO.File]::WriteAllText(
+            (Join-Path $root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\TCPMotionInterface\TCPMotionInterface.st'),
+            'self-test tcp')
+        [System.IO.File]::WriteAllText(
+            (Join-Path $root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Network\Comm_Network\Comm_Network.lcn'),
+            '<Connection Source="LMCDiagnosticsService1.AxisOwnership" Destination="LMCControlCommandService1.ClassSvr"/>')
+        [System.IO.File]::WriteAllText(
+            (Join-Path $root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Network\Comm_Network\ONE_Comm_Network_Table.st'),
+            'TO_UDINT(6), "AxisOwnership", TO_UDINT(5), "ClassSvr",')
+        [System.IO.File]::WriteAllText(
+            (Join-Path $root 'tools\Verify-SetOperationModeStatic.ps1'),
+            'self-test static verifier')
+        [System.IO.File]::WriteAllText(
+            (Join-Path $root 'docs\api\design\SET_OPERATION_MODE_DESIGN.md'),
+            'self-test design')
         [System.IO.File]::WriteAllBytes(
             (Join-Path $root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\Classes.lcb'),
             [byte[]](1,2,3,4))
         [System.IO.File]::WriteAllBytes(
             (Join-Path $root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Elmo_EtherCAT_Test_4Axis.lcb'),
             [byte[]](5,6,7,8))
-        foreach ($relative in @(
-            'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCControlCommandService\LMCControlCommandService.st',
-            'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st',
-            'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\TCPMotionInterface\TCPMotionInterface.st',
-            'tools\Verify-SetOperationModeStatic.ps1',
-            'docs\api\design\SET_OPERATION_MODE_DESIGN.md')) {
-            [System.IO.File]::WriteAllText((Join-Path $root $relative), "self-test $relative")
-        }
 
         $log = Join-Path $root 'fresh-build.log'
         [System.IO.File]::WriteAllText(
@@ -247,10 +290,13 @@ function Invoke-SelfTest {
             -EvidencePath $output `
             -BuildStartUtc $buildStart `
             -SkipGitRequirements
+
         Assert-EvidenceCondition (Test-Path -LiteralPath $captured) 'Self-test evidence file was not created.'
         $text = [System.IO.File]::ReadAllText($captured)
-        Assert-EvidenceCondition ($text.Contains('ArtifactRatchetDecision: **REVIEW_REQUIRED**')) 'Self-test did not preserve manual ratchet review.'
-        Assert-EvidenceCondition ($text.Contains('CapabilityActivation: **KEEP_OFF**')) 'Self-test did not preserve activation OFF.'
+        Assert-EvidenceCondition ($text.Contains('QualificationActivation: **ON_EXPECTED**')) 'Self-test did not record qualification-active posture.'
+        Assert-EvidenceCondition ($text.Contains('AxisOwnershipGeneratedWiring: **PASS**')) 'Self-test did not record generated AxisOwnership wiring.'
+        Assert-EvidenceCondition ($text.Contains('ProductionRelease: **NO-GO**')) 'Self-test did not preserve production NO-GO.'
+        Assert-EvidenceCondition (-not $text.Contains('CapabilityActivation: **KEEP_OFF**')) 'Legacy activation-OFF wording is still present.'
         Write-Host 'PASS Capture-SetOperationModeC78Evidence self-test'
     }
     finally {
