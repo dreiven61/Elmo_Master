@@ -1,14 +1,13 @@
 # SetOperationMode physical finding — OutcomeStorageUnavailable(49)
 
 - Date: 2026-08-31
-- Source of evidence: Axis1 live WPF qualification log supplied after the Start execution refactor
-- Software Start-path baseline: `d4ce1b2f9c2a41f5117e0bd769533d0483c1ff91`
+- Source of evidence: Axis1 live WPF qualification logs supplied after the Start execution refactor
 - Status: **HOST START PATH PASS / PLC START REJECT / 0x6060 NOT REACHED**
 - Production release: **NO-GO**
 
-## 1. Observed runtime sequence
+## 1. Reproduced physical behavior
 
-The live Axis1 CSP(8) -> ProfilePosition(1) attempt reached the corrected host path:
+Axis1 CSP(8) -> ProfilePosition(1) reaches the corrected host path:
 
 ```text
 SetOperationMode Start UI handler entered
@@ -18,14 +17,11 @@ SetOperationMode cross-mode preflight passed
   requestedMode=1
   StatusWord=0x02D0
 SetOperationMode final Diagnostics refreshed
-  Build=1
-  BootId=0x00000066
-  MapRevision=0x957F101E
 SetOperationMode prepared
 SetOperationMode journal armed before dispatch
 ```
 
-The PLC then rejected Start definitively:
+The PLC then rejects Start definitively before mode mutation:
 
 ```text
 Status=1
@@ -33,75 +29,111 @@ ErrorId=-31000
 Detail=SetOperationModeOutcomeStorageUnavailable(49)
 ```
 
-The same rejection reproduced with RequestId 3, 5, 7 and 9.
+The first run reproduced this with RequestId 3, 5, 7 and 9 at BootId `0x00000066`.
 
-No successful Start acknowledgement was observed, and the host correctly archived each definitive rejection without automatic Start replay.
-
-## 2. What this proves
-
-This run closes the previous host-side stale Diagnostics observation blocker. The final Diagnostics observation is now accepted by `PrepareSetOperationMode()` and the durable pre-dispatch journal arms correctly.
-
-This run does **not** prove any actual DS402 mode mutation. The PLC rejects `0x7D23` before the SetOperationMode lifecycle reaches its retained-outcome/mutation path, so there is no evidence that `0x6060` was written. The subsequent successful manual `0x6061` reads only confirm that the read path is healthy and the drive remains observable.
-
-## 3. Current Detail 49 source conditions
-
-Current `LMCDiagnosticsService.st` uses detail 49 for SetOperationMode storage/admission infrastructure failures. Relevant conditions include:
-
-1. `LMC_DIAG_SET_OPERATION_MODE_ENABLED = FALSE` in the loaded PLC image.
-2. missing/zero ownership admission identity (`CallerSessionEpoch`, `RequestSequence`, `AdmissionToken`, `OwnerGeneration`).
-3. `IsClientConnected(#AxisOwnership) = FALSE` at LMCDiagnosticsService runtime.
-
-The TCP path calls `LMCControlCommandService.ReserveAxisOwnership()` before invoking Diagnostics. A failed reservation is returned by the TCP layer before Diagnostics. A successful reservation validates the caller/session sequence and issues nonzero admission token / owner generation. Therefore, for a loaded image whose SetOperationMode gate is actually TRUE, the remaining high-value runtime check is the `LMCDiagnosticsService1.AxisOwnership` client connection.
-
-Do not bypass this ownership/outcome requirement. It is part of the exactly-once/no-replay safety contract.
-
-## 4. Current repository source truth
-
-Current `dev` source contains:
+After a new PLC download/restart, the same CSP -> PP attempt reproduced at:
 
 ```text
-LMC_DIAG_SET_OPERATION_MODE_ENABLED TRUE
-LMC_DIAG_SET_OPERATION_MODE_SOFTWARE_MODES TRUE
-Admin feature mask = 0x00000717
-SetOperationModeSupportedMask = 0x018A
+Build=1
+BootId=0x00000067
+MapRevision=0x957F101E
+RequestId=3
+Detail=SetOperationModeOutcomeStorageUnavailable(49)
 ```
 
-Current network source contains:
+The BootId transition `0x66 -> 0x67` confirms a new PLC boot occurred. The repeated Detail 49 makes a simple stale-running-boot explanation insufficient and shifts the investigation to the SetOperationMode ownership/outcome admission path.
+
+No successful Start acknowledgement was observed in either boot, so there is still no evidence of any `0x6060` write.
+
+## 2. Admission-path narrowing
+
+The TCP path calls `LMCControlCommandService.ReserveAxisOwnership()` before invoking `LMCDiagnosticsService.HandleRequest()`.
+
+A failed reservation is rejected by TCP before Diagnostics. A successful reservation validates nonzero caller session/sequence and returns nonzero admission token/owner generation before Diagnostics is called.
+
+Therefore, once the request reaches `HandleAxisSetOperationModeStart()`, the previous combined Detail 49 condition hid two materially different failures:
+
+1. invalid/zero admission identity;
+2. `IsClientConnected(#AxisOwnership) = FALSE` inside `LMCDiagnosticsService`.
+
+The repository source also has the SetOperationMode gate enabled, so the repeated fresh-boot result makes the Diagnostics-side `AxisOwnership` client binding the highest-value runtime suspect.
+
+## 3. Concrete source inconsistency found
+
+Before corrective commit `c670bd6fbc816116eacbe19b94199479d1a8cacf`, the embedded LASAL class metadata declared clients in this order:
+
+```text
+AxisOwnership
+InputLatch
+RecorderStore
+...
+```
+
+but the generated ST declaration and generated class table used:
+
+```text
+InputLatch
+AxisOwnership
+RecorderStore
+...
+```
+
+The communication network itself contains:
 
 ```text
 LMCDiagnosticsService1.AxisOwnership
   -> LMCControlCommandService1.ClassSvr
 ```
 
-The generated `ONE_Comm_Network_Table.st` also contains the corresponding generated AxisOwnership connection.
+and `ONE_Comm_Network_Table.st` contains the corresponding generated connection.
 
-Therefore the live Detail 49 cannot be resolved safely by changing the host Start path or by weakening the SetOperationMode safety fence. The exact PLC-loaded C78/ARM image must first be tied to the current source/generation state.
+The metadata/declaration order mismatch is now corrected so the embedded LASAL declaration metadata, ST declaration and generated class-table order agree.
 
-## 5. Corrective qualification sequence
+## 4. Detail 49 split
 
-Before another mode-change attempt:
+Corrective commit `c670bd6fbc816116eacbe19b94199479d1a8cacf` also stops hiding a disconnected owner channel behind storage Detail 49.
 
-1. use exact current `dev` source;
-2. perform a fresh LASAL IDE C78/ARM Rebuild + Link;
-3. run `tools/Capture-SetOperationModeC78Evidence.ps1` with the fresh build log and build start time;
-4. confirm the collector reports qualification gate ON and AxisOwnership present in both source and generated network table;
-5. download/load that exact fresh artifact to the PLC;
-6. reconnect WPF and record new Diagnostics Build / BootId / MapRevision;
-7. retry Axis1 CSP -> PP once.
+The SetOperationMode Start contract is now:
 
-Expected discriminator:
+```text
+49 = SetOperationModeOutcomeStorageUnavailable
+     gate/storage/invalid ownership-admission identity
 
-- if Start proceeds beyond admission, next evidence must show accepted Start/outcome processing and eventually `0x6060=1` / `0x6061=1` or a later explicit lifecycle failure;
-- if the exact fresh image still returns detail 49, treat `LMCDiagnosticsService1.AxisOwnership` runtime connectivity/ownership admission as the next PLC-side defect to instrument/fix.
+52 = SetOperationModeOwnershipChannelUnavailable
+     LMCDiagnosticsService AxisOwnership client is not connected at runtime
+```
+
+The SDK enum and error catalog expose Detail 52 explicitly. No safety admission was removed or relaxed.
+
+Permanent static verification now checks:
+
+- Detail 52 remains defined;
+- LASAL metadata client order remains aligned with generated declaration order;
+- invalid admission identity and disconnected AxisOwnership remain distinct failure paths.
+
+The corrective workflow validation passed SetOperationMode static qualification and SDK Debug/Release builds before committing the change to `dev`.
+
+## 5. Next physical discriminator
+
+Use exact current `dev`, regenerate/rebuild/link the LASAL C78/ARM image and download that image to the PLC. Rebuild the WPF/SDK as well so Detail 52 has its symbolic name.
+
+Run Axis1 CSP -> PP once.
+
+Interpret the result exactly:
+
+- **Start accepted / lifecycle continues:** the client metadata correction changed the binding path; continue through exact `0x6060`/`0x6061` physical qualification.
+- **Detail 52 `SetOperationModeOwnershipChannelUnavailable`:** runtime `LMCDiagnosticsService1.AxisOwnership` connectivity is confirmed as the blocker. Do not weaken ownership; the next correction must be the LASAL channel/server wiring or generated artifact.
+- **Detail 49 remains:** the failure is not the `AxisOwnership` connectivity branch anymore; inspect gate/admission identity/storage evidence rather than changing SDO or safety rules.
 
 ## 6. Safety boundaries retained
 
-This finding does not authorize any of the following:
+This finding and correction do not authorize any of the following:
 
-- disabling `requireCurrentObservation=true`;
+- disabling current-observation freshness;
 - allowing cross-mode change while DS402 OperationEnabled;
 - removing Standstill/Fault checks;
 - bypassing retained outcome storage;
+- bypassing axis ownership validation;
 - replaying `0x7D23` after uncertain/accepted Start;
 - raw Generic SDO write to `0x6060`.
 
