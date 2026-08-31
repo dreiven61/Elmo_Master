@@ -26,6 +26,7 @@ jobs:
         run: |
           @'
           from pathlib import Path
+          import re
 
           def replace_exact(path, old, new, count=1):
               p = Path(path)
@@ -33,47 +34,35 @@ jobs:
               actual = text.count(old)
               if actual != count:
                   raise SystemExit(f'{path}: expected {count} occurrence(s), found {actual}')
-              p.write_text(text.replace(old, new), encoding='utf-8', newline='')
+              p.write_text(text.replace(old, new), encoding='utf-8')
 
-          # Keep the temporary publish file in the same directory for atomic
-          # MoveFileEx publication, but do not append a GUID to the already
-          # long immutable final filename. This avoids .NET Framework MAX_PATH.
-          replace_exact(
-              r'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/RecoveryRecordRetirementLedger.cs',
-              '''            var temporaryPath = finalPath
-                + "."
-                + Guid.NewGuid().ToString("N")
-                + ".tmp";''',
-              '''            var temporaryPath = Path.Combine(
-                directoryPath,
-                ".retirement-"
-                    + Guid.NewGuid().ToString("N")
-                    + ".tmp");''')
+          def replace_regex(path, pattern, replacement, count=1):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              updated, actual = re.subn(pattern, replacement, text, count=count, flags=re.MULTILINE)
+              if actual != count:
+                  raise SystemExit(f'{path}: expected {count} regex replacement(s), found {actual}')
+              p.write_text(updated, encoding='utf-8')
 
-          # Align the dynamic-control translation with the already frozen
-          # localization smoke-test wording.
-          replace_exact(
-              r'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/UiLocalization.cs',
-              '"Mode Capability 새로고침"',
-              '"Mode capability 새로고침"')
-          replace_exact(
-              r'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/UiLocalization.cs',
-              '"HomeEx Capability 새로고침"',
-              '"HomeEx capability 새로고침"')
+          ledger = r'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/RecoveryRecordRetirementLedger.cs'
+          replace_regex(
+              ledger,
+              r'(?m)^\s*var temporaryPath = finalPath\s*\n\s*\+ "\."\s*\n\s*\+ Guid\.NewGuid\(\)\.ToString\("N"\)\s*\n\s*\+ "\.tmp";',
+              '            var temporaryPath = Path.Combine(\n                directoryPath,\n                ".retirement-"\n                    + Guid.NewGuid().ToString("N")\n                    + ".tmp");')
 
-          # Generated declaration order is InputLatch then AxisOwnership. Keep
-          # embedded class metadata in the same order; named network wiring is
-          # unchanged.
-          replace_exact(
-              r'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st',
-              '''\t\t<Client Name="AxisOwnership" Required="true" Internal="false"/>\n\t\t<Client Name="InputLatch" Required="true" Internal="false"/>''',
-              '''\t\t<Client Name="InputLatch" Required="true" Internal="false"/>\n\t\t<Client Name="AxisOwnership" Required="true" Internal="false"/>''')
+          localization = r'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/UiLocalization.cs'
+          replace_exact(localization, '"Mode Capability 새로고침"', '"Mode capability 새로고침"')
+          replace_exact(localization, '"HomeEx Capability 새로고침"', '"HomeEx capability 새로고침"')
 
-          # dev is the qualification-active source. The verifier intentionally
-          # supports both production-closed and qualification-active modes;
-          # this dev workflow must invoke the latter explicitly.
+          diagnostics = r'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
+          replace_regex(
+              diagnostics,
+              r'(?m)^(\s*)<Client Name="AxisOwnership" Required="true" Internal="false"/>\s*\n\s*<Client Name="InputLatch" Required="true" Internal="false"/>',
+              r'\1<Client Name="InputLatch" Required="true" Internal="false"/>\n\1<Client Name="AxisOwnership" Required="true" Internal="false"/>')
+
+          workflow = r'.github/workflows/set-operation-mode-static-qualification.yml'
           replace_exact(
-              r'.github/workflows/set-operation-mode-static-qualification.yml',
+              workflow,
               "& '.\\tools\\Verify-SetOperationModeStatic.ps1' -ExpectedSdoWriteAxis 1",
               "& '.\\tools\\Verify-SetOperationModeStatic.ps1' -ExpectedSdoWriteAxis 1 -QualificationActivation")
           '@ | python -
@@ -131,10 +120,6 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -- \
-            'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/RecoveryRecordRetirementLedger.cs' \
-            'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/UiLocalization.cs' \
-            'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st' \
-            '.github/workflows/set-operation-mode-static-qualification.yml'
+          git add -- 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/RecoveryRecordRetirementLedger.cs' 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/UiLocalization.cs' 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st' '.github/workflows/set-operation-mode-static-qualification.yml'
           git commit -m 'fix(wpf): complete stale recovery retirement flow'
           git push origin HEAD:dev
