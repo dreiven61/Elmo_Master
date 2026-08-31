@@ -1,389 +1,254 @@
-# SetOperationMode 구현 설계 보완 — 2026-08-28
+# SetOperationMode 구현 설계 보완 — 2026-08-28 / 2026-08-31 update
 
-> 상태: current implementation addendum
+> 상태: current implementation / physical-finding addendum
 >
-> current functional baseline: `dev@687a78c6e97616870c4fec4a5da043046bb735f6` (PR #58)
+> integration / qualification source: `dev`
 >
-> current analyzed dev: `dev@cf92ef0e6891b227ac4c6da55256a524302b43ae`
->
-> current integration / qualification source: `dev`
->
-> qualification PR #18: **SUPERSEDED / closed**
+> physical release posture: **NO-GO**
 >
 > 추적: issue #46
 >
-> 기존 `SET_OPERATION_MODE_DESIGN.md`의 historical evidence는 보존한다. 현재 source/activation 상태가 충돌하면 이 문서와 `DEVELOPMENT_STATUS_20260828.md`를 우선한다.
+> 기존 historical design은 보존하되, 현재 physical blocker와 다음 수정 방향은 이 문서와 `SET_OPERATION_MODE_PHYSICAL_FINDING_OUTCOME_STORAGE_20260831.md`를 우선한다.
 
 ---
 
 ## 1. 현재 판정
 
-SetOperationMode는 더 이상 CSP-only software scaffold가 아니다. current `dev`에는 PP/PV/IP/CSP multi-mode lifecycle, durable no-replay recovery, supported-mode advertisement, operator diagnostics와 2026-08-28 live-bench corrective preflight가 통합돼 있다.
+SetOperationMode software에는 PP/PV/IP/CSP lifecycle, supported-mode mask, durable no-replay recovery, cross-mode preflight, final Diagnostics refresh와 operator diagnostics가 통합돼 있다.
 
-하지만 **hardware qualification은 아직 완료되지 않았다.** 2026-08-28 17:28 실기 로그에서 PP/PV/IP 모두 cross-mode safety preflight까지 통과했지만, `PrepareSetOperationMode()` 직전 host-side Diagnostics capability freshness ordering bug로 차단되는 것이 확인됐다.
+2026-08-31 실기에서는 host freshness-ordering 문제를 넘어 다음 단계까지 도달한다.
 
-현재 상태를 다음처럼 구분한다.
+```text
+cross-mode preflight PASS
+final Diagnostics refresh PASS
+Prepare PASS
+durable journal arm PASS
+Start dispatch
+PLC definitive reject
+```
 
-- source/PC path: **implemented, but current-observation ordering defect OPEN**
-- qualification activation: **ON in current dev**
-- fresh current-image C78/PLC evidence: **OBSERVED**
-- PP/PV/IP real cross-mode `0x6060` dispatch: **NOT REACHED**
+하지만 PLC는 Start를 다음으로 거절한다.
+
+```text
+ErrorId=-31000
+Detail=SetOperationModeOutcomeStorageUnavailable(49)
+```
+
+확인된 BootId는 `0x66`, `0x67`, `0x68`이며 세 boot에서 같은 blocker가 재현됐다.
+
+현재 판정:
+
+- host capability freshness ordering: **FIXED / no longer current blocker**
+- host cross-mode preflight: **PASS on Axis1 CSP -> PP**
+- durable pre-dispatch arm/no-replay rejection handling: **PASS**
+- PLC SetOperationMode Start acceptance: **FAIL / Detail 49**
+- actual `0x6060` dispatch: **NOT REACHED**
 - physical mode-change PASS: **OPEN**
-- failure/recovery physical matrix: **OPEN**
 - production release: **NO-GO**
 
 ---
 
-## 2. current activation truth
+## 2. activation/source truth
 
-현재 `dev` source는 다음과 같다.
-
-### LMCDiagnosticsService
+current source expectation:
 
 ```text
 LMC_DIAG_SET_OPERATION_MODE_ENABLED TRUE
 LMC_DIAG_SET_OPERATION_MODE_SOFTWARE_MODES TRUE
-```
-
-### LMCControlCommandService AdminCapabilities
-
-```text
-FeatureMask = 0x00000717
+Admin FeatureMask = 0x00000717
 SetOperationModeSupportedMask = 0x018A
 ```
 
-`0x018A`는 PP(1), PV(3), IP(7), CSP(8)를 의미한다.
+`0x018A` = PP(1), PV(3), IP(7), CSP(8).
 
-따라서 live WPF에 다음이 보이면 source contract와 일치한다.
-
-```text
-AdminTriad=True
-SupportedModeMask=0x018A
-DiagnosticsIdentity=True
-```
-
-과거 문서의 `dev gate FALSE`, `bits 8/9/10 OFF`, `PR #18 activation branch 필요` 설명은 current source에는 적용하지 않는다.
-
-현재 source는 **qualification-active**다. 이것을 production release 승인으로 해석하지 않는다.
+WPF live capability refresh가 성공하고 requested PP가 advertised 상태인 것은 host-side supported-mode admission이 정상임을 의미한다. 그러나 source constant가 TRUE라는 사실만으로 loaded/generated runtime image의 exact activation state까지 증명하지는 않는다.
 
 ---
 
-## 3. software execution path
+## 3. normal semantic lifecycle
 
-### 3.1 요청 mode
-
-지원 target:
-
-- ProfilePosition = 1
-- ProfileVelocity = 3
-- InterpolatedPosition = 7
-- CyclicSynchronousPosition = 8
-
-Homing(6)은 SetOperationMode가 소유하지 않는다.
-
-### 3.2 Start admission
-
-WPF/SDK Start는 최소 다음을 확인한다.
-
-- connected / idle
-- valid physical axis
-- valid timeout
-- explicit one-shot confirmation
-- Admin capability triad
-- selected mode가 live `SupportedModeMask`에 포함
-- stable Diagnostics Build/BootId/MapRevision
-- common diagnostics admission
-- durable journal arm 가능
-
-PR #58 이후 WPF status는 이 gate를 숨기지 않고 직접 표시한다.
+정상 cross-mode contract는 유지한다.
 
 ```text
-AdminTriad
-SupportedModeMask
-DiagnosticsIdentity
-Confirmed
-SelectedModeAdvertised
-AdmissionAllowed
-JournalReady
+fresh 0x6061 / axis / 0x6041 preflight
+-> final Diagnostics identity refresh
+-> Prepare one-shot intent
+-> durable ArmBeforeDispatch
+-> Start exactly once
+-> PLC ownership/outcome admission
+-> exact one-byte 0x6060 Write(requested mode)
+-> 0x6061 verify
+-> terminal outcome
+-> exact-generation retire
 ```
 
-### 3.3 preflight
+same-target는 `SucceededNoWrite`가 허용된다.
 
-Start를 durable arm하기 전에 current axis에서 fresh drive status를 읽는다.
+cross-mode는 다음 안전 조건을 유지한다.
 
-- LASAL AxisStatus
-- DS402 StatusWord `0x6041`
-- Modes of operation display `0x6061`
-
-same-target와 cross-mode를 구분한다.
-
-#### same-target
-
-`0x6061 == requestedMode`이면 PLC lifecycle은 write 없이 성공할 수 있다.
-
-```text
-SucceededNoWrite
-```
-
-특히 CSP -> CSP는 이 경로가 쉽게 발생한다. 따라서 CSP 성공만으로 `0x6060` Write가 정상이라고 판정하지 않는다.
-
-#### cross-mode
-
-`0x6061 != requestedMode`이면 실제 mode mutation 후보이다. 다음 조건을 요구한다.
-
-- `Standstill=True`
+- Standstill=True
 - DS402 Fault=False
 - DS402 OperationEnabled=False
 
-조건이 안 맞으면 WPF에서 Start를 보내지 않는다. PLC도 동일 안전 fence를 유지한다.
-
-OperationEnabled 상태에서 mode 변경을 허용하도록 완화하지 않는다.
+raw Generic SDO `0x6060` Write는 계속 금지한다.
 
 ---
 
-## 4. PLC lifecycle
+## 4. 2026-08-31 physical blocker
 
-정상 cross-mode 실행의 semantic sequence는 다음과 같다.
+최신 evidence:
 
 ```text
-0x6061 preflight Read
-    -> exact one-byte 0x6060:0 Write(requestedMode)
-    -> 0x6061 verify Read
-    -> terminal outcome
-    -> exact-generation retire
+WPF BuildUtc=2026-08-31 02:33:22 UTC
+SDK BuildUtc=2026-08-31 02:33:19 UTC
+Build=1
+BootId=0x00000068
+MapRevision=0x957F101E
+currentMode=8
+requestedMode=1
+StatusWord=0x02D0
+RequestId=3
+Detail=SetOperationModeOutcomeStorageUnavailable(49)
 ```
 
-핵심 계약:
+Start는 definitive reject이며 retained PLC terminal outcome은 만들어지지 않았다. host durable journal은 rejection evidence를 archive하고 recovery interlock를 clear했다. 자동 Start replay는 없었다.
 
-- mode Write는 maximum one dispatch
-- raw Generic SDO로 `0x6060` mutation 금지
-- terminal success는 observed mode == requested mode
-- post-write timeout/disconnect/uncertain callback은 original `0x6060` Write를 replay하지 않음
-- recovery는 read-only `0x6061` observation + outcome/retire만 사용
+따라서 최신 failure point는 **PLC Start admission, actual mode SDO write 이전**이다.
 
 ---
 
-## 5. durable no-replay recovery
+## 5. owner-channel correction의 재평가
 
-persisted identity는 endpoint와 diagnostics identity, client/request/axis/requested mode를 묶는다.
+commit `c670bd6fbc816116eacbe19b94199479d1a8cacf`는 다음 source correction을 포함한다.
 
-복구 시 original Start 또는 `0x6060` Write를 재전송하지 않는다.
+- embedded LASAL client metadata order를 generated declaration/class table과 정렬;
+- `AxisOwnership` disconnected를 Detail 52로 분리;
+- SDK/detail catalog/static verifier 동기화.
 
-가능한 recovery action:
+이 correction은 source inconsistency를 제거했지만 physical blocker를 해결하지 못했다. BootId `0x68` 재시험에서도 Detail 49가 유지됐다.
 
-- exact outcome query
-- current mode observation
-- durable terminal proof
-- exact-generation retire
+따라서 설계상 이 commit을 다음처럼 분류한다.
 
-불확실 상태에서는 새로운 mutation Start를 자동 replay하지 않는다.
+```text
+source consistency / diagnostic discrimination: COMPLETE
+physical root-cause correction: NOT COMPLETE
+```
 
 ---
 
-## 6. 2026-08-28 live-bench findings
+## 6. corrected Detail semantics와 남은 candidate
 
-### Finding A — CSP만 되는 것처럼 보임
-
-원인 후보가 하나의 버그가 아니라 두 층으로 나뉜다.
-
-1. CSP -> CSP는 실제 Write 없이 성공 가능
-2. PP/PV/IP는 real cross-mode이므로 안전 preflight 및 실제 `0x6060` path를 통과해야 함
-
-PR #58은 PC에서 이 차이를 명시하고 fresh preflight를 추가했다.
-
-### Finding B — Start disabled 원인이 UI에 안 보임
-
-과거 status는 live gate가 이미 TRUE여도 stale activation 문구를 출력했다. PR #58에서 actual gate 값을 표시하도록 수정했다.
-
-### Finding C — stale qualification branch
-
-과거 activation-only branch/PR은 current `dev`와 분리되어 source/image identity 혼란을 만들었다. 2026-08-28 branch cleanup 후 remote branch는 `main`, `dev`만 유지한다.
-
-### Finding D — 17:28 live log: Diagnostics capability observation self-invalidation
-
-#### 재현 로그
-
-실행 identity:
+현재 Start admission source는 다음을 구분한다.
 
 ```text
-Version=0.9.1.0
-BuildUtc=2026-08-28 08:27:44 UTC
-SdkBuildUtc=2026-08-28 08:27:41 UTC
+zero CallerSessionEpoch / RequestSequence /
+AdmissionToken / OwnerGeneration
+    -> 49
+
+AxisOwnership disconnected
+    -> 52
+
+ownership identity validate/commit failure
+    -> 42
 ```
 
-Axis1 / current CSP(8)에서 다음 결과가 반복됐다.
+그리고 runtime SetOperationMode gate OFF도 49를 반환한다.
 
-```text
-requestedMode=3 -> cross-mode preflight passed, StatusWord=0x02D0
-requestedMode=1 -> cross-mode preflight passed, StatusWord=0x02D0
-requestedMode=7 -> cross-mode preflight passed, StatusWord=0x02D0
-requestedMode=8 -> same-target no-write candidate
-```
+따라서 exact corrected image가 실행된다는 전제에서는 최신 49를 AxisOwnership disconnected로 다시 추정하지 않는다.
 
-모든 시도는 이후 동일하게 실패했다.
+현재 남은 주요 후보:
 
-```text
-The supplied diagnostics capabilities are not the current observation.
-```
+1. **runtime activation/generation mismatch** — source는 gate ON이지만 generated/loaded runtime에서 OFF 또는 다른 artifact;
+2. **ownership admission tuple forwarding defect** — TCP reserve 이후 Diagnostics에 전달되는 session/sequence/token/generation 중 하나가 zero.
 
-#### 실패 위치
-
-현재 WPF 순서:
-
-```text
-Admin.GetCapabilitiesAsync()
--> RefreshDiagnosticsCapabilitiesAsync()          // cached diagnosticCapabilities = observation N
--> GetPhysicalAxisAsync()
--> ReadDriveStatusAsync()                         // preflight
-   -> D5 Read 0x6041
-      -> SubmitInlineSdoRead()
-         -> Diagnostics.GetCapabilities()         // observation N+1
-   -> D5 Read 0x6061
-      -> SubmitInlineSdoRead()
-         -> Diagnostics.GetCapabilities()         // observation N+2
--> PrepareSetOperationMode(... cached observation N ...)
--> ValidateAxisSetPositionDiagnosticCapabilities(requireCurrentObservation=true)
--> N != CurrentCapabilityObservationSequence(N+2)
--> host exception / ZERO mutation wire
-```
-
-`LMCDiagnostics.GetCapabilities()`는 capability object를 만들 때 `NextCapabilityObservationSequence()`를 증가시킨다. `ReadDriveStatusAsync()`가 사용하는 inline D5 SDO helper는 각 SDO submission 전에 다시 `GetCapabilities()`를 수행한다. 따라서 preflight 자체가 WPF가 직전에 캐시한 `diagnosticCapabilities`를 stale로 만든다.
-
-#### 판정
-
-이번 실패는 다음이 아니다.
-
-- PP/PV/IP unsupported reject 아님
-- DS402 unsafe-state reject 아님
-- PLC SetOperationMode Start reject 아님
-- `0x6060` verify mismatch 아님
-
-이번 실패는 **host-side capability freshness ordering defect**다.
-
-실패 시점은 `PrepareSetOperationMode()` 내부 capability validation이므로:
-
-- durable SetOperationMode journal arm 전
-- `0x7D23 Start` 전
-- `0x6060 Write` 전
-
-즉 이 로그에서는 실제 mode mutation wire가 발생하지 않았다.
-
-`D5 terminal wake ignored: no exact current retained ticket` 메시지는 preflight가 생성한 D5 read ticket completion과 시간적으로 대응한다. 현재 로그에서 이것은 primary failure가 아니라 preflight read activity에 동반된 callback noise로 분류한다. 별도 D5 retained-ticket 오류로 확대 해석하지 않는다.
+현재 response Detail 49만으로 두 후보를 분리할 수 없다.
 
 ---
 
-## 7. corrective design for Finding D
+## 7. 다음 수정 설계 — observability first
 
-### 7.1 단기 수정 원칙
+추가 safety-path 변경 전에 Detail 49 ambiguity부터 제거한다.
 
-fresh drive preflight가 Diagnostics capability observation을 소비한다는 사실을 execution ordering에 반영한다.
+### 7.1 protocol/detail split proposal
 
-권장 순서:
+아래 63/64는 설계 예약이며 아직 구현하지 않는다.
 
 ```text
-1. Admin capability refresh / selected mode advertise 확인
-2. GetPhysicalAxis
-3. ReadDriveStatusAsync fresh preflight
-4. FINAL Diagnostics capability refresh
-5. EnsureAxisSetOperationModeCapabilitiesReady
-6. PrepareSetOperationMode
-7. durable journal ArmBeforeDispatch
-8. Start exactly once
+49 SetOperationModeOutcomeStorageUnavailable
+   실제 outcome infrastructure unavailable 전용
+
+52 SetOperationModeOwnershipChannelUnavailable
+   AxisOwnership client disconnected
+
+63 SetOperationModeAdmissionIdentityUnavailable [PROPOSED]
+   session/sequence/token/generation 중 하나가 zero
+
+64 SetOperationModeFeatureDisabled [PROPOSED]
+   runtime feature gate OFF
 ```
 
-핵심은 **마지막 Diagnostics capability refresh 이후 Prepare 사이에 `GetCapabilities()`를 발생시키는 D5 helper를 넣지 않는 것**이다.
+구현 시 SDK enum, parser acceptance range, error catalog, WPF symbolic logging, static verifier를 하나의 protocol change로 취급한다.
 
-### 7.2 유지할 safety contract
+### 7.2 evidence fields
 
-이 버그를 고치기 위해 다음을 완화하지 않는다.
+Start reject diagnostic은 최소 다음 boolean/zero-state evidence를 남겨야 한다.
 
-- `requireCurrentObservation=true` freshness fence
-- Build/BootId/MapRevision identity validation
-- Standstill/Fault/OperationEnabled cross-mode preflight
-- one-shot confirmation
-- durable pre-dispatch journal
-- no-replay invariant
-- raw Generic SDO `0x6060` block
+- FeatureEnabled
+- CallerSessionEpochNonZero
+- RequestSequenceNonZero
+- AdmissionTokenNonZero
+- OwnerGenerationNonZero
+- AxisOwnershipConnected
+- OwnershipIdentityValidated
+- OwnershipCommitted
 
-즉 해결 방향은 freshness 검증 제거가 아니라 **final observation ordering 수정**이다.
+정상 token 원문 값 자체를 출력할 필요는 없다.
 
-### 7.3 regression test requirement
+### 7.3 decision rule
 
-수정 완료 조건에 다음 fixture를 추가한다.
+원인 discriminator 없이 functional code를 추가 변경하지 않는다.
 
-1. diagnostics observation N 취득
-2. `ReadDriveStatusAsync()` 또는 동등한 두 inline D5 read로 observation sequence가 진행됨을 재현
-3. old observation N을 Prepare에 사용하면 zero-wire reject되는 기존 safety contract 확인
-4. preflight 후 final diagnostics refresh한 observation N+2/N+3을 Prepare에 사용하면 준비 성공
-5. Prepare 성공 전에는 journal/Start mutation 없음
-6. final refresh 이후 별도 capability-producing call이 삽입되면 test가 실패
-
-가능하면 WPF focused smoke에도 execution ordering을 고정하는 source/runtime assertion을 둔다.
+- FeatureDisabled -> generated/runtime activation path 수정
+- AdmissionIdentityUnavailable -> TCP reserve/forwarding contract 수정
+- OwnershipChannelUnavailable(52) -> LASAL network/channel binding 수정
+- AxisOwnership conflict/quarantine(42) -> ownership identity/state 분석
+- Start accepted -> 실제 `0x6060` lifecycle qualification 진행
 
 ---
 
-## 8. software evidence
+## 8. regression/qualification requirement
 
-PR #58 corrective qualification:
+다음 software implementation이 시작될 경우 최소 test requirement:
 
-- API Debug full suite: 1200/1200 PASS
-- Generic SDO WPF focused smoke: 17/17 PASS
-- API Debug/Release build: PASS
-- WPF Debug/Release build: PASS
-- corrective source verifier: PASS
-- Generic SDO policy verifier: PASS
-- diff hygiene: PASS
+1. 각 proposed detail producer가 다른 원인으로 정확히 분리됨;
+2. zero admission tuple은 mutation wire 없이 fail;
+3. disconnected AxisOwnership은 Detail 52 유지;
+4. gate OFF는 dedicated feature-disabled detail로 분리;
+5. valid tuple + connected owner는 Validate/Commit path로 진행;
+6. 기존 Standstill/Fault/OperationEnabled fence 유지;
+7. accepted/uncertain Start no-replay 유지;
+8. raw Generic SDO `0x6060` block 유지.
 
-하지만 위 test들은 **preflight가 capability observation을 스스로 stale시키는 순서 문제를 잡지 못했다.** 따라서 Finding D regression fixture가 추가되기 전에는 SetOperationMode software qualification을 완전 PASS로 보지 않는다.
+physical qualification은 Start accepted 이후에만 PP/PV/IP/CSP matrix로 진행한다.
 
 ---
 
-## 9. qualification matrix
+## 9. current physical matrix status
 
-Finding D가 소프트웨어에서 닫히기 전에는 physical matrix를 수행해도 `0x6060` 단계에 도달할 수 없으므로 먼저 host ordering을 수정한다.
-
-### Axis1 normal matrix
-
-| current mode | requested mode | 기대 path | 필요한 evidence |
+| current | requested | 현재 결과 | 판정 |
 |---|---|---|---|
-| CSP | CSP | no-write | `SucceededNoWrite`, no `0x6060` dispatch |
-| CSP | PP | cross-mode | one `0x6060=1`, `0x6061=1` |
-| CSP | PV | cross-mode | one `0x6060=3`, `0x6061=3` |
-| CSP | IP | cross-mode | one `0x6060=7`, `0x6061=7` |
-| PP/PV/IP | CSP | cross-mode | one `0x6060=8`, `0x6061=8` |
-| any target | same target | no-write | no `0x6060` dispatch |
-
-### failure matrix
-
-- unsafe preflight
-- OperationEnabled
-- DS402 fault
-- stale/future Diagnostics capability observation
-- Write start reject
-- Write timeout
-- disconnect after dispatch
-- verify timeout
-- verify mismatch
-- outcome response loss
-- retire response loss
-- restart/reconnect recovery
-
-모든 uncertain mutation 결과는 original Start replay 없이 처리한다.
+| CSP(8) | PP(1) | preflight/Prepare/journal PASS -> PLC Detail 49 | BLOCKED before `0x6060` |
+| CSP(8) | PV(3) | latest blocker 기준 미완료 | OPEN |
+| CSP(8) | IP(7) | latest blocker 기준 미완료 | OPEN |
+| CSP(8) | CSP(8) | same-target no-write path 별도 | physical mutation evidence 아님 |
+| PP/PV/IP | CSP(8) | 미수행 | OPEN |
 
 ---
 
-## 10. 다음 실제 작업 순서
+## 10. 작업 정책
 
-1. **NOW — Finding D host capability freshness ordering 수정**
-2. focused API/WPF regression으로 preflight -> final diagnostics refresh -> Prepare 순서 고정
-3. exact updated `dev` SHA 확정
-4. fresh LASAL C78/ARM Rebuild + Link
-5. generated artifact identity 기록
-6. exact artifact PLC load
-7. same source WPF 실행
-8. Axis1 PP/PV/IP/CSP matrix 수행
-9. failure/recovery matrix 수행
-10. Axis2..4 확대
-11. qualification 결과를 근거로 production release activation/deactivation을 별도 결정
+현재 사용자 요청에 따라 **이번 단계에서는 design/status 문서만 갱신하고 functional source는 추가 수정하지 않는다.**
 
-새 SetOperationMode qualification branch를 추가로 만들지 않는다.
+다음 구현은 Detail 49 내부 원인을 observable하게 분리하는 설계가 승인/진행될 때 시작한다.
+
+새 장기 qualification branch는 만들지 않고 `dev`를 current integration source로 유지한다.
