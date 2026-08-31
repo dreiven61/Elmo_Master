@@ -120,8 +120,7 @@ jobs:
             'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.AxisSetOperationModeRecovery.cs' `
             'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.ReadOnlyApi.cs' `
             'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/WpfAxisSetOperationModeRecoveryIntegrationTests.cs' `
-            'tools/Verify-SetOperationModeStartExecution.ps1' `
-            '.github/workflows/set-operation-mode-wpf-recovery.yml'
+            'tools/Verify-SetOperationModeStartExecution.ps1'
           if (-not (git diff --cached --quiet)) {
             git commit -m 'fix(setopmode): canonicalize Start execution path'
             git push origin HEAD:dev
