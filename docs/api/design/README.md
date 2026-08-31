@@ -3,6 +3,7 @@
 - 기준일: 2026-08-31
 - current integration / qualification source: `dev`
 - current status snapshot: `DEVELOPMENT_STATUS_20260831.md`
+- current SetOperationMode implementation plan: `SET_OPERATION_MODE_START_EXECUTION_REFACTOR_PLAN_20260831.md`
 - current API progress: `../API_DEVELOPMENT_PROGRESS.md`
 - current API manual: `../API_MANUAL.md`
 - production release posture: **NO-GO**
@@ -34,7 +35,7 @@ SetOperationModeSupportedMask = 0x018A
 - WPF actual Start-gate diagnostics
 - raw Generic SDO `0x6060` permanent deny
 
-### 현재 blocker — Diagnostics capability freshness ordering
+### 현재 blocker A — Diagnostics capability freshness ordering
 
 2026-08-28 17:28 실기에서 Axis1 current CSP(8) -> PP/PV/IP 요청이 모두 `StatusWord=0x02D0`으로 cross-mode preflight를 통과했다. 이후 동일하게 다음 host exception으로 종료됐다.
 
@@ -56,6 +57,40 @@ PrepareSetOperationMode(cached N)
 
 따라서 현재 로그에서는 `0x7D23`과 실제 `0x6060` mutation까지 도달하지 않았다.
 
+### 현재 blocker B — Start Click handler ownership이 불명확함
+
+현재 WPF는 `MainWindow.AxisSetOperationModeRecovery.cs`에서 button 생성 시
+
+```text
+ButtonStartAxisSetOperationMode_Click
+```
+
+을 등록한 뒤, `MainWindow.ReadOnlyApi.cs`의 `InitializeReadOnlyApiUi()`에서 다시 detach하고
+
+```text
+ButtonStartAxisSetOperationModeWithRejectResolution_Click
+```
+
+으로 교체한다. 따라서 이름상 canonical handler인 `ButtonStartAxisSetOperationMode_Click()`은 runtime에서 호출되지 않는다.
+
+이 구조는 기능 미구현 gate가 아니라 **불필요한 handler indirection / dead-handler 구조**다. 구현 시 다음으로 단일화한다.
+
+```text
+Start button
+-> ButtonStartAxisSetOperationMode_Click            // 유일한 UI handler
+-> StartAxisSetOperationModeOnceAsync               // 유일한 Start orchestration
+-> preflight
+-> FINAL Diagnostics capability refresh
+-> PrepareSetOperationMode
+-> durable ArmBeforeDispatch
+-> SetOperationModeAsync exactly once
+-> outcome/recovery
+```
+
+`ButtonStartAxisSetOperationModeWithRejectResolution_Click()`은 제거하고 definitive rejection resolution을 canonical handler에 통합한다.
+
+상세 구현 계약은 `SET_OPERATION_MODE_START_EXECUTION_REFACTOR_PLAN_20260831.md`를 따른다.
+
 corrective ordering:
 
 ```text
@@ -73,12 +108,13 @@ freshness fence, Build/BootId/MapRevision identity, Standstill/Fault/OperationEn
 
 다음 gate:
 
-1. ordering fix
-2. stale-old/current-final capability regression
-3. API/WPF Debug/Release regression
-4. Axis1 PP/PV/IP/CSP physical `0x6060`/`0x6061` matrix
-5. failure/recovery matrix
-6. Axis2..4 확대
+1. canonical Start Click handler 단일화 + obsolete handler 제거
+2. preflight -> final Diagnostics refresh -> Prepare ordering fix
+3. single-handler / stale-old / current-final capability regression
+4. API/WPF Debug/Release regression
+5. Axis1 PP/PV/IP/CSP physical `0x6060`/`0x6061` matrix
+6. failure/recovery matrix
+7. Axis2..4 확대
 
 CSP -> CSP `SucceededNoWrite`는 실제 `0x6060` cross-mode Write PASS가 아니다.
 
@@ -148,6 +184,7 @@ Axis1 UI24 same-value four-ticket 경로는 특정 qualification preset이다. G
 
 SetOperationMode 상세:
 
+- `SET_OPERATION_MODE_START_EXECUTION_REFACTOR_PLAN_20260831.md` — **현재 구현 지시서**
 - `SET_OPERATION_MODE_DESIGN.md`
 - `SET_OPERATION_MODE_IMPLEMENTATION_UPDATE_20260828.md`
 - `SDO_OPERATION_MODE_REIMPLEMENTATION_PLAN_20260827.md`
