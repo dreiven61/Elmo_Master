@@ -32,6 +32,29 @@ jobs:
           python $helper
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+          # The permanent workflow previously used the broad word "SetOperationMode",
+          # which also selects an unrelated HomeDS402Ex localization baseline test.
+          # Keep this tranche's gate scoped to the SetOperationMode lifecycle/recovery surface.
+          $permanentWorkflow = '.\.github\workflows\set-operation-mode-wpf-recovery.yml'
+          $workflowText = Get-Content -LiteralPath $permanentWorkflow -Raw
+          $old = @"
+          & `$exe --filter SetOperationMode
+          if (`$LASTEXITCODE -ne 0) { exit `$LASTEXITCODE }
+"@
+          $new = @"
+          & `$exe --filter 'Wpf.SetOperationModeRecovery.'
+          if (`$LASTEXITCODE -ne 0) { exit `$LASTEXITCODE }
+          & `$exe --filter 'Wpf.AxisSetOperationModeJournal.'
+          if (`$LASTEXITCODE -ne 0) { exit `$LASTEXITCODE }
+          & `$exe --filter 'Wpf.SetOperationModeSdk.'
+          if (`$LASTEXITCODE -ne 0) { exit `$LASTEXITCODE }
+"@
+          if (-not $workflowText.Contains($old)) {
+            throw 'Permanent SetOperationMode workflow broad filter block was not found.'
+          }
+          $workflowText = $workflowText.Replace($old, $new)
+          [IO.File]::WriteAllText((Resolve-Path $permanentWorkflow), $workflowText, (New-Object Text.UTF8Encoding($false)))
+
       - name: Verify Start execution source contract
         shell: powershell
         run: |
@@ -66,11 +89,15 @@ jobs:
           & '${{ steps.msbuild.outputs.path }}' $project /t:Build /p:Configuration=Debug /p:Platform=AnyCPU /m
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Run SetOperationMode WPF smoke Debug
+      - name: Run SetOperationMode WPF focused smoke Debug
         shell: powershell
         run: |
           $exe = '.\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\bin\Debug\LasalApiWpfTestApp.SmokeTests.exe'
-          & $exe --filter SetOperationMode
+          & $exe --filter 'Wpf.SetOperationModeRecovery.'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $exe --filter 'Wpf.AxisSetOperationModeJournal.'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $exe --filter 'Wpf.SetOperationModeSdk.'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Run Generic SDO WPF focused smoke Debug
@@ -94,11 +121,15 @@ jobs:
           & '${{ steps.msbuild.outputs.path }}' $project /t:Build /p:Configuration=Release /p:Platform=AnyCPU /m
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Run SetOperationMode WPF smoke Release
+      - name: Run SetOperationMode WPF focused smoke Release
         shell: powershell
         run: |
           $exe = '.\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\bin\Release\LasalApiWpfTestApp.SmokeTests.exe'
-          & $exe --filter SetOperationMode
+          & $exe --filter 'Wpf.SetOperationModeRecovery.'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $exe --filter 'Wpf.AxisSetOperationModeJournal.'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $exe --filter 'Wpf.SetOperationModeSdk.'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Diff hygiene
