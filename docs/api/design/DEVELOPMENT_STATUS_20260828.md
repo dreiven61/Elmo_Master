@@ -1,223 +1,203 @@
-# 개발 상태 스냅샷 — 2026-08-28
+# 개발 상태 스냅샷 — 2026-08-28 / 2026-08-31 update
 
 - current integration / qualification source: `dev`
-- current analyzed baseline before this documentation update: `dev@cf92ef0e6891b227ac4c6da55256a524302b43ae`
 - current qualification posture: **SetOperationMode + Generic SDO gates are ON in source; hardware PASS is NOT established**
+- SetOperationMode latest physical identity: `Build=1 / BootId=0x00000068 / MapRevision=0x957F101E`
 - production release posture: **NO-GO**
 - active P0 tracking: issue #46
-- supersedes the current-state portions of `DEVELOPMENT_STATUS_20260827.md`
 
-이 문서는 branch 수나 PR 수가 아니라 **현재 `dev`의 실제 실행 경로**를 기준으로 상태를 판정한다. `source/PC test`, `fresh LASAL C78 artifact`, `PLC load`, `physical wire/effect`, `production release`는 각각 별도 gate다.
+이 문서는 current `dev`의 실제 실행 경로와 physical evidence를 기준으로 상태를 판정한다. source/PC test, generated LASAL artifact, PLC load, physical wire/effect, production release는 각각 별도 gate다.
 
 ---
 
 ## 1. 현재 P0 요약
 
-| 영역 | current `dev` 구현 상태 | 현재 gate 상태 | 다음 gate |
+| 영역 | current 구현 상태 | 현재 gate 상태 | 다음 gate |
 |---|---|---|---|
-| SetOperationMode | PP/PV/IP/CSP lifecycle, mode mask, durable no-replay, PR #58 preflight 통합 | **host capability freshness ordering defect OPEN** | preflight 이후 final Diagnostics capability refresh -> focused regression -> physical matrix |
-| Generic SDO | dual-entry executor + R03 generic scalar Write + R04 editor/preview + R05 durable recovery + PR #58 safe-state correction 통합 | **global Write ON / hardware PASS 아님** | safe non-semantic 1/2/4-byte Write/readback 실기 |
+| SetOperationMode | PP/PV/IP/CSP lifecycle, mode mask, final Diagnostics refresh, durable no-replay, cross-mode preflight 통합 | **PLC Start admission BLOCKED: Detail 49 at BootId 0x68** | Detail 49 내부 원인 observability 분리 설계 후 원인별 수정 |
+| Generic SDO | dual-entry executor + generic scalar Write + editor/preview + durable recovery + safe-state correction 통합 | **global Write ON / hardware PASS 아님** | safe non-semantic 1/2/4-byte Write/readback 실기 |
 | HomeDS402 | H37 software/source/WPF qualification 통합 | activation OFF | fresh artifact/C78 -> hardware matrix |
 | HomeDS402Ex | SDK, ownership, retained store, approved-plan gate, WPF recovery 존재 | physical runtime/activation OFF | approved profile + fresh C78 -> runtime/hardware qualification |
 | SetPosition | lifecycle + WPF recovery + host factory receipt/readback tooling 존재 | native runtime activation OFF | issue #44 vendor CRC + generated `_FileSys` ABI -> A/B backend -> RT exactly-once |
 
 ---
 
-## 2. SetOperationMode — 현재 판정
+## 2. SetOperationMode current source truth
 
-### 2.1 activation/source truth
-
-현재 `dev` source는 qualification-active 상태다.
-
-`LMCDiagnosticsService.st`:
-
-- `LMC_DIAG_SET_OPERATION_MODE_ENABLED TRUE`
-- `LMC_DIAG_SET_OPERATION_MODE_SOFTWARE_MODES TRUE`
-
-`LMCControlCommandService.st` AdminCapabilities:
-
-- feature mask `0x00000717`
-- software supported mode mask `0x018A` = PP(1), PV(3), IP(7), CSP(8)
-
-따라서 WPF의 `AdminTriad=True`, `SupportedModeMask=0x018A`, `DiagnosticsIdentity=True`는 source와 일치한다.
-
-### 2.2 구현된 software path
-
-- target: PP(1), PV(3), IP(7), CSP(8)
-- Homing(6)은 HomeDS402/HomeDS402Ex 소유
-- live PLC advertised mode 확인
-- durable pre-dispatch arm / exact outcome / exact-generation retire
-- Start no-replay recovery
-- requested / preflight / observed mode 및 DS402/write evidence diagnostics
-- raw Generic SDO `0x6060` 금지
-- cross-mode fresh drive-status safety preflight
-
-### 2.3 17:28 실기 로그에서 새로 확인된 blocker
-
-실행 identity:
+현재 source expectation:
 
 ```text
-LasalMotionControlApiExample.exe Version=0.9.1.0
-BuildUtc=2026-08-28 08:27:44 UTC
-LasalMotionControlLib.dll BuildUtc=2026-08-28 08:27:41 UTC
+LMC_DIAG_SET_OPERATION_MODE_ENABLED TRUE
+LMC_DIAG_SET_OPERATION_MODE_SOFTWARE_MODES TRUE
+Admin FeatureMask = 0x00000717
+SetOperationModeSupportedMask = 0x018A
 ```
 
-Axis1 current mode CSP(8)에서 PP/PV/IP 요청 모두:
+`0x018A` = PP(1), PV(3), IP(7), CSP(8).
+
+구현된 host path:
+
+- supported-mode live capability 확인;
+- Axis1 current mode/status preflight;
+- cross-mode Standstill/Fault/OperationEnabled fence;
+- final Diagnostics Build/BootId/MapRevision refresh;
+- one-shot Prepare;
+- durable ArmBeforeDispatch;
+- Start exactly once;
+- definitive reject archive / no automatic replay.
+
+raw Generic SDO `0x6060` mutation은 계속 금지한다.
+
+---
+
+## 3. SetOperationMode latest physical evidence
+
+latest WPF/SDK identity:
 
 ```text
-SetOperationMode cross-mode preflight passed
+WPF BuildUtc=2026-08-31 02:33:22 UTC
+SDK BuildUtc=2026-08-31 02:33:19 UTC
+```
+
+Axis1 CSP(8) -> PP(1):
+
+```text
+cross-mode preflight passed
 StatusWord=0x02D0
+final Diagnostics refreshed
+Build=1
+BootId=0x00000068
+MapRevision=0x957F101E
+Prepare PASS
+journal armed before dispatch
+PLC Start reject
+ErrorId=-31000
+Detail=SetOperationModeOutcomeStorageUnavailable(49)
 ```
 
-까지 도달했다. 따라서 이번 재현은 software supported-mode selector나 cross-mode safety preflight reject가 아니다.
+BootId history `0x66 -> 0x67 -> 0x68`에서 동일 Detail 49가 반복됐다.
 
-그 직후 모든 요청이 동일 오류로 종료됐다.
+따라서 이전 host capability freshness ordering defect는 current blocker가 아니다. 현재 blocker는 **PLC Start admission before `0x6060` mutation**이다.
 
-```text
-The supplied diagnostics capabilities are not the current observation.
-```
+아직 physical PASS가 아닌 항목:
 
-source trace 결과:
-
-```text
-RefreshDiagnosticsCapabilitiesAsync()
-    -> cached capability observation N
-ReadDriveStatusAsync()
-    -> inline D5 0x6041 submission
-       -> Diagnostics.GetCapabilities() -> N+1
-    -> inline D5 0x6061 submission
-       -> Diagnostics.GetCapabilities() -> N+2
-PrepareSetOperationMode(cached N)
-    -> requireCurrentObservation=true
-    -> N != current N+2
-    -> InvalidOperationException
-```
-
-즉 **PR #58에서 추가한 fresh preflight가 자체적으로 Diagnostics capability observation sequence를 진행시켜, 직전에 캐시한 capability를 stale로 만드는 execution-order bug**다.
-
-이 실패는 `PrepareSetOperationMode()` capability validation 단계에서 발생하므로 현재 로그에서는:
-
-- durable journal arm 전
-- `0x7D23 Start` 전
-- 실제 `0x6060` Write 전
-
-이다. 따라서 PP/PV/IP가 PLC에서 거부됐다고 판정하면 안 된다. 아직 mutation wire까지 도달하지 못했다.
-
-### 2.4 D5 terminal wake 로그 판정
-
-각 시도 주변에 다음 로그가 반복된다.
-
-```text
-D5 terminal wake ignored: no exact current retained ticket
-```
-
-fresh preflight는 `0x6041`과 `0x6061`을 inline D5 SDO ticket으로 읽으며, 이 activity가 terminal wake callback을 발생시킬 수 있다. 현재 재현에서는 해당 메시지를 primary fault로 보지 않는다. primary fault는 위 capability observation sequence mismatch다.
-
-### 2.5 corrective direction
-
-freshness fence 자체를 제거하지 않는다. 수정 순서는 다음으로 고정한다.
-
-```text
-Admin capability refresh / requested mode advertise 확인
--> GetPhysicalAxis
--> ReadDriveStatusAsync fresh preflight
--> FINAL Diagnostics capability refresh
--> Ensure capability/admission ready
--> PrepareSetOperationMode
--> durable ArmBeforeDispatch
--> Start exactly once
-```
-
-유지할 계약:
-
-- `requireCurrentObservation=true`
-- stable Build/BootId/MapRevision
-- Standstill/Fault/OperationEnabled fence
-- one-shot confirmation
-- durable no-replay
-- raw `0x6060` Generic SDO block
-
-추가 regression은 old observation이 preflight 후 stale이 되는 사실과, final refresh 후 Prepare가 성공하는 ordering을 직접 고정해야 한다.
+- Start acceptance;
+- `0x6060` one-byte mutation;
+- `0x6061` target verification;
+- terminal outcome/retire;
+- accepted/uncertain mutation recovery.
 
 ---
 
-## 3. Generic SDO — 실제 source truth
+## 4. owner-channel correction 재평가
 
-### 3.1 current activation state
+commit `c670bd6fbc816116eacbe19b94199479d1a8cacf`는:
 
-`LMCDiagnosticsService.st`:
+- embedded LASAL client metadata order 정렬;
+- AxisOwnership disconnected를 Detail 52로 분리;
+- SDK/error catalog/static verification 동기화.
 
-- `LMC_DIAG_D5_SDO_WRITE_GLOBAL_ENABLED TRUE`
-- `LMC_DIAG_D5_SDO_WRITE_UI24_AXIS1_ENABLED TRUE`
+정적/source consistency 관점에서는 유지할 correction이지만, BootId `0x68` 실기에서 Detail 49가 재현됐으므로 **physical root-cause fix로는 실패**했다.
 
-### 3.2 완료된 software tranche
+current corrected Start source 기준:
 
-- **SDO-R02**: `LMCSdoExecutor` manual Server / programmatic API dual-entry arbitration
-- **SDO-R03**: physical axis 1..4 generic scalar Write policy, canonical 1/2/4-byte width
-- **SDO-R04**: WPF arbitrary request editor, exact preview, reserved/semantic warning
-- **SDO-R05**: v3 durable exact-request identity, endpoint/build/BootId/MapRevision binding, restart read-only recovery, legacy v1/v2 zero-wire
+```text
+zero session/sequence/admission token/owner generation -> 49
+AxisOwnership disconnected -> 52
+ownership identity validate/commit failure -> 42
+runtime SetOperationMode feature gate OFF -> 49
+```
 
-### 3.3 PR #58 safe-state correction
-
-ordinary Generic SDO Write 요구조건:
-
-- `Standstill=True`
-- DS402 Fault=False
-- DS402 OperationEnabled=False
-
-PLC가 허용하는 generic non-semantic DS402 base state:
-
-- `0x40` Switch On Disabled
-- `0x21` Ready To Switch On
-- `0x23` Switched On
-
-계속 거부:
-
-- `0x27` Operation Enabled 및 기타 unsafe state
-- semantic/dedicated-owner raw object `0x6040`, `0x6060`, `0x607A`, `0x60FF`, `0x6071`, `0x3204`, `0x20FC`
-
-### 3.4 software evidence
-
-PR #58 corrective qualification:
-
-- API Debug full suite: **1200/1200 PASS**
-- Generic SDO WPF focused smoke: **17/17 PASS**
-- API/WPF Debug + Release build: PASS
-- permanent corrective verifier: PASS
-- Generic SDO policy verifier: PASS
-
-이 evidence는 source/PC contract다. 실제 drive object Write/readback hardware PASS를 대신하지 않는다.
+따라서 corrected image가 실제로 실행된다는 전제에서는 Detail 49를 AxisOwnership disconnected로 계속 해석하지 않는다.
 
 ---
 
-## 4. repository / 운영 상태
+## 5. 다음 SetOperationMode 수정 설계 상태
 
-2026-08-28 branch cleanup 결과 remote branch는 현재:
+이번 단계에서는 functional source를 더 변경하지 않는다.
 
-- `main`
-- `dev`
+Detail 49가 runtime feature-disabled와 zero admission identity를 동시에 표현하는 ambiguity를 먼저 분리하는 설계를 기록한다.
 
-두 개만 유지한다. 기존 29개 `codex/*` branch는 모두 `dev` ancestor임을 확인한 뒤 삭제했다.
+proposed, not yet implemented:
+
+```text
+49 = actual SetOperationMode outcome/storage unavailable
+52 = AxisOwnership channel unavailable [existing]
+63 = SetOperationModeAdmissionIdentityUnavailable [proposed]
+64 = SetOperationModeFeatureDisabled [proposed]
+```
+
+다음 implementation은 최소 다음 evidence를 구분해야 한다.
+
+- feature enabled/disabled;
+- caller session epoch zero/nonzero;
+- request sequence zero/nonzero;
+- admission token zero/nonzero;
+- owner generation zero/nonzero;
+- AxisOwnership connected/disconnected;
+- ownership validate result;
+- ownership commit result.
+
+원인 확인 후에만 해당 경로를 수정한다. admission token이나 ownership validation을 우회하지 않는다.
+
+---
+
+## 6. Generic SDO current source truth
+
+activation:
+
+```text
+LMC_DIAG_D5_SDO_WRITE_GLOBAL_ENABLED TRUE
+LMC_DIAG_D5_SDO_WRITE_UI24_AXIS1_ENABLED TRUE
+```
+
+완료된 software tranche:
+
+- manual Server / programmatic API dual-entry arbitration;
+- axis 1..4 generic scalar 1/2/4-byte Write policy;
+- WPF arbitrary request editor + exact preview;
+- v3 durable exact-request recovery;
+- ordinary Write safe-state correction.
+
+ordinary Write requirements:
+
+- Standstill=True
+- Fault=False
+- OperationEnabled=False
+
+raw semantic/dedicated-owner blocklist 유지:
+
+`0x6040`, `0x6060`, `0x607A`, `0x60FF`, `0x6071`, `0x3204`, `0x20FC`.
+
+software evidence는 hardware Write/readback PASS를 대신하지 않는다.
+
+---
+
+## 7. repository 운영 상태
+
+remote integration branch는 `main`, `dev`만 유지한다.
 
 운영 규칙:
 
-- `dev`가 유일한 integration / current qualification source truth다.
-- 실기 전 source SHA + C78 artifact + PLC loaded image + WPF source를 하나의 identity set으로 묶는다.
-- source CI PASS와 hardware PASS를 분리한다.
-- qualification 중 발견된 blocker는 branch를 늘리기보다 current `dev` 설계/status에 먼저 반영한다.
+- `dev` = current integration / qualification source truth;
+- source SHA + LASAL generated artifact + PLC-loaded image + WPF build를 별도 identity gate로 관리;
+- CI/source PASS와 hardware PASS를 분리;
+- blocker 발견 시 불필요한 branch를 늘리지 않고 current design/status 문서를 먼저 갱신.
 
 ---
 
-## 5. 현재 작업 순서
+## 8. 현재 작업 순서
 
-1. **DONE** — Operation Mode / Generic SDO corrective source `dev` merge (#58)
-2. **DONE** — stale qualification branch 및 29개 `codex/*` branch 정리
-3. **DONE** — 17:28 live failure를 host capability freshness ordering defect로 root-cause 분석
-4. **NOW** — SetOperationMode preflight 이후 final Diagnostics capability refresh ordering 수정
-5. focused API/WPF regression 추가: stale old observation reject + final-current observation Prepare success
-6. updated `dev` WPF/API build
-7. 필요 시 exact source로 LASAL C78/PLC identity 재확인
-8. Axis1 SetOperationMode PP/PV/IP/CSP physical matrix
-9. Axis1 Generic SDO physical Write/readback matrix
+1. **DONE** — host capability freshness ordering correction
+2. **DONE** — Axis1 CSP -> PP host preflight/final refresh/Prepare/journal path 확인
+3. **DONE** — BootId `0x66`, `0x67`, `0x68`에서 PLC Detail 49 반복 확인
+4. **DONE** — owner-channel source consistency correction을 physical fix에서 제외하여 재분류
+5. **NOW (DESIGN ONLY)** — Detail 49 내부 원인 분리 설계 문서화
+6. 다음 implementation 시 feature-disabled vs admission-identity-zero를 별도 detail/evidence로 분리
+7. 원인 확정 후 해당 runtime path만 수정
+8. Start accepted 이후 Axis1 PP/PV/IP/CSP physical matrix
+9. Generic SDO physical matrix
 10. failure/recovery matrix -> Axis2..4
 11. production release activation review
+
+현재 release 판정은 계속 **NO-GO**다.
