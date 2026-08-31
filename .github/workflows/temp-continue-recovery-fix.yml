@@ -21,20 +21,12 @@ jobs:
           fetch-depth: 0
           ref: dev
 
-      - name: Apply focused fixes
+      - name: Apply focused source fixes
         shell: powershell
         run: |
           @'
           from pathlib import Path
           import re
-
-          def replace_exact(path, old, new, count=1):
-              p = Path(path)
-              text = p.read_text(encoding='utf-8')
-              actual = text.count(old)
-              if actual != count:
-                  raise SystemExit(f'{path}: expected {count} occurrence(s), found {actual}')
-              p.write_text(text.replace(old, new), encoding='utf-8')
 
           def replace_regex(path, pattern, replacement, count=1):
               p = Path(path)
@@ -66,12 +58,6 @@ jobs:
               diagnostics,
               r'(?m)^(\s*)<Client Name="AxisOwnership" Required="true" Internal="false"/>\s*\n\s*<Client Name="InputLatch" Required="true" Internal="false"/>',
               r'\1<Client Name="InputLatch" Required="true" Internal="false"/>\n\1<Client Name="AxisOwnership" Required="true" Internal="false"/>')
-
-          workflow = r'.github/workflows/set-operation-mode-static-qualification.yml'
-          replace_exact(
-              workflow,
-              "& '.\\tools\\Verify-SetOperationModeStatic.ps1' -ExpectedSdoWriteAxis 1",
-              "& '.\\tools\\Verify-SetOperationModeStatic.ps1' -ExpectedSdoWriteAxis 1 -QualificationActivation")
           '@ | python -
 
       - name: Locate MSBuild
@@ -122,11 +108,11 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           git status --short
 
-      - name: Commit verified fixes to dev
+      - name: Commit verified source fixes to dev
         shell: powershell
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -- 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/RecoveryRecordRetirementLedger.cs' 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/UiLocalization.cs' 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st' '.github/workflows/set-operation-mode-static-qualification.yml'
+          git add -- 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/RecoveryRecordRetirementLedger.cs' 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/UiLocalization.cs' 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
           git commit -m 'fix(wpf): complete stale recovery retirement flow'
           git push origin HEAD:dev
