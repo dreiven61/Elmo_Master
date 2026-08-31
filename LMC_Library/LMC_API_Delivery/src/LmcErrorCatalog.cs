@@ -347,6 +347,12 @@ namespace LasalMotionControlLib
             AddAdmin(entries, LMCAdminDetailCode.SetOperationModeOwnershipChannelUnavailable,
                 "The LMCDiagnosticsService AxisOwnership client is not connected to LMCControlCommandService at runtime.",
                 "Do not bypass ownership. Rebuild/link the LASAL communication network and verify the AxisOwnership client connection before retrying SetOperationMode.");
+            AddAdmin(entries, LMCAdminDetailCode.SetOperationModeAdmissionIdentityUnavailable,
+                "The SetOperationMode Start request reached the PLC without a complete nonzero ownership admission identity.",
+                "Do not synthesize or replay an admission token. Inspect the TCP reservation to Diagnostics forwarding path, then submit a new intent only after the identity path is repaired.");
+            AddAdmin(entries, LMCAdminDetailCode.SetOperationModeFeatureDisabled,
+                "The loaded PLC runtime has SetOperationMode disabled at its feature gate.",
+                "Verify the exact generated PLC artifact and loaded image feature activation before submitting a new Start request.");
             AddAdmin(entries, LMCAdminDetailCode.SetOperationModeExecutionFailed,
                 "The accepted SetOperationMode operation failed during the bounded 0x6061/0x6060/0x6061 lifecycle.",
                 "Inspect the retained evidence flags, observed mode, status word, and quarantine reason before recovery.");

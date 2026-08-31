@@ -125,7 +125,9 @@ namespace LasalMotionControlLib
         Ds402HomeExAborted = 59,
         Ds402HomeExOutcomeSlotOccupied = 60,
         Ds402HomeExInvalidProfile = 61,
-        Ds402HomeExCleanupIncomplete = 62
+        Ds402HomeExCleanupIncomplete = 62,
+        SetOperationModeAdmissionIdentityUnavailable = 63,
+        SetOperationModeFeatureDisabled = 64
     }
 
     public sealed class LMCAdminResponse

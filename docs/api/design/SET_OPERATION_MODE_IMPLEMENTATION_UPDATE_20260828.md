@@ -152,7 +152,7 @@ ownership identity validate/commit failure
     -> 42
 ```
 
-그리고 runtime SetOperationMode gate OFF도 49를 반환한다.
+그리고 runtime SetOperationMode gate OFF는 Detail 64를 반환한다.
 
 따라서 exact corrected image가 실행된다는 전제에서는 최신 49를 AxisOwnership disconnected로 다시 추정하지 않는다.
 
@@ -165,13 +165,13 @@ ownership identity validate/commit failure
 
 ---
 
-## 7. 다음 수정 설계 — observability first
+## 7. Detail 49 observability — implemented
 
-추가 safety-path 변경 전에 Detail 49 ambiguity부터 제거한다.
+Detail 49 ambiguity split은 safety-path 변경 없이 current `dev`에 구현됐다.
 
 ### 7.1 protocol/detail split proposal
 
-아래 63/64는 설계 예약이며 아직 구현하지 않는다.
+아래 63/64는 current protocol contract다.
 
 ```text
 49 SetOperationModeOutcomeStorageUnavailable
@@ -180,14 +180,14 @@ ownership identity validate/commit failure
 52 SetOperationModeOwnershipChannelUnavailable
    AxisOwnership client disconnected
 
-63 SetOperationModeAdmissionIdentityUnavailable [PROPOSED]
+63 SetOperationModeAdmissionIdentityUnavailable
    session/sequence/token/generation 중 하나가 zero
 
-64 SetOperationModeFeatureDisabled [PROPOSED]
+64 SetOperationModeFeatureDisabled
    runtime feature gate OFF
 ```
 
-구현 시 SDK enum, parser acceptance range, error catalog, WPF symbolic logging, static verifier를 하나의 protocol change로 취급한다.
+SDK enum, parser Start rejection acceptance, error catalog, WPF symbolic logging, static verifier를 하나의 protocol change로 반영했다.
 
 ### 7.2 evidence fields
 
@@ -218,9 +218,9 @@ Start reject diagnostic은 최소 다음 boolean/zero-state evidence를 남겨�
 
 ## 8. regression/qualification requirement
 
-다음 software implementation이 시작될 경우 최소 test requirement:
+이번 implementation의 software regression requirement:
 
-1. 각 proposed detail producer가 다른 원인으로 정확히 분리됨;
+1. 각 detail producer가 다른 원인으로 정확히 분리됨;
 2. zero admission tuple은 mutation wire 없이 fail;
 3. disconnected AxisOwnership은 Detail 52 유지;
 4. gate OFF는 dedicated feature-disabled detail로 분리;

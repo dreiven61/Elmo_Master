@@ -35,7 +35,7 @@ SetOperationMode의 current blocker는 더 이상 host capability freshness orde
 | MODE-R01 | supported mode capability + diagnostics | 완료 | live mask/identity 유지 |
 | MODE-R02 | PP/PV/IP/CSP software execution | 완료 | PLC Start admission blocker 해소 후 physical matrix |
 | MODE-R03 | cross-mode fresh preflight/final diagnostics refresh | 완료 | Axis1 CSP->PP host path PASS |
-| MODE-R04 | Detail 49 physical blocker analysis | **OPEN** | feature-disabled vs admission-identity-zero observability 분리 |
+| MODE-R04 | Detail 49 physical blocker analysis | **software observability implemented** | fresh PLC image에서 Detail 63/64 discriminator 확인 |
 | REL-R01 | release/distribution | 미완료 | physical matrix 후 release review |
 
 ---
@@ -211,7 +211,7 @@ runtime feature gate OFF -> 49
 
 ### proposed detail split
 
-다음 63/64는 설계 예약이며 아직 구현되지 않았다.
+63/64 detail split은 current `dev`에 구현됐다.
 
 ```text
 49 SetOperationModeOutcomeStorageUnavailable
@@ -220,16 +220,16 @@ runtime feature gate OFF -> 49
 52 SetOperationModeOwnershipChannelUnavailable
    기존 구현 유지
 
-63 SetOperationModeAdmissionIdentityUnavailable [PROPOSED]
+63 SetOperationModeAdmissionIdentityUnavailable
    session/sequence/token/generation 중 하나가 zero
 
-64 SetOperationModeFeatureDisabled [PROPOSED]
+64 SetOperationModeFeatureDisabled
    runtime feature activation OFF
 ```
 
 ### required evidence
 
-다음 implementation은 최소 다음을 분리해 기록한다.
+current implementation은 다음 zero/nonzero discriminator를 separate producer detail로 분리한다.
 
 - FeatureEnabled
 - CallerSessionEpochNonZero

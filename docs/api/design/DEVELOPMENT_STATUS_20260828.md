@@ -105,29 +105,25 @@ current corrected Start source 기준:
 zero session/sequence/admission token/owner generation -> 49
 AxisOwnership disconnected -> 52
 ownership identity validate/commit failure -> 42
-runtime SetOperationMode feature gate OFF -> 49
+runtime SetOperationMode feature gate OFF -> 64
 ```
 
 따라서 corrected image가 실제로 실행된다는 전제에서는 Detail 49를 AxisOwnership disconnected로 계속 해석하지 않는다.
 
 ---
 
-## 5. 다음 SetOperationMode 수정 설계 상태
+## 5. Detail 49 observability implementation
 
-이번 단계에서는 functional source를 더 변경하지 않는다.
-
-Detail 49가 runtime feature-disabled와 zero admission identity를 동시에 표현하는 ambiguity를 먼저 분리하는 설계를 기록한다.
-
-proposed, not yet implemented:
+Detail 49 ambiguity split은 current `dev` source에 구현됐다. 이 변경은 admission, ownership, retained outcome, or no-replay behavior를 완화하지 않는 diagnostic contract change다.
 
 ```text
 49 = actual SetOperationMode outcome/storage unavailable
 52 = AxisOwnership channel unavailable [existing]
-63 = SetOperationModeAdmissionIdentityUnavailable [proposed]
-64 = SetOperationModeFeatureDisabled [proposed]
+63 = SetOperationModeAdmissionIdentityUnavailable
+64 = SetOperationModeFeatureDisabled
 ```
 
-다음 implementation은 최소 다음 evidence를 구분해야 한다.
+Start rejection은 다음 zero/nonzero discriminator를 별도 detail로 구분한다.
 
 - feature enabled/disabled;
 - caller session epoch zero/nonzero;
@@ -138,7 +134,7 @@ proposed, not yet implemented:
 - ownership validate result;
 - ownership commit result.
 
-원인 확인 후에만 해당 경로를 수정한다. admission token이나 ownership validation을 우회하지 않는다.
+PLC download 후 Detail 63/64를 확인해 다음 functional root cause를 결정한다. admission token이나 ownership validation을 우회하지 않는다.
 
 ---
 

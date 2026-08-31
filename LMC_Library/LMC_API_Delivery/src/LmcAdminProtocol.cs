@@ -895,7 +895,13 @@ namespace LasalMotionControlLib
                                 .SetOperationModeUnsupportedMode
                         && detailCode
                             <= (uint)LMCAdminDetailCode
-                                .SetOperationModeOutcomeSlotOccupied)))
+                                .SetOperationModeOutcomeSlotOccupied)
+                    || detailCode
+                        == (uint)LMCAdminDetailCode
+                            .SetOperationModeAdmissionIdentityUnavailable
+                    || detailCode
+                        == (uint)LMCAdminDetailCode
+                            .SetOperationModeFeatureDisabled))
             {
                 return errorId == AdminErrorId;
             }

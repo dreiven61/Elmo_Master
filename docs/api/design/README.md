@@ -4,6 +4,7 @@
 - current integration / qualification source: `dev`
 - current status snapshot: `DEVELOPMENT_STATUS_20260831.md`
 - current SetOperationMode implementation result: `SET_OPERATION_MODE_START_EXECUTION_IMPLEMENTATION_RESULT_20260831.md`
+- current Detail 49 observability implementation result: `SET_OPERATION_MODE_DETAIL49_OBSERVABILITY_IMPLEMENTATION_RESULT_20260831.md`
 - implementation contract: `SET_OPERATION_MODE_START_EXECUTION_REFACTOR_PLAN_20260831.md`
 - current API progress: `../API_DEVELOPMENT_PROGRESS.md`
 - current API manual: `../API_MANUAL.md`

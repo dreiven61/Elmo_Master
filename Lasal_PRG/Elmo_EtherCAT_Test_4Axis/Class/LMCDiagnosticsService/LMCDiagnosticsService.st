@@ -20,8 +20,8 @@
 	<Channels>
 		<Server Name="ClassSvr" GUID="{9DB9E1D9-002C-4FBC-A4C3-38A7C42F3815}" Visualized="false" Initialize="false" WriteProtected="true" Retentive="false"/>
 		<Server Name="DiagnosticsBootCounter" GUID="{030E4D7F-6C9D-4B30-AFDD-30FCCA2226DA}" Visualized="false" Initialize="true" DefValue="0" WriteProtected="false" Retentive="File" Comment="Persistent diagnostics resource generation counter."/>
-		<Client Name="InputLatch" Required="true" Internal="false"/>
 		<Client Name="AxisOwnership" Required="true" Internal="false"/>
+		<Client Name="InputLatch" Required="true" Internal="false"/>
 		<Client Name="RecorderStore" Required="true" Internal="false"/>
 		<Client Name="SdoAxis1" Required="true" Internal="false"/>
 		<Client Name="SdoAxis2" Required="true" Internal="false"/>
@@ -727,6 +727,8 @@ END_FUNCTION
 #define LMC_DIAG_MODE_DETAIL_EXECUTION 50
 #define LMC_DIAG_MODE_DETAIL_SLOT_OCCUPIED 51
 #define LMC_DIAG_MODE_DETAIL_OWNERSHIP_CHANNEL 52
+#define LMC_DIAG_MODE_DETAIL_ADMISSION_IDENTITY 63
+#define LMC_DIAG_MODE_DETAIL_FEATURE_DISABLED 64
 #define LMC_DIAG_MODE_AXIS_STANDSTILL 0x02000000
 #define LMC_DIAG_MODE_DS402_FAULT 0x00000008
 #define LMC_DIAG_MODE_DS402_OPERATION_ENABLED 0x00000004
@@ -8916,7 +8918,8 @@ FUNCTION LMCDiagnosticsService::HandleAxisSetOperationModeStart
 	       ((requestedMode <> 1) & (requestedMode <> 3) & (requestedMode <> 7))) then
 		detailCode := LMC_DIAG_MODE_DETAIL_UNSUPPORTED;
 	elsif LMC_DIAG_SET_OPERATION_MODE_ENABLED = FALSE then
-		detailCode := LMC_DIAG_MODE_DETAIL_STORAGE;
+		// Keep detail 49 for actual retained-store availability only.
+		detailCode := LMC_DIAG_MODE_DETAIL_FEATURE_DISABLED;
 	end_if;
 
 	axisMask := 0;
@@ -9008,7 +9011,8 @@ FUNCTION LMCDiagnosticsService::HandleAxisSetOperationModeStart
 	if detailCode = 0 then
 		if (CallerSessionEpoch = 0) | (RequestSequence = 0) |
 		   (AdmissionToken = 0) | (OwnerGeneration = 0) then
-			detailCode := LMC_DIAG_MODE_DETAIL_STORAGE;
+			// Report tuple absence without exposing any admission token value.
+			detailCode := LMC_DIAG_MODE_DETAIL_ADMISSION_IDENTITY;
 		elsif IsClientConnected(#AxisOwnership) = FALSE then
 			detailCode := LMC_DIAG_MODE_DETAIL_OWNERSHIP_CHANNEL;
 		else

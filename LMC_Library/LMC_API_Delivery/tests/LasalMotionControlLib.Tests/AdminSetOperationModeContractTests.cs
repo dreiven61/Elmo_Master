@@ -172,6 +172,26 @@ namespace LasalMotionControlLib.Tests
                     LMCDriveOperationMode.CyclicSynchronousPosition);
             AssertEx.False(domainParsed.Response.IsSuccess);
 
+            foreach (var startRejection in new[]
+            {
+                LMCAdminDetailCode.SetOperationModeAdmissionIdentityUnavailable,
+                LMCAdminDetailCode.SetOperationModeFeatureDisabled
+            })
+            {
+                var diagnosticFailure = FailurePayload(
+                    OriginalRequestId,
+                    startRejection,
+                    24);
+                TestFrame.WriteInt32(diagnosticFailure, 16, 8);
+                var diagnosticParsed = LMC_AdminParser
+                    .ParseStartAxisSetOperationMode(
+                        TestFrame.Response(0, diagnosticFailure),
+                        OriginalRequestId,
+                        LMCDriveOperationMode.CyclicSynchronousPosition);
+                AssertEx.False(diagnosticParsed.Response.IsSuccess);
+                AssertEx.Equal(startRejection, diagnosticParsed.Response.DetailCode);
+            }
+
             var queryOnlyFailure = FailurePayload(
                 OriginalRequestId,
                 LMCAdminDetailCode.SetOperationModeOutcomeNotFound,

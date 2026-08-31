@@ -45,6 +45,16 @@ PR #58 software evidence:
 
 이 결과는 physical mode change 또는 SDO Write 성공 증거가 아니다.
 
+### SetOperationMode Detail 49 observability
+
+The repeated physical Detail 49 blocker has a source/SDK diagnostic split in current `dev`.
+
+- Detail 63: `SetOperationModeAdmissionIdentityUnavailable` for a zero session/sequence/admission-token/owner-generation tuple.
+- Detail 64: `SetOperationModeFeatureDisabled` for a disabled loaded runtime feature gate.
+- Detail 49 remains reserved for actual retained outcome storage availability.
+
+The split preserves ownership validation, durable no-replay, and all DS402 safety fences. It requires a fresh C78 artifact and PLC run to identify the live producer; it does not prove a successful Start.
+
 ### Documentation
 
 2026-08-31에 다음 current 문서를 source truth에 맞게 동기화했다.

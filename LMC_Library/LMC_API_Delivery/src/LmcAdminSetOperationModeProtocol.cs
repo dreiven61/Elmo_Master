@@ -219,6 +219,12 @@ namespace LasalMotionControlLib
                     == LMCAdminDetailCode
                         .SetOperationModeOutcomeStorageUnavailable
                 || detailCode
+                    == LMCAdminDetailCode
+                        .SetOperationModeAdmissionIdentityUnavailable
+                || detailCode
+                    == LMCAdminDetailCode
+                        .SetOperationModeFeatureDisabled
+                || detailCode
                     == LMCAdminDetailCode.SetOperationModeOutcomeSlotOccupied;
         }
     }
