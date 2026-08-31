@@ -50,10 +50,6 @@ namespace LasalMotionControlApiExample
 
             InitializeAxisSetOperationModeRecoveryUi(
                 physicalAxisReferences);
-            buttonStartAxisSetOperationMode.Click -=
-                ButtonStartAxisSetOperationMode_Click;
-            buttonStartAxisSetOperationMode.Click +=
-                ButtonStartAxisSetOperationModeWithRejectResolution_Click;
         }
 
         private void ClearReadOnlyApiState()
@@ -289,48 +285,6 @@ namespace LasalMotionControlApiExample
                         () => currentAxis.GetDriveErrorCodeAsync(
                             CancellationToken.None));
                     TextDriveReadResult.Text = FormatDriveErrorCode(result);
-                });
-        }
-
-        private async void
-            ButtonStartAxisSetOperationModeWithRejectResolution_Click(
-                object sender,
-                RoutedEventArgs e)
-        {
-            await RunOperationAsync(
-                "Set Operation Mode Selected Mode Once",
-                async () =>
-                {
-                    try
-                    {
-                        await StartAxisSetOperationModeOnceAsync();
-                    }
-                    catch (LMCAxisSetOperationModeRejectedException error)
-                    {
-                        var record =
-                            RequireActiveAxisSetOperationModeRecoveryRecord(
-                                "definitive SetOperationMode Start rejection");
-                        var evidencePath =
-                            ResolveDefinitiveAxisSetOperationModeStartRejection(
-                                record,
-                                error.Acknowledgement.PreparedCommand.RecoveryKey,
-                                error.Response.SchemaVersion,
-                                error.Response.CommandStatus,
-                                error.Response.ErrorId,
-                                error.Response.RequestId,
-                                error.Response.DetailCodeValue,
-                                error.Response.IsSuccess,
-                                DateTime.UtcNow);
-                        RefreshAxisSetOperationModeRecoveryUi(
-                            "START REJECTED DEFINITIVELY: "
-                            + error.Response.DetailCode
-                            + ". PLC rejected the request before creating a retained SetOperationMode outcome. "
-                            + "The rejection and original pre-dispatch journal were archived durably at "
-                            + evidencePath
-                            + "; the recovery interlock is cleared. A future Start requires a new explicit confirmation and new identity.");
-                        UpdateUiState();
-                        throw;
-                    }
                 });
         }
 

@@ -24,6 +24,7 @@ namespace LasalMotionControlApiExample
         private string axisSetOperationModeRecoveryJournalError;
         private bool axisSetOperationModeUiInterlockHooked;
         private bool axisSetOperationModeInterlockReapplyQueued;
+        private int axisSetOperationModeStartUiHandlerEntryCount;
 
         private GroupBox groupAxisSetOperationModeRecovery;
         private ComboBox comboAxisSetOperationModeReference;
@@ -65,6 +66,17 @@ namespace LasalMotionControlApiExample
         internal Button AxisSetOperationModeStartButtonForTests
         {
             get { return buttonStartAxisSetOperationMode; }
+        }
+
+        internal int AxisSetOperationModeStartUiHandlerEntryCountForTests
+        {
+            get { return axisSetOperationModeStartUiHandlerEntryCount; }
+        }
+
+        internal void RaiseAxisSetOperationModeStartClickForTests()
+        {
+            buttonStartAxisSetOperationMode.RaiseEvent(
+                new RoutedEventArgs(Button.ClickEvent));
         }
 
         internal Button AxisSetOperationModeRecoverButtonForTests
@@ -666,9 +678,43 @@ namespace LasalMotionControlApiExample
             object sender,
             RoutedEventArgs e)
         {
+            axisSetOperationModeStartUiHandlerEntryCount++;
+            WriteLog("SetOperationMode Start UI handler entered.");
             await RunOperationAsync(
                 "Set Operation Mode Selected Mode Once",
-                StartAxisSetOperationModeOnceAsync);
+                async () =>
+                {
+                    try
+                    {
+                        await StartAxisSetOperationModeOnceAsync();
+                    }
+                    catch (LMCAxisSetOperationModeRejectedException error)
+                    {
+                        var record =
+                            RequireActiveAxisSetOperationModeRecoveryRecord(
+                                "definitive SetOperationMode Start rejection");
+                        var evidencePath =
+                            ResolveDefinitiveAxisSetOperationModeStartRejection(
+                                record,
+                                error.Acknowledgement.PreparedCommand.RecoveryKey,
+                                error.Response.SchemaVersion,
+                                error.Response.CommandStatus,
+                                error.Response.ErrorId,
+                                error.Response.RequestId,
+                                error.Response.DetailCodeValue,
+                                error.Response.IsSuccess,
+                                DateTime.UtcNow);
+                        RefreshAxisSetOperationModeRecoveryUi(
+                            "START REJECTED DEFINITIVELY: "
+                            + error.Response.DetailCode
+                            + ". PLC rejected the request before creating a retained SetOperationMode outcome. "
+                            + "The rejection and original pre-dispatch journal were archived durably at "
+                            + evidencePath
+                            + "; the recovery interlock is cleared. A future Start requires a new explicit confirmation and new identity.");
+                        UpdateUiState();
+                        throw;
+                    }
+                });
         }
 
         private async Task VerifyAxisSetOperationModeTransitionPreflightAsync(
@@ -770,20 +816,52 @@ namespace LasalMotionControlApiExample
                 throw new NotSupportedException(
                     "The connected PLC no longer advertises the selected SetOperationMode target. No Start was sent.");
             }
-            await RefreshDiagnosticsCapabilitiesAsync(currentConnection);
-            EnsureAxisSetOperationModeCapabilitiesReady(
-                "SetOperationMode Start");
-
             var currentAxis = await GetPhysicalAxisAsync(axisReference);
             await VerifyAxisSetOperationModeTransitionPreflightAsync(
                 currentAxis,
                 requestedMode);
+
+            await RefreshDiagnosticsCapabilitiesAsync(currentConnection);
+            EnsureAxisSetOperationModeCapabilitiesReady(
+                "SetOperationMode Start");
+            var finalDiagnosticCapabilities = diagnosticCapabilities;
+            if (finalDiagnosticCapabilities == null)
+            {
+                throw new InvalidOperationException(
+                    "SetOperationMode final Diagnostics observation is unavailable. No Start was sent.");
+            }
+            WriteLog(
+                "SetOperationMode final Diagnostics refreshed: Build="
+                + finalDiagnosticCapabilities.DiagnosticsBuild.ToString(
+                    CultureInfo.InvariantCulture)
+                + ", BootId=0x"
+                + finalDiagnosticCapabilities.DiagnosticsBootId.ToString(
+                    "X8",
+                    CultureInfo.InvariantCulture)
+                + ", MapRevision=0x"
+                + finalDiagnosticCapabilities.MapRevision.ToString(
+                    "X8",
+                    CultureInfo.InvariantCulture)
+                + ".");
+
             var prepared = currentAxis.PrepareSetOperationMode(
                 requestedMode,
                 timeoutMilliseconds,
                 adminCapabilities,
-                diagnosticCapabilities,
+                finalDiagnosticCapabilities,
                 LMCAxisSetOperationModeExecuteToken.Create());
+            WriteLog(
+                "SetOperationMode prepared: RequestId="
+                + prepared.RequestId.ToString(CultureInfo.InvariantCulture)
+                + ", ClientIntentId="
+                + prepared.RecoveryKey.ClientIntentId0.ToString("X8", CultureInfo.InvariantCulture)
+                + "-"
+                + prepared.RecoveryKey.ClientIntentId1.ToString("X8", CultureInfo.InvariantCulture)
+                + "-"
+                + prepared.RecoveryKey.ClientIntentId2.ToString("X8", CultureInfo.InvariantCulture)
+                + "-"
+                + prepared.RecoveryKey.ClientIntentId3.ToString("X8", CultureInfo.InvariantCulture)
+                + ".");
             var record = axisSetOperationModeRecoveryJournal
                 .ArmBeforeDispatch(
                     Guid.NewGuid(),
@@ -792,6 +870,12 @@ namespace LasalMotionControlApiExample
                     currentAxis.AxisName,
                     prepared.RecoveryKey,
                     DateTime.UtcNow);
+            WriteLog(
+                "SetOperationMode journal armed before dispatch: Identity="
+                + record.Identity.ToString("N")
+                + ", RequestId="
+                + record.OriginalRequestId.ToString(CultureInfo.InvariantCulture)
+                + ".");
             checkAxisSetOperationModeOneShotConfirmed.IsChecked = false;
             RefreshAxisSetOperationModeRecoveryUi();
             ApplyAxisSetOperationModeGlobalInterlock();
@@ -802,6 +886,10 @@ namespace LasalMotionControlApiExample
                     .SetOperationModeAsync(
                         prepared,
                         CancellationToken.None);
+                WriteLog(
+                    "SetOperationMode 0x7D23 dispatch boundary crossed once: RequestId="
+                    + prepared.RequestId.ToString(CultureInfo.InvariantCulture)
+                    + ".");
                 if (acknowledgement == null
                     || !acknowledgement.IsAccepted)
                 {
