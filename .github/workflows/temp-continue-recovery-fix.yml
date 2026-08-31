@@ -1,4 +1,4 @@
-name: Temporary recovery fix continuation
+name: Temporary ownership baseline comparison
 
 on:
   push:
@@ -9,110 +9,59 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  patch-verify-commit:
+  compare-sourceonly:
     runs-on: windows-latest
     steps:
-      - name: Checkout dev
+      - name: Checkout history
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: dev
 
-      - name: Apply focused source fixes
+      - name: Compare repository SourceOnly first blocker
         shell: powershell
         run: |
-          @'
-          from pathlib import Path
-          import re
+          $ErrorActionPreference = 'Continue'
+          $repoRoot = (Get-Location).Path
+          $refs = @(
+            @{ Name = 'pre-recovery-fix'; Sha = '5c405881381c51aca09b7bf00393ea383c371e29' },
+            @{ Name = 'current'; Sha = '${{ github.event.after }}' }
+          )
 
-          def replace_regex(path, pattern, replacement, count=1):
-              p = Path(path)
-              text = p.read_text(encoding='utf-8')
-              updated, actual = re.subn(pattern, replacement, text, count=count, flags=re.MULTILINE)
-              if actual != count:
-                  raise SystemExit(f'{path}: expected {count} regex replacement(s), found {actual}')
-              p.write_text(updated, encoding='utf-8')
+          foreach ($item in $refs) {
+            Write-Host "===== BEGIN $($item.Name) $($item.Sha) ====="
+            git checkout --force $item.Sha
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-          ledger = r'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/RecoveryRecordRetirementLedger.cs'
-          replace_regex(
-              ledger,
-              r'(?m)^\s*var temporaryPath = finalPath\s*\n\s*\+ "\."\s*\n\s*\+ Guid\.NewGuid\(\)\.ToString\("N"\)\s*\n\s*\+ "\.tmp";',
-              '            var temporaryPath = Path.Combine(\n                directoryPath,\n                ".retirement-"\n                    + Guid.NewGuid().ToString("N")\n                    + ".tmp");')
+            $output = New-Object System.Collections.Generic.List[string]
+            $code = 0
+            try {
+              & '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\Verify-LasalContract.ps1' `
+                -RepositoryRoot $repoRoot `
+                -SourceOnly `
+                -ExpectedSdoWriteAxis 1 2>&1 |
+                ForEach-Object {
+                  $text = $_ | Out-String
+                  [void]$output.Add($text.TrimEnd())
+                  Write-Host $_
+                }
+              $code = $LASTEXITCODE
+            }
+            catch {
+              $text = $_ | Out-String
+              [void]$output.Add($text.TrimEnd())
+              Write-Host $text
+              $code = 1
+            }
 
-          localization = r'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/UiLocalization.cs'
-          refresh_word = ''.join(chr(v) for v in (0xC0C8, 0xB85C, 0xACE0, 0xCE68))
-          replace_regex(
-              localization,
-              r'(values\["Refresh Mode Capabilities"\]\s*=\s*\n\s*)"[^"]*";',
-              r'\1"Mode capability ' + refresh_word + '";')
-          replace_regex(
-              localization,
-              r'(values\["Refresh HomeEx Capabilities"\]\s*=\s*\n\s*)"[^"]*";',
-              r'\1"HomeEx capability ' + refresh_word + '";')
+            $joined = [string]::Join("`n", $output)
+            $d2 = $joined.Contains('ordinary safety-repeat self-test did not accept the exact same retained identity tuple after ACTIVE')
+            $c78 = $joined.Contains('SetPosition-augmented Classes.lcb physical identity drifted')
+            Write-Host "RESULT name=$($item.Name) exit=$code D2=$d2 C78=$c78"
+            Write-Host "===== END $($item.Name) ====="
+          }
 
-          diagnostics = r'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
-          replace_regex(
-              diagnostics,
-              r'(?m)^(\s*)<Client Name="AxisOwnership" Required="true" Internal="false"/>\s*\n\s*<Client Name="InputLatch" Required="true" Internal="false"/>',
-              r'\1<Client Name="InputLatch" Required="true" Internal="false"/>\n\1<Client Name="AxisOwnership" Required="true" Internal="false"/>')
-          '@ | python -
-
-      - name: Locate MSBuild
-        id: msbuild
-        shell: powershell
-        run: |
-          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-          $msbuild = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
-          if ([string]::IsNullOrWhiteSpace($msbuild)) { throw 'MSBuild.exe not found.' }
-          "path=$msbuild" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-
-      - name: Build and run focused WPF Debug
-        shell: powershell
-        run: |
-          $project = '.\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\LasalApiWpfTestApp.SmokeTests.csproj'
-          & '${{ steps.msbuild.outputs.path }}' $project /t:Build /p:Configuration=Debug /p:Platform=AnyCPU /m
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $exe = '.\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\bin\Debug\LasalApiWpfTestApp.SmokeTests.exe'
-          & $exe --filter RecoveryRetirement
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          & $exe --filter SetOperationMode
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      - name: Build and run focused WPF Release
-        shell: powershell
-        run: |
-          $project = '.\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\LasalApiWpfTestApp.SmokeTests.csproj'
-          & '${{ steps.msbuild.outputs.path }}' $project /t:Build /p:Configuration=Release /p:Platform=AnyCPU /m
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $exe = '.\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\bin\Release\LasalApiWpfTestApp.SmokeTests.exe'
-          & $exe --filter RecoveryRetirement
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          & $exe --filter SetOperationMode
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      - name: Verify SetOperationMode qualification-active source
-        shell: powershell
-        run: |
-          & '.\tools\Verify-SetOperationModeStatic.ps1' -ExpectedSdoWriteAxis 1 -QualificationActivation
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          & '.\tools\Verify-SetOperationModeDefineOrder.ps1'
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      - name: Diff hygiene
-        shell: powershell
-        run: |
-          git diff --check
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          git status --short
-
-      - name: Commit verified source fixes to dev
-        shell: powershell
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -- 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/RecoveryRecordRetirementLedger.cs' 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/UiLocalization.cs' 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
-          git commit -m 'fix(wpf): complete stale recovery retirement flow'
-          git push origin HEAD:dev
+          exit 0
