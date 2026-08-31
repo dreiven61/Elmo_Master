@@ -32,29 +32,6 @@ jobs:
           python $helper
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-          # The permanent workflow previously used the broad word "SetOperationMode",
-          # which also selects an unrelated HomeDS402Ex localization baseline test.
-          # Keep this tranche's gate scoped to the SetOperationMode lifecycle/recovery surface.
-          $permanentWorkflow = '.\.github\workflows\set-operation-mode-wpf-recovery.yml'
-          $workflowText = Get-Content -LiteralPath $permanentWorkflow -Raw
-          $old = @"
-          & `$exe --filter SetOperationMode
-          if (`$LASTEXITCODE -ne 0) { exit `$LASTEXITCODE }
-"@
-          $new = @"
-          & `$exe --filter 'Wpf.SetOperationModeRecovery.'
-          if (`$LASTEXITCODE -ne 0) { exit `$LASTEXITCODE }
-          & `$exe --filter 'Wpf.AxisSetOperationModeJournal.'
-          if (`$LASTEXITCODE -ne 0) { exit `$LASTEXITCODE }
-          & `$exe --filter 'Wpf.SetOperationModeSdk.'
-          if (`$LASTEXITCODE -ne 0) { exit `$LASTEXITCODE }
-"@
-          if (-not $workflowText.Contains($old)) {
-            throw 'Permanent SetOperationMode workflow broad filter block was not found.'
-          }
-          $workflowText = $workflowText.Replace($old, $new)
-          [IO.File]::WriteAllText((Resolve-Path $permanentWorkflow), $workflowText, (New-Object Text.UTF8Encoding($false)))
-
       - name: Verify Start execution source contract
         shell: powershell
         run: |
@@ -66,13 +43,9 @@ jobs:
         shell: powershell
         run: |
           $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-          if (-not (Test-Path -LiteralPath $vswhere)) {
-            throw "vswhere.exe was not found on the Windows runner."
-          }
+          if (-not (Test-Path -LiteralPath $vswhere)) { throw "vswhere.exe was not found on the Windows runner." }
           $msbuild = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
-          if ([string]::IsNullOrWhiteSpace($msbuild)) {
-            throw "MSBuild.exe was not found on the Windows runner."
-          }
+          if ([string]::IsNullOrWhiteSpace($msbuild)) { throw "MSBuild.exe was not found on the Windows runner." }
           "path=$msbuild" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
       - name: API Debug full regression
