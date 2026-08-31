@@ -20,8 +20,8 @@
 	<Channels>
 		<Server Name="ClassSvr" GUID="{9DB9E1D9-002C-4FBC-A4C3-38A7C42F3815}" Visualized="false" Initialize="false" WriteProtected="true" Retentive="false"/>
 		<Server Name="DiagnosticsBootCounter" GUID="{030E4D7F-6C9D-4B30-AFDD-30FCCA2226DA}" Visualized="false" Initialize="true" DefValue="0" WriteProtected="false" Retentive="File" Comment="Persistent diagnostics resource generation counter."/>
-		<Client Name="AxisOwnership" Required="true" Internal="false"/>
 		<Client Name="InputLatch" Required="true" Internal="false"/>
+		<Client Name="AxisOwnership" Required="true" Internal="false"/>
 		<Client Name="RecorderStore" Required="true" Internal="false"/>
 		<Client Name="SdoAxis1" Required="true" Internal="false"/>
 		<Client Name="SdoAxis2" Required="true" Internal="false"/>

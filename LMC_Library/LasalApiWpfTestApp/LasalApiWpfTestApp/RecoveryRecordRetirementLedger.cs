@@ -993,10 +993,11 @@ namespace LasalMotionControlApiExample
             var finalPath = Path.Combine(
                 directoryPath,
                 BuildEntryFileName(decision.SourceEvidence));
-            var temporaryPath = finalPath
-                + "."
-                + Guid.NewGuid().ToString("N")
-                + ".tmp";
+            var temporaryPath = Path.Combine(
+                directoryPath,
+                ".retirement-"
+                    + Guid.NewGuid().ToString("N")
+                    + ".tmp");
             var temporaryExists = false;
             try
             {

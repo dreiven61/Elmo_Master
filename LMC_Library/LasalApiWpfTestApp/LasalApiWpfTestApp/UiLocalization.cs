@@ -834,14 +834,14 @@ namespace LasalMotionControlApiExample
             values["Query / Retire SetPosition Recovery (No Start Replay)"] =
                 "SetPosition 복구 조회 / 폐기 (Start 재전송 없음)";
             values["Refresh Mode Capabilities"] =
-                "Mode Capability 새로고침";
+                "Mode capability 새로고침";
             values["Query / Retire Recovery (No Start Replay)"] =
                 "복구 조회 / 폐기 (Start 재전송 없음)";
             values[
                 "HomeDS402Ex - durable no-replay recovery (Start UI closed)"] =
                 "HomeDS402Ex - durable 재전송 방지 복구 (Start UI 닫힘)";
             values["Refresh HomeEx Capabilities"] =
-                "HomeEx Capability 새로고침";
+                "HomeEx capability 새로고침";
             values["Query / Retire HomeEx Recovery (No Start Replay)"] =
                 "HomeEx 복구 조회 / 폐기 (Start 재전송 없음)";
             values[
