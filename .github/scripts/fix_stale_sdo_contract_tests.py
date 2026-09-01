@@ -12,8 +12,8 @@ def replace_exact(path, old, new, expected, label):
 journal = Path("LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/DiagnosticsMutationJournalTests.cs")
 text = journal.read_text(encoding="utf-8-sig")
 replacements = [
-    ("TypedSdoV3RoundTripIsImmutable", "TypedSdoV4RoundTripIsImmutable", 2, "typed SDO journal test name"),
-    ("NonCanonicalV3MetadataMarkerFailsClosed", "NonCanonicalV4MetadataMarkerFailsClosed", 2, "metadata marker test name"),
+    ("TypedSdoV3RoundTripIsImmutable", "TypedSdoV4RoundTripIsImmutable", 3, "typed SDO journal test name"),
+    ("NonCanonicalV3MetadataMarkerFailsClosed", "NonCanonicalV4MetadataMarkerFailsClosed", 3, "metadata marker test name"),
     ("FindV3MetadataMarkerOffset", "FindV4MetadataMarkerOffset", 2, "metadata marker helper name"),
     ("New durable SDO records must use journal format v3.", "New durable SDO records must use journal format v4.", 1, "journal format message"),
     ("""                        AssertEx.Equal(
