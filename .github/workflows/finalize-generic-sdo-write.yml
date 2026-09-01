@@ -7,6 +7,7 @@ on:
     paths:
       - .github/workflows/finalize-generic-sdo-write.yml
       - .github/scripts/finalize_generic_sdo_write.py
+      - .github/scripts/fix_stale_sdo_contract_tests.py
 
 permissions:
   contents: write
@@ -22,9 +23,13 @@ jobs:
 
       - uses: microsoft/setup-msbuild@v2
 
-      - name: Apply patch
+      - name: Apply generic Write patch
         shell: pwsh
         run: python .github/scripts/finalize_generic_sdo_write.py
+
+      - name: Align stale SDO contract tests
+        shell: pwsh
+        run: python .github/scripts/fix_stale_sdo_contract_tests.py
 
       - name: Validate diff
         shell: pwsh
@@ -45,9 +50,12 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git rm '.github/workflows/finalize-generic-sdo-write.yml'
           git rm '.github/scripts/finalize_generic_sdo_write.py'
+          git rm '.github/scripts/fix_stale_sdo_contract_tests.py'
           git add 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/SdoWriteActivationQualificationProof.cs'
           git add 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/SdoWriteActivationQualificationProofTests.cs'
           git add 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.Diagnostics.cs'
           git add 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/DiagnosticsD5ContractTests.cs'
+          git add 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/DiagnosticsMutationJournalTests.cs'
+          git add 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/DiagnosticsD45CompletionContractTests.cs'
           git commit -m 'dev: finalize generic SDO Write session qualification'
           git push origin HEAD:dev
