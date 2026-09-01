@@ -1133,6 +1133,16 @@ namespace LasalMotionControlLib
                 return;
             }
 
+            // Generic SDO Write no longer denies valid object addresses by ObjectIndex.
+        }
+
+        private static void ValidateSdoSubmitPolicy(LMCSdoRequest request)
+        {
+            if (request == null)
+            {
+                throw new ArgumentNullException("request");
+            }
+
             ValidateSdoWritePolicy(request);
             if (request.IsWrite)
             {
