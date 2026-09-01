@@ -9,6 +9,22 @@ def replace_exact(path, old, new, expected, label):
     path.write_text(text.replace(old, new), encoding="utf-8")
 
 
+def replace_in_method(text, method_name, old, new, expected, label):
+    marker = "        private static void\n            " + method_name + "()"
+    start = text.find(marker)
+    if start < 0:
+        raise RuntimeError(f"{label}: method marker not found")
+    end = text.find("        private static void", start + len(marker))
+    if end < 0:
+        end = len(text)
+    section = text[start:end]
+    count = section.count(old)
+    if count != expected:
+        raise RuntimeError(
+            f"{label}: expected {expected} match(es) in {method_name}, got {count}")
+    return text[:start] + section.replace(old, new) + text[end:]
+
+
 journal = Path("LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/DiagnosticsMutationJournalTests.cs")
 text = journal.read_text(encoding="utf-8-sig")
 replacements = [
@@ -126,41 +142,54 @@ replace_exact(
 
 wpf = Path("LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/WpfMainWindowIntegrationTests.cs")
 text = wpf.read_text(encoding="utf-8-sig")
-replacements = [
-    (
-        """                    AssertEx.Equal(
+
+text = replace_in_method(
+    text,
+    "WriteConfirmationRequiresExactSecondClickWithoutModal",
+    """                    AssertEx.Equal(
                         \"Confirm & Submit SDO Write\",
                         Convert.ToString(
                             window.ButtonSubmitSdo.Content,
                             CultureInfo.InvariantCulture));
 """,
-        """                    AssertEx.Equal(
+    """                    AssertEx.Equal(
                         \"Run Same-Value Qualification First\",
                         Convert.ToString(
                             window.ButtonSubmitSdo.Content,
                             CultureInfo.InvariantCulture));
 """,
-        1,
-        "confirmation-state smoke has no transport proof",
-    ),
-    (
-        """                    AssertEx.Equal(
+    1,
+    "confirmation-state smoke has no transport proof",
+)
+text = replace_in_method(
+    text,
+    "WriteConfirmationRequiresExactSecondClickWithoutModal",
+    """                    AssertEx.False(
+                        uiState.IsArmed,
+                        \"Editing any SDO Write request field must invalidate the armed snapshot immediately.\");
+                    AssertEx.Equal(
                         \"Arm SDO Write\",
                         Convert.ToString(
                             window.ButtonSubmitSdo.Content,
                             CultureInfo.InvariantCulture));
 """,
-        """                    AssertEx.Equal(
+    """                    AssertEx.False(
+                        uiState.IsArmed,
+                        \"Editing any SDO Write request field must invalidate the armed snapshot immediately.\");
+                    AssertEx.Equal(
                         \"Run Same-Value Qualification First\",
                         Convert.ToString(
                             window.ButtonSubmitSdo.Content,
                             CultureInfo.InvariantCulture));
 """,
-        1,
-        "edited confirmation-state smoke has no transport proof",
-    ),
-    (
-        """                    AssertEx.True(
+    1,
+    "edited confirmation-state smoke has no transport proof",
+)
+
+text = replace_in_method(
+    text,
+    "WriteSameValueAxis1OnlyRequiresConfirmations",
+    """                    AssertEx.True(
                         window.ButtonSubmitSdo.IsEnabled,
                         \"Generic SDO Write did not open with current capabilities and a healthy durable journal.\");
                     AssertEx.Equal(
@@ -169,7 +198,7 @@ replacements = [
                             window.ButtonSubmitSdo.Content,
                             CultureInfo.InvariantCulture));
 """,
-        """                    AssertEx.False(
+    """                    AssertEx.False(
                         window.ButtonSubmitSdo.IsEnabled,
                         \"Manual SDO Write must remain closed until the current-session same-value transport qualification passes.\");
                     AssertEx.Equal(
@@ -178,15 +207,17 @@ replacements = [
                             window.ButtonSubmitSdo.Content,
                             CultureInfo.InvariantCulture));
 """,
-        1,
-        "qualification proof is mandatory before manual Write",
-    ),
-    (
-        """                    AssertEx.True(
+    1,
+    "qualification proof is mandatory before manual Write",
+)
+text = replace_in_method(
+    text,
+    "WriteSameValueAxis1OnlyRequiresConfirmations",
+    """                    AssertEx.True(
                         window.ButtonSubmitSdo.IsEnabled,
                         \"Generic Write must not depend on the optional known-preset same-value qualification proof.\");
 """,
-        """                    AssertEx.False(
+    """                    AssertEx.False(
                         window.ButtonSubmitSdo.IsEnabled,
                         \"Removing the current-session transport proof must close manual SDO Write.\");
                     AssertEx.Equal(
@@ -195,11 +226,13 @@ replacements = [
                             window.ButtonSubmitSdo.Content,
                             CultureInfo.InvariantCulture));
 """,
-        1,
-        "manual Write closes when transport proof is removed",
-    ),
-    (
-        """                    window.TextSdoIndex.Text = \"0x6060\";
+    1,
+    "manual Write closes when transport proof is removed",
+)
+text = replace_in_method(
+    text,
+    "WriteSameValueAxis1OnlyRequiresConfirmations",
+    """                    window.TextSdoIndex.Text = \"0x6060\";
                     var reservedRequestArguments = new object[] { null, null };
                     AssertEx.False(
                         (bool)InvokePrivate(
@@ -226,7 +259,7 @@ replacements = [
                         \"semantic or dedicated-owner objects\",
                         window.TextSdoSemanticWarning.Text);
 """,
-        """                    window.TextSdoIndex.Text = \"0x6060\";
+    """                    window.TextSdoIndex.Text = \"0x6060\";
                     var formerlyReservedRequestArguments =
                         new object[] { null, null };
                     AssertEx.True(
@@ -248,11 +281,13 @@ replacements = [
                         System.Windows.Visibility.Collapsed,
                         window.TextSdoSemanticWarning.Visibility);
 """,
-        1,
-        "0x6060 generic Write is no longer ObjectIndex-reserved",
-    ),
-    (
-        """                    InvokePrivate(
+    1,
+    "0x6060 generic Write is no longer ObjectIndex-reserved",
+)
+text = replace_in_method(
+    text,
+    "PendingReadbackPreservesDraftAndExplicitLoadRestoresExactRequest",
+    """                    InvokePrivate(
                         window,
                         \"ArmSdoWriteMutationJournal\",
                         writeRequest,
@@ -260,7 +295,7 @@ replacements = [
                         DiagnosticsBootId,
                         DiagnosticMapRevision);
 """,
-        """                    InvokePrivate(
+    """                    InvokePrivate(
                         window,
                         \"ArmSdoWriteMutationJournal\",
                         writeRequest,
@@ -270,13 +305,8 @@ replacements = [
                         new byte[] { 0x2A, 0, 0, 0 },
                         new byte[] { 0x2A, 0, 0, 0 });
 """,
-        1,
-        "durable SDO arm reflection signature",
-    ),
-]
-for old, new, expected, label in replacements:
-    count = text.count(old)
-    if count != expected:
-        raise RuntimeError(f"{label}: expected {expected} match(es), got {count}")
-    text = text.replace(old, new)
+    1,
+    "durable SDO arm reflection signature",
+)
+
 wpf.write_text(text, encoding="utf-8")
