@@ -1073,16 +1073,9 @@ FUNCTION LMCDiagnosticsService::GetSdoWritePolicyDetail
 	END_VAR
 
 	DetailCode := 0;
-	// 0x6060 is owned exclusively by the SetOperationMode lifecycle.
-	// Generic D5 must never bypass its owner/outcome/no-replay contract.
-	if (ObjectIndex = 0x6040) | (ObjectIndex = 0x6060) |
-			(ObjectIndex = 0x607A) | (ObjectIndex = 0x60FF) |
-			(ObjectIndex = 0x6071) | (ObjectIndex = 0x3204) |
-			(ObjectIndex = 0x20FC) then
-		DetailCode := 8;
-		RETURN;
-	end_if;
-
+	// Generic D5 SDO Write has no ObjectIndex denylist. Valid nonzero
+	// CoE object indices are admitted by request shape and the remaining
+	// session/capability/safe-axis execution guards.
 		// Generic scalar D5 Write is admitted by request shape and semantic
 		// ownership, not by a compile-time address list. Dedicated encoder
 		// maintenance remains available only through 0x7E53.

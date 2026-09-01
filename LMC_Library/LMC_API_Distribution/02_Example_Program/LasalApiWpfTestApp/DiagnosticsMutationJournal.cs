@@ -101,10 +101,8 @@ namespace LasalMotionControlApiExample
 
         private static bool IsPermanentlyUnsafeObject(ushort objectIndex)
         {
-            return objectIndex == 0x6040
-                || objectIndex == 0x607A
-                || objectIndex == 0x60FF
-                || objectIndex == 0x6071;
+            // Address selection is not denylisted for generic SDO Write.
+            return false;
         }
     }
 

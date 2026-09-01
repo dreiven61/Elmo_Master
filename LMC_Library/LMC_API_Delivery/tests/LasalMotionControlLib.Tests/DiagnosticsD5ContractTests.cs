@@ -470,16 +470,18 @@ namespace LasalMotionControlLib.Tests
                 LMCDiagnosticsWritePolicy.RequireSdoWriteAllowed(generic);
             }
 
-            foreach (var blockedObject in new ushort[]
+            foreach (var formerlyBlockedObject in new ushort[]
             {
                 0x6040, 0x6060, 0x607A, 0x60FF, 0x6071, 0x3204, 0x20FC
             })
             {
-                var blocked = LMCSdoRequest.CreateWrite(
-                    1, blockedObject, 0, LMCSignalValueType.UInt16,
+                var generic = LMCSdoRequest.CreateWrite(
+                    1, formerlyBlockedObject, 0, LMCSignalValueType.UInt16,
                     TestFrame.Hex("00 00"), 100);
-                AssertEx.Throws<NotSupportedException>(
-                    () => LMCDiagnosticsWritePolicy.RequireSdoWriteAllowed(blocked));
+                AssertEx.False(
+                    LMCSdoRequest.IsPermanentlyUnsafeObject(formerlyBlockedObject),
+                    "Generic SDO Write must not deny a valid ObjectIndex by address.");
+                LMCDiagnosticsWritePolicy.RequireSdoWriteAllowed(generic);
             }
 
             var outOfRangeUi24 = LMCSdoRequest.CreateWrite(

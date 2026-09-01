@@ -310,13 +310,8 @@ namespace LasalMotionControlApiExample
 
         private static bool IsPermanentlyUnsafeObject(ushort objectIndex)
         {
-            return objectIndex == 0x6040
-                || objectIndex == 0x6060
-                || objectIndex == 0x607A
-                || objectIndex == 0x60FF
-                || objectIndex == 0x6071
-                || objectIndex == 0x3204
-                || objectIndex == 0x20FC;
+            // Address selection is not denylisted for generic SDO Write.
+            return false;
         }
 
         private static bool ByteArraysEqual(byte[] left, byte[] right)

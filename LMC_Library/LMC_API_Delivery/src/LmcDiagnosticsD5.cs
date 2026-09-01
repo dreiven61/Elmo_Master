@@ -1133,20 +1133,6 @@ namespace LasalMotionControlLib
                 return;
             }
 
-            if (LMCSdoRequest.IsPermanentlyUnsafeObject(request.ObjectIndex))
-            {
-                throw new InvalidOperationException(
-                    "Direct SDO write is permanently blocked for DS402 control and target objects.");
-            }
-        }
-
-        private static void ValidateSdoSubmitPolicy(LMCSdoRequest request)
-        {
-            if (request == null)
-            {
-                throw new ArgumentNullException("request");
-            }
-
             ValidateSdoWritePolicy(request);
             if (request.IsWrite)
             {

@@ -32,10 +32,10 @@ namespace LasalMotionControlLib.Tests
                 "Policy.DiagnosticsD5.SdoWriteInjectedReadyAndBlockers",
                 InjectedReadyAndBlockerMatrix);
             tests.Add(
-                "Rpc.DiagnosticsD5.SdoWriteSemanticOwnerSubmitIsZeroWire",
+                "Policy.DiagnosticsD5.SdoWriteSemanticOwnerObjectIsAllowed",
                 SemanticOwnerSubmitSyncAndAsyncIsZeroWire);
             tests.Add(
-                "Rpc.DiagnosticsD5.EncoderMaintenanceObjectsAreZeroWire",
+                "Policy.DiagnosticsD5.SdoWriteEncoderMaintenanceObjectsAreAllowed",
                 EncoderMaintenanceObjectsSyncAndAsyncAreZeroWire);
         }
 
@@ -377,44 +377,15 @@ namespace LasalMotionControlLib.Tests
 
         private static void SemanticOwnerSubmitSyncAndAsyncIsZeroWire()
         {
-            using (var server = new FakeRpcServer(
-                InitStep(),
-                CallbackStep(),
-                CloseStep()))
-            using (var connection = new LMCConnection())
-            {
-                Connect(connection, server.Port);
-                var request = LMCSdoRequest.CreateWrite(
-                    2,
-                    0x6060,
-                    0,
-                    LMCSignalValueType.Int8,
-                    new byte[] { 8 },
-                    1000);
-                var requestCountBeforeSubmissions =
-                    server.ReceivedRequests.Count;
-
-                var syncError = AssertEx.Throws<InvalidOperationException>(
-                    () => connection.Diagnostics.SubmitSdo(request));
-                AssertRequestValidationNotAttempted(syncError);
-                AssertEx.Equal(
-                    requestCountBeforeSubmissions,
-                    server.ReceivedRequests.Count,
-                    "Synchronous semantic-owner SDO Write sent an RPC request.");
-
-                var asyncError = AssertEx.Throws<InvalidOperationException>(
-                    () => connection.Diagnostics.SubmitSdoAsync(
-                            request, CancellationToken.None)
-                        .GetAwaiter().GetResult());
-                AssertRequestValidationNotAttempted(asyncError);
-                AssertEx.Equal(
-                    requestCountBeforeSubmissions,
-                    server.ReceivedRequests.Count,
-                    "Asynchronous semantic-owner SDO Write sent an RPC request.");
-
-                connection.CloseConnection();
-                server.Verify();
-            }
+            var request = LMCSdoRequest.CreateWrite(
+                2,
+                0x6060,
+                0,
+                LMCSignalValueType.Int8,
+                new byte[] { 8 },
+                1000);
+            AssertEx.False(LMCSdoRequest.IsPermanentlyUnsafeObject(0x6060));
+            LMCDiagnosticsWritePolicy.RequireSdoWriteAllowed(request);
         }
 
         private static void EncoderMaintenanceObjectsSyncAndAsyncAreZeroWire()
@@ -427,38 +398,11 @@ namespace LasalMotionControlLib.Tests
                 CreateEncoderMaintenanceWrite(0x20FC, 0x02)
             };
 
-            using (var server = new FakeRpcServer(
-                InitStep(),
-                CallbackStep(),
-                CloseStep()))
-            using (var connection = new LMCConnection())
+            foreach (var request in requests)
             {
-                Connect(connection, server.Port);
-                var requestCountBeforeSubmissions =
-                    server.ReceivedRequests.Count;
-
-                foreach (var request in requests)
-                {
-                    var syncError = AssertEx.Throws<InvalidOperationException>(
-                        () => connection.Diagnostics.SubmitSdo(request));
-                    AssertRequestValidationNotAttempted(syncError);
-
-                    var asyncError = AssertEx.Throws<InvalidOperationException>(
-                        () => connection.Diagnostics.SubmitSdoAsync(
-                                request,
-                                CancellationToken.None)
-                            .GetAwaiter()
-                            .GetResult());
-                    AssertRequestValidationNotAttempted(asyncError);
-                }
-
-                AssertEx.Equal(
-                    requestCountBeforeSubmissions,
-                    server.ReceivedRequests.Count,
-                    "Generic 0x7E50 submitted an encoder maintenance or fallback SDO write.");
-
-                connection.CloseConnection();
-                server.Verify();
+                AssertEx.False(
+                    LMCSdoRequest.IsPermanentlyUnsafeObject(request.ObjectIndex));
+                LMCDiagnosticsWritePolicy.RequireSdoWriteAllowed(request);
             }
         }
 

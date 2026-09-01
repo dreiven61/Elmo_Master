@@ -469,7 +469,7 @@ namespace LasalMotionControlLib
             {
                 throw new ArgumentOutOfRangeException(
                     "objectIndex",
-                    "Direct motion/control objects cannot be approved for SDO Write.");
+                    "ObjectIndex 0 is invalid for SDO Write.");
             }
 
             if (valueType != LMCSignalValueType.Int32
@@ -1379,19 +1379,9 @@ namespace LasalMotionControlLib
 
         internal static bool IsPermanentlyUnsafeObject(ushort objectIndex)
         {
-            switch (objectIndex)
-            {
-                case 0x6040:
-                case 0x6060:
-                case 0x607A:
-                case 0x60FF:
-                case 0x6071:
-                case 0x3204:
-                case 0x20FC:
-                    return true;
-                default:
-                    return false;
-            }
+            // Generic SDO Write no longer denies valid object addresses by
+            // ObjectIndex. ObjectIndex 0 remains invalid in request validation.
+            return false;
         }
 
         private static void ValidateIdentity(

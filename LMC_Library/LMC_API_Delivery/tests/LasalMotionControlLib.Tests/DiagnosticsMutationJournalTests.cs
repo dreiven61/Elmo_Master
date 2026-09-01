@@ -62,8 +62,8 @@ namespace LasalMotionControlLib.Tests
                 "Qualification.MutationJournal.GenericScalarMetadataSupportsOneTwoFourBytes",
                 GenericScalarMetadataSupportsOneTwoFourBytes);
             tests.Add(
-                "Qualification.MutationJournal.SemanticModeObjectIsRejectedForDurableRecovery",
-                SemanticModeObjectIsRejectedForDurableRecovery);
+                "Qualification.MutationJournal.SemanticModeObjectIsAcceptedForDurableRecovery",
+                SemanticModeObjectIsAcceptedForDurableRecovery);
             tests.Add(
                 "Qualification.MutationJournal.NonCanonicalV3MetadataMarkerFailsClosed",
                 NonCanonicalV3MetadataMarkerFailsClosed);
@@ -383,18 +383,17 @@ namespace LasalMotionControlLib.Tests
                 "A non-canonical type/length pair must fail before durable arm.");
         }
 
-        private static void SemanticModeObjectIsRejectedForDurableRecovery()
+        private static void SemanticModeObjectIsAcceptedForDurableRecovery()
         {
-            AssertEx.Throws<ArgumentOutOfRangeException>(
-                () => new DiagnosticsSdoWriteMutationMetadata(
-                    1,
-                    0x6060,
-                    0,
-                    LMCSignalValueType.Int8,
-                    1,
-                    1000,
-                    new byte[] { 8 }),
-                "Generic durable recovery must never make 0x6060 replayable/recoverable as raw SDO Write.");
+            var metadata = new DiagnosticsSdoWriteMutationMetadata(
+                1,
+                0x6060,
+                0,
+                LMCSignalValueType.Int8,
+                1,
+                1000,
+                new byte[] { 8 });
+            AssertEx.Equal((ushort)0x6060, metadata.ObjectIndex);
         }
 
         private static void NonCanonicalV3MetadataMarkerFailsClosed()

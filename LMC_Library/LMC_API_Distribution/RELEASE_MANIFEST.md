@@ -37,7 +37,7 @@ Every shipped file except this manifest is listed with a package-relative path.
 | `02_Example_Program/LasalApiWpfTestApp/D5SdoRecoveryScopePolicy.cs` | 8989 | `1292EEBF0257DFDBAA656EFF015607E1B513D91C0B5F0DB675EFAE4BE3CEB006` |
 | `02_Example_Program/LasalApiWpfTestApp/D5SdoTimeoutQualificationOrchestrator.cs` | 22930 | `A412872D81FE2467705DAD056EA0106A0BAE0832A939D8757DBA8099C893778A` |
 | `02_Example_Program/LasalApiWpfTestApp/D5SdoWriteSameValueQualificationOrchestrator.cs` | 40372 | `E81C94FAC6E5747F3CE0646FAB09BCC83764EE36A8AC1EE9430AC3E3AA3F76E6` |
-| `02_Example_Program/LasalApiWpfTestApp/DiagnosticsMutationJournal.cs` | 48866 | `9AE6E09FF8EBE4A00C6985FD065EB554AB9A3276C169A9EE3F41577F3E511DA0` |
+| `02_Example_Program/LasalApiWpfTestApp/DiagnosticsMutationJournal.cs` | 55401 | `909572F45221A0D68975B5046071136184916925BD410E16137A084F11CBC426` |
 | `02_Example_Program/LasalApiWpfTestApp/DiagnosticsOperationAdmissionPolicy.cs` | 12835 | `C146AB4A2423835742881C55E493AC9774D9BD6E32F7507F62B5B54FEA96A420` |
 | `02_Example_Program/LasalApiWpfTestApp/DigitalOutputUncertainAcknowledgementPolicy.cs` | 1343 | `76AB4422BBD05BB2EF07FB06D6006E1162514CDF02D1BAA91541CB1D110B04C6` |
 | `02_Example_Program/LasalApiWpfTestApp/GroupPowerRecoveryJournal.cs` | 38186 | `8010267AC13AE2DF8233DC5A08409F416DCFB0F837BBBAAD60172AD89F7B28B9` |
