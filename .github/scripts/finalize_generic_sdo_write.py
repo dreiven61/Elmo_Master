@@ -44,11 +44,13 @@ replacements = [
         '"Wpf.SdoWriteActivationProof.TargetTupleMismatch"',
         '"Wpf.SdoWriteActivationProof.QualificationTargetDoesNotScopeManualWrite"',
         "smoke registration",
+        1,
     ),
     (
         "TargetTupleMismatchFailsClosed",
         "QualificationTargetDoesNotScopeManualWrite",
         "smoke method name",
+        2,
     ),
     (
         """                    AssertEx.False(
@@ -64,6 +66,7 @@ replacements = [
                             mismatch));
 """,
         "target mismatch expectation",
+        1,
     ),
     (
         """                AssertEx.False(
@@ -79,12 +82,13 @@ replacements = [
                         dataLengthMismatch));
 """,
         "data length mismatch expectation",
+        1,
     ),
 ]
-for old, new, label in replacements:
+for old, new, label, expected in replacements:
     count = text.count(old)
-    if count != 1:
-        raise RuntimeError(f"{label}: expected 1 match, got {count}")
+    if count != expected:
+        raise RuntimeError(f"{label}: expected {expected} match(es), got {count}")
     text = text.replace(old, new)
 smoke.write_text(text, encoding="utf-8")
 
