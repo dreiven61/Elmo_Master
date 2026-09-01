@@ -1,0 +1,94 @@
+name: Fix SDO submit policy build
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - .github/workflows/fix-sdo-submit-policy-build.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix-and-build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - uses: microsoft/setup-msbuild@v2
+
+      - name: Restore ValidateSdoSubmitPolicy
+        shell: pwsh
+        run: |
+          $path = 'LMC_Library/LMC_API_Delivery/src/LmcDiagnosticsD5.cs'
+          $text = Get-Content -LiteralPath $path -Raw
+          $old = @'
+        private static void ValidateSdoWritePolicy(LMCSdoRequest request)
+        {
+            if (!request.IsWrite)
+            {
+                return;
+            }
+
+            ValidateSdoWritePolicy(request);
+            if (request.IsWrite)
+            {
+                LMCDiagnosticsWritePolicy.RequireSdoWriteAllowed(request);
+                return;
+            }
+
+            LMCDiagnosticsSdoPolicy.RequireReadAllowed(request);
+        }
+'@
+          $new = @'
+        private static void ValidateSdoWritePolicy(LMCSdoRequest request)
+        {
+            if (!request.IsWrite)
+            {
+                return;
+            }
+
+            // Generic SDO Write no longer denies valid object addresses by ObjectIndex.
+        }
+
+        private static void ValidateSdoSubmitPolicy(LMCSdoRequest request)
+        {
+            if (request == null)
+            {
+                throw new ArgumentNullException("request");
+            }
+
+            ValidateSdoWritePolicy(request);
+            if (request.IsWrite)
+            {
+                LMCDiagnosticsWritePolicy.RequireSdoWriteAllowed(request);
+                return;
+            }
+
+            LMCDiagnosticsSdoPolicy.RequireReadAllowed(request);
+        }
+'@
+          if (-not $text.Contains($old)) {
+            throw 'Expected corrupted ValidateSdoWritePolicy block was not found exactly.'
+          }
+          $text = $text.Replace($old, $new)
+          Set-Content -LiteralPath $path -Value $text -NoNewline -Encoding UTF8
+          git diff --check
+
+      - name: Build API Debug
+        shell: pwsh
+        run: |
+          msbuild 'LMC_Library/LMC_API_Delivery/src/LasalMotionControlLib.csproj' /t:Build /p:Configuration=Debug /m /nologo
+
+      - name: Commit fix to dev
+        shell: pwsh
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm '.github/workflows/fix-sdo-submit-policy-build.yml'
+          git add 'LMC_Library/LMC_API_Delivery/src/LmcDiagnosticsD5.cs'
+          git commit -m 'fix: restore SDO submit policy validator'
+          git push origin HEAD:dev
