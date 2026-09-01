@@ -4,13 +4,16 @@
 - current integration / qualification source: `dev`
 - current baseline: `dev@0afbc2a79dff1b63f908b1bde3bd2502843045ff` (`dev : SetOpMode Complete`)
 - current status snapshot: `DEVELOPMENT_STATUS_20260901.md`
+- **remaining implementation master: `REMAINING_IMPLEMENTATION_DESIGN_20260901.md`**
 - current API progress: `../API_DEVELOPMENT_PROGRESS.md`
 - current API manual: `../API_MANUAL.md`
 - SetOperationMode: **IMPLEMENTATION COMPLETE / Active**
 - current P0 implementation: **Generic SDO 잔여 범위** (issue #46)
 - production release posture: **NO-GO**
 
-이 폴더의 current 판정은 `dev` source와 최신 current snapshot을 우선한다.
+이 폴더의 current 판정은 `dev` source와 최신 current snapshot을 우선한다. SetOperationMode 이후
+남은 기능의 **구현 순서, dependency, source delta와 activation gate는
+`REMAINING_IMPLEMENTATION_DESIGN_20260901.md`를 정본으로 사용한다.**
 `DEVELOPMENT_STATUS_20260827.md`, `DEVELOPMENT_STATUS_20260828.md`,
 `DEVELOPMENT_STATUS_20260831.md`와 각 blocker 문서는 historical evidence로 보존한다.
 
@@ -124,7 +127,9 @@ capability activation은 OFF다.
 - issue #28: axis1..4 wiring/polarity/homing method/scale/range profile 승인
 - issue #35: fresh C78/generated artifact + SourceOnly closure
 
-두 prerequisite가 닫히기 전에 hardware-dependent 값을 추측하거나 physical homing path를 열지 않는다.
+두 prerequisite가 닫힌 뒤 `REMAINING_IMPLEMENTATION_DESIGN_20260901.md`의 HOMEEX-R tranche에 따라
+parameter SDO snapshot/program/restore, RT execution mailbox, physical homing observer와 cleanup proof를
+구현한다. 그 전에는 hardware-dependent 값을 추측하거나 physical homing path를 열지 않는다.
 
 ---
 
@@ -138,7 +143,8 @@ issue #44의 외부 prerequisite:
 - vendor `CheckSum.CRC32` golden fixture
 - LASAL IDE-generated `_FileSys` class/client ABI
 
-이 두 항목 없이 CRC 의미를 추정하거나 generated ABI를 손으로 작성하지 않는다.
+이 두 항목 없이 CRC 의미를 추정하거나 generated ABI를 손으로 작성하지 않는다. prerequisite가
+준비되면 master plan의 SP-01B -> SP-02 -> SP-03 -> SP-04 -> hardware -> activation 순서로 진행한다.
 
 ---
 
@@ -146,21 +152,23 @@ issue #44의 외부 prerequisite:
 
 | 영역 | current 상태 | 다음 구현 |
 |---|---|---|
-| PI Write | Dormant | capability/semantic allowlist review |
-| Recorder Double | Dormant | D4 capability/route proof |
-| Dynamic node/DI | Dormant | bits 15/16 activation qualification |
-| Extended SDO result | Dormant | bit 12 qualification |
-| Digital Output Write `0x7E23` | Missing runtime | LASAL route/owner/allowlist 구현 |
+| EtherCAT NodeHealth / DigitalIO Read | Dormant | read-owner qualification 후 bits 15/16 paired activation |
+| Digital Output Write `0x7E23` | Missing runtime | LASAL route/ticket/RT CAS mailbox/allowlist 구현 |
+| PI Write | Dormant | approved writable semantic catalog + owner/readback |
+| Recorder Double | Dormant | two-bank identity/RT jitter/fault matrix + bit 6 |
+| Extended SDO result | Dormant | requirement 확인 후 chunk producer/bit 12 qualification |
+| ApplicationPhase/WKC | Deferred | requirement coverage 재확인 후 read-only tranche 여부 결정 |
 
 ---
 
 ## 7. current 문서 우선순위
 
-1. `DEVELOPMENT_STATUS_20260901.md` — 전체 current snapshot
-2. `../API_DEVELOPMENT_PROGRESS.md` — 구현률/남은 작업/current qualification
-3. `../API_MANUAL.md` — public/current API 사용 계약
-4. `SET_OPERATION_MODE_DESIGN.md` — 완료된 SetOperationMode implementation contract
-5. 기능별 historical evidence 문서
+1. `REMAINING_IMPLEMENTATION_DESIGN_20260901.md` — SetOperationMode 이후 남은 기능 구현 master plan
+2. `DEVELOPMENT_STATUS_20260901.md` — 전체 current status snapshot
+3. `../API_DEVELOPMENT_PROGRESS.md` — 구현률/남은 작업/current qualification
+4. `../API_MANUAL.md` — public/current API 사용 계약
+5. 기능별 `*_DESIGN.md` — frozen wire/state machine/세부 계약
+6. 기능별 historical evidence 문서
 
 문서가 충돌하면 current `dev` source와 위 순서를 기준으로 정리한다.
 
