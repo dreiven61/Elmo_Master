@@ -2726,13 +2726,17 @@ namespace LasalMotionControlApiExample
                     ? "Submit Required Exact Readback"
                     : "Readback Session Mismatch"
                 : isSdoWrite
-                    ? sdoWriteConfirmationState.IsArmed
+                    ? !hasCurrentSdoWriteTransportProof
+                        ? "Run Same-Value Qualification First"
+                        : sdoWriteConfirmationState.IsArmed
                             ? "Confirm & Submit SDO Write"
                             : "Arm SDO Write"
                     : "Submit SDO Read";
             ButtonSubmitSdo.ToolTip = isSdoWrite
                 && !HasPendingD5SdoWriteReadback
-                    ? "Write Once uses an exact-request two-click confirmation, safe-axis preflight, durable no-replay journal, and mandatory exact readback. Known targets are optional presets."
+                    ? !hasCurrentSdoWriteTransportProof
+                        ? "Run the approved UI24 same-value qualification once for this connection/session. After PASS, the proof is transport-scoped and manual ObjectIndex/SubIndex values do not need to match UI24."
+                        : "Write Once accepts any valid generic 1/2/4-byte SDO Write request. Known targets are optional presets; two-click confirmation, safe-axis preflight, durable no-replay journal, and mandatory exact readback remain enforced."
                     : "Read mode submits one tracked SDO Read.";
             ButtonSubmitSdo.IsEnabled = connected
                 && idle

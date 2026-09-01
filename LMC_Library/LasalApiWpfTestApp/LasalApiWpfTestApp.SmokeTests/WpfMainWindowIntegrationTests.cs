@@ -5752,7 +5752,7 @@ namespace LasalApiWpfTestApp.SmokeTests
                             first));
                     InvokePrivate(window, "UpdateUiState");
                     AssertEx.Equal(
-                        "Confirm & Submit SDO Write",
+                        "Run Same-Value Qualification First",
                         Convert.ToString(
                             window.ButtonSubmitSdo.Content,
                             CultureInfo.InvariantCulture));
@@ -6019,11 +6019,11 @@ namespace LasalApiWpfTestApp.SmokeTests
 
                     window.ComboSdoOperation.SelectedIndex = 1;
                     PumpDispatcherOnce();
-                    AssertEx.True(
+                    AssertEx.False(
                         window.ButtonSubmitSdo.IsEnabled,
-                        "Generic SDO Write did not open with current capabilities and a healthy durable journal.");
+                        "Manual SDO Write must remain closed until the current-session same-value transport qualification passes.");
                     AssertEx.Equal(
-                        "Arm SDO Write",
+                        "Run Same-Value Qualification First",
                         Convert.ToString(
                             window.ButtonSubmitSdo.Content,
                             CultureInfo.InvariantCulture));
@@ -6059,9 +6059,14 @@ namespace LasalApiWpfTestApp.SmokeTests
                         "sdoWriteActivationQualificationProof",
                         null);
                     InvokePrivate(window, "UpdateUiState");
-                    AssertEx.True(
+                    AssertEx.False(
                         window.ButtonSubmitSdo.IsEnabled,
-                        "Generic Write must not depend on the optional known-preset same-value qualification proof.");
+                        "Removing the current-session transport proof must close manual SDO Write.");
+                    AssertEx.Equal(
+                        "Run Same-Value Qualification First",
+                        Convert.ToString(
+                            window.ButtonSubmitSdo.Content,
+                            CultureInfo.InvariantCulture));
 
                     window.ComboSdoWriteTarget.SelectedItem = null;
                     window.TextSdoSlaveReference.Text = "2";
@@ -6120,31 +6125,26 @@ namespace LasalApiWpfTestApp.SmokeTests
                         window.TextSdoSemanticWarning.Visibility);
 
                     window.TextSdoIndex.Text = "0x6060";
-                    var reservedRequestArguments = new object[] { null, null };
-                    AssertEx.False(
+                    var formerlyReservedRequestArguments =
+                        new object[] { null, null };
+                    AssertEx.True(
                         (bool)InvokePrivate(
                             window,
                             "TryCreateSdoRequest",
-                            reservedRequestArguments),
-                        "Generic SDO Write accepted the semantic SetOperationMode object.");
-                    AssertEx.Contains(
-                        "semantic or dedicated-owner objects",
+                            formerlyReservedRequestArguments),
                         Convert.ToString(
-                            reservedRequestArguments[1],
+                            formerlyReservedRequestArguments[1],
                             CultureInfo.InvariantCulture));
+                    var formerlyReservedRequest =
+                        formerlyReservedRequestArguments[0] as LMCSdoRequest;
+                    AssertEx.NotNull(formerlyReservedRequest);
+                    AssertEx.Equal(
+                        (ushort)0x6060,
+                        formerlyReservedRequest.ObjectIndex);
                     InvokePrivate(window, "UpdateSdoRequestPreview");
                     AssertEx.Equal(
-                        System.Windows.Visibility.Visible,
+                        System.Windows.Visibility.Collapsed,
                         window.TextSdoSemanticWarning.Visibility);
-                    AssertEx.Contains(
-                        "BLOCKED RESERVED SDO WRITE",
-                        window.TextSdoSemanticWarning.Text);
-                    AssertEx.Contains(
-                        "NOT SUBMITTED",
-                        window.TextSdoSemanticWarning.Text);
-                    AssertEx.Contains(
-                        "semantic or dedicated-owner objects",
-                        window.TextSdoSemanticWarning.Text);
 
                     AssertEx.False(
                         window.ButtonRunD5SdoWriteSameValueQualification
@@ -6466,7 +6466,9 @@ namespace LasalApiWpfTestApp.SmokeTests
                         writeRequest,
                         currentConnection,
                         DiagnosticsBootId,
-                        DiagnosticMapRevision);
+                        DiagnosticMapRevision,
+                        new byte[] { 0x2A, 0, 0, 0 },
+                        new byte[] { 0x2A, 0, 0, 0 });
 
                     var readRequest = pendingReadback.CreateReadRequest();
                     const uint readTicketId = 7801;

@@ -56,8 +56,8 @@ namespace LasalMotionControlLib.Tests
                 "Qualification.MutationJournal.AnonymousStdinEofReopenPreservesInterlock",
                 AnonymousStdinEofReopenPreservesInterlock);
             tests.Add(
-                "Qualification.MutationJournal.TypedSdoV3RoundTripIsImmutable",
-                TypedSdoV3RoundTripIsImmutable);
+                "Qualification.MutationJournal.TypedSdoV4RoundTripIsImmutable",
+                TypedSdoV4RoundTripIsImmutable);
             tests.Add(
                 "Qualification.MutationJournal.GenericScalarMetadataSupportsOneTwoFourBytes",
                 GenericScalarMetadataSupportsOneTwoFourBytes);
@@ -65,8 +65,8 @@ namespace LasalMotionControlLib.Tests
                 "Qualification.MutationJournal.SemanticModeObjectIsAcceptedForDurableRecovery",
                 SemanticModeObjectIsAcceptedForDurableRecovery);
             tests.Add(
-                "Qualification.MutationJournal.NonCanonicalV3MetadataMarkerFailsClosed",
-                NonCanonicalV3MetadataMarkerFailsClosed);
+                "Qualification.MutationJournal.NonCanonicalV4MetadataMarkerFailsClosed",
+                NonCanonicalV4MetadataMarkerFailsClosed);
             tests.Add(
                 "Qualification.MutationJournal.LegacyV1RecoveryIsZeroWire",
                 LegacyV1RecoveryIsZeroWire);
@@ -264,7 +264,7 @@ namespace LasalMotionControlLib.Tests
                 });
         }
 
-        private static void TypedSdoV3RoundTripIsImmutable()
+        private static void TypedSdoV4RoundTripIsImmutable()
         {
             WithTestDirectory(
                 directoryPath =>
@@ -307,9 +307,9 @@ namespace LasalMotionControlLib.Tests
                         var encoded = File.ReadAllBytes(
                             journal.JournalFilePath);
                         AssertEx.Equal(
-                            3,
+                            4,
                             BitConverter.ToInt32(encoded, 8),
-                            "New durable SDO records must use journal format v3.");
+                            "New durable SDO records must use journal format v4.");
                     }
 
                     using (var reopened =
@@ -396,7 +396,7 @@ namespace LasalMotionControlLib.Tests
             AssertEx.Equal((ushort)0x6060, metadata.ObjectIndex);
         }
 
-        private static void NonCanonicalV3MetadataMarkerFailsClosed()
+        private static void NonCanonicalV4MetadataMarkerFailsClosed()
         {
             WithTestDirectory(
                 directoryPath =>
@@ -414,7 +414,7 @@ namespace LasalMotionControlLib.Tests
                     }
 
                     var bytes = File.ReadAllBytes(journalPath);
-                    var markerOffset = FindV3MetadataMarkerOffset(bytes);
+                    var markerOffset = FindV4MetadataMarkerOffset(bytes);
                     AssertEx.Equal((byte)1, bytes[markerOffset]);
                     bytes[markerOffset] = 2;
                     RewriteJournalChecksum(bytes);
@@ -1932,7 +1932,7 @@ namespace LasalMotionControlLib.Tests
             writer.Write(bytes);
         }
 
-        private static int FindV3MetadataMarkerOffset(byte[] bytes)
+        private static int FindV4MetadataMarkerOffset(byte[] bytes)
         {
             using (var stream = new MemoryStream(bytes, false))
             using (var reader = new BinaryReader(
@@ -1943,7 +1943,7 @@ namespace LasalMotionControlLib.Tests
                 AssertEx.SequenceEqual(
                     Encoding.ASCII.GetBytes("ELMODMJ1"),
                     reader.ReadBytes(8));
-                AssertEx.Equal(3, reader.ReadInt32());
+                AssertEx.Equal(4, reader.ReadInt32());
                 var payloadLength = reader.ReadInt32();
                 AssertEx.True(payloadLength > 0);
                 reader.ReadBytes(16);

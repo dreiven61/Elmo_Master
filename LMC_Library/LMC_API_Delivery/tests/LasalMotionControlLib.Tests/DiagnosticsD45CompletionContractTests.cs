@@ -771,7 +771,7 @@ namespace LasalMotionControlLib.Tests
                 var writeContext =
                     RequireSubmissionFailureContext(writeError);
                 AssertEx.Equal(
-                    LMCSdoSubmissionPhase.RequestValidation,
+                    LMCSdoSubmissionPhase.SessionPreflight,
                     writeContext.Phase);
                 AssertEx.Equal(
                     LMCSdoSubmissionOutcome.NotAttempted,

@@ -110,24 +110,26 @@ namespace LasalMotionControlApiExample
                         metadata.ExpectedWriteData);
                 }
 
-                AssertEx.Throws<ArgumentOutOfRangeException>(
-                    () => new DiagnosticsSdoWriteMutationMetadata(
+                var tw20Metadata =
+                    new DiagnosticsSdoWriteMutationMetadata(
                         1,
                         0x3204,
                         0,
                         LMCSignalValueType.UInt16,
                         2,
                         100,
-                        new byte[] { 0, 0 }));
-                AssertEx.Throws<ArgumentOutOfRangeException>(
-                    () => new DiagnosticsSdoWriteMutationMetadata(
+                        new byte[] { 0, 0 });
+                AssertEx.Equal((ushort)0x3204, tw20Metadata.ObjectIndex);
+                var tw19Metadata =
+                    new DiagnosticsSdoWriteMutationMetadata(
                         1,
                         0x20FC,
                         0,
                         LMCSignalValueType.UInt32,
                         4,
                         100,
-                        new byte[] { 0, 0, 0, 0 }));
+                        new byte[] { 0, 0, 0, 0 });
+                AssertEx.Equal((ushort)0x20FC, tw19Metadata.ObjectIndex);
             }
             finally
             {

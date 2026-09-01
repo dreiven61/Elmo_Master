@@ -26,8 +26,8 @@ namespace LasalMotionControlApiExample
                 "Wpf.SdoWriteActivationProof.ConnectionAndIdentityMismatch",
                 ConnectionAndIdentityMismatchFailsClosed);
             tests.Add(
-                "Wpf.SdoWriteActivationProof.TargetTupleMismatch",
-                TargetTupleMismatchFailsClosed);
+                "Wpf.SdoWriteActivationProof.QualificationTargetDoesNotScopeManualWrite",
+                QualificationTargetDoesNotScopeManualWrite);
             tests.Add(
                 "Wpf.SdoWriteActivationProof.IdentityMismatchCannotRevive",
                 IdentityMismatchCannotRevive);
@@ -308,7 +308,7 @@ namespace LasalMotionControlApiExample
             }
         }
 
-        private static void TargetTupleMismatchFailsClosed()
+        private static void QualificationTargetDoesNotScopeManualWrite()
         {
             using (var connection = CreateConnection(SessionGeneration))
             {
@@ -387,7 +387,7 @@ namespace LasalMotionControlApiExample
 
                 foreach (var mismatch in mismatches)
                 {
-                    AssertEx.False(
+                    AssertEx.True(
                         proof.MatchesCurrent(
                             connection,
                             capabilities,
@@ -411,7 +411,7 @@ namespace LasalMotionControlApiExample
                     dataLengthMismatch,
                     "DataLength",
                     (ushort)2);
-                AssertEx.False(
+                AssertEx.True(
                     proof.MatchesCurrent(
                         connection,
                         capabilities,

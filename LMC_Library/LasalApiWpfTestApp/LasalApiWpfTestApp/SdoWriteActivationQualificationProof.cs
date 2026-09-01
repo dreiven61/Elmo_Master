@@ -252,8 +252,12 @@ namespace LasalMotionControlApiExample
             LMCDiagnosticCapabilities capabilities,
             LMCSdoWriteTarget target)
         {
-            return MatchesTargetTuple(target)
-                && MatchesCurrent(connection, capabilities);
+            // Compatibility overload only. The qualification target is
+            // capture provenance for the known canary round trip; once
+            // captured, manual SDO Write admission is scoped to the
+            // current connection/session and diagnostics transport
+            // identity, not to the canary ObjectIndex tuple.
+            return MatchesCurrent(connection, capabilities);
         }
 
         internal void Revoke()

@@ -831,7 +831,7 @@ namespace LasalMotionControlApiExample
                                 StringComparison.Ordinal));
                     PumpUiOnce();
                     AssertEx.Equal(
-                        "SDO Write 준비",
+                        "먼저 동일 값 Qualification 실행",
                         (string)window.ButtonSubmitSdo.Content,
                         "Korean SDO Write mode did not localize its action.");
                     window.TextSdoWriteData.Text = "1";

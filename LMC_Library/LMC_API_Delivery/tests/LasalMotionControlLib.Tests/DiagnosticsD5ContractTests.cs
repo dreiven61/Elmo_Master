@@ -65,6 +65,7 @@ namespace LasalMotionControlLib.Tests
                 DiagnosticsBootId,
                 MapRevision + 1);
             RunIdentityPinnedSdoWriteSuccess();
+            RunIdentityPinnedGenericSdoWriteSuccess();
         }
 
         private static void RunIdentityPinnedSdoWriteMismatch(
@@ -208,6 +209,89 @@ namespace LasalMotionControlLib.Tests
                 AssertEx.Equal(writeTicketId, ticket.TicketId);
                 AssertEx.Equal(DiagnosticsBootId, ticket.DiagnosticsBootId);
                 AssertEx.Equal(MapRevision, ticket.SubmissionMapRevision);
+
+                connection.CloseConnection();
+                server.Verify();
+            }
+        }
+
+        private static void RunIdentityPinnedGenericSdoWriteSuccess()
+        {
+            const uint writeTicketId = 0x72727272u;
+            var requiredCapabilitiesBits =
+                LMCDiagnosticCapability.SDORead
+                | LMCDiagnosticCapability.SDOWrite
+                | LMCDiagnosticCapability.SDOReadGeneralInline;
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                new FakeRpcStep(
+                    0x7E00,
+                    TestFrame.Response(
+                        0,
+                        CapabilitiesPayload(
+                            1,
+                            MapRevision,
+                            DiagnosticsBootId,
+                            5,
+                            requiredCapabilitiesBits))),
+                new FakeRpcStep(
+                    0x7E00,
+                    TestFrame.Response(
+                        0,
+                        CapabilitiesPayload(
+                            2,
+                            MapRevision,
+                            DiagnosticsBootId,
+                            5,
+                            requiredCapabilitiesBits))),
+                new FakeRpcStep(
+                    0x7E50,
+                    TestFrame.Response(
+                        0,
+                        SubmitPayload(
+                            3,
+                            writeTicketId,
+                            LMCOperationKind.SDOWrite,
+                            DiagnosticsBootId)))
+                {
+                    InspectRequest = frame =>
+                    {
+                        AssertEx.Equal(
+                            MapRevision,
+                            TestFrame.ReadUInt32(frame, 16));
+                        AssertEx.Equal(
+                            DiagnosticsBootId,
+                            TestFrame.ReadUInt32(frame, 36));
+                    }
+                },
+                CloseStep()))
+            using (var connection = new LMCConnection())
+            {
+                Connect(connection, server.Port);
+                var requiredCapabilities =
+                    connection.Diagnostics.GetCapabilities();
+                var request = LMCSdoRequest.CreateWrite(
+                    1,
+                    0x6060,
+                    0,
+                    LMCSignalValueType.Int8,
+                    TestFrame.Hex("01"),
+                    100);
+
+                var ticket = connection.Diagnostics
+                    .SubmitSdoWriteIdentityPinnedAsync(
+                        request,
+                        requiredCapabilities,
+                        CancellationToken.None)
+                    .GetAwaiter()
+                    .GetResult();
+                AssertEx.Equal(writeTicketId, ticket.TicketId);
+                AssertEx.Equal(DiagnosticsBootId, ticket.DiagnosticsBootId);
+                AssertEx.Equal(MapRevision, ticket.SubmissionMapRevision);
+                AssertEx.Equal(
+                    (ushort)0x6060,
+                    ticket.SubmittedSdoRequest.ObjectIndex);
 
                 connection.CloseConnection();
                 server.Verify();
@@ -652,7 +736,7 @@ namespace LasalMotionControlLib.Tests
                     LMCSignalValueType.BitField16,
                     TestFrame.Hex("06 00 00 00"),
                     100);
-                AssertEx.Throws<InvalidOperationException>(
+                AssertEx.Throws<NotSupportedException>(
                     () => connection.Diagnostics.SubmitSdo(unsafeWrite));
 
             }
