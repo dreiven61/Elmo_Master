@@ -2,7 +2,8 @@ name: Fix SDO submit policy build
 
 on:
   push:
-    branches: [dev]
+    branches:
+      - dev
     paths:
       - .github/workflows/fix-sdo-submit-policy-build.yml
 
@@ -23,59 +24,46 @@ jobs:
       - name: Restore ValidateSdoSubmitPolicy
         shell: pwsh
         run: |
-          $path = 'LMC_Library/LMC_API_Delivery/src/LmcDiagnosticsD5.cs'
-          $text = Get-Content -LiteralPath $path -Raw
-          $old = @'
-        private static void ValidateSdoWritePolicy(LMCSdoRequest request)
-        {
-            if (!request.IsWrite)
-            {
-                return;
-            }
-
-            ValidateSdoWritePolicy(request);
-            if (request.IsWrite)
-            {
-                LMCDiagnosticsWritePolicy.RequireSdoWriteAllowed(request);
-                return;
-            }
-
-            LMCDiagnosticsSdoPolicy.RequireReadAllowed(request);
-        }
-'@
-          $new = @'
-        private static void ValidateSdoWritePolicy(LMCSdoRequest request)
-        {
-            if (!request.IsWrite)
-            {
-                return;
-            }
-
-            // Generic SDO Write no longer denies valid object addresses by ObjectIndex.
-        }
-
-        private static void ValidateSdoSubmitPolicy(LMCSdoRequest request)
-        {
-            if (request == null)
-            {
-                throw new ArgumentNullException("request");
-            }
-
-            ValidateSdoWritePolicy(request);
-            if (request.IsWrite)
-            {
-                LMCDiagnosticsWritePolicy.RequireSdoWriteAllowed(request);
-                return;
-            }
-
-            LMCDiagnosticsSdoPolicy.RequireReadAllowed(request);
-        }
-'@
-          if (-not $text.Contains($old)) {
-            throw 'Expected corrupted ValidateSdoWritePolicy block was not found exactly.'
-          }
-          $text = $text.Replace($old, $new)
-          Set-Content -LiteralPath $path -Value $text -NoNewline -Encoding UTF8
+          @'
+          from pathlib import Path
+          path = Path('LMC_Library/LMC_API_Delivery/src/LmcDiagnosticsD5.cs')
+          text = path.read_text(encoding='utf-8-sig')
+          start_marker = '        private static void ValidateSdoWritePolicy(LMCSdoRequest request)\n'
+          end_marker = '        private void ValidatePIWriteCapabilities(\n'
+          start = text.index(start_marker)
+          end = text.index(end_marker, start)
+          replacement = ''.join([
+              '        private static void ValidateSdoWritePolicy(LMCSdoRequest request)\n',
+              '        {\n',
+              '            if (!request.IsWrite)\n',
+              '            {\n',
+              '                return;\n',
+              '            }\n',
+              '\n',
+              '            // Generic SDO Write no longer denies valid object addresses by ObjectIndex.\n',
+              '        }\n',
+              '\n',
+              '        private static void ValidateSdoSubmitPolicy(LMCSdoRequest request)\n',
+              '        {\n',
+              '            if (request == null)\n',
+              '            {\n',
+              '                throw new ArgumentNullException("request");\n',
+              '            }\n',
+              '\n',
+              '            ValidateSdoWritePolicy(request);\n',
+              '            if (request.IsWrite)\n',
+              '            {\n',
+              '                LMCDiagnosticsWritePolicy.RequireSdoWriteAllowed(request);\n',
+              '                return;\n',
+              '            }\n',
+              '\n',
+              '            LMCDiagnosticsSdoPolicy.RequireReadAllowed(request);\n',
+              '        }\n',
+              '\n',
+          ])
+          text = text[:start] + replacement + text[end:]
+          path.write_text(text, encoding='utf-8')
+          '@ | python -
           git diff --check
 
       - name: Build API Debug
