@@ -1,407 +1,8 @@
-<!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
-<head>
-  <meta charset="utf-8" />
-  <meta name="generator" content="pandoc" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>API_MANUAL</title>
-  <style>
-    html {
-      color: #1a1a1a;
-      background-color: #fdfdfd;
-    }
-    body {
-      margin: 0 auto;
-      max-width: 36em;
-      padding-left: 50px;
-      padding-right: 50px;
-      padding-top: 50px;
-      padding-bottom: 50px;
-      hyphens: auto;
-      overflow-wrap: break-word;
-      text-rendering: optimizeLegibility;
-      font-kerning: normal;
-    }
-    @media (max-width: 600px) {
-      body {
-        font-size: 0.9em;
-        padding: 12px;
-      }
-      h1 {
-        font-size: 1.8em;
-      }
-    }
-    @media print {
-      html {
-        background-color: white;
-      }
-      body {
-        background-color: transparent;
-        color: black;
-        font-size: 12pt;
-      }
-      p, h2, h3 {
-        orphans: 3;
-        widows: 3;
-      }
-      h2, h3, h4 {
-        page-break-after: avoid;
-      }
-    }
-    p {
-      margin: 1em 0;
-    }
-    a {
-      color: #1a1a1a;
-    }
-    a:visited {
-      color: #1a1a1a;
-    }
-    img {
-      max-width: 100%;
-    }
-    h1, h2, h3, h4, h5, h6 {
-      margin-top: 1.4em;
-    }
-    h5, h6 {
-      font-size: 1em;
-      font-style: italic;
-    }
-    h6 {
-      font-weight: normal;
-    }
-    ol, ul {
-      padding-left: 1.7em;
-      margin-top: 1em;
-    }
-    li > ol, li > ul {
-      margin-top: 0;
-    }
-    blockquote {
-      margin: 1em 0 1em 1.7em;
-      padding-left: 1em;
-      border-left: 2px solid #e6e6e6;
-      color: #606060;
-    }
-    code {
-      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
-      font-size: 85%;
-      margin: 0;
-      hyphens: manual;
-    }
-    pre {
-      margin: 1em 0;
-      overflow: auto;
-    }
-    pre code {
-      padding: 0;
-      overflow: visible;
-      overflow-wrap: normal;
-    }
-    .sourceCode {
-     background-color: transparent;
-     overflow: visible;
-    }
-    hr {
-      background-color: #1a1a1a;
-      border: none;
-      height: 1px;
-      margin: 1em 0;
-    }
-    table {
-      margin: 1em 0;
-      border-collapse: collapse;
-      width: 100%;
-      overflow-x: auto;
-      display: block;
-      font-variant-numeric: lining-nums tabular-nums;
-    }
-    table caption {
-      margin-bottom: 0.75em;
-    }
-    tbody {
-      margin-top: 0.5em;
-      border-top: 1px solid #1a1a1a;
-      border-bottom: 1px solid #1a1a1a;
-    }
-    th {
-      border-top: 1px solid #1a1a1a;
-      padding: 0.25em 0.5em 0.25em 0.5em;
-    }
-    td {
-      padding: 0.125em 0.5em 0.25em 0.5em;
-    }
-    header {
-      margin-bottom: 4em;
-      text-align: center;
-    }
-    #TOC li {
-      list-style: none;
-    }
-    #TOC ul {
-      padding-left: 1.3em;
-    }
-    #TOC > ul {
-      padding-left: 0;
-    }
-    #TOC a:not(:hover) {
-      text-decoration: none;
-    }
-    code{white-space: pre-wrap;}
-    span.smallcaps{font-variant: small-caps;}
-    div.columns{display: flex; gap: min(4vw, 1.5em);}
-    div.column{flex: auto; overflow-x: auto;}
-    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
-    /* The extra [class] is a hack that increases specificity enough to
-       override a similar rule in reveal.js */
-    ul.task-list[class]{list-style: none;}
-    ul.task-list li input[type="checkbox"] {
-      font-size: inherit;
-      width: 0.8em;
-      margin: 0 0.8em 0.2em -1.6em;
-      vertical-align: middle;
-    }
-    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
-    /* CSS for syntax highlighting */
-    pre > code.sourceCode { white-space: pre; position: relative; }
-    pre > code.sourceCode > span { line-height: 1.25; }
-    pre > code.sourceCode > span:empty { height: 1.2em; }
-    .sourceCode { overflow: visible; }
-    code.sourceCode > span { color: inherit; text-decoration: inherit; }
-    div.sourceCode { margin: 1em 0; }
-    pre.sourceCode { margin: 0; }
-    @media screen {
-    div.sourceCode { overflow: auto; }
-    }
-    @media print {
-    pre > code.sourceCode { white-space: pre-wrap; }
-    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
-    }
-    pre.numberSource code
-      { counter-reset: source-line 0; }
-    pre.numberSource code > span
-      { position: relative; left: -4em; counter-increment: source-line; }
-    pre.numberSource code > span > a:first-child::before
-      { content: counter(source-line);
-        position: relative; left: -1em; text-align: right; vertical-align: baseline;
-        border: none; display: inline-block;
-        -webkit-touch-callout: none; -webkit-user-select: none;
-        -khtml-user-select: none; -moz-user-select: none;
-        -ms-user-select: none; user-select: none;
-        padding: 0 4px; width: 4em;
-        color: #aaaaaa;
-      }
-    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
-    div.sourceCode
-      {   }
-    @media screen {
-    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
-    }
-    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
-    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
-    code span.at { color: #7d9029; } /* Attribute */
-    code span.bn { color: #40a070; } /* BaseN */
-    code span.bu { color: #008000; } /* BuiltIn */
-    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
-    code span.ch { color: #4070a0; } /* Char */
-    code span.cn { color: #880000; } /* Constant */
-    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
-    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
-    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
-    code span.dt { color: #902000; } /* DataType */
-    code span.dv { color: #40a070; } /* DecVal */
-    code span.er { color: #ff0000; font-weight: bold; } /* Error */
-    code span.ex { } /* Extension */
-    code span.fl { color: #40a070; } /* Float */
-    code span.fu { color: #06287e; } /* Function */
-    code span.im { color: #008000; font-weight: bold; } /* Import */
-    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
-    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
-    code span.op { color: #666666; } /* Operator */
-    code span.ot { color: #007020; } /* Other */
-    code span.pp { color: #bc7a00; } /* Preprocessor */
-    code span.sc { color: #4070a0; } /* SpecialChar */
-    code span.ss { color: #bb6688; } /* SpecialString */
-    code span.st { color: #4070a0; } /* String */
-    code span.va { color: #19177c; } /* Variable */
-    code span.vs { color: #4070a0; } /* VerbatimString */
-    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
-  </style>
-</head>
-<body>
-<nav id="TOC" role="doc-toc">
-<ul>
-<li><a href="#lasal-motion-control-api-설명서"
-id="toc-lasal-motion-control-api-설명서">LASAL Motion Control API
-설명서</a></li>
-<li><a href="#개정-이력" id="toc-개정-이력">개정 이력</a></li>
-<li><a href="#공통-사항" id="toc-공통-사항">1. 공통 사항</a>
-<ul>
-<li><a href="#assembly" id="toc-assembly">1.1 Assembly</a></li>
-<li><a href="#unit-변환" id="toc-unit-변환">1.2 UNIT 변환</a></li>
-<li><a href="#공통-반환값" id="toc-공통-반환값">1.3 공통 반환값</a></li>
-<li><a href="#enum-값" id="toc-enum-값">1.4 Enum 값</a></li>
-<li><a href="#현재-지원-상태와-완료-판정"
-id="toc-현재-지원-상태와-완료-판정">1.5 현재 지원 상태와 완료
-판정</a></li>
-<li><a href="#accepted-once-waitresume-공통-모델"
-id="toc-accepted-once-waitresume-공통-모델">1.6 accepted-once
-wait/resume 공통 모델</a></li>
-<li><a href="#wpf-recovery-identity-mismatch-해소"
-id="toc-wpf-recovery-identity-mismatch-해소">1.7 WPF recovery identity
-mismatch 해소</a></li>
-</ul></li>
-<li><a href="#connection-api" id="toc-connection-api">2. Connection
-API</a>
-<ul>
-<li><a href="#lmcconnection" id="toc-lmcconnection">2.1
-LMCConnection</a></li>
-<li><a href="#lmcconnectionoptions" id="toc-lmcconnectionoptions">2.2
-LMCConnectionOptions</a></li>
-<li><a href="#rpcinitconnection" id="toc-rpcinitconnection">2.3
-RpcInitConnection</a></li>
-<li><a href="#closeconnection" id="toc-closeconnection">2.4
-CloseConnection</a></li>
-<li><a href="#safety-transport-preemption"
-id="toc-safety-transport-preemption">2.5 Safety transport
-preemption</a></li>
-</ul></li>
-<li><a href="#single-axis-api" id="toc-single-axis-api">3. Single Axis
-API</a>
-<ul>
-<li><a href="#lmcsingleaxis-생성" id="toc-lmcsingleaxis-생성">3.1
-LMCSingleAxis 생성</a></li>
-<li><a href="#poweron" id="toc-poweron">3.2 PowerOn</a></li>
-<li><a href="#poweroff" id="toc-poweroff">3.3 PowerOff</a></li>
-<li><a href="#reset" id="toc-reset">3.4 Reset</a></li>
-<li><a href="#stop" id="toc-stop">3.5 Stop</a></li>
-<li><a href="#readstatus" id="toc-readstatus">3.6 ReadStatus</a></li>
-<li><a href="#getactualposition" id="toc-getactualposition">3.7
-GetActualPosition</a></li>
-<li><a href="#moveabsoluteex" id="toc-moveabsoluteex">3.8
-MoveAbsoluteEx</a></li>
-<li><a href="#moverelativeex" id="toc-moverelativeex">3.9
-MoveRelativeEx</a></li>
-<li><a href="#movevelocityex" id="toc-movevelocityex">3.10
-MoveVelocityEx</a></li>
-<li><a href="#drive-operation-mode와-composite-status"
-id="toc-drive-operation-mode와-composite-status">3.11 Drive operation
-mode와 composite status</a>
-<ul>
-<li><a href="#setoperationmode-current-qualification-contract"
-id="toc-setoperationmode-current-qualification-contract">3.11.1
-SetOperationMode current qualification contract</a></li>
-<li><a href="#실기-blocker" id="toc-실기-blocker">3.11.2 2026-08-28
-17:28 실기 blocker</a></li>
-</ul></li>
-<li><a href="#move-완료와-restart-recovery-경계"
-id="toc-move-완료와-restart-recovery-경계">3.12 Move 완료와 restart
-recovery 경계</a></li>
-</ul></li>
-<li><a href="#group-api" id="toc-group-api">4. Group API</a>
-<ul>
-<li><a href="#lmcgroupaxis-생성" id="toc-lmcgroupaxis-생성">4.1
-LMCGroupAxis 생성</a></li>
-<li><a href="#getgroupmembersinfo" id="toc-getgroupmembersinfo">4.2
-GetGroupMembersInfo</a></li>
-<li><a href="#grouppoweron" id="toc-grouppoweron">4.3
-GroupPowerOn</a></li>
-<li><a href="#grouppoweroff" id="toc-grouppoweroff">4.4
-GroupPowerOff</a></li>
-<li><a href="#groupenable" id="toc-groupenable">4.5 GroupEnable</a></li>
-<li><a href="#groupdisable" id="toc-groupdisable">4.6
-GroupDisable</a></li>
-<li><a href="#groupreset" id="toc-groupreset">4.7 GroupReset</a></li>
-<li><a href="#groupstop" id="toc-groupstop">4.8 GroupStop</a></li>
-<li><a href="#groupreadstatus" id="toc-groupreadstatus">4.9
-GroupReadStatus</a></li>
-<li><a href="#groupreadactualposition"
-id="toc-groupreadactualposition">4.10 GroupReadActualPosition</a></li>
-<li><a href="#setkintransformcartesian4axis"
-id="toc-setkintransformcartesian4axis">4.11
-SetKinTransformCartesian4Axis</a></li>
-<li><a href="#movelinearabsoluteex" id="toc-movelinearabsoluteex">4.12
-MoveLinearAbsoluteEx</a></li>
-<li><a href="#movelinearrelativeex" id="toc-movelinearrelativeex">4.13
-MoveLinearRelativeEx</a></li>
-<li><a href="#lmcgroupmotionoptions" id="toc-lmcgroupmotionoptions">4.14
-LMCGroupMotionOptions</a></li>
-</ul></li>
-<li><a href="#return-type" id="toc-return-type">5. Return Type</a>
-<ul>
-<li><a href="#lmcreadstatusresult" id="toc-lmcreadstatusresult">5.1
-LMCReadStatusResult</a></li>
-<li><a href="#lmcreadactualpositionresult"
-id="toc-lmcreadactualpositionresult">5.2
-LMCReadActualPositionResult</a></li>
-<li><a href="#lmcgroupreadstatusresult"
-id="toc-lmcgroupreadstatusresult">5.3 LMCGroupReadStatusResult</a></li>
-<li><a href="#lmcgroupreadactualpositionresult"
-id="toc-lmcgroupreadactualpositionresult">5.4
-LMCGroupReadActualPositionResult</a></li>
-<li><a href="#lmcgroupmembersinforesult"
-id="toc-lmcgroupmembersinforesult">5.5
-LMCGroupMembersInfoResult</a></li>
-<li><a href="#lmcadminresponse" id="toc-lmcadminresponse">5.6
-LMCAdminResponse</a></li>
-</ul></li>
-<li><a href="#admin과-diagnostics-facade"
-id="toc-admin과-diagnostics-facade">6. Admin과 Diagnostics facade</a>
-<ul>
-<li><a href="#admin-capability와-semantic-parameter-read"
-id="toc-admin-capability와-semantic-parameter-read">6.1 Admin
-capability와 semantic parameter read</a></li>
-<li><a href="#pi-alias와-bulk-builderreader"
-id="toc-pi-alias와-bulk-builderreader">6.2 PI alias와 Bulk
-builder/reader</a></li>
-<li><a href="#project-local-error-catalog"
-id="toc-project-local-error-catalog">6.3 Project-local error
-catalog</a></li>
-<li><a href="#diagnostics-d0-capability와-공통-수명"
-id="toc-diagnostics-d0-capability와-공통-수명">6.4 Diagnostics D0
-capability와 공통 수명</a></li>
-<li><a href="#diagnostics-d1-catalog-health와-pi-read"
-id="toc-diagnostics-d1-catalog-health와-pi-read">6.5 Diagnostics D1
-Catalog, Health와 PI Read</a></li>
-<li><a href="#diagnostics-d2-bulk-read"
-id="toc-diagnostics-d2-bulk-read">6.6 Diagnostics D2 Bulk Read</a></li>
-<li><a href="#diagnostics-d3d4-recorder"
-id="toc-diagnostics-d3d4-recorder">6.7 Diagnostics D3/D4
-Recorder</a></li>
-<li><a href="#diagnostics-d5-sdo-read와-operation-ticket"
-id="toc-diagnostics-d5-sdo-read와-operation-ticket">6.8 Diagnostics D5
-SDO Read와 operation ticket</a></li>
-<li><a href="#static-topology와-dynamic-nodeio"
-id="toc-static-topology와-dynamic-nodeio">6.9 Static Topology와 Dynamic
-Node/I/O</a></li>
-<li><a href="#mutation-api-정책" id="toc-mutation-api-정책">6.10
-Mutation API 정책</a></li>
-<li><a href="#requestresult와-provenance-확인"
-id="toc-requestresult와-provenance-확인">6.11 Request/result와
-provenance 확인</a></li>
-<li><a href="#lmc-home-ds402-home과-encoder-maintenance"
-id="toc-lmc-home-ds402-home과-encoder-maintenance">6.12 LMC Home, DS402
-Home과 Encoder Maintenance</a>
-<ul>
-<li><a href="#lmc-home-currentpositionzero"
-id="toc-lmc-home-currentpositionzero">LMC Home
-CurrentPositionZero</a></li>
-<li><a href="#ds402-home-method-37" id="toc-ds402-home-method-37">DS402
-Home method 37</a></li>
-<li><a href="#tw20-tw19-encoder-maintenance"
-id="toc-tw20-tw19-encoder-maintenance">TW[20] / TW[19] Encoder
-Maintenance</a></li>
-</ul></li>
-<li><a href="#axis-setposition" id="toc-axis-setposition">6.13 Axis
-SetPosition</a></li>
-</ul></li>
-</ul>
-</nav>
 <h1 id="lasal-motion-control-api-설명서">LASAL Motion Control API
 설명서</h1>
-<p>문서 버전: 2.5-development 적용 API: LasalMotionControlLib
+<p>문서 버전: 2.6-development 적용 API: LasalMotionControlLib
 0.9.1-preview 대상 환경: Windows, .NET Framework 4.8 기준일:
-2026-08-31</p>
+2026-09-01</p>
 <h1 id="개정-이력">개정 이력</h1>
 <table>
 <colgroup>
@@ -513,6 +114,13 @@ backing/fail-closed 계약과 최신 PLC image load 경계 반영</td>
 <td>SetOperationMode PP/PV/IP/CSP qualification-active 계약, Generic SDO
 R03~R05, branch cleanup, 17:28 capability freshness ordering blocker와
 current 실기 절차 반영</td>
+</tr>
+<tr class="odd">
+<td>2.6-development</td>
+<td>2026-09-01</td>
+<td>SetOperationMode 구현 완료 상태, exact requested-mode ACK, one-shot
+0x6060/read-only settling, bounded owner publish, durable outcome/retire
+및 남은 기능 로드맵 정렬</td>
 </tr>
 </tbody>
 </table>
@@ -2162,97 +1770,130 @@ capability의 <code>BaseCycleTimeUs</code>에서 계산하며 최대 poll 수는
 중단하며, 이미 제출한 PLC ticket을 자동 cancel하지 않는다. 이미 진행
 중인 status RPC는 응답을 끝까지 수신한 뒤 취소를 보고하므로 connection은
 유지되고 보존된 ticket을 다시 조회할 수 있다.</p>
-<h3 id="setoperationmode-current-qualification-contract">3.11.1
-SetOperationMode current qualification contract</h3>
-<p>2.5-development SDK/source의 SetOperationMode는 CSP-only scaffold가
-아니다. current <code>dev</code>는 PP(1), PV(3), IP(7), CSP(8)를
-<code>0x018A</code> supported-mode mask로 광고하고 Admin
-Start/Outcome/Retire triad를 활성화한다. Homing(6)은 이 API가 아니라
-HomeDS402 계열이 소유한다.</p>
+<h3 id="setoperationmode">3.11.1 SetOperationMode</h3>
+<p>2.6-development의 SetOperationMode는 current <code>dev</code>에서
+구현 완료된 single-axis operation-mode 변경 lifecycle이다. 지원 mode는
+PLC가 <code>SetOperationModeSupportedMask=0x018A</code>로 광고하는
+PP(1), PV(3), IP(7), CSP(8)이며 Homing(6)은 HomeDS402/HomeDS402Ex가
+소유한다.</p>
+<div class="sourceCode" id="cb18"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMCPreparedAxisSetOperationMode <span class="fu">PrepareSetOperationMode</span><span class="op">(</span></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>    LMCDriveOperationMode requestedMode<span class="op">,</span></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">uint</span> timeoutMilliseconds<span class="op">,</span></span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>    LMCAdminCapabilities verifiedCapabilities<span class="op">,</span></span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>    LMCDiagnosticCapabilities verifiedDiagnosticCapabilities<span class="op">,</span></span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>    LMCAxisSetOperationModeExecuteToken executeToken<span class="op">)</span></span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMCAxisSetOperationModeStartAcknowledgement <span class="fu">SetOperationMode</span><span class="op">(</span></span>
+<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a>    LMCPreparedAxisSetOperationMode preparedCommand<span class="op">)</span></span>
+<span id="cb18-10"><a href="#cb18-10" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCAxisSetOperationModeStartAcknowledgement<span class="op">&gt;</span> <span class="fu">SetOperationModeAsync</span><span class="op">(</span></span>
+<span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a>    LMCPreparedAxisSetOperationMode preparedCommand<span class="op">,</span></span>
+<span id="cb18-12"><a href="#cb18-12" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span>
+<span id="cb18-13"><a href="#cb18-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-14"><a href="#cb18-14" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMCAxisSetOperationModeOutcomeResult <span class="fu">ReadSetOperationModeOutcome</span><span class="op">(</span></span>
+<span id="cb18-15"><a href="#cb18-15" aria-hidden="true" tabindex="-1"></a>    LMCAxisSetOperationModeRecoveryKey recoveryKey<span class="op">,</span></span>
+<span id="cb18-16"><a href="#cb18-16" aria-hidden="true" tabindex="-1"></a>    LMCAdminCapabilities verifiedCapabilities<span class="op">,</span></span>
+<span id="cb18-17"><a href="#cb18-17" aria-hidden="true" tabindex="-1"></a>    LMCDiagnosticCapabilities verifiedDiagnosticCapabilities<span class="op">)</span></span>
+<span id="cb18-18"><a href="#cb18-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-19"><a href="#cb18-19" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMCAxisSetOperationModeOutcomeRetirementResult <span class="fu">RetireSetOperationModeOutcome</span><span class="op">(</span></span>
+<span id="cb18-20"><a href="#cb18-20" aria-hidden="true" tabindex="-1"></a>    LMCAxisSetOperationModeRecoveryKey recoveryKey<span class="op">,</span></span>
+<span id="cb18-21"><a href="#cb18-21" aria-hidden="true" tabindex="-1"></a>    <span class="dt">uint</span> recordGeneration<span class="op">,</span></span>
+<span id="cb18-22"><a href="#cb18-22" aria-hidden="true" tabindex="-1"></a>    LMCAdminCapabilities verifiedCapabilities<span class="op">,</span></span>
+<span id="cb18-23"><a href="#cb18-23" aria-hidden="true" tabindex="-1"></a>    LMCDiagnosticCapabilities verifiedDiagnosticCapabilities<span class="op">)</span></span></code></pre></div>
+<p>비동기 Outcome/Retire overload와 terminal-outcome 기반 Retire
+overload도 제공한다. wire command는 Start <code>0x7D23</code>, exact
+outcome query <code>0x7D24</code>, exact-generation retirement
+<code>0x7D25</code>다. <code>PrepareSetOperationMode</code>는 wire를
+보내지 않으며 current capability/identity와 execute token을 검증한다.
+prepared Start는 one-shot이다.</p>
 <table>
 <colgroup>
-<col style="width: 23%" />
-<col style="width: 23%" />
-<col style="width: 30%" />
-<col style="width: 23%" />
+<col style="width: 50%" />
+<col style="width: 50%" />
 </colgroup>
 <thead>
 <tr class="header">
-<th>단계</th>
-<th><code>LMCSingleAxis</code> API</th>
-<th style="text-align: right;">Command</th>
-<th>current source</th>
+<th>항목</th>
+<th>current 계약</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td>Prepare</td>
-<td><code>PrepareSetOperationMode</code></td>
-<td style="text-align: right;">wire 없음</td>
-<td>current capability/identity validation</td>
+<td>지원 mode</td>
+<td>PP(1), PV(3), IP(7), CSP(8)</td>
 </tr>
 <tr class="even">
-<td>Start once</td>
-<td><code>SetOperationMode[Async]</code></td>
-<td style="text-align: right;"><code>0x7D23</code></td>
-<td>qualification-active</td>
+<td>same-target</td>
+<td>이미 <code>0x6061</code>이 requested mode면
+<code>SucceededNoWrite</code> 가능</td>
 </tr>
 <tr class="odd">
-<td>Exact outcome query</td>
-<td><code>ReadSetOperationModeOutcome[Async]</code></td>
-<td style="text-align: right;"><code>0x7D24</code></td>
-<td>qualification-active</td>
+<td>cross-mode preflight</td>
+<td>Standstill=True, DS402 Fault=False, OperationEnabled=False</td>
 </tr>
 <tr class="even">
-<td>Exact terminal retirement</td>
-<td><code>RetireSetOperationModeOutcome[Async]</code></td>
-<td style="text-align: right;"><code>0x7D25</code></td>
-<td>qualification-active</td>
+<td>mode write</td>
+<td>exact requested mode를 <code>0x6060:0</code>에 최대 1회
+dispatch</td>
+</tr>
+<tr class="odd">
+<td>verify</td>
+<td><code>0x6061:0</code> exact readback; 반영 지연은 original deadline
+안에서 read-only 재확인</td>
+</tr>
+<tr class="even">
+<td>recovery</td>
+<td>original <code>0x7D23</code>/<code>0x6060</code> replay 금지;
+exact-key query만 사용</td>
+</tr>
+<tr class="odd">
+<td>terminal</td>
+<td>owner release와 executor reusable evidence를 포함한 terminal
+outcome</td>
+</tr>
+<tr class="even">
+<td>retire</td>
+<td>terminal record의 exact generation과 identity가 일치할 때만
+<code>0x7D25</code></td>
 </tr>
 </tbody>
 </table>
-<p>Start ACK는 completion evidence가 아니며 prepared command는
-one-shot이다. result가 불확실한 경우 <code>0x7D23</code> 또는 원
-<code>0x6060</code> Write를 자동 replay하지 않는다. recovery는 exact
-durable identity로 outcome/current-mode observation/retirement만
-수행한다. raw Generic SDO로 <code>0x6060</code>을 직접 쓰는 것은 계속
-금지한다.</p>
-<p>실제 cross-mode 후보는 Start 전에 fresh
-<code>ReadDriveStatusAsync()</code>로 LASAL status, DS402
-<code>0x6041</code>, <code>0x6061</code>을 읽고
-<code>Standstill=True</code>, DS402 Fault=False,
-OperationEnabled=False를 요구한다. current mode가 requested mode와
-같으면 PLC lifecycle은 <code>SucceededNoWrite</code>가 될 수 있으므로
-CSP-&gt;CSP 성공만으로 <code>0x6060</code> Write 성공을 증명하지
+<p>Start ACK는 completion evidence가 아니다. TCP 계층은 ACK와
+well-shaped domain failure에서 CSP 상수값을 기대하지 않고 <strong>exact
+requested mode</strong>를 echo/검증한다. 따라서 PP/PV/IP/CSP가 동일한
+wire 계약을 사용한다.</p>
+<h3 id="실행-완료와-durable-recovery">3.11.2 실행 완료와 durable
+recovery</h3>
+<p>WPF current path는 Start 전에 physical axis와 fresh drive status를
+읽고, preflight가 내부 D5 capability observation sequence를 변경한 뒤
+<strong>FINAL Diagnostics capability refresh</strong>를 수행한다. 그
+current observation으로 Prepare한 뒤 durable journal을 먼저 arm하고
+Start를 정확히 한 번만 보낸다. freshness, Build/BootId/MapRevision,
+Standstill/Fault/OperationEnabled fence는 생략하지 않는다.</p>
+<p>Start가 Running이면 WPF는 exact recovery key로 <code>0x7D24</code>를
+반복 조회한다. 이 조회는 read-only이며 original Start를 replay하지
 않는다.</p>
-<h3 id="실기-blocker">3.11.2 2026-08-28 17:28 실기 blocker</h3>
-<p>Axis1 current CSP(8)에서 PP/PV/IP 요청은 모두
-<code>StatusWord=0x02D0</code>으로 cross-mode preflight를 통과했다.
-그러나 다음 단계에서 아래 host exception으로 종료됐다.</p>
-<pre class="text"><code>The supplied diagnostics capabilities are not the current observation.</code></pre>
-<p>현재 원인은 PLC reject가 아니라 capability observation ordering이다.
-WPF가 Diagnostics capability observation N을 저장한 뒤
-<code>ReadDriveStatusAsync()</code>가
-<code>0x6041</code>/<code>0x6061</code> inline D5 Read를 수행하고, 각
-submission 내부 <code>Diagnostics.GetCapabilities()</code>가
-observation을 N+1/N+2로 진행시킨다. 이후
-<code>PrepareSetOperationMode(... observation N ...)</code>이
-<code>requireCurrentObservation=true</code>에서 stale로 거부된다.</p>
-<p>따라서 이 재현에서는 durable journal arm, <code>0x7D23</code>, 실제
-<code>0x6060</code> mutation까지 도달하지 않았다. 현재 corrective
-ordering은 다음으로 고정한다.</p>
-<pre class="text"><code>Admin capability / selected-mode 확인
--&gt; GetPhysicalAxis
--&gt; fresh ReadDriveStatus preflight
--&gt; FINAL Diagnostics capability refresh
--&gt; capability/admission validation
--&gt; PrepareSetOperationMode
--&gt; durable ArmBeforeDispatch
--&gt; Start exactly once</code></pre>
-<p>freshness fence, Build/BootId/MapRevision identity, one-shot
-confirmation, DS402 safety fence와 no-replay 정책을 완화해서 해결하지
-않는다. 해당 ordering fix와 regression이 <code>dev</code>에 반영되기
-전까지 PP/PV/IP physical mode-change PASS로 판정하지 않는다.</p>
+<ul>
+<li><code>Succeeded</code>: terminal evidence 저장 -&gt;
+exact-generation <code>0x7D25</code> retire -&gt; PASS.</li>
+<li><code>Failed</code> / <code>Aborted</code>: terminal evidence 저장과
+retire를 완료한 뒤 실패로 반환한다. 실패를 PASS로 바꾸지 않는다.</li>
+<li>Running 지속, outcome query reject 또는 indeterminate: durable
+record와 mutation interlock을 유지한다. <code>CloseConnection</code>은
+허용되지만 motion stop, 결과 확정 또는 record 해제를 뜻하지 않는다.</li>
+</ul>
+<p>PLC는 정상 <code>0x6061</code> readback이 requested mode와 다르더라도
+original operation deadline을 늘리지 않은 채 최소 50 ms 간격으로
+read-only verify를 재시도한다. write callback/owner 상태가 불확정이면
+fail-closed quarantine을 유지한다. terminal owner publish/release도
+original deadline 안에서만 bounded retry하며 이 과정에서 새 SDO Write를
+만들지 않는다.</p>
+<p>raw Generic SDO Write로 <code>0x6060</code>을 직접 우회하는 경로는
+permanent deny 상태다. SetOperationMode의 과거 capability-freshness,
+readback settling, owner publish 및 CSP-fixed ACK 원인 분석은
+<code>design/SET_OPERATION_MODE_READBACK_SETTLING_FIX_20260831.md</code>에
+historical evidence로 보존한다. SetOperationMode 기능 구현 완료와 전체
+<code>0.9.1-preview</code> production release 승인은 별개다.</p>
 <h2 id="move-완료와-restart-recovery-경계">3.12 Move 완료와 restart
 recovery 경계</h2>
 <p><code>MoveAbsoluteEx</code>, <code>MoveRelativeEx</code>,
@@ -2275,15 +1916,15 @@ status/position을 읽고, 필요한 경우 승인된
 <h1 id="group-api">4. Group API</h1>
 <h2 id="lmcgroupaxis-생성">4.1 LMCGroupAxis 생성</h2>
 <p>LASAL group object name으로 group reference를 가져온다.</p>
-<div class="sourceCode" id="cb20"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="fu">LMCGroupAxis</span><span class="op">(</span></span>
-<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>    LMCConnection connection<span class="op">,</span></span>
-<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">string</span> groupName<span class="op">)</span></span>
-<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="kw">static</span> Task<span class="op">&lt;</span>LMCGroupAxis<span class="op">&gt;</span> <span class="fu">CreateAsync</span><span class="op">(</span></span>
-<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a>    LMCConnection connection<span class="op">,</span></span>
-<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>    <span class="dt">string</span> groupName<span class="op">,</span></span>
-<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span></code></pre></div>
+<div class="sourceCode" id="cb19"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="fu">LMCGroupAxis</span><span class="op">(</span></span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>    LMCConnection connection<span class="op">,</span></span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">string</span> groupName<span class="op">)</span></span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="kw">static</span> Task<span class="op">&lt;</span>LMCGroupAxis<span class="op">&gt;</span> <span class="fu">CreateAsync</span><span class="op">(</span></span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>    LMCConnection connection<span class="op">,</span></span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a>    <span class="dt">string</span> groupName<span class="op">,</span></span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span></code></pre></div>
 <table>
 <colgroup>
 <col style="width: 25%" />
@@ -2347,12 +1988,12 @@ SetKin/Lock/Move는 X/Y/Z/U 축 1~4에만 적용된다. 이것은 9축 동시 gr
 interpolation API가 아니다.</p>
 <h2 id="getgroupmembersinfo">4.2 GetGroupMembersInfo</h2>
 <p>Group에 연결된 axis member 정보를 읽는다.</p>
-<div class="sourceCode" id="cb21"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMC_Response <span class="fu">GetGroupMembersInfo</span><span class="op">()</span></span>
-<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMCGroupMembersInfoResult <span class="fu">GetGroupMembersInfoResult</span><span class="op">()</span></span>
-<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupMembersInfoResult<span class="op">&gt;</span> <span class="fu">GetGroupMembersInfoResultAsync</span><span class="op">(</span></span>
-<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span></code></pre></div>
+<div class="sourceCode" id="cb20"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMC_Response <span class="fu">GetGroupMembersInfo</span><span class="op">()</span></span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMCGroupMembersInfoResult <span class="fu">GetGroupMembersInfoResult</span><span class="op">()</span></span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupMembersInfoResult<span class="op">&gt;</span> <span class="fu">GetGroupMembersInfoResultAsync</span><span class="op">(</span></span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span></code></pre></div>
 <table>
 <colgroup>
 <col style="width: 50%" />
@@ -2381,27 +2022,27 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb21-1"><a href=
 </table>
 <h2 id="grouppoweron">4.3 GroupPowerOn</h2>
 <p>Group member axis의 Power On을 요청한다.</p>
-<div class="sourceCode" id="cb22"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMC_Response <span class="fu">GroupPowerOn</span><span class="op">()</span></span>
-<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMC_Response<span class="op">&gt;</span> <span class="fu">GroupPowerOnAsync</span><span class="op">(</span></span>
-<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span>
-<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupPowerStateWaitContinuation<span class="op">&gt;</span></span>
-<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">BeginGroupPowerOnWaitForStableStateAsync</span><span class="op">(</span></span>
-<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span>
-<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb22-9"><a href="#cb22-9" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupPowerStateWaitResult<span class="op">&gt;</span></span>
-<span id="cb22-10"><a href="#cb22-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">ResumeGroupPowerStateWaitForStableStateAsync</span><span class="op">(</span></span>
-<span id="cb22-11"><a href="#cb22-11" aria-hidden="true" tabindex="-1"></a>        LMCGroupPowerStateWaitContinuation continuation<span class="op">,</span></span>
-<span id="cb22-12"><a href="#cb22-12" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span>
-<span id="cb22-13"><a href="#cb22-13" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb22-14"><a href="#cb22-14" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupPowerStateWaitResult<span class="op">&gt;</span></span>
-<span id="cb22-15"><a href="#cb22-15" aria-hidden="true" tabindex="-1"></a>    <span class="fu">GroupPowerOnAndWaitForStableStateAsync</span><span class="op">(</span></span>
-<span id="cb22-16"><a href="#cb22-16" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span>
-<span id="cb22-17"><a href="#cb22-17" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb22-18"><a href="#cb22-18" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupPowerStateWaitResult<span class="op">&gt;</span> <span class="fu">WaitForPowerStateAsync</span><span class="op">(</span></span>
-<span id="cb22-19"><a href="#cb22-19" aria-hidden="true" tabindex="-1"></a>    <span class="dt">bool</span> expectedPowerOn<span class="op">,</span></span>
-<span id="cb22-20"><a href="#cb22-20" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span></code></pre></div>
+<div class="sourceCode" id="cb21"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMC_Response <span class="fu">GroupPowerOn</span><span class="op">()</span></span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMC_Response<span class="op">&gt;</span> <span class="fu">GroupPowerOnAsync</span><span class="op">(</span></span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupPowerStateWaitContinuation<span class="op">&gt;</span></span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">BeginGroupPowerOnWaitForStableStateAsync</span><span class="op">(</span></span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupPowerStateWaitResult<span class="op">&gt;</span></span>
+<span id="cb21-10"><a href="#cb21-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">ResumeGroupPowerStateWaitForStableStateAsync</span><span class="op">(</span></span>
+<span id="cb21-11"><a href="#cb21-11" aria-hidden="true" tabindex="-1"></a>        LMCGroupPowerStateWaitContinuation continuation<span class="op">,</span></span>
+<span id="cb21-12"><a href="#cb21-12" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span>
+<span id="cb21-13"><a href="#cb21-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-14"><a href="#cb21-14" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupPowerStateWaitResult<span class="op">&gt;</span></span>
+<span id="cb21-15"><a href="#cb21-15" aria-hidden="true" tabindex="-1"></a>    <span class="fu">GroupPowerOnAndWaitForStableStateAsync</span><span class="op">(</span></span>
+<span id="cb21-16"><a href="#cb21-16" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span>
+<span id="cb21-17"><a href="#cb21-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-18"><a href="#cb21-18" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupPowerStateWaitResult<span class="op">&gt;</span> <span class="fu">WaitForPowerStateAsync</span><span class="op">(</span></span>
+<span id="cb21-19"><a href="#cb21-19" aria-hidden="true" tabindex="-1"></a>    <span class="dt">bool</span> expectedPowerOn<span class="op">,</span></span>
+<span id="cb21-20"><a href="#cb21-20" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span></code></pre></div>
 <table>
 <colgroup>
 <col style="width: 50%" />
@@ -2442,18 +2083,18 @@ connection/session/group의 latest unresolved Power command를
 제공한다.</p>
 <h2 id="grouppoweroff">4.4 GroupPowerOff</h2>
 <p>Group member axis의 Power Off를 요청한다.</p>
-<div class="sourceCode" id="cb23"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMC_Response <span class="fu">GroupPowerOff</span><span class="op">()</span></span>
-<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMC_Response<span class="op">&gt;</span> <span class="fu">GroupPowerOffAsync</span><span class="op">(</span></span>
-<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span>
-<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupPowerStateWaitContinuation<span class="op">&gt;</span></span>
-<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">BeginGroupPowerOffWaitForStableStateAsync</span><span class="op">(</span></span>
-<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span>
-<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupPowerStateWaitResult<span class="op">&gt;</span></span>
-<span id="cb23-10"><a href="#cb23-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">GroupPowerOffAndWaitForStableStateAsync</span><span class="op">(</span></span>
-<span id="cb23-11"><a href="#cb23-11" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span></code></pre></div>
+<div class="sourceCode" id="cb22"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMC_Response <span class="fu">GroupPowerOff</span><span class="op">()</span></span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMC_Response<span class="op">&gt;</span> <span class="fu">GroupPowerOffAsync</span><span class="op">(</span></span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupPowerStateWaitContinuation<span class="op">&gt;</span></span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">BeginGroupPowerOffWaitForStableStateAsync</span><span class="op">(</span></span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span>
+<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-9"><a href="#cb22-9" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupPowerStateWaitResult<span class="op">&gt;</span></span>
+<span id="cb22-10"><a href="#cb22-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">GroupPowerOffAndWaitForStableStateAsync</span><span class="op">(</span></span>
+<span id="cb22-11"><a href="#cb22-11" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span></code></pre></div>
 <table>
 <colgroup>
 <col style="width: 50%" />
@@ -2492,33 +2133,33 @@ drive-ready나 DS402 fault 부재를 증명하지 않으므로 필요한 경우 
 drive status를 추가 확인한다.</p>
 <h2 id="groupenable">4.5 GroupEnable</h2>
 <p>Group motion profile을 lock한다.</p>
-<div class="sourceCode" id="cb24"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMC_Response <span class="fu">GroupEnable</span><span class="op">()</span></span>
-<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMC_Response<span class="op">&gt;</span> <span class="fu">GroupEnableAsync</span><span class="op">(</span></span>
-<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span>
-<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupEnableWaitResult<span class="op">&gt;</span></span>
-<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">GroupEnableAndWaitForLockedStandbyAsync</span><span class="op">(</span></span>
-<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span>
-<span id="cb24-8"><a href="#cb24-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb24-9"><a href="#cb24-9" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupEnableWaitContinuation<span class="op">&gt;</span></span>
-<span id="cb24-10"><a href="#cb24-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">BeginGroupEnableWaitForLockedStandbyAsync</span><span class="op">(</span></span>
-<span id="cb24-11"><a href="#cb24-11" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span>
-<span id="cb24-12"><a href="#cb24-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb24-13"><a href="#cb24-13" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupEnableWaitResult<span class="op">&gt;</span></span>
-<span id="cb24-14"><a href="#cb24-14" aria-hidden="true" tabindex="-1"></a>    <span class="fu">ResumeGroupEnableWaitForLockedStandbyAsync</span><span class="op">(</span></span>
-<span id="cb24-15"><a href="#cb24-15" aria-hidden="true" tabindex="-1"></a>        LMCGroupEnableWaitContinuation continuation<span class="op">,</span></span>
-<span id="cb24-16"><a href="#cb24-16" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span>
-<span id="cb24-17"><a href="#cb24-17" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb24-18"><a href="#cb24-18" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupLockedStandbyWaitResult<span class="op">&gt;</span></span>
-<span id="cb24-19"><a href="#cb24-19" aria-hidden="true" tabindex="-1"></a>    <span class="fu">WaitForLockedStandbyAsync</span><span class="op">(</span></span>
-<span id="cb24-20"><a href="#cb24-20" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span>
-<span id="cb24-21"><a href="#cb24-21" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb24-22"><a href="#cb24-22" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMCGroupEnableWaitContinuation PendingGroupEnableWaitContinuation <span class="op">{</span> <span class="kw">get</span><span class="op">;</span> <span class="op">}</span></span>
-<span id="cb24-23"><a href="#cb24-23" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb24-24"><a href="#cb24-24" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="dt">bool</span> <span class="fu">TryReleasePendingGroupEnableForRetry</span><span class="op">(</span></span>
-<span id="cb24-25"><a href="#cb24-25" aria-hidden="true" tabindex="-1"></a>    LMCGroupEnableWaitContinuation continuation<span class="op">)</span></span>
-<span id="cb24-26"><a href="#cb24-26" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="dt">bool</span> <span class="fu">InvalidatePendingGroupEnableWaitStatusProof</span><span class="op">()</span></span></code></pre></div>
+<div class="sourceCode" id="cb23"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMC_Response <span class="fu">GroupEnable</span><span class="op">()</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMC_Response<span class="op">&gt;</span> <span class="fu">GroupEnableAsync</span><span class="op">(</span></span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupEnableWaitResult<span class="op">&gt;</span></span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">GroupEnableAndWaitForLockedStandbyAsync</span><span class="op">(</span></span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupEnableWaitContinuation<span class="op">&gt;</span></span>
+<span id="cb23-10"><a href="#cb23-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">BeginGroupEnableWaitForLockedStandbyAsync</span><span class="op">(</span></span>
+<span id="cb23-11"><a href="#cb23-11" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span>
+<span id="cb23-12"><a href="#cb23-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-13"><a href="#cb23-13" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupEnableWaitResult<span class="op">&gt;</span></span>
+<span id="cb23-14"><a href="#cb23-14" aria-hidden="true" tabindex="-1"></a>    <span class="fu">ResumeGroupEnableWaitForLockedStandbyAsync</span><span class="op">(</span></span>
+<span id="cb23-15"><a href="#cb23-15" aria-hidden="true" tabindex="-1"></a>        LMCGroupEnableWaitContinuation continuation<span class="op">,</span></span>
+<span id="cb23-16"><a href="#cb23-16" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span>
+<span id="cb23-17"><a href="#cb23-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-18"><a href="#cb23-18" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupLockedStandbyWaitResult<span class="op">&gt;</span></span>
+<span id="cb23-19"><a href="#cb23-19" aria-hidden="true" tabindex="-1"></a>    <span class="fu">WaitForLockedStandbyAsync</span><span class="op">(</span></span>
+<span id="cb23-20"><a href="#cb23-20" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span>
+<span id="cb23-21"><a href="#cb23-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-22"><a href="#cb23-22" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMCGroupEnableWaitContinuation PendingGroupEnableWaitContinuation <span class="op">{</span> <span class="kw">get</span><span class="op">;</span> <span class="op">}</span></span>
+<span id="cb23-23"><a href="#cb23-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-24"><a href="#cb23-24" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="dt">bool</span> <span class="fu">TryReleasePendingGroupEnableForRetry</span><span class="op">(</span></span>
+<span id="cb23-25"><a href="#cb23-25" aria-hidden="true" tabindex="-1"></a>    LMCGroupEnableWaitContinuation continuation<span class="op">)</span></span>
+<span id="cb23-26"><a href="#cb23-26" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="dt">bool</span> <span class="fu">InvalidatePendingGroupEnableWaitStatusProof</span><span class="op">()</span></span></code></pre></div>
 <table>
 <colgroup>
 <col style="width: 50%" />
@@ -2579,29 +2220,29 @@ Off reservation 경계에서 누적 proof만 지우며 pending command를
 완료시키지 않는다.</p>
 <h2 id="groupdisable">4.6 GroupDisable</h2>
 <p>Group motion profile을 unlock한다.</p>
-<div class="sourceCode" id="cb25"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMC_Response <span class="fu">GroupDisable</span><span class="op">()</span></span>
-<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMC_Response<span class="op">&gt;</span> <span class="fu">GroupDisableAsync</span><span class="op">(</span></span>
-<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span>
-<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupDisableWaitContinuation<span class="op">&gt;</span></span>
-<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">BeginGroupDisableWaitForStableDisabledAsync</span><span class="op">(</span></span>
-<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span>
-<span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupDisableWaitResult<span class="op">&gt;</span></span>
-<span id="cb25-10"><a href="#cb25-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">ResumeGroupDisableWaitForStableDisabledAsync</span><span class="op">(</span></span>
-<span id="cb25-11"><a href="#cb25-11" aria-hidden="true" tabindex="-1"></a>        LMCGroupDisableWaitContinuation continuation<span class="op">,</span></span>
-<span id="cb25-12"><a href="#cb25-12" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span>
-<span id="cb25-13"><a href="#cb25-13" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb25-14"><a href="#cb25-14" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupDisableWaitResult<span class="op">&gt;</span></span>
-<span id="cb25-15"><a href="#cb25-15" aria-hidden="true" tabindex="-1"></a>    <span class="fu">GroupDisableAndWaitForStableDisabledAsync</span><span class="op">(</span></span>
-<span id="cb25-16"><a href="#cb25-16" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span>
-<span id="cb25-17"><a href="#cb25-17" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb25-18"><a href="#cb25-18" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupStableDisabledWaitResult<span class="op">&gt;</span></span>
-<span id="cb25-19"><a href="#cb25-19" aria-hidden="true" tabindex="-1"></a>    <span class="fu">WaitForStableDisabledAsync</span><span class="op">(</span></span>
-<span id="cb25-20"><a href="#cb25-20" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span>
-<span id="cb25-21"><a href="#cb25-21" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb25-22"><a href="#cb25-22" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMCGroupDisableWaitContinuation PendingGroupDisableWaitContinuation <span class="op">{</span> <span class="kw">get</span><span class="op">;</span> <span class="op">}</span></span></code></pre></div>
+<div class="sourceCode" id="cb24"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMC_Response <span class="fu">GroupDisable</span><span class="op">()</span></span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMC_Response<span class="op">&gt;</span> <span class="fu">GroupDisableAsync</span><span class="op">(</span></span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupDisableWaitContinuation<span class="op">&gt;</span></span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">BeginGroupDisableWaitForStableDisabledAsync</span><span class="op">(</span></span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span>
+<span id="cb24-8"><a href="#cb24-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-9"><a href="#cb24-9" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupDisableWaitResult<span class="op">&gt;</span></span>
+<span id="cb24-10"><a href="#cb24-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">ResumeGroupDisableWaitForStableDisabledAsync</span><span class="op">(</span></span>
+<span id="cb24-11"><a href="#cb24-11" aria-hidden="true" tabindex="-1"></a>        LMCGroupDisableWaitContinuation continuation<span class="op">,</span></span>
+<span id="cb24-12"><a href="#cb24-12" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span>
+<span id="cb24-13"><a href="#cb24-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-14"><a href="#cb24-14" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupDisableWaitResult<span class="op">&gt;</span></span>
+<span id="cb24-15"><a href="#cb24-15" aria-hidden="true" tabindex="-1"></a>    <span class="fu">GroupDisableAndWaitForStableDisabledAsync</span><span class="op">(</span></span>
+<span id="cb24-16"><a href="#cb24-16" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span>
+<span id="cb24-17"><a href="#cb24-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-18"><a href="#cb24-18" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupStableDisabledWaitResult<span class="op">&gt;</span></span>
+<span id="cb24-19"><a href="#cb24-19" aria-hidden="true" tabindex="-1"></a>    <span class="fu">WaitForStableDisabledAsync</span><span class="op">(</span></span>
+<span id="cb24-20"><a href="#cb24-20" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span>
+<span id="cb24-21"><a href="#cb24-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-22"><a href="#cb24-22" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMCGroupDisableWaitContinuation PendingGroupDisableWaitContinuation <span class="op">{</span> <span class="kw">get</span><span class="op">;</span> <span class="op">}</span></span></code></pre></div>
 <table>
 <colgroup>
 <col style="width: 50%" />
@@ -2646,45 +2287,45 @@ Disable 완료로 오인하지 않는다. newer stable Group Power Off가 완료
 Disabled 완료를 주장하지 않는다.</p>
 <h2 id="groupreset">4.7 GroupReset</h2>
 <p>Group error reset을 요청한다.</p>
-<div class="sourceCode" id="cb26"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMC_Response <span class="fu">GroupReset</span><span class="op">()</span></span>
-<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMC_Response<span class="op">&gt;</span> <span class="fu">GroupResetAsync</span><span class="op">(</span></span>
-<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span>
-<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupResetWaitContinuation<span class="op">&gt;</span></span>
-<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">BeginGroupResetWaitForStableErrorClearanceAsync</span><span class="op">(</span></span>
-<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a>        LMCGroupResetWaitOptions options<span class="op">,</span></span>
-<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span>
-<span id="cb26-9"><a href="#cb26-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-10"><a href="#cb26-10" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupResetWaitContinuation<span class="op">&gt;</span></span>
-<span id="cb26-11"><a href="#cb26-11" aria-hidden="true" tabindex="-1"></a>    <span class="fu">BeginGroupResetWaitForStableErrorClearanceAsync</span><span class="op">(</span></span>
-<span id="cb26-12"><a href="#cb26-12" aria-hidden="true" tabindex="-1"></a>        LMCGroupResetWaitOptions options<span class="op">,</span></span>
-<span id="cb26-13"><a href="#cb26-13" aria-hidden="true" tabindex="-1"></a>        Action<span class="op">&lt;</span>LMCGroupResetPreparedEvidence<span class="op">&gt;</span> preparedEvidenceObserver<span class="op">,</span></span>
-<span id="cb26-14"><a href="#cb26-14" aria-hidden="true" tabindex="-1"></a>        Action<span class="op">&lt;</span>LMCGroupResetWaitContinuation<span class="op">&gt;</span> acceptedContinuationObserver<span class="op">,</span></span>
-<span id="cb26-15"><a href="#cb26-15" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span>
-<span id="cb26-16"><a href="#cb26-16" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-17"><a href="#cb26-17" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupResetWaitContinuation<span class="op">&gt;</span></span>
-<span id="cb26-18"><a href="#cb26-18" aria-hidden="true" tabindex="-1"></a>    <span class="fu">AttachGroupResetDurableRecoveryAsync</span><span class="op">(</span></span>
-<span id="cb26-19"><a href="#cb26-19" aria-hidden="true" tabindex="-1"></a>        LMCGroupResetDurableRecoveryRecord record<span class="op">,</span></span>
-<span id="cb26-20"><a href="#cb26-20" aria-hidden="true" tabindex="-1"></a>        LMCGroupResetWaitOptions options<span class="op">,</span></span>
-<span id="cb26-21"><a href="#cb26-21" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span>
-<span id="cb26-22"><a href="#cb26-22" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-23"><a href="#cb26-23" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupResetWaitResult<span class="op">&gt;</span></span>
-<span id="cb26-24"><a href="#cb26-24" aria-hidden="true" tabindex="-1"></a>    <span class="fu">ResumeGroupResetWaitForStableErrorClearanceAsync</span><span class="op">(</span></span>
-<span id="cb26-25"><a href="#cb26-25" aria-hidden="true" tabindex="-1"></a>        LMCGroupResetWaitContinuation continuation<span class="op">,</span></span>
-<span id="cb26-26"><a href="#cb26-26" aria-hidden="true" tabindex="-1"></a>        LMCGroupResetWaitOptions options<span class="op">,</span></span>
-<span id="cb26-27"><a href="#cb26-27" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span>
-<span id="cb26-28"><a href="#cb26-28" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-29"><a href="#cb26-29" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupResetWaitResult<span class="op">&gt;</span></span>
-<span id="cb26-30"><a href="#cb26-30" aria-hidden="true" tabindex="-1"></a>    <span class="fu">GroupResetAndWaitForStableErrorClearanceAsync</span><span class="op">(</span></span>
-<span id="cb26-31"><a href="#cb26-31" aria-hidden="true" tabindex="-1"></a>        LMCGroupResetWaitOptions options<span class="op">,</span></span>
-<span id="cb26-32"><a href="#cb26-32" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span>
-<span id="cb26-33"><a href="#cb26-33" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-34"><a href="#cb26-34" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="dt">bool</span> <span class="fu">SupersedePendingGroupResetAfterCapturedMemberSafetyMutation</span><span class="op">(</span></span>
-<span id="cb26-35"><a href="#cb26-35" aria-hidden="true" tabindex="-1"></a>    LMCGroupResetWaitContinuation continuation<span class="op">,</span></span>
-<span id="cb26-36"><a href="#cb26-36" aria-hidden="true" tabindex="-1"></a>    LMCSingleAxis memberAxis<span class="op">)</span></span>
-<span id="cb26-37"><a href="#cb26-37" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-38"><a href="#cb26-38" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMCGroupResetWaitContinuation PendingGroupResetWaitContinuation <span class="op">{</span> <span class="kw">get</span><span class="op">;</span> <span class="op">}</span></span></code></pre></div>
+<div class="sourceCode" id="cb25"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMC_Response <span class="fu">GroupReset</span><span class="op">()</span></span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMC_Response<span class="op">&gt;</span> <span class="fu">GroupResetAsync</span><span class="op">(</span></span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupResetWaitContinuation<span class="op">&gt;</span></span>
+<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">BeginGroupResetWaitForStableErrorClearanceAsync</span><span class="op">(</span></span>
+<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a>        LMCGroupResetWaitOptions options<span class="op">,</span></span>
+<span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span>
+<span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-10"><a href="#cb25-10" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupResetWaitContinuation<span class="op">&gt;</span></span>
+<span id="cb25-11"><a href="#cb25-11" aria-hidden="true" tabindex="-1"></a>    <span class="fu">BeginGroupResetWaitForStableErrorClearanceAsync</span><span class="op">(</span></span>
+<span id="cb25-12"><a href="#cb25-12" aria-hidden="true" tabindex="-1"></a>        LMCGroupResetWaitOptions options<span class="op">,</span></span>
+<span id="cb25-13"><a href="#cb25-13" aria-hidden="true" tabindex="-1"></a>        Action<span class="op">&lt;</span>LMCGroupResetPreparedEvidence<span class="op">&gt;</span> preparedEvidenceObserver<span class="op">,</span></span>
+<span id="cb25-14"><a href="#cb25-14" aria-hidden="true" tabindex="-1"></a>        Action<span class="op">&lt;</span>LMCGroupResetWaitContinuation<span class="op">&gt;</span> acceptedContinuationObserver<span class="op">,</span></span>
+<span id="cb25-15"><a href="#cb25-15" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span>
+<span id="cb25-16"><a href="#cb25-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-17"><a href="#cb25-17" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupResetWaitContinuation<span class="op">&gt;</span></span>
+<span id="cb25-18"><a href="#cb25-18" aria-hidden="true" tabindex="-1"></a>    <span class="fu">AttachGroupResetDurableRecoveryAsync</span><span class="op">(</span></span>
+<span id="cb25-19"><a href="#cb25-19" aria-hidden="true" tabindex="-1"></a>        LMCGroupResetDurableRecoveryRecord record<span class="op">,</span></span>
+<span id="cb25-20"><a href="#cb25-20" aria-hidden="true" tabindex="-1"></a>        LMCGroupResetWaitOptions options<span class="op">,</span></span>
+<span id="cb25-21"><a href="#cb25-21" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span>
+<span id="cb25-22"><a href="#cb25-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-23"><a href="#cb25-23" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupResetWaitResult<span class="op">&gt;</span></span>
+<span id="cb25-24"><a href="#cb25-24" aria-hidden="true" tabindex="-1"></a>    <span class="fu">ResumeGroupResetWaitForStableErrorClearanceAsync</span><span class="op">(</span></span>
+<span id="cb25-25"><a href="#cb25-25" aria-hidden="true" tabindex="-1"></a>        LMCGroupResetWaitContinuation continuation<span class="op">,</span></span>
+<span id="cb25-26"><a href="#cb25-26" aria-hidden="true" tabindex="-1"></a>        LMCGroupResetWaitOptions options<span class="op">,</span></span>
+<span id="cb25-27"><a href="#cb25-27" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span>
+<span id="cb25-28"><a href="#cb25-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-29"><a href="#cb25-29" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupResetWaitResult<span class="op">&gt;</span></span>
+<span id="cb25-30"><a href="#cb25-30" aria-hidden="true" tabindex="-1"></a>    <span class="fu">GroupResetAndWaitForStableErrorClearanceAsync</span><span class="op">(</span></span>
+<span id="cb25-31"><a href="#cb25-31" aria-hidden="true" tabindex="-1"></a>        LMCGroupResetWaitOptions options<span class="op">,</span></span>
+<span id="cb25-32"><a href="#cb25-32" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span>
+<span id="cb25-33"><a href="#cb25-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-34"><a href="#cb25-34" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="dt">bool</span> <span class="fu">SupersedePendingGroupResetAfterCapturedMemberSafetyMutation</span><span class="op">(</span></span>
+<span id="cb25-35"><a href="#cb25-35" aria-hidden="true" tabindex="-1"></a>    LMCGroupResetWaitContinuation continuation<span class="op">,</span></span>
+<span id="cb25-36"><a href="#cb25-36" aria-hidden="true" tabindex="-1"></a>    LMCSingleAxis memberAxis<span class="op">)</span></span>
+<span id="cb25-37"><a href="#cb25-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-38"><a href="#cb25-38" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMCGroupResetWaitContinuation PendingGroupResetWaitContinuation <span class="op">{</span> <span class="kw">get</span><span class="op">;</span> <span class="op">}</span></span></code></pre></div>
 <table>
 <colgroup>
 <col style="width: 50%" />
@@ -2756,34 +2397,34 @@ error register, power, profile lock, Home/reference 또는 motion-ready
 증거가 아니다.</p>
 <h2 id="groupstop">4.8 GroupStop</h2>
 <p>현재 group motion의 정지를 요청한다.</p>
-<div class="sourceCode" id="cb27"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMC_Response <span class="fu">GroupStop</span><span class="op">(</span></span>
-<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> deceleration<span class="op">,</span></span>
-<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> jerk<span class="op">)</span></span>
-<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMC_Response<span class="op">&gt;</span> <span class="fu">GroupStopAsync</span><span class="op">(</span></span>
-<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> deceleration<span class="op">,</span></span>
-<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> jerk<span class="op">,</span></span>
-<span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span>
-<span id="cb27-9"><a href="#cb27-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb27-10"><a href="#cb27-10" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupStopWaitContinuation<span class="op">&gt;</span></span>
-<span id="cb27-11"><a href="#cb27-11" aria-hidden="true" tabindex="-1"></a>    <span class="fu">BeginGroupStopWaitForStableStandbyAsync</span><span class="op">(</span></span>
-<span id="cb27-12"><a href="#cb27-12" aria-hidden="true" tabindex="-1"></a>        <span class="dt">int</span> deceleration<span class="op">,</span></span>
-<span id="cb27-13"><a href="#cb27-13" aria-hidden="true" tabindex="-1"></a>        <span class="dt">int</span> jerk<span class="op">,</span></span>
-<span id="cb27-14"><a href="#cb27-14" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span>
-<span id="cb27-15"><a href="#cb27-15" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb27-16"><a href="#cb27-16" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupStopWaitResult<span class="op">&gt;</span></span>
-<span id="cb27-17"><a href="#cb27-17" aria-hidden="true" tabindex="-1"></a>    <span class="fu">ResumeGroupStopWaitForStableStandbyAsync</span><span class="op">(</span></span>
-<span id="cb27-18"><a href="#cb27-18" aria-hidden="true" tabindex="-1"></a>        LMCGroupStopWaitContinuation continuation<span class="op">,</span></span>
-<span id="cb27-19"><a href="#cb27-19" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span>
-<span id="cb27-20"><a href="#cb27-20" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb27-21"><a href="#cb27-21" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupStopWaitResult<span class="op">&gt;</span></span>
-<span id="cb27-22"><a href="#cb27-22" aria-hidden="true" tabindex="-1"></a>    <span class="fu">GroupStopAndWaitForStableStandbyAsync</span><span class="op">(</span></span>
-<span id="cb27-23"><a href="#cb27-23" aria-hidden="true" tabindex="-1"></a>        <span class="dt">int</span> deceleration<span class="op">,</span></span>
-<span id="cb27-24"><a href="#cb27-24" aria-hidden="true" tabindex="-1"></a>        <span class="dt">int</span> jerk<span class="op">,</span></span>
-<span id="cb27-25"><a href="#cb27-25" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span>
-<span id="cb27-26"><a href="#cb27-26" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb27-27"><a href="#cb27-27" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMCGroupStopWaitContinuation PendingGroupStopWaitContinuation <span class="op">{</span> <span class="kw">get</span><span class="op">;</span> <span class="op">}</span></span></code></pre></div>
+<div class="sourceCode" id="cb26"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMC_Response <span class="fu">GroupStop</span><span class="op">(</span></span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> deceleration<span class="op">,</span></span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> jerk<span class="op">)</span></span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMC_Response<span class="op">&gt;</span> <span class="fu">GroupStopAsync</span><span class="op">(</span></span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> deceleration<span class="op">,</span></span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> jerk<span class="op">,</span></span>
+<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span>
+<span id="cb26-9"><a href="#cb26-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-10"><a href="#cb26-10" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupStopWaitContinuation<span class="op">&gt;</span></span>
+<span id="cb26-11"><a href="#cb26-11" aria-hidden="true" tabindex="-1"></a>    <span class="fu">BeginGroupStopWaitForStableStandbyAsync</span><span class="op">(</span></span>
+<span id="cb26-12"><a href="#cb26-12" aria-hidden="true" tabindex="-1"></a>        <span class="dt">int</span> deceleration<span class="op">,</span></span>
+<span id="cb26-13"><a href="#cb26-13" aria-hidden="true" tabindex="-1"></a>        <span class="dt">int</span> jerk<span class="op">,</span></span>
+<span id="cb26-14"><a href="#cb26-14" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span>
+<span id="cb26-15"><a href="#cb26-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-16"><a href="#cb26-16" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupStopWaitResult<span class="op">&gt;</span></span>
+<span id="cb26-17"><a href="#cb26-17" aria-hidden="true" tabindex="-1"></a>    <span class="fu">ResumeGroupStopWaitForStableStandbyAsync</span><span class="op">(</span></span>
+<span id="cb26-18"><a href="#cb26-18" aria-hidden="true" tabindex="-1"></a>        LMCGroupStopWaitContinuation continuation<span class="op">,</span></span>
+<span id="cb26-19"><a href="#cb26-19" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span>
+<span id="cb26-20"><a href="#cb26-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-21"><a href="#cb26-21" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupStopWaitResult<span class="op">&gt;</span></span>
+<span id="cb26-22"><a href="#cb26-22" aria-hidden="true" tabindex="-1"></a>    <span class="fu">GroupStopAndWaitForStableStandbyAsync</span><span class="op">(</span></span>
+<span id="cb26-23"><a href="#cb26-23" aria-hidden="true" tabindex="-1"></a>        <span class="dt">int</span> deceleration<span class="op">,</span></span>
+<span id="cb26-24"><a href="#cb26-24" aria-hidden="true" tabindex="-1"></a>        <span class="dt">int</span> jerk<span class="op">,</span></span>
+<span id="cb26-25"><a href="#cb26-25" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span>
+<span id="cb26-26"><a href="#cb26-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-27"><a href="#cb26-27" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMCGroupStopWaitContinuation PendingGroupStopWaitContinuation <span class="op">{</span> <span class="kw">get</span><span class="op">;</span> <span class="op">}</span></span></code></pre></div>
 <table>
 <colgroup>
 <col style="width: 25%" />
@@ -2873,13 +2514,13 @@ stable sample 수를 지정할 수 있으며 compound API는 Begin과 Resume에 
 elapsed total deadline을 적용한다.</p>
 <h2 id="groupreadstatus">4.9 GroupReadStatus</h2>
 <p>Group power와 profile 상태를 읽는다.</p>
-<div class="sourceCode" id="cb28"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="dt">uint</span> <span class="fu">GroupReadStatus</span><span class="op">()</span></span>
-<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="dt">uint</span> <span class="fu">GroupReadStatus</span><span class="op">(</span><span class="kw">out</span> LMC_Response response<span class="op">)</span></span>
-<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMCGroupReadStatusResult <span class="fu">GroupReadStatusResult</span><span class="op">()</span></span>
-<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupReadStatusResult<span class="op">&gt;</span> <span class="fu">GroupReadStatusResultAsync</span><span class="op">(</span></span>
-<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span></code></pre></div>
+<div class="sourceCode" id="cb27"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="dt">uint</span> <span class="fu">GroupReadStatus</span><span class="op">()</span></span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="dt">uint</span> <span class="fu">GroupReadStatus</span><span class="op">(</span><span class="kw">out</span> LMC_Response response<span class="op">)</span></span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMCGroupReadStatusResult <span class="fu">GroupReadStatusResult</span><span class="op">()</span></span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupReadStatusResult<span class="op">&gt;</span> <span class="fu">GroupReadStatusResultAsync</span><span class="op">(</span></span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span></code></pre></div>
 <table>
 <thead>
 <tr class="header">
@@ -2904,13 +2545,13 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb28-1"><a href=
 </table>
 <h2 id="groupreadactualposition">4.10 GroupReadActualPosition</h2>
 <p>Group actual position을 읽는다.</p>
-<div class="sourceCode" id="cb29"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMCGroupReadActualPositionResult <span class="fu">GroupReadActualPosition</span><span class="op">(</span></span>
-<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a>    LMC_COORD_SYSTEM coordinateSystem<span class="op">)</span></span>
-<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupReadActualPositionResult<span class="op">&gt;</span> <span class="fu">GroupReadActualPositionAsync</span><span class="op">(</span></span>
-<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a>    LMC_COORD_SYSTEM coordinateSystem<span class="op">,</span></span>
-<span id="cb29-6"><a href="#cb29-6" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span></code></pre></div>
+<div class="sourceCode" id="cb28"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMCGroupReadActualPositionResult <span class="fu">GroupReadActualPosition</span><span class="op">(</span></span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>    LMC_COORD_SYSTEM coordinateSystem<span class="op">)</span></span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupReadActualPositionResult<span class="op">&gt;</span> <span class="fu">GroupReadActualPositionAsync</span><span class="op">(</span></span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a>    LMC_COORD_SYSTEM coordinateSystem<span class="op">,</span></span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span></code></pre></div>
 <table>
 <colgroup>
 <col style="width: 25%" />
@@ -2978,19 +2619,19 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb29-1"><a href=
 <h2 id="setkintransformcartesian4axis">4.11
 SetKinTransformCartesian4Axis</h2>
 <p>4개 axis를 Cartesian X/Y/Z/U로 설정한다.</p>
-<div class="sourceCode" id="cb30"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMC_Response <span class="fu">SetKinTransformCartesian4Axis</span><span class="op">(</span></span>
-<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>    LMCSingleAxis axisX<span class="op">,</span></span>
-<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>    LMCSingleAxis axisY<span class="op">,</span></span>
-<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a>    LMCSingleAxis axisZ<span class="op">,</span></span>
-<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a>    LMCSingleAxis axisU<span class="op">)</span></span>
-<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMC_Response<span class="op">&gt;</span> <span class="fu">SetKinTransformCartesian4AxisAsync</span><span class="op">(</span></span>
-<span id="cb30-8"><a href="#cb30-8" aria-hidden="true" tabindex="-1"></a>    LMCSingleAxis axisX<span class="op">,</span></span>
-<span id="cb30-9"><a href="#cb30-9" aria-hidden="true" tabindex="-1"></a>    LMCSingleAxis axisY<span class="op">,</span></span>
-<span id="cb30-10"><a href="#cb30-10" aria-hidden="true" tabindex="-1"></a>    LMCSingleAxis axisZ<span class="op">,</span></span>
-<span id="cb30-11"><a href="#cb30-11" aria-hidden="true" tabindex="-1"></a>    LMCSingleAxis axisU<span class="op">,</span></span>
-<span id="cb30-12"><a href="#cb30-12" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span></code></pre></div>
+<div class="sourceCode" id="cb29"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMC_Response <span class="fu">SetKinTransformCartesian4Axis</span><span class="op">(</span></span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a>    LMCSingleAxis axisX<span class="op">,</span></span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a>    LMCSingleAxis axisY<span class="op">,</span></span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a>    LMCSingleAxis axisZ<span class="op">,</span></span>
+<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a>    LMCSingleAxis axisU<span class="op">)</span></span>
+<span id="cb29-6"><a href="#cb29-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-7"><a href="#cb29-7" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMC_Response<span class="op">&gt;</span> <span class="fu">SetKinTransformCartesian4AxisAsync</span><span class="op">(</span></span>
+<span id="cb29-8"><a href="#cb29-8" aria-hidden="true" tabindex="-1"></a>    LMCSingleAxis axisX<span class="op">,</span></span>
+<span id="cb29-9"><a href="#cb29-9" aria-hidden="true" tabindex="-1"></a>    LMCSingleAxis axisY<span class="op">,</span></span>
+<span id="cb29-10"><a href="#cb29-10" aria-hidden="true" tabindex="-1"></a>    LMCSingleAxis axisZ<span class="op">,</span></span>
+<span id="cb29-11"><a href="#cb29-11" aria-hidden="true" tabindex="-1"></a>    LMCSingleAxis axisU<span class="op">,</span></span>
+<span id="cb29-12"><a href="#cb29-12" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span></code></pre></div>
 <table>
 <colgroup>
 <col style="width: 25%" />
@@ -3061,38 +2702,38 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb30-1"><a href=
 kinematic transform 계산이나 profile lock을 수행하지 않는다.</p>
 <h2 id="movelinearabsoluteex">4.12 MoveLinearAbsoluteEx</h2>
 <p>Group을 Cartesian absolute position으로 linear 이동시킨다.</p>
-<div class="sourceCode" id="cb31"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMC_Response <span class="fu">MoveLinearAbsoluteEx</span><span class="op">(</span></span>
-<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span><span class="op">[]</span> position<span class="op">,</span></span>
-<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> velocity<span class="op">,</span></span>
-<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> acceleration<span class="op">,</span></span>
-<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> deceleration<span class="op">,</span></span>
-<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> jerk<span class="op">)</span></span>
-<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb31-8"><a href="#cb31-8" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMC_Response <span class="fu">MoveLinearAbsoluteEx</span><span class="op">(</span></span>
-<span id="cb31-9"><a href="#cb31-9" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span><span class="op">[]</span> position<span class="op">,</span></span>
-<span id="cb31-10"><a href="#cb31-10" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> velocity<span class="op">,</span></span>
-<span id="cb31-11"><a href="#cb31-11" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> acceleration<span class="op">,</span></span>
-<span id="cb31-12"><a href="#cb31-12" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> deceleration<span class="op">,</span></span>
-<span id="cb31-13"><a href="#cb31-13" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> jerk<span class="op">,</span></span>
-<span id="cb31-14"><a href="#cb31-14" aria-hidden="true" tabindex="-1"></a>    LMCGroupMotionOptions options<span class="op">)</span></span>
-<span id="cb31-15"><a href="#cb31-15" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb31-16"><a href="#cb31-16" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMC_Response<span class="op">&gt;</span> <span class="fu">MoveLinearAbsoluteExAsync</span><span class="op">(</span></span>
-<span id="cb31-17"><a href="#cb31-17" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span><span class="op">[]</span> position<span class="op">,</span></span>
-<span id="cb31-18"><a href="#cb31-18" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> velocity<span class="op">,</span></span>
-<span id="cb31-19"><a href="#cb31-19" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> acceleration<span class="op">,</span></span>
-<span id="cb31-20"><a href="#cb31-20" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> deceleration<span class="op">,</span></span>
-<span id="cb31-21"><a href="#cb31-21" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> jerk<span class="op">,</span></span>
-<span id="cb31-22"><a href="#cb31-22" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span>
-<span id="cb31-23"><a href="#cb31-23" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb31-24"><a href="#cb31-24" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMC_Response<span class="op">&gt;</span> <span class="fu">MoveLinearAbsoluteExAsync</span><span class="op">(</span></span>
-<span id="cb31-25"><a href="#cb31-25" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span><span class="op">[]</span> position<span class="op">,</span></span>
-<span id="cb31-26"><a href="#cb31-26" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> velocity<span class="op">,</span></span>
-<span id="cb31-27"><a href="#cb31-27" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> acceleration<span class="op">,</span></span>
-<span id="cb31-28"><a href="#cb31-28" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> deceleration<span class="op">,</span></span>
-<span id="cb31-29"><a href="#cb31-29" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> jerk<span class="op">,</span></span>
-<span id="cb31-30"><a href="#cb31-30" aria-hidden="true" tabindex="-1"></a>    LMCGroupMotionOptions options<span class="op">,</span></span>
-<span id="cb31-31"><a href="#cb31-31" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span></code></pre></div>
+<div class="sourceCode" id="cb30"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMC_Response <span class="fu">MoveLinearAbsoluteEx</span><span class="op">(</span></span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span><span class="op">[]</span> position<span class="op">,</span></span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> velocity<span class="op">,</span></span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> acceleration<span class="op">,</span></span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> deceleration<span class="op">,</span></span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> jerk<span class="op">)</span></span>
+<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-8"><a href="#cb30-8" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMC_Response <span class="fu">MoveLinearAbsoluteEx</span><span class="op">(</span></span>
+<span id="cb30-9"><a href="#cb30-9" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span><span class="op">[]</span> position<span class="op">,</span></span>
+<span id="cb30-10"><a href="#cb30-10" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> velocity<span class="op">,</span></span>
+<span id="cb30-11"><a href="#cb30-11" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> acceleration<span class="op">,</span></span>
+<span id="cb30-12"><a href="#cb30-12" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> deceleration<span class="op">,</span></span>
+<span id="cb30-13"><a href="#cb30-13" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> jerk<span class="op">,</span></span>
+<span id="cb30-14"><a href="#cb30-14" aria-hidden="true" tabindex="-1"></a>    LMCGroupMotionOptions options<span class="op">)</span></span>
+<span id="cb30-15"><a href="#cb30-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-16"><a href="#cb30-16" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMC_Response<span class="op">&gt;</span> <span class="fu">MoveLinearAbsoluteExAsync</span><span class="op">(</span></span>
+<span id="cb30-17"><a href="#cb30-17" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span><span class="op">[]</span> position<span class="op">,</span></span>
+<span id="cb30-18"><a href="#cb30-18" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> velocity<span class="op">,</span></span>
+<span id="cb30-19"><a href="#cb30-19" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> acceleration<span class="op">,</span></span>
+<span id="cb30-20"><a href="#cb30-20" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> deceleration<span class="op">,</span></span>
+<span id="cb30-21"><a href="#cb30-21" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> jerk<span class="op">,</span></span>
+<span id="cb30-22"><a href="#cb30-22" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span>
+<span id="cb30-23"><a href="#cb30-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-24"><a href="#cb30-24" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMC_Response<span class="op">&gt;</span> <span class="fu">MoveLinearAbsoluteExAsync</span><span class="op">(</span></span>
+<span id="cb30-25"><a href="#cb30-25" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span><span class="op">[]</span> position<span class="op">,</span></span>
+<span id="cb30-26"><a href="#cb30-26" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> velocity<span class="op">,</span></span>
+<span id="cb30-27"><a href="#cb30-27" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> acceleration<span class="op">,</span></span>
+<span id="cb30-28"><a href="#cb30-28" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> deceleration<span class="op">,</span></span>
+<span id="cb30-29"><a href="#cb30-29" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> jerk<span class="op">,</span></span>
+<span id="cb30-30"><a href="#cb30-30" aria-hidden="true" tabindex="-1"></a>    LMCGroupMotionOptions options<span class="op">,</span></span>
+<span id="cb30-31"><a href="#cb30-31" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span></code></pre></div>
 <table>
 <colgroup>
 <col style="width: 25%" />
@@ -3183,30 +2824,30 @@ coordinate <code>None</code>, transition
 <p>Group profile의 마지막 buffered target을 기준으로 Cartesian relative
 distance를 원자적으로 적재한다. PC에서 현재 위치를 읽어 absolute
 target으로 변환하지 않는다.</p>
-<div class="sourceCode" id="cb32"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMCAdminResponse <span class="fu">MoveLinearRelativeEx</span><span class="op">(</span></span>
-<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span><span class="op">[]</span> distance<span class="op">,</span></span>
-<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> velocity<span class="op">,</span></span>
-<span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> acceleration<span class="op">,</span></span>
-<span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> deceleration<span class="op">,</span></span>
-<span id="cb32-6"><a href="#cb32-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> jerk<span class="op">)</span></span>
-<span id="cb32-7"><a href="#cb32-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb32-8"><a href="#cb32-8" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMCAdminResponse <span class="fu">MoveLinearRelativeEx</span><span class="op">(</span></span>
-<span id="cb32-9"><a href="#cb32-9" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span><span class="op">[]</span> distance<span class="op">,</span></span>
-<span id="cb32-10"><a href="#cb32-10" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> velocity<span class="op">,</span></span>
-<span id="cb32-11"><a href="#cb32-11" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> acceleration<span class="op">,</span></span>
-<span id="cb32-12"><a href="#cb32-12" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> deceleration<span class="op">,</span></span>
-<span id="cb32-13"><a href="#cb32-13" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> jerk<span class="op">,</span></span>
-<span id="cb32-14"><a href="#cb32-14" aria-hidden="true" tabindex="-1"></a>    LMCGroupMotionOptions options<span class="op">)</span></span>
-<span id="cb32-15"><a href="#cb32-15" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb32-16"><a href="#cb32-16" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCAdminResponse<span class="op">&gt;</span> <span class="fu">MoveLinearRelativeExAsync</span><span class="op">(</span></span>
-<span id="cb32-17"><a href="#cb32-17" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span><span class="op">[]</span> distance<span class="op">,</span></span>
-<span id="cb32-18"><a href="#cb32-18" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> velocity<span class="op">,</span></span>
-<span id="cb32-19"><a href="#cb32-19" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> acceleration<span class="op">,</span></span>
-<span id="cb32-20"><a href="#cb32-20" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> deceleration<span class="op">,</span></span>
-<span id="cb32-21"><a href="#cb32-21" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> jerk<span class="op">,</span></span>
-<span id="cb32-22"><a href="#cb32-22" aria-hidden="true" tabindex="-1"></a>    LMCGroupMotionOptions options<span class="op">,</span></span>
-<span id="cb32-23"><a href="#cb32-23" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span></code></pre></div>
+<div class="sourceCode" id="cb31"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMCAdminResponse <span class="fu">MoveLinearRelativeEx</span><span class="op">(</span></span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span><span class="op">[]</span> distance<span class="op">,</span></span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> velocity<span class="op">,</span></span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> acceleration<span class="op">,</span></span>
+<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> deceleration<span class="op">,</span></span>
+<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> jerk<span class="op">)</span></span>
+<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-8"><a href="#cb31-8" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMCAdminResponse <span class="fu">MoveLinearRelativeEx</span><span class="op">(</span></span>
+<span id="cb31-9"><a href="#cb31-9" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span><span class="op">[]</span> distance<span class="op">,</span></span>
+<span id="cb31-10"><a href="#cb31-10" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> velocity<span class="op">,</span></span>
+<span id="cb31-11"><a href="#cb31-11" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> acceleration<span class="op">,</span></span>
+<span id="cb31-12"><a href="#cb31-12" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> deceleration<span class="op">,</span></span>
+<span id="cb31-13"><a href="#cb31-13" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> jerk<span class="op">,</span></span>
+<span id="cb31-14"><a href="#cb31-14" aria-hidden="true" tabindex="-1"></a>    LMCGroupMotionOptions options<span class="op">)</span></span>
+<span id="cb31-15"><a href="#cb31-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-16"><a href="#cb31-16" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCAdminResponse<span class="op">&gt;</span> <span class="fu">MoveLinearRelativeExAsync</span><span class="op">(</span></span>
+<span id="cb31-17"><a href="#cb31-17" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span><span class="op">[]</span> distance<span class="op">,</span></span>
+<span id="cb31-18"><a href="#cb31-18" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> velocity<span class="op">,</span></span>
+<span id="cb31-19"><a href="#cb31-19" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> acceleration<span class="op">,</span></span>
+<span id="cb31-20"><a href="#cb31-20" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> deceleration<span class="op">,</span></span>
+<span id="cb31-21"><a href="#cb31-21" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> jerk<span class="op">,</span></span>
+<span id="cb31-22"><a href="#cb31-22" aria-hidden="true" tabindex="-1"></a>    LMCGroupMotionOptions options<span class="op">,</span></span>
+<span id="cb31-23"><a href="#cb31-23" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span></code></pre></div>
 <p><code>distance</code>와 dynamics/options의 UNIT 및 허용 범위는
 absolute move와 같다. 현재 PLC는 X/Y/Z/U slot 1..4만 사용하고 slot
 5..16=0, coordinate <code>None</code>, transition
@@ -3225,19 +2866,19 @@ queue에 명령을 수락했다는 뜻이며 완료가 아니다. 이후
 gate 안에서 사용한다. 전달한 capability는 같은
 <code>LMCConnection</code>과 session, feature/group reference가 아니면
 wire 송신 전에 거부된다.</p>
-<div class="sourceCode" id="cb33"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a>LMCAdminCapabilities capabilities <span class="op">=</span></span>
-<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a>    await connection<span class="op">.</span><span class="fu">Admin</span><span class="op">.</span><span class="fu">GetCapabilitiesAsync</span><span class="op">(</span>cancellationToken<span class="op">);</span></span>
-<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a>LMCAdminResponse accepted <span class="op">=</span> await group<span class="op">.</span><span class="fu">MoveLinearRelativeExAsync</span><span class="op">(</span></span>
-<span id="cb33-5"><a href="#cb33-5" aria-hidden="true" tabindex="-1"></a>    distance<span class="op">,</span></span>
-<span id="cb33-6"><a href="#cb33-6" aria-hidden="true" tabindex="-1"></a>    velocity<span class="op">,</span></span>
-<span id="cb33-7"><a href="#cb33-7" aria-hidden="true" tabindex="-1"></a>    acceleration<span class="op">,</span></span>
-<span id="cb33-8"><a href="#cb33-8" aria-hidden="true" tabindex="-1"></a>    deceleration<span class="op">,</span></span>
-<span id="cb33-9"><a href="#cb33-9" aria-hidden="true" tabindex="-1"></a>    jerk<span class="op">,</span></span>
-<span id="cb33-10"><a href="#cb33-10" aria-hidden="true" tabindex="-1"></a>    options<span class="op">,</span></span>
-<span id="cb33-11"><a href="#cb33-11" aria-hidden="true" tabindex="-1"></a>    capabilities<span class="op">,</span></span>
-<span id="cb33-12"><a href="#cb33-12" aria-hidden="true" tabindex="-1"></a>    cancellationToken<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb32"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a>LMCAdminCapabilities capabilities <span class="op">=</span></span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a>    await connection<span class="op">.</span><span class="fu">Admin</span><span class="op">.</span><span class="fu">GetCapabilitiesAsync</span><span class="op">(</span>cancellationToken<span class="op">);</span></span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a>LMCAdminResponse accepted <span class="op">=</span> await group<span class="op">.</span><span class="fu">MoveLinearRelativeExAsync</span><span class="op">(</span></span>
+<span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a>    distance<span class="op">,</span></span>
+<span id="cb32-6"><a href="#cb32-6" aria-hidden="true" tabindex="-1"></a>    velocity<span class="op">,</span></span>
+<span id="cb32-7"><a href="#cb32-7" aria-hidden="true" tabindex="-1"></a>    acceleration<span class="op">,</span></span>
+<span id="cb32-8"><a href="#cb32-8" aria-hidden="true" tabindex="-1"></a>    deceleration<span class="op">,</span></span>
+<span id="cb32-9"><a href="#cb32-9" aria-hidden="true" tabindex="-1"></a>    jerk<span class="op">,</span></span>
+<span id="cb32-10"><a href="#cb32-10" aria-hidden="true" tabindex="-1"></a>    options<span class="op">,</span></span>
+<span id="cb32-11"><a href="#cb32-11" aria-hidden="true" tabindex="-1"></a>    capabilities<span class="op">,</span></span>
+<span id="cb32-12"><a href="#cb32-12" aria-hidden="true" tabindex="-1"></a>    cancellationToken<span class="op">);</span></span></code></pre></div>
 <p>prepared capability를 받는 sync overload도 같은 인자 순서로
 제공한다.</p>
 <h2 id="lmcgroupmotionoptions">4.14 LMCGroupMotionOptions</h2>
@@ -3784,16 +3425,16 @@ capability와 semantic parameter read</h2>
 <p>연결된 <code>LMCConnection.Admin</code>에서 LASAL-local read-only
 API를 사용한다. 각 parameter read는 먼저 <code>0x7D00</code>
 capability와 허용 mask를 확인한다.</p>
-<div class="sourceCode" id="cb34"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a>LMCAdminCapabilities capabilities <span class="op">=</span> connection<span class="op">.</span><span class="fu">Admin</span><span class="op">.</span><span class="fu">GetCapabilities</span><span class="op">();</span></span>
-<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a>LMCAxisParameterResult axisParameter <span class="op">=</span> connection<span class="op">.</span><span class="fu">Admin</span><span class="op">.</span><span class="fu">ReadAxisParameter</span><span class="op">(</span></span>
-<span id="cb34-4"><a href="#cb34-4" aria-hidden="true" tabindex="-1"></a>    axis<span class="op">,</span></span>
-<span id="cb34-5"><a href="#cb34-5" aria-hidden="true" tabindex="-1"></a>    LMCAxisParameterKey<span class="op">.</span><span class="fu">MaxVelocity</span><span class="op">);</span></span>
-<span id="cb34-6"><a href="#cb34-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb34-7"><a href="#cb34-7" aria-hidden="true" tabindex="-1"></a>LMCGroupParametersResult groupParameters <span class="op">=</span> connection<span class="op">.</span><span class="fu">Admin</span><span class="op">.</span><span class="fu">ReadGroupParameters</span><span class="op">(</span></span>
-<span id="cb34-8"><a href="#cb34-8" aria-hidden="true" tabindex="-1"></a>    group<span class="op">,</span></span>
-<span id="cb34-9"><a href="#cb34-9" aria-hidden="true" tabindex="-1"></a>    LMCGroupParameterSelection<span class="op">.</span><span class="fu">All</span><span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb33"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a>LMCAdminCapabilities capabilities <span class="op">=</span> connection<span class="op">.</span><span class="fu">Admin</span><span class="op">.</span><span class="fu">GetCapabilities</span><span class="op">();</span></span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a>LMCAxisParameterResult axisParameter <span class="op">=</span> connection<span class="op">.</span><span class="fu">Admin</span><span class="op">.</span><span class="fu">ReadAxisParameter</span><span class="op">(</span></span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a>    axis<span class="op">,</span></span>
+<span id="cb33-5"><a href="#cb33-5" aria-hidden="true" tabindex="-1"></a>    LMCAxisParameterKey<span class="op">.</span><span class="fu">MaxVelocity</span><span class="op">);</span></span>
+<span id="cb33-6"><a href="#cb33-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-7"><a href="#cb33-7" aria-hidden="true" tabindex="-1"></a>LMCGroupParametersResult groupParameters <span class="op">=</span> connection<span class="op">.</span><span class="fu">Admin</span><span class="op">.</span><span class="fu">ReadGroupParameters</span><span class="op">(</span></span>
+<span id="cb33-8"><a href="#cb33-8" aria-hidden="true" tabindex="-1"></a>    group<span class="op">,</span></span>
+<span id="cb33-9"><a href="#cb33-9" aria-hidden="true" tabindex="-1"></a>    LMCGroupParameterSelection<span class="op">.</span><span class="fu">All</span><span class="op">);</span></span></code></pre></div>
 <p>async 메서드는 <code>GetCapabilitiesAsync</code>,
 <code>ReadAxisParameterAsync</code>,
 <code>ReadGroupParametersAsync</code>이며
@@ -3830,18 +3471,18 @@ read-only이고 motion을 생성하지 않는다.</p>
 builder/reader</h2>
 <p>먼저 <code>GetSignalCatalog</code>로 얻은 같은 boot/map의 catalog를
 사용한다.</p>
-<div class="sourceCode" id="cb35"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a>LMCSignalValue value <span class="op">=</span> connection<span class="op">.</span><span class="fu">Diagnostics</span><span class="op">.</span><span class="fu">ReadPI</span><span class="op">(</span></span>
-<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a>    catalog<span class="op">,</span></span>
-<span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;axis1.actual_position&quot;</span><span class="op">);</span></span>
-<span id="cb35-4"><a href="#cb35-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb35-5"><a href="#cb35-5" aria-hidden="true" tabindex="-1"></a>LMCPIBulkBuilder builder <span class="op">=</span> connection<span class="op">.</span><span class="fu">Diagnostics</span><span class="op">.</span><span class="fu">CreatePIBulkBuilder</span><span class="op">(</span>catalog<span class="op">);</span></span>
-<span id="cb35-6"><a href="#cb35-6" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">AddEntry</span><span class="op">(</span><span class="st">&quot;axis1.actual_position&quot;</span><span class="op">);</span></span>
-<span id="cb35-7"><a href="#cb35-7" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">AddEntry</span><span class="op">(</span><span class="st">&quot;axis2.actual_position&quot;</span><span class="op">);</span></span>
-<span id="cb35-8"><a href="#cb35-8" aria-hidden="true" tabindex="-1"></a>LMCPIBulkReader reader <span class="op">=</span> builder<span class="op">.</span><span class="fu">Configure</span><span class="op">();</span></span>
-<span id="cb35-9"><a href="#cb35-9" aria-hidden="true" tabindex="-1"></a>LMCBulkSnapshot snapshot <span class="op">=</span> reader<span class="op">.</span><span class="fu">Upload</span><span class="op">();</span></span>
-<span id="cb35-10"><a href="#cb35-10" aria-hidden="true" tabindex="-1"></a>LMCSignalValueEntry entry <span class="op">=</span> reader<span class="op">.</span><span class="fu">GetEntry</span><span class="op">(</span><span class="st">&quot;axis1.actual_position&quot;</span><span class="op">);</span></span>
-<span id="cb35-11"><a href="#cb35-11" aria-hidden="true" tabindex="-1"></a>reader<span class="op">.</span><span class="fu">Release</span><span class="op">();</span></span></code></pre></div>
+<div class="sourceCode" id="cb34"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a>LMCSignalValue value <span class="op">=</span> connection<span class="op">.</span><span class="fu">Diagnostics</span><span class="op">.</span><span class="fu">ReadPI</span><span class="op">(</span></span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a>    catalog<span class="op">,</span></span>
+<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;axis1.actual_position&quot;</span><span class="op">);</span></span>
+<span id="cb34-4"><a href="#cb34-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-5"><a href="#cb34-5" aria-hidden="true" tabindex="-1"></a>LMCPIBulkBuilder builder <span class="op">=</span> connection<span class="op">.</span><span class="fu">Diagnostics</span><span class="op">.</span><span class="fu">CreatePIBulkBuilder</span><span class="op">(</span>catalog<span class="op">);</span></span>
+<span id="cb34-6"><a href="#cb34-6" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">AddEntry</span><span class="op">(</span><span class="st">&quot;axis1.actual_position&quot;</span><span class="op">);</span></span>
+<span id="cb34-7"><a href="#cb34-7" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">AddEntry</span><span class="op">(</span><span class="st">&quot;axis2.actual_position&quot;</span><span class="op">);</span></span>
+<span id="cb34-8"><a href="#cb34-8" aria-hidden="true" tabindex="-1"></a>LMCPIBulkReader reader <span class="op">=</span> builder<span class="op">.</span><span class="fu">Configure</span><span class="op">();</span></span>
+<span id="cb34-9"><a href="#cb34-9" aria-hidden="true" tabindex="-1"></a>LMCBulkSnapshot snapshot <span class="op">=</span> reader<span class="op">.</span><span class="fu">Upload</span><span class="op">();</span></span>
+<span id="cb34-10"><a href="#cb34-10" aria-hidden="true" tabindex="-1"></a>LMCSignalValueEntry entry <span class="op">=</span> reader<span class="op">.</span><span class="fu">GetEntry</span><span class="op">(</span><span class="st">&quot;axis1.actual_position&quot;</span><span class="op">);</span></span>
+<span id="cb34-11"><a href="#cb34-11" aria-hidden="true" tabindex="-1"></a>reader<span class="op">.</span><span class="fu">Release</span><span class="op">();</span></span></code></pre></div>
 <p>builder는 readable catalog entry, 중복, 최대 32개와 exact
 <code>MapRevision</code>을 검사한다. Configure 성공 뒤 builder는
 frozen된다. <code>GetEntry/TryGetEntry</code>는 마지막 성공 Upload의
@@ -3851,16 +3492,16 @@ wire는 없고 D1 PI Read와 D2 Bulk command를 재사용한다. sync 메서드�
 <code>ReadStatusAsync</code>, <code>ReleaseAsync</code>가 있다.</p>
 <h2 id="project-local-error-catalog">6.3 Project-local error
 catalog</h2>
-<div class="sourceCode" id="cb36"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a>LMCErrorDescription description<span class="op">;</span></span>
-<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a><span class="kw">if</span> <span class="op">(</span>LMCErrorCatalog<span class="op">.</span><span class="fu">TryDescribe</span><span class="op">(</span></span>
-<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a>        LMCErrorDomain<span class="op">.</span><span class="fu">AdapterCommand</span><span class="op">,</span></span>
-<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a>        response<span class="op">.</span><span class="fu">ErrorId</span><span class="op">,</span></span>
-<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a>        <span class="kw">out</span> description<span class="op">))</span></span>
-<span id="cb36-6"><a href="#cb36-6" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
-<span id="cb36-7"><a href="#cb36-7" aria-hidden="true" tabindex="-1"></a>    Console<span class="op">.</span><span class="fu">WriteLine</span><span class="op">(</span>description<span class="op">.</span><span class="fu">Symbol</span><span class="op">);</span></span>
-<span id="cb36-8"><a href="#cb36-8" aria-hidden="true" tabindex="-1"></a>    Console<span class="op">.</span><span class="fu">WriteLine</span><span class="op">(</span>description<span class="op">.</span><span class="fu">Resolution</span><span class="op">);</span></span>
-<span id="cb36-9"><a href="#cb36-9" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<div class="sourceCode" id="cb35"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a>LMCErrorDescription description<span class="op">;</span></span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a><span class="kw">if</span> <span class="op">(</span>LMCErrorCatalog<span class="op">.</span><span class="fu">TryDescribe</span><span class="op">(</span></span>
+<span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a>        LMCErrorDomain<span class="op">.</span><span class="fu">AdapterCommand</span><span class="op">,</span></span>
+<span id="cb35-4"><a href="#cb35-4" aria-hidden="true" tabindex="-1"></a>        response<span class="op">.</span><span class="fu">ErrorId</span><span class="op">,</span></span>
+<span id="cb35-5"><a href="#cb35-5" aria-hidden="true" tabindex="-1"></a>        <span class="kw">out</span> description<span class="op">))</span></span>
+<span id="cb35-6"><a href="#cb35-6" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb35-7"><a href="#cb35-7" aria-hidden="true" tabindex="-1"></a>    Console<span class="op">.</span><span class="fu">WriteLine</span><span class="op">(</span>description<span class="op">.</span><span class="fu">Symbol</span><span class="op">);</span></span>
+<span id="cb35-8"><a href="#cb35-8" aria-hidden="true" tabindex="-1"></a>    Console<span class="op">.</span><span class="fu">WriteLine</span><span class="op">(</span>description<span class="op">.</span><span class="fu">Resolution</span><span class="op">);</span></span>
+<span id="cb35-9"><a href="#cb35-9" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
 <p>지원 domain은 <code>AdapterCommand</code>, <code>AdminDetail</code>,
 <code>DiagnosticsDetail</code>, <code>GroupProfile</code>이다. 같은
 숫자라도 domain마다 의미가 다르므로 domain을 추측하지 않는다. 반환
@@ -3874,12 +3515,12 @@ capability와 공통 수명</h2>
 reconnect 뒤에는 capability를 다시 읽어야 하며, 이전 session에서 얻은
 catalog, bulk configuration, recorder identity, operation ticket와
 topology 객체를 재사용하지 않는다.</p>
-<div class="sourceCode" id="cb37"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a>LMCDiagnosticCapabilities capabilities <span class="op">=</span></span>
-<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a>    connection<span class="op">.</span><span class="fu">Diagnostics</span><span class="op">.</span><span class="fu">GetCapabilities</span><span class="op">();</span></span>
-<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb37-4"><a href="#cb37-4" aria-hidden="true" tabindex="-1"></a>Task<span class="op">&lt;</span>LMCDiagnosticCapabilities<span class="op">&gt;</span> pending <span class="op">=</span></span>
-<span id="cb37-5"><a href="#cb37-5" aria-hidden="true" tabindex="-1"></a>    connection<span class="op">.</span><span class="fu">Diagnostics</span><span class="op">.</span><span class="fu">GetCapabilitiesAsync</span><span class="op">(</span>cancellationToken<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb36"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a>LMCDiagnosticCapabilities capabilities <span class="op">=</span></span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a>    connection<span class="op">.</span><span class="fu">Diagnostics</span><span class="op">.</span><span class="fu">GetCapabilities</span><span class="op">();</span></span>
+<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a>Task<span class="op">&lt;</span>LMCDiagnosticCapabilities<span class="op">&gt;</span> pending <span class="op">=</span></span>
+<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a>    connection<span class="op">.</span><span class="fu">Diagnostics</span><span class="op">.</span><span class="fu">GetCapabilitiesAsync</span><span class="op">(</span>cancellationToken<span class="op">);</span></span></code></pre></div>
 <p>주요 반환값은 <code>BootId</code>, <code>MapRevision</code>,
 <code>Capabilities</code>, <code>BaseCycleTimeUs</code>,
 Catalog/Bulk/Recorder 최대 크기와 request/response payload 한도다.
@@ -3955,16 +3596,16 @@ terminal state와 result를 확인한다. <code>CancellationToken</code>은 PC
 불명인 mutation 또는 Release를 blind retry하지 않는다.</p>
 <h2 id="diagnostics-d1-catalog-health와-pi-read">6.5 Diagnostics D1
 Catalog, Health와 PI Read</h2>
-<div class="sourceCode" id="cb38"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a>LMCSignalCatalogInfo info <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">GetSignalCatalogInfo</span><span class="op">();</span></span>
-<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a>LMCSignalCatalogChunk chunk <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">GetSignalCatalogChunk</span><span class="op">(</span></span>
-<span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a>    expectedMapRevision<span class="op">,</span> startIndex<span class="op">,</span> maxEntries<span class="op">);</span></span>
-<span id="cb38-4"><a href="#cb38-4" aria-hidden="true" tabindex="-1"></a>LMCSignalCatalog catalog <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">GetSignalCatalog</span><span class="op">();</span></span>
-<span id="cb38-5"><a href="#cb38-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb38-6"><a href="#cb38-6" aria-hidden="true" tabindex="-1"></a>LMCEtherCATHealth health <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">ReadEtherCATHealth</span><span class="op">();</span></span>
-<span id="cb38-7"><a href="#cb38-7" aria-hidden="true" tabindex="-1"></a>LMCSignalValue value <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">ReadPI</span><span class="op">(</span>signalId<span class="op">);</span></span>
-<span id="cb38-8"><a href="#cb38-8" aria-hidden="true" tabindex="-1"></a>LMCSignalValue typed <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">ReadPI</span><span class="op">(</span></span>
-<span id="cb38-9"><a href="#cb38-9" aria-hidden="true" tabindex="-1"></a>    signalId<span class="op">,</span> expectedMapRevision<span class="op">,</span> expectedType<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb37"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a>LMCSignalCatalogInfo info <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">GetSignalCatalogInfo</span><span class="op">();</span></span>
+<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a>LMCSignalCatalogChunk chunk <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">GetSignalCatalogChunk</span><span class="op">(</span></span>
+<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a>    expectedMapRevision<span class="op">,</span> startIndex<span class="op">,</span> maxEntries<span class="op">);</span></span>
+<span id="cb37-4"><a href="#cb37-4" aria-hidden="true" tabindex="-1"></a>LMCSignalCatalog catalog <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">GetSignalCatalog</span><span class="op">();</span></span>
+<span id="cb37-5"><a href="#cb37-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb37-6"><a href="#cb37-6" aria-hidden="true" tabindex="-1"></a>LMCEtherCATHealth health <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">ReadEtherCATHealth</span><span class="op">();</span></span>
+<span id="cb37-7"><a href="#cb37-7" aria-hidden="true" tabindex="-1"></a>LMCSignalValue value <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">ReadPI</span><span class="op">(</span>signalId<span class="op">);</span></span>
+<span id="cb37-8"><a href="#cb37-8" aria-hidden="true" tabindex="-1"></a>LMCSignalValue typed <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">ReadPI</span><span class="op">(</span></span>
+<span id="cb37-9"><a href="#cb37-9" aria-hidden="true" tabindex="-1"></a>    signalId<span class="op">,</span> expectedMapRevision<span class="op">,</span> expectedType<span class="op">);</span></span></code></pre></div>
 <p>각 메서드에는 <code>CancellationToken</code>을 받는 Async overload가
 있다. <code>GetSignalCatalog()</code>는 Info와 chunk를 조합하고
 count/CRC/map을 검사한다. 현재 catalog alias는 각 axis에 다음 6개다.</p>
@@ -3985,11 +3626,11 @@ StatusWord와 Axis Error를 읽지만 drive-ready, DS402 Warning 부재, 물리
 배선 또는 실제 I/O 정상 동작을 증명하지 않는다.</p>
 <h2 id="diagnostics-d2-bulk-read">6.6 Diagnostics D2 Bulk Read</h2>
 <p>raw facade는 다음 순서로 사용한다.</p>
-<div class="sourceCode" id="cb39"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a>LMCBulkConfiguration configuration <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">ConfigureBulk</span><span class="op">(</span>signalIds<span class="op">);</span></span>
-<span id="cb39-2"><a href="#cb39-2" aria-hidden="true" tabindex="-1"></a>LMCBulkStatus status <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">ReadBulkStatus</span><span class="op">(</span>configuration<span class="op">);</span></span>
-<span id="cb39-3"><a href="#cb39-3" aria-hidden="true" tabindex="-1"></a>LMCBulkSnapshot snapshot <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">ReadBulk</span><span class="op">(</span>configuration<span class="op">);</span></span>
-<span id="cb39-4"><a href="#cb39-4" aria-hidden="true" tabindex="-1"></a>diagnostics<span class="op">.</span><span class="fu">ReleaseBulk</span><span class="op">(</span>configuration<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb38"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a>LMCBulkConfiguration configuration <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">ConfigureBulk</span><span class="op">(</span>signalIds<span class="op">);</span></span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a>LMCBulkStatus status <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">ReadBulkStatus</span><span class="op">(</span>configuration<span class="op">);</span></span>
+<span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a>LMCBulkSnapshot snapshot <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">ReadBulk</span><span class="op">(</span>configuration<span class="op">);</span></span>
+<span id="cb38-4"><a href="#cb38-4" aria-hidden="true" tabindex="-1"></a>diagnostics<span class="op">.</span><span class="fu">ReleaseBulk</span><span class="op">(</span>configuration<span class="op">);</span></span></code></pre></div>
 <p>각 메서드에는 Async overload가 있다. <code>ConfigureBulk</code> 뒤
 <code>Active</code>를 확인하고, <code>ReadBulk</code>의 한 snapshot에서
 같은 PLC cycle의 entry를 읽는다. <code>SnapshotFlags.Partial</code>이면
@@ -4004,21 +3645,21 @@ Partial/recovery/soak는 미완료다.</p>
 <h2 id="diagnostics-d3d4-recorder">6.7 Diagnostics D3/D4 Recorder</h2>
 <p>대표 lifecycle API는 다음과 같다. 모두 session/BootId에 귀속되며 sync
 메서드에는 해당 Async overload가 있다.</p>
-<div class="sourceCode" id="cb40"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a>LMCRecorderConfigurationHandle handle <span class="op">=</span></span>
-<span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a>    diagnostics<span class="op">.</span><span class="fu">ConfigureRecorder</span><span class="op">(</span>configuration<span class="op">);</span></span>
-<span id="cb40-3"><a href="#cb40-3" aria-hidden="true" tabindex="-1"></a>LMCRecorderIdentity identity <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">StartRecorder</span><span class="op">(</span>handle<span class="op">);</span></span>
-<span id="cb40-4"><a href="#cb40-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb40-5"><a href="#cb40-5" aria-hidden="true" tabindex="-1"></a>diagnostics<span class="op">.</span><span class="fu">TriggerRecorder</span><span class="op">(</span>identity<span class="op">);</span></span>
-<span id="cb40-6"><a href="#cb40-6" aria-hidden="true" tabindex="-1"></a>diagnostics<span class="op">.</span><span class="fu">StopRecorder</span><span class="op">(</span>identity<span class="op">);</span></span>
-<span id="cb40-7"><a href="#cb40-7" aria-hidden="true" tabindex="-1"></a>LMCRecorderStatus status <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">GetRecorderStatus</span><span class="op">(</span>identity<span class="op">);</span></span>
-<span id="cb40-8"><a href="#cb40-8" aria-hidden="true" tabindex="-1"></a>LMCRecorderHeader header <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">GetRecorderHeader</span><span class="op">(</span>identity<span class="op">);</span></span>
-<span id="cb40-9"><a href="#cb40-9" aria-hidden="true" tabindex="-1"></a>LMCRecorderChunk chunk <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">ReadRecorderChunk</span><span class="op">(</span>chunkRequest<span class="op">);</span></span>
-<span id="cb40-10"><a href="#cb40-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb40-11"><a href="#cb40-11" aria-hidden="true" tabindex="-1"></a>LMCRecorderData data <span class="op">=</span> await diagnostics<span class="op">.</span><span class="fu">DownloadRecorderAsync</span><span class="op">(</span></span>
-<span id="cb40-12"><a href="#cb40-12" aria-hidden="true" tabindex="-1"></a>    identity<span class="op">,</span> progress<span class="op">,</span> cancellationToken<span class="op">);</span></span>
-<span id="cb40-13"><a href="#cb40-13" aria-hidden="true" tabindex="-1"></a>diagnostics<span class="op">.</span><span class="fu">ReleaseRecorderBuffer</span><span class="op">(</span>identity<span class="op">);</span></span>
-<span id="cb40-14"><a href="#cb40-14" aria-hidden="true" tabindex="-1"></a>diagnostics<span class="op">.</span><span class="fu">ReleaseRecorder</span><span class="op">(</span>identity<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb39"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a>LMCRecorderConfigurationHandle handle <span class="op">=</span></span>
+<span id="cb39-2"><a href="#cb39-2" aria-hidden="true" tabindex="-1"></a>    diagnostics<span class="op">.</span><span class="fu">ConfigureRecorder</span><span class="op">(</span>configuration<span class="op">);</span></span>
+<span id="cb39-3"><a href="#cb39-3" aria-hidden="true" tabindex="-1"></a>LMCRecorderIdentity identity <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">StartRecorder</span><span class="op">(</span>handle<span class="op">);</span></span>
+<span id="cb39-4"><a href="#cb39-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-5"><a href="#cb39-5" aria-hidden="true" tabindex="-1"></a>diagnostics<span class="op">.</span><span class="fu">TriggerRecorder</span><span class="op">(</span>identity<span class="op">);</span></span>
+<span id="cb39-6"><a href="#cb39-6" aria-hidden="true" tabindex="-1"></a>diagnostics<span class="op">.</span><span class="fu">StopRecorder</span><span class="op">(</span>identity<span class="op">);</span></span>
+<span id="cb39-7"><a href="#cb39-7" aria-hidden="true" tabindex="-1"></a>LMCRecorderStatus status <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">GetRecorderStatus</span><span class="op">(</span>identity<span class="op">);</span></span>
+<span id="cb39-8"><a href="#cb39-8" aria-hidden="true" tabindex="-1"></a>LMCRecorderHeader header <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">GetRecorderHeader</span><span class="op">(</span>identity<span class="op">);</span></span>
+<span id="cb39-9"><a href="#cb39-9" aria-hidden="true" tabindex="-1"></a>LMCRecorderChunk chunk <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">ReadRecorderChunk</span><span class="op">(</span>chunkRequest<span class="op">);</span></span>
+<span id="cb39-10"><a href="#cb39-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-11"><a href="#cb39-11" aria-hidden="true" tabindex="-1"></a>LMCRecorderData data <span class="op">=</span> await diagnostics<span class="op">.</span><span class="fu">DownloadRecorderAsync</span><span class="op">(</span></span>
+<span id="cb39-12"><a href="#cb39-12" aria-hidden="true" tabindex="-1"></a>    identity<span class="op">,</span> progress<span class="op">,</span> cancellationToken<span class="op">);</span></span>
+<span id="cb39-13"><a href="#cb39-13" aria-hidden="true" tabindex="-1"></a>diagnostics<span class="op">.</span><span class="fu">ReleaseRecorderBuffer</span><span class="op">(</span>identity<span class="op">);</span></span>
+<span id="cb39-14"><a href="#cb39-14" aria-hidden="true" tabindex="-1"></a>diagnostics<span class="op">.</span><span class="fu">ReleaseRecorder</span><span class="op">(</span>identity<span class="op">);</span></span></code></pre></div>
 <p>기본 순서는
 <code>Configure -&gt; Start -&gt; Status polling -&gt; Ready -&gt; Header/Chunk 또는 Download -&gt; ReleaseBuffer -&gt; Release</code>다.
 <code>LMCRecorderData.GetRawUInt32/GetRawInt32</code>로 sample/channel
@@ -4039,12 +3680,12 @@ PLC route gate가 OFF이고 실제 bank count가 1이다. 현재 target에서는
 </blockquote>
 <h2 id="diagnostics-d5-sdo-read와-operation-ticket">6.8 Diagnostics D5
 SDO Read와 operation ticket</h2>
-<div class="sourceCode" id="cb41"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a>LMCSdoReadResult inline <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">ReadSdoInline</span><span class="op">(</span>request<span class="op">);</span></span>
-<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a>LMCOperationTicket ticket <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">SubmitSdo</span><span class="op">(</span>request<span class="op">);</span></span>
-<span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a>LMCOperationStatus status <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">GetOperationStatus</span><span class="op">(</span>ticket<span class="op">);</span></span>
-<span id="cb41-4"><a href="#cb41-4" aria-hidden="true" tabindex="-1"></a>diagnostics<span class="op">.</span><span class="fu">CancelOperation</span><span class="op">(</span>ticket<span class="op">);</span></span>
-<span id="cb41-5"><a href="#cb41-5" aria-hidden="true" tabindex="-1"></a>LMCSdoResultChunk chunk <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">ReadSdoResultChunk</span><span class="op">(</span>chunkRequest<span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb40"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a>LMCSdoReadResult inline <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">ReadSdoInline</span><span class="op">(</span>request<span class="op">);</span></span>
+<span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a>LMCOperationTicket ticket <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">SubmitSdo</span><span class="op">(</span>request<span class="op">);</span></span>
+<span id="cb40-3"><a href="#cb40-3" aria-hidden="true" tabindex="-1"></a>LMCOperationStatus status <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">GetOperationStatus</span><span class="op">(</span>ticket<span class="op">);</span></span>
+<span id="cb40-4"><a href="#cb40-4" aria-hidden="true" tabindex="-1"></a>diagnostics<span class="op">.</span><span class="fu">CancelOperation</span><span class="op">(</span>ticket<span class="op">);</span></span>
+<span id="cb40-5"><a href="#cb40-5" aria-hidden="true" tabindex="-1"></a>LMCSdoResultChunk chunk <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">ReadSdoResultChunk</span><span class="op">(</span>chunkRequest<span class="op">);</span></span></code></pre></div>
 <p>각 메서드에는 Async overload가 있다. current SDO Read 범위는 Slave
 1..4, data width 1/2/4 byte, timeout 1..60000 PLC cycle과 general inline
 read다. <code>LMCSdoRequest.CreateRead</code>로 request를 만든다.
@@ -4061,10 +3702,10 @@ SDO data size가 4이고 Extended SDO capability/<code>0x7E51</code>
 route가 OFF라 실행할 수 없다.</p>
 <h2 id="static-topology와-dynamic-nodeio">6.9 Static Topology와 Dynamic
 Node/I/O</h2>
-<div class="sourceCode" id="cb42"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a>LMCEtherCATTopologyInfo info <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">GetEtherCATTopologyInfo</span><span class="op">();</span></span>
-<span id="cb42-2"><a href="#cb42-2" aria-hidden="true" tabindex="-1"></a>LMCEtherCATTopologyChunk chunk <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">GetEtherCATTopologyChunk</span><span class="op">(...);</span></span>
-<span id="cb42-3"><a href="#cb42-3" aria-hidden="true" tabindex="-1"></a>LMCEtherCATTopology topology <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">GetEtherCATTopology</span><span class="op">();</span></span></code></pre></div>
+<div class="sourceCode" id="cb41"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a>LMCEtherCATTopologyInfo info <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">GetEtherCATTopologyInfo</span><span class="op">();</span></span>
+<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a>LMCEtherCATTopologyChunk chunk <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">GetEtherCATTopologyChunk</span><span class="op">(...);</span></span>
+<span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a>LMCEtherCATTopology topology <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">GetEtherCATTopology</span><span class="op">();</span></span></code></pre></div>
 <p>Async overload도 제공한다. <code>GetEtherCATTopology()</code>는 Info
 뒤 7개 chunk를 조합하고 CRC를 검증한다. current static inventory는
 TopologyRevision <code>0x15867EEC</code>, 7 entry(Slave 5 + Slot Module
@@ -4269,27 +3910,27 @@ switch를 찾지 않는다.</p>
 </tr>
 </tbody>
 </table>
-<div class="sourceCode" id="cb44"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a>LMCPreparedHome prepared <span class="op">=</span> axis<span class="op">.</span><span class="fu">PrepareLMC_Home</span><span class="op">(</span></span>
-<span id="cb44-2"><a href="#cb44-2" aria-hidden="true" tabindex="-1"></a>    expectedActualPosition<span class="op">,</span></span>
-<span id="cb44-3"><a href="#cb44-3" aria-hidden="true" tabindex="-1"></a>    timeoutMilliseconds<span class="op">,</span></span>
-<span id="cb44-4"><a href="#cb44-4" aria-hidden="true" tabindex="-1"></a>    adminCapabilities<span class="op">,</span></span>
-<span id="cb44-5"><a href="#cb44-5" aria-hidden="true" tabindex="-1"></a>    diagnosticCapabilities<span class="op">,</span></span>
-<span id="cb44-6"><a href="#cb44-6" aria-hidden="true" tabindex="-1"></a>    LMCHomeExecuteToken<span class="op">.</span><span class="fu">Create</span><span class="op">());</span></span>
-<span id="cb44-7"><a href="#cb44-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb44-8"><a href="#cb44-8" aria-hidden="true" tabindex="-1"></a>LMCHomeStartAcknowledgement accepted <span class="op">=</span> axis<span class="op">.</span><span class="fu">LMC_Home</span><span class="op">(</span>prepared<span class="op">);</span></span>
-<span id="cb44-9"><a href="#cb44-9" aria-hidden="true" tabindex="-1"></a>LMCHomeOutcomeResult outcome <span class="op">=</span> axis<span class="op">.</span><span class="fu">ReadLMC_HomeOutcome</span><span class="op">(</span></span>
-<span id="cb44-10"><a href="#cb44-10" aria-hidden="true" tabindex="-1"></a>    accepted<span class="op">.</span><span class="fu">RecoveryKey</span><span class="op">,</span></span>
-<span id="cb44-11"><a href="#cb44-11" aria-hidden="true" tabindex="-1"></a>    adminCapabilities<span class="op">,</span></span>
-<span id="cb44-12"><a href="#cb44-12" aria-hidden="true" tabindex="-1"></a>    diagnosticCapabilities<span class="op">);</span></span>
-<span id="cb44-13"><a href="#cb44-13" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb44-14"><a href="#cb44-14" aria-hidden="true" tabindex="-1"></a><span class="kw">if</span> <span class="op">(</span>outcome<span class="op">.</span><span class="fu">IsTerminal</span><span class="op">)</span></span>
-<span id="cb44-15"><a href="#cb44-15" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
-<span id="cb44-16"><a href="#cb44-16" aria-hidden="true" tabindex="-1"></a>    axis<span class="op">.</span><span class="fu">RetireLMC_HomeOutcome</span><span class="op">(</span></span>
-<span id="cb44-17"><a href="#cb44-17" aria-hidden="true" tabindex="-1"></a>        outcome<span class="op">,</span></span>
-<span id="cb44-18"><a href="#cb44-18" aria-hidden="true" tabindex="-1"></a>        adminCapabilities<span class="op">,</span></span>
-<span id="cb44-19"><a href="#cb44-19" aria-hidden="true" tabindex="-1"></a>        diagnosticCapabilities<span class="op">);</span></span>
-<span id="cb44-20"><a href="#cb44-20" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<div class="sourceCode" id="cb43"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a>LMCPreparedHome prepared <span class="op">=</span> axis<span class="op">.</span><span class="fu">PrepareLMC_Home</span><span class="op">(</span></span>
+<span id="cb43-2"><a href="#cb43-2" aria-hidden="true" tabindex="-1"></a>    expectedActualPosition<span class="op">,</span></span>
+<span id="cb43-3"><a href="#cb43-3" aria-hidden="true" tabindex="-1"></a>    timeoutMilliseconds<span class="op">,</span></span>
+<span id="cb43-4"><a href="#cb43-4" aria-hidden="true" tabindex="-1"></a>    adminCapabilities<span class="op">,</span></span>
+<span id="cb43-5"><a href="#cb43-5" aria-hidden="true" tabindex="-1"></a>    diagnosticCapabilities<span class="op">,</span></span>
+<span id="cb43-6"><a href="#cb43-6" aria-hidden="true" tabindex="-1"></a>    LMCHomeExecuteToken<span class="op">.</span><span class="fu">Create</span><span class="op">());</span></span>
+<span id="cb43-7"><a href="#cb43-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-8"><a href="#cb43-8" aria-hidden="true" tabindex="-1"></a>LMCHomeStartAcknowledgement accepted <span class="op">=</span> axis<span class="op">.</span><span class="fu">LMC_Home</span><span class="op">(</span>prepared<span class="op">);</span></span>
+<span id="cb43-9"><a href="#cb43-9" aria-hidden="true" tabindex="-1"></a>LMCHomeOutcomeResult outcome <span class="op">=</span> axis<span class="op">.</span><span class="fu">ReadLMC_HomeOutcome</span><span class="op">(</span></span>
+<span id="cb43-10"><a href="#cb43-10" aria-hidden="true" tabindex="-1"></a>    accepted<span class="op">.</span><span class="fu">RecoveryKey</span><span class="op">,</span></span>
+<span id="cb43-11"><a href="#cb43-11" aria-hidden="true" tabindex="-1"></a>    adminCapabilities<span class="op">,</span></span>
+<span id="cb43-12"><a href="#cb43-12" aria-hidden="true" tabindex="-1"></a>    diagnosticCapabilities<span class="op">);</span></span>
+<span id="cb43-13"><a href="#cb43-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-14"><a href="#cb43-14" aria-hidden="true" tabindex="-1"></a><span class="kw">if</span> <span class="op">(</span>outcome<span class="op">.</span><span class="fu">IsTerminal</span><span class="op">)</span></span>
+<span id="cb43-15"><a href="#cb43-15" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb43-16"><a href="#cb43-16" aria-hidden="true" tabindex="-1"></a>    axis<span class="op">.</span><span class="fu">RetireLMC_HomeOutcome</span><span class="op">(</span></span>
+<span id="cb43-17"><a href="#cb43-17" aria-hidden="true" tabindex="-1"></a>        outcome<span class="op">,</span></span>
+<span id="cb43-18"><a href="#cb43-18" aria-hidden="true" tabindex="-1"></a>        adminCapabilities<span class="op">,</span></span>
+<span id="cb43-19"><a href="#cb43-19" aria-hidden="true" tabindex="-1"></a>        diagnosticCapabilities<span class="op">);</span></span>
+<span id="cb43-20"><a href="#cb43-20" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
 <p>Start ACK는 완료 증거가 아니며 <code>0x7D13</code>을 replay하지
 않는다. terminal outcome과 matching retirement가 필요하다. Admin feature
 bit 4는 current source에서 ON이고 WPF는 <code>LMC Home outcome:</code>
@@ -4458,27 +4099,27 @@ B</td>
 </tbody>
 </table>
 <p>주요 signature는 다음과 같다.</p>
-<div class="sourceCode" id="cb45"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a>LMCPreparedAxisSetPosition <span class="fu">PrepareSetPosition</span><span class="op">(</span></span>
-<span id="cb45-2"><a href="#cb45-2" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> targetPosition<span class="op">,</span></span>
-<span id="cb45-3"><a href="#cb45-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> expectedActualPosition<span class="op">,</span></span>
-<span id="cb45-4"><a href="#cb45-4" aria-hidden="true" tabindex="-1"></a>    LMCAdminCapabilities verifiedCapabilities<span class="op">,</span></span>
-<span id="cb45-5"><a href="#cb45-5" aria-hidden="true" tabindex="-1"></a>    LMCDiagnosticCapabilities verifiedDiagnosticCapabilities<span class="op">,</span></span>
-<span id="cb45-6"><a href="#cb45-6" aria-hidden="true" tabindex="-1"></a>    LMCAxisSetPositionExecuteToken executeToken<span class="op">)</span></span>
-<span id="cb45-7"><a href="#cb45-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb45-8"><a href="#cb45-8" aria-hidden="true" tabindex="-1"></a>LMCAxisSetPositionResult <span class="fu">SetPositionEx</span><span class="op">(</span></span>
-<span id="cb45-9"><a href="#cb45-9" aria-hidden="true" tabindex="-1"></a>    LMCPreparedAxisSetPosition preparedCommand<span class="op">)</span></span>
-<span id="cb45-10"><a href="#cb45-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb45-11"><a href="#cb45-11" aria-hidden="true" tabindex="-1"></a>LMCAxisSetPositionOutcomeResult <span class="fu">ReadSetPositionOutcome</span><span class="op">(</span></span>
-<span id="cb45-12"><a href="#cb45-12" aria-hidden="true" tabindex="-1"></a>    LMCAxisSetPositionRecoveryKey recoveryKey<span class="op">,</span></span>
-<span id="cb45-13"><a href="#cb45-13" aria-hidden="true" tabindex="-1"></a>    LMCAdminCapabilities verifiedCapabilities<span class="op">,</span></span>
-<span id="cb45-14"><a href="#cb45-14" aria-hidden="true" tabindex="-1"></a>    LMCDiagnosticCapabilities verifiedDiagnosticCapabilities<span class="op">)</span></span>
-<span id="cb45-15"><a href="#cb45-15" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb45-16"><a href="#cb45-16" aria-hidden="true" tabindex="-1"></a>LMCAxisSetPositionOutcomeRetirementResult <span class="fu">RetireSetPositionOutcome</span><span class="op">(</span></span>
-<span id="cb45-17"><a href="#cb45-17" aria-hidden="true" tabindex="-1"></a>    LMCAxisSetPositionRecoveryKey recoveryKey<span class="op">,</span></span>
-<span id="cb45-18"><a href="#cb45-18" aria-hidden="true" tabindex="-1"></a>    <span class="dt">uint</span> recordGeneration<span class="op">,</span></span>
-<span id="cb45-19"><a href="#cb45-19" aria-hidden="true" tabindex="-1"></a>    LMCAdminCapabilities verifiedCapabilities<span class="op">,</span></span>
-<span id="cb45-20"><a href="#cb45-20" aria-hidden="true" tabindex="-1"></a>    LMCDiagnosticCapabilities verifiedDiagnosticCapabilities<span class="op">)</span></span></code></pre></div>
+<div class="sourceCode" id="cb44"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a>LMCPreparedAxisSetPosition <span class="fu">PrepareSetPosition</span><span class="op">(</span></span>
+<span id="cb44-2"><a href="#cb44-2" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> targetPosition<span class="op">,</span></span>
+<span id="cb44-3"><a href="#cb44-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> expectedActualPosition<span class="op">,</span></span>
+<span id="cb44-4"><a href="#cb44-4" aria-hidden="true" tabindex="-1"></a>    LMCAdminCapabilities verifiedCapabilities<span class="op">,</span></span>
+<span id="cb44-5"><a href="#cb44-5" aria-hidden="true" tabindex="-1"></a>    LMCDiagnosticCapabilities verifiedDiagnosticCapabilities<span class="op">,</span></span>
+<span id="cb44-6"><a href="#cb44-6" aria-hidden="true" tabindex="-1"></a>    LMCAxisSetPositionExecuteToken executeToken<span class="op">)</span></span>
+<span id="cb44-7"><a href="#cb44-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb44-8"><a href="#cb44-8" aria-hidden="true" tabindex="-1"></a>LMCAxisSetPositionResult <span class="fu">SetPositionEx</span><span class="op">(</span></span>
+<span id="cb44-9"><a href="#cb44-9" aria-hidden="true" tabindex="-1"></a>    LMCPreparedAxisSetPosition preparedCommand<span class="op">)</span></span>
+<span id="cb44-10"><a href="#cb44-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb44-11"><a href="#cb44-11" aria-hidden="true" tabindex="-1"></a>LMCAxisSetPositionOutcomeResult <span class="fu">ReadSetPositionOutcome</span><span class="op">(</span></span>
+<span id="cb44-12"><a href="#cb44-12" aria-hidden="true" tabindex="-1"></a>    LMCAxisSetPositionRecoveryKey recoveryKey<span class="op">,</span></span>
+<span id="cb44-13"><a href="#cb44-13" aria-hidden="true" tabindex="-1"></a>    LMCAdminCapabilities verifiedCapabilities<span class="op">,</span></span>
+<span id="cb44-14"><a href="#cb44-14" aria-hidden="true" tabindex="-1"></a>    LMCDiagnosticCapabilities verifiedDiagnosticCapabilities<span class="op">)</span></span>
+<span id="cb44-15"><a href="#cb44-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb44-16"><a href="#cb44-16" aria-hidden="true" tabindex="-1"></a>LMCAxisSetPositionOutcomeRetirementResult <span class="fu">RetireSetPositionOutcome</span><span class="op">(</span></span>
+<span id="cb44-17"><a href="#cb44-17" aria-hidden="true" tabindex="-1"></a>    LMCAxisSetPositionRecoveryKey recoveryKey<span class="op">,</span></span>
+<span id="cb44-18"><a href="#cb44-18" aria-hidden="true" tabindex="-1"></a>    <span class="dt">uint</span> recordGeneration<span class="op">,</span></span>
+<span id="cb44-19"><a href="#cb44-19" aria-hidden="true" tabindex="-1"></a>    LMCAdminCapabilities verifiedCapabilities<span class="op">,</span></span>
+<span id="cb44-20"><a href="#cb44-20" aria-hidden="true" tabindex="-1"></a>    LMCDiagnosticCapabilities verifiedDiagnosticCapabilities<span class="op">)</span></span></code></pre></div>
 <p>각 sync 메서드에는 <code>CancellationToken</code>을 받는 Async
 overload가 있다. retirement는 exact terminal
 <code>LMCAxisSetPositionOutcomeResult</code>를 받는 convenience
@@ -4522,5 +4163,3 @@ fail-closed된다.</li>
 tombstone, axis task/core/priority, claim-before-native exactly-once
 실행, terminal commit/readback, disconnect quarantine, packet capture와
 실제 축 coordinate effect를 하나의 승인 evidence로 닫아야 한다.</p>
-</body>
-</html>

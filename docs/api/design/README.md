@@ -1,24 +1,24 @@
 # 최우선 API 개발 설계
 
-- 기준일: 2026-08-31
+- 기준일: 2026-09-01
 - current integration / qualification source: `dev`
-- latest 8 -> 1 readback/WPF fix (physical retest pending): [SET_OPERATION_MODE_READBACK_SETTLING_FIX_20260831.md](SET_OPERATION_MODE_READBACK_SETTLING_FIX_20260831.md)
-- current status snapshot: `DEVELOPMENT_STATUS_20260831.md`
-- current SetOperationMode implementation result: `SET_OPERATION_MODE_START_EXECUTION_IMPLEMENTATION_RESULT_20260831.md`
-- current Detail 49 observability implementation result: `SET_OPERATION_MODE_DETAIL49_OBSERVABILITY_IMPLEMENTATION_RESULT_20260831.md`
-- implementation contract: `SET_OPERATION_MODE_START_EXECUTION_REFACTOR_PLAN_20260831.md`
+- current baseline: `dev@0afbc2a79dff1b63f908b1bde3bd2502843045ff` (`dev : SetOpMode Complete`)
+- current status snapshot: `DEVELOPMENT_STATUS_20260901.md`
 - current API progress: `../API_DEVELOPMENT_PROGRESS.md`
 - current API manual: `../API_MANUAL.md`
+- SetOperationMode: **IMPLEMENTATION COMPLETE / Active**
+- current P0 implementation: **Generic SDO 잔여 범위** (issue #46)
 - production release posture: **NO-GO**
-- active P0 tracking: issue #46
 
-이 폴더의 current 판정은 branch 이름/PR 개수보다 `dev`의 실제 source와 최신 실기 evidence를 우선한다. `DEVELOPMENT_STATUS_20260827.md`, `DEVELOPMENT_STATUS_20260828.md`는 historical snapshot으로 보존하고, 현재 상태는 `DEVELOPMENT_STATUS_20260831.md` 및 최신 implementation result를 우선한다.
+이 폴더의 current 판정은 `dev` source와 최신 current snapshot을 우선한다.
+`DEVELOPMENT_STATUS_20260827.md`, `DEVELOPMENT_STATUS_20260828.md`,
+`DEVELOPMENT_STATUS_20260831.md`와 각 blocker 문서는 historical evidence로 보존한다.
 
 ---
 
-## 1. P0-A — SetOperationMode
+## 1. 완료 — SetOperationMode
 
-current `dev` source truth:
+SetOperationMode는 `0afbc2a79dff1b63f908b1bde3bd2502843045ff`에서 구현 완료로 닫는다.
 
 ```text
 LMC_DIAG_SET_OPERATION_MODE_ENABLED TRUE
@@ -27,117 +27,60 @@ Admin feature mask = 0x00000717
 SetOperationModeSupportedMask = 0x018A
 ```
 
-지원 target은 PP(1), PV(3), IP(7), CSP(8)다. Homing(6)은 HomeDS402/HomeDS402Ex가 소유한다.
+지원 mode는 PP(1), PV(3), IP(7), CSP(8)이며 Homing(6)은 HomeDS402/HomeDS402Ex가 소유한다.
+current completion contract:
 
-통합 software path:
+- `0x7D23` Start / `0x7D24` exact outcome / `0x7D25` exact-generation retire
+- fresh drive-status preflight와 FINAL Diagnostics capability refresh
+- same-target `SucceededNoWrite` / cross-mode write 구분
+- exact requested-mode ACK/domain-failure echo; CSP 고정 판정 제거
+- `0x6060` exact requested-mode write 최대 1회
+- `0x6061` verify mismatch는 original deadline 안에서 read-only settling
+- write-dispatched 이후 Start/`0x6060` replay 금지
+- terminal owner publish/release bounded retry, 추가 SDO write 없음
+- WPF Running polling, terminal evidence, exact retirement, false PASS 방지
+- indeterminate/query reject durable fence 유지
+- stale recovery operator retirement은 PLC success를 조작하지 않음
+- Generic SDO raw `0x6060` permanent deny
 
-- PP/PV/IP/CSP lifecycle
-- durable Start/no-replay recovery/outcome/retire
-- same-target `SucceededNoWrite`와 real cross-mode 구분
-- cross-mode fresh drive-status preflight
-- WPF actual Start-gate diagnostics
-- raw Generic SDO `0x6060` permanent deny
+상세 구현/원인 추적:
 
-### Software blocker A — Diagnostics capability freshness ordering: CLOSED
+- `SET_OPERATION_MODE_DESIGN.md` — current implementation contract
+- `SET_OPERATION_MODE_READBACK_SETTLING_FIX_20260831.md` — capability/readback/owner/ACK historical investigation
+- `SET_OPERATION_MODE_START_EXECUTION_IMPLEMENTATION_RESULT_20260831.md` — Start execution corrective
+- `SET_OPERATION_MODE_DETAIL49_OBSERVABILITY_IMPLEMENTATION_RESULT_20260831.md` — admission/storage observability
 
-2026-08-28 17:28 실기에서는 preflight의 inline D5 `0x6041`/`0x6061` read가 Diagnostics observation sequence를 진행시킨 뒤 old observation으로 `PrepareSetOperationMode()`를 호출해 다음 host exception이 발생했다.
-
-```text
-The supplied diagnostics capabilities are not the current observation.
-```
-
-2026-08-31 functional commit `d4ce1b2f9c2a41f5117e0bd769533d0483c1ff91`에서 순서를 다음으로 수정했다.
-
-```text
-Admin capability / selected mode 확인
--> GetPhysicalAxis
--> fresh ReadDriveStatus preflight
--> FINAL Diagnostics capability refresh
--> capability/admission 확인
--> PrepareSetOperationMode(final current observation)
--> durable ArmBeforeDispatch
--> SetOperationModeAsync exactly once
--> outcome/recovery
-```
-
-FINAL Diagnostics refresh와 Prepare 사이에는 capability-producing/read helper를 삽입하지 않는다. `requireCurrentObservation=true`, Build/BootId/MapRevision identity 및 Standstill/Fault/OperationEnabled fence는 그대로 유지한다.
-
-### Software blocker B — Start Click handler ownership: CLOSED
-
-기존에는 button 생성 시 `ButtonStartAxisSetOperationMode_Click()`을 등록한 뒤 `InitializeReadOnlyApiUi()`에서 detach하고 `ButtonStartAxisSetOperationModeWithRejectResolution_Click()`으로 교체했다.
-
-현재는 다음 하나의 runtime UI path만 유지한다.
-
-```text
-Start button
--> ButtonStartAxisSetOperationMode_Click
--> RunOperationAsync
--> StartAxisSetOperationModeOnceAsync
-```
-
-`ButtonStartAxisSetOperationModeWithRejectResolution_Click()`은 제거했다. definitive rejection archival/active-journal clear/UI update는 canonical handler에 통합했다.
-
-software qualification evidence:
-
-```text
-API Debug full                       1200/1200 PASS
-WPF SetOperationModeRecovery Debug       7/7 PASS
-WPF AxisSetOperationModeJournal Debug    7/7 PASS
-WPF SetOperationModeSdk Debug            1/1 PASS
-Generic SDO Wpf.Sdo Debug               17/17 PASS
-API Release build                       PASS
-WPF Release build                       PASS
-WPF focused SetOperationMode Release    PASS
-git diff --check                        PASS
-Start execution verifier               PASS
-```
-
-상세 구현 결과는 `SET_OPERATION_MODE_START_EXECUTION_IMPLEMENTATION_RESULT_20260831.md`를 따른다.
-
-### 현재 P0 gate — physical qualification
-
-software blocker가 닫혔다고 physical mode-change PASS로 판정하지 않는다. exact updated source/image에서 다음 순서로 진행한다.
-
-1. Axis1 CSP -> CSP no-write 확인
-2. Axis1 CSP -> PP/PV/IP real `0x6060` 최대 1회 + 최종 `0x6061` 확인
-3. PP/PV/IP -> CSP 확인
-4. failure/recovery matrix
-5. Axis2..4 확대
-
-CSP -> CSP `SucceededNoWrite`는 실제 `0x6060` cross-mode Write PASS가 아니다.
+SetOperationMode 구현 완료를 전체 API production 승인으로 확대 해석하지 않는다.
 
 ---
 
-## 2. P0-B — Generic SDO
+## 2. P0 — Generic SDO
 
-current `dev` source:
+issue #46은 SetOperationMode 부분을 완료 처리하고 **Generic SDO 잔여 범위만** 추적한다.
+
+current source:
 
 ```text
 LMC_DIAG_D5_SDO_WRITE_GLOBAL_ENABLED TRUE
 LMC_DIAG_D5_SDO_WRITE_UI24_AXIS1_ENABLED TRUE
 ```
 
-통합 tranche:
+이미 통합된 범위:
 
-- SDO-R02 dual-entry executor
-- SDO-R03 generic physical axis 1..4 scalar Write, canonical 1/2/4-byte width
+- SDO-R02 Manual Server + tokenized programmatic dual-entry 기반
+- SDO-R03 physical axis 1..4 generic 1/2/4-byte scalar Write policy
 - SDO-R04 arbitrary WPF editor / exact preview / reserved warning
 - SDO-R05 durable exact-request no-replay recovery
-- PR #58 ordinary Write safe-state correction
+- ordinary Write safe-state correction
 
-ordinary Generic SDO Write 요구조건:
+ordinary Generic SDO Write gate:
 
 - Standstill=True
 - DS402 Fault=False
 - DS402 OperationEnabled=False
+- PLC safe base state `0x40`, `0x21`, `0x23`
 
-PLC generic safe base state:
-
-- `0x40` Switch On Disabled
-- `0x21` Ready To Switch On
-- `0x23` Switched On
-
-semantic/dedicated-owner raw blocklist:
+permanent semantic/dedicated-owner raw blocklist:
 
 ```text
 0x6040
@@ -149,68 +92,85 @@ semantic/dedicated-owner raw blocklist:
 0x20FC
 ```
 
-Axis1 UI24 same-value four-ticket 경로는 특정 qualification preset이다. Generic SDO 전체의 유일 target으로 해석하지 않는다.
-
-현재 source/PC regression은 통과했으나 physical safe-object Write/readback PASS는 아직 아니다.
-
-다음 gate:
+남은 완료 gate:
 
 1. Axis1 safe non-semantic 1/2/4-byte Write + exact readback
-2. manual/programmatic BUSY/no-wire contention
-3. timeout/disconnect/readback mismatch durable recovery
+2. Manual/programmatic simultaneous access -> BUSY/no race/no hidden write
+3. timeout/disconnect/readback mismatch durable no-replay
 4. Axis2..4 확대
 
----
-
-## 3. current 문서 우선순위
-
-전체 current truth:
-
-- `DEVELOPMENT_STATUS_20260831.md`
-- `SET_OPERATION_MODE_START_EXECUTION_IMPLEMENTATION_RESULT_20260831.md`
-- `../API_DEVELOPMENT_PROGRESS.md`
-- `../API_MANUAL.md`
-
-SetOperationMode 상세:
-
-- `SET_OPERATION_MODE_START_EXECUTION_IMPLEMENTATION_RESULT_20260831.md` — **현재 구현 결과**
-- `SET_OPERATION_MODE_START_EXECUTION_REFACTOR_PLAN_20260831.md` — 구현 계약
-- `SET_OPERATION_MODE_DESIGN.md`
-- `SET_OPERATION_MODE_IMPLEMENTATION_UPDATE_20260828.md`
-- `SDO_OPERATION_MODE_REIMPLEMENTATION_PLAN_20260827.md`
-
-Generic SDO 상세:
-
-- `../../architecture/LMC_GENERIC_SDO_AND_OPERATION_MODE_REDESIGN_2026-08-27.md`
-- `SDO_OPERATION_MODE_REIMPLEMENTATION_PLAN_20260827.md`
-
-문서 간 current activation/지원 상태가 충돌하면 `dev` source와 최신 current snapshot/implementation result를 기준으로 판정하고 문서를 다시 동기화한다.
+Axis1 UI24 four-ticket path는 qualification preset일 뿐 generic API의 유일 target이 아니다.
 
 ---
 
-## 4. 다른 P0 경계
+## 3. P1 — HomeDS402
 
-### HomeDS402
+software/source/WPF qualification은 통합돼 있으나 activation은 OFF다.
 
-software/source/WPF qualification은 통합돼 있으나 activation은 OFF다. fresh generated artifact/C78 및 physical matrix가 남아 있다.
-
-### HomeDS402Ex
-
-SDK/ownership/retained store/WPF recovery/approved-plan source는 존재하지만 physical runtime과 capability activation은 OFF다. hardware profile 승인과 fresh C78가 선행돼야 한다.
-
-### SetPosition
-
-lifecycle, WPF durable recovery, host factory receipt/readback tooling은 존재한다. 실제 A/B runtime backend는 issue #44의 vendor CRC golden fixture와 LASAL IDE-generated `_FileSys` ABI가 없어서 외부 blocker다. 이를 추측으로 우회하지 않는다.
+- tracker: issue #32
+- next: exact current `dev` C78/ARM Rebuild + Link
+- generated `Classes.lcb`/project/network artifact identity review
+- full SourceOnly ratchet closure
+- same-image PLC/hardware normal/fault/timeout matrix
+- 독립 activation review 전 bit 6/five-value activation은 OFF 유지
 
 ---
 
-## 5. Repository / qualification 운영 원칙
+## 4. P1 — HomeDS402Ex
 
-- remote branch는 `main`, `dev` 두 개만 유지한다.
-- `dev`가 유일한 current integration / qualification source truth다.
-- 과거 29개 `codex/*` branch는 모두 `dev` ancestor임을 확인한 뒤 삭제했다.
+SDK/ownership/retained store/WPF recovery/profile-preparation source는 존재하지만 physical runtime과
+capability activation은 OFF다.
+
+- issue #28: axis1..4 wiring/polarity/homing method/scale/range profile 승인
+- issue #35: fresh C78/generated artifact + SourceOnly closure
+
+두 prerequisite가 닫히기 전에 hardware-dependent 값을 추측하거나 physical homing path를 열지 않는다.
+
+---
+
+## 5. Blocked — SetPosition
+
+lifecycle, WPF durable recovery와 host factory receipt/readback tooling은 존재한다. runtime/native
+exactly-once와 durable A/B backend는 fail-closed 상태다.
+
+issue #44의 외부 prerequisite:
+
+- vendor `CheckSum.CRC32` golden fixture
+- LASAL IDE-generated `_FileSys` class/client ABI
+
+이 두 항목 없이 CRC 의미를 추정하거나 generated ABI를 손으로 작성하지 않는다.
+
+---
+
+## 6. 후순위 backlog
+
+| 영역 | current 상태 | 다음 구현 |
+|---|---|---|
+| PI Write | Dormant | capability/semantic allowlist review |
+| Recorder Double | Dormant | D4 capability/route proof |
+| Dynamic node/DI | Dormant | bits 15/16 activation qualification |
+| Extended SDO result | Dormant | bit 12 qualification |
+| Digital Output Write `0x7E23` | Missing runtime | LASAL route/owner/allowlist 구현 |
+
+---
+
+## 7. current 문서 우선순위
+
+1. `DEVELOPMENT_STATUS_20260901.md` — 전체 current snapshot
+2. `../API_DEVELOPMENT_PROGRESS.md` — 구현률/남은 작업/current qualification
+3. `../API_MANUAL.md` — public/current API 사용 계약
+4. `SET_OPERATION_MODE_DESIGN.md` — 완료된 SetOperationMode implementation contract
+5. 기능별 historical evidence 문서
+
+문서가 충돌하면 current `dev` source와 위 순서를 기준으로 정리한다.
+
+---
+
+## 8. Repository / qualification 원칙
+
+- remote branch는 `main`, `dev`만 유지한다.
+- `dev`가 유일한 integration/current qualification source truth다.
+- source implementation 완료, PC test, C78 build, PLC load, physical effect, production release를 서로 다른 판정으로 기록한다.
 - 기능 작업 branch가 필요하면 작업 -> 검증 -> `dev` merge -> 즉시 삭제한다.
-- 같은 기능의 qualification branch를 장기간 누적하지 않는다.
-- 실기 전 source SHA + generated artifact + PLC loaded image + WPF EXE/SDK identity를 하나의 evidence set으로 기록한다.
-- source CI PASS와 physical PASS를 분리한다.
-- production 배포 전 qualification-active gate를 별도 release review에서 반드시 재판정한다.
+- source SHA + generated artifact + PLC loaded image + WPF EXE/SDK identity를 같은 evidence set으로 남긴다.
+- temporary workflow/helper는 검증 종료 후 제거한다.

@@ -235,3 +235,22 @@ readback이 성공해도 이미 owner가 quarantine되어 terminal publish가 �
 기대되는 실기 결과는 8 -> 1 요청 후 0x6061=1 확인, terminal success commit,
 exact-generation retire, owner record 해제 및 WPF UI 재활성화다. 이는 C78 build/download와
 물리 시험 전까지 정적 수정 상태이며 실기 PASS로 판정하지 않는다.
+
+## 11. 2026-09-01 SetOperationMode 구현 완료
+
+current completion baseline은 `dev@0afbc2a79dff1b63f908b1bde3bd2502843045ff`
+(`dev : SetOpMode Complete`)이다. 위 1~10절은 문제를 좁혀 간 historical investigation으로 보존하고,
+current 판정은 다음으로 고정한다.
+
+- PP/PV/IP/CSP exact requested-mode ACK/response contract 적용
+- CSP(8) hardcoded ACK 판정 제거
+- exact requested-mode `0x6060` one-shot + `0x6061` read-only settling
+- irreversible dispatch 이후 no replay
+- terminal owner publish/release bounded retry
+- durable exact outcome/generation retirement
+- WPF Running polling / premature PASS 방지 / indeterminate fence
+- supported mask `0x018A`, capability triad와 runtime gate active
+
+따라서 SetOperationMode **feature implementation은 완료**다. 이후 이 기능에서 발견되는 CI runner,
+metadata/generated artifact 정합성은 repository qualification hygiene로 분리한다. 전체 API production
+release 여부는 Generic SDO, HomeDS402, HomeDS402Ex, SetPosition 등 나머지 gate와 함께 별도 판정한다.

@@ -1,16 +1,18 @@
-# SetOpMode 최우선 개발 설계
+# SetOperationMode 구현 설계
 
 - 대상: No.33 `MMC_ChngOpMode`
-- 현재 진행도: 60%
-- current baseline: `dev@52bd4cc120812c2510f8ac99d2d6a42576133d67`
-- current 상태: `Dormant runtime source`; PC/SDK contract, owner/runtime, no-replay recovery, safety preemption, generic D5 0x6060 차단과 MODE-13 WPF durable recovery 구현
-- 구현된 SDK command: `0x7D23 Start`, `0x7D24 ReadOutcome`, `0x7D25 Retire`
-- 구현된 PLC route/runtime: Diagnostics route, owner kind/resource, `6061 -> 6060 -> 6061`, outcome lifecycle, write-dispatch 이후 read-only recovery, safety-preemption cleanup
-- 1차 activation 범위: physical axis 1..4, Immediate, CSP mode 8만
-- activation 상태: `LMC_DIAG_SET_OPERATION_MODE_ENABLED = FALSE`, capability bits 8/9/10 OFF
-- 진행 판정: MODE-02/06/07/08/09 source 완료, MODE-10 source/static PASS, MODE-13 PC/WPF PASS; current exact-image C78/PLC/hardware는 미완료
-- open qualification branch: PR #18 `codex/setopmode-mode11-bench-activation` — `DO NOT MERGE`, physical bench evidence 전용
-- WPF follow-up: PR #37 dynamic recovery-panel localization/CI coverage는 미병합이며 activation 근거가 아님
+- current baseline: `dev@0afbc2a79dff1b63f908b1bde3bd2502843045ff`
+- implementation status: **100% / COMPLETE**
+- runtime status: **Active**
+- supported modes: PP(1), PV(3), IP(7), CSP(8), mask `0x018A`
+- commands: `0x7D23 Start`, `0x7D24 ReadOutcome`, `0x7D25 Retire`
+- activation: `LMC_DIAG_SET_OPERATION_MODE_ENABLED=TRUE`, software modes TRUE, Admin capability triad ON
+- safety: cross-mode Standstill / no Fault / no OperationEnabled, exact identity, durable no-replay
+- completion commit: `0afbc2a79dff1b63f908b1bde3bd2502843045ff` (`dev : SetOpMode Complete`)
+
+이 문서는 SetOperationMode의 current implementation contract와 historical development checkpoints를
+함께 보존한다. `8.1` 이후 날짜/PR 기반 checkpoint는 당시 상태를 기록한 historical evidence이며,
+현재 지원/activation 판정은 위 metadata와 1~8절 current contract를 우선한다.
 
 ## 1. 정확한 API 의미
 
@@ -22,27 +24,28 @@ Maestro reference는 mode 1(Profile Position), 3(Profile Velocity partial), 6(Ho
 cleanup에서 CSP mode 8을 전제로 한다. 따라서 `0x6060` unrestricted SDO Write나 모든 positive
 mode 허용으로 구현하면 안 된다.
 
-현재 C#에는 기존 `0x6061:0 Int8/1` read API와 별도로 SetOperationMode의 immutable
+현재 C#에는 기존 `0x6061:0 Int8/1` read API와 별도로 SetOperationMode immutable
 prepare/start/query/retire SDK contract가 있다. LASAL에는 `0x7D23/0x7D24/0x7D25` route와
 handler, `AxisOperationMode` owner, 전용 outcome state와 `0x6060/0x6061` SDO executor runtime이
-구현돼 있다. public activation은 아직 하지 않는다. capability bits 8/9/10과
-`LMC_DIAG_SET_OPERATION_MODE_ENABLED`는 C78/PLC/hardware 검증 완료 전까지 OFF로 유지한다.
-`0x6060/0x6061` PDO도 current Elmo object에서 disabled다.
+구현돼 있다. current `dev`는 capability bits 8/9/10과
+`LMC_DIAG_SET_OPERATION_MODE_ENABLED`를 활성화하고 supported mask `0x018A`를 광고한다.
+raw Generic SDO `0x6060` 우회 Write는 계속 permanent deny한다.
 
-## 2. 1차 지원 범위
+## 2. 지원 범위
 
-첫 구현은 lifecycle과 recovery를 완성하되 public activation은 CSP 8만 허용한다.
+current implementation은 physical axis 1..4와 Immediate lifecycle을 지원한다.
 
-- physical axis 1..4
-- Immediate-only
-- requested mode `8`만
-- 이미 `0x6061=8`이면 terminal `SucceededNoWrite`
-- 다른 mode에서 8로 복구할 때만 exact one-byte `0x6060:0=8` Write
-- 움직임, Fault, pending motion, 다른 mutation owner 또는 SDO owner가 있으면 거부
-- Homing mode 6은 `HomeDS402/HomeDS402Ex` 내부 owner만 사용하고 public SetOpMode에서 거부
+- requested mode PP(1), PV(3), IP(7), CSP(8)
+- Homing(6)은 HomeDS402/HomeDS402Ex가 소유하므로 SetOperationMode에서 거부
+- 이미 `0x6061`이 requested mode이면 `SucceededNoWrite` 가능
+- cross-mode는 exact one-byte `0x6060:0=<requested>` Write를 최대 한 번만 dispatch
+- Start 전에 Standstill=True, Fault=False, OperationEnabled=False를 요구
+- exact `0x6061` readback과 owner/executor terminal evidence 후에만 success
+- write dispatch 이후 uncertain outcome은 Start/Write를 replay하지 않고 read-only recovery만 사용
+- terminal record는 exact generation으로 retire
 
-Mode 1/3/7은 해당 mode의 setpoint PDO/controller, `_LMCAxis` output 정지·인계와 physical
-proof가 마련될 때 각각 별도 activation한다. 초기 구현에서 이를 광고하지 않는다.
+PP/PV/IP/CSP는 동일한 ACK/outcome contract를 사용하며 TCP 계층은 requested mode를 exact echo/비교한다.
+CSP(8) 상수에 고정된 ACK 분류는 current completion에서 제거됐다.
 
 ## 3. wire 설계
 
@@ -189,7 +192,7 @@ current source 원칙은 다음과 같다.
 `ProcessAxisSetOperationMode`의 LASAL 32 KiB 제한을 피하기 위해 current source는 세 method로
 분리한다.
 
-- `ProcessAxisSetOperationMode`: warm-start/identity, MODE-08 preemption, activation-OFF,
+- `ProcessAxisSetOperationMode`: warm-start/identity, MODE-08 preemption, activation-gate handling,
   timeout/no-replay normalization과 helper dispatch
 - `ProcessAxisSetOperationModeMutationStages`: PREFLIGHT/WRITE/VERIFY
 - `ProcessAxisSetOperationModeRecoveryStages`: RECOVERY/TERMINAL/QUARANTINE
@@ -224,28 +227,28 @@ MODE-09에서 generic D5 Write policy의 permanent unsafe object 목록에 `0x60
 따라서 generic D5가 SetOperationMode owner/outcome/no-replay lifecycle을 우회해 operation mode를
 직접 쓰는 경로는 source에서 차단한다.
 
-축의 current mode가 8이 아니거나 mode outcome이 unresolved이면 ordinary LMC motion을
-승인하지 않는 interlock은 activation 전에 실기 검증한다. PLC startup에서는 6061을
-read-only로 확인하고 자동으로 6060을 쓰지 않는다.
+mode outcome이 unresolved이면 durable recovery fence를 유지하고 original Start/`0x6060`을
+자동 replay하지 않는다. PLC startup/reconnect recovery도 `0x6061` 및 exact outcome을 read-only로
+확인하며 임의의 새로운 `0x6060` Write를 만들지 않는다.
 
 SetOpMode는 `LMCDiagnosticsService`의 SDO executor를 사용하되 별도
 `AxisOperationModeState : ARRAY [0..191] OF DINT` outcome/runtime state를 가진다.
 
-## 6. capability
+## 6. capability / activation
 
-신규 Admin capability는 다음 triad로 예약한다.
+Admin capability triad:
 
 - bit 8 `AxisSetOperationModeStart`
 - bit 9 `AxisSetOperationModeOutcomeRead`
 - bit 10 `AxisSetOperationModeOutcomeRetire`
 
-세 bit는 indivisible하다. SDK는 세 bit가 모두 없으면 Start를 송신하지 않는다. current strict
-capability parser와 PLC를 paired 배포하며, C78/PLC/hardware gate 전까지 compile-time flag와
-세 bit를 모두 OFF로 둔다.
+세 bit는 indivisible하며 current `dev`에서 paired activation 상태다. supported-mode mask는 `0x018A`로
+PP/PV/IP/CSP를 광고한다. SDK는 triad/current observation/Build/BootId/MapRevision을 검증하고 stale
+capability로 Prepare하지 않는다.
 
-현재 PLC source에는 `LMC_DIAG_SET_OPERATION_MODE_ENABLED FALSE`가 존재한다. OFF build에서도
-이미 dispatch된 Running record의 read-only recovery/cleanup은 허용하되 신규 mutation은 시작하지
-않는 것이 activation gate의 의미다.
+compile-time/runtime OFF 경로는 fail-closed contract로 계속 소스에 남아 있으며, 이미 dispatch된
+Running record의 read-only recovery/cleanup과 신규 mutation gate를 구분한다. current completion
+baseline에서는 `LMC_DIAG_SET_OPERATION_MODE_ENABLED=TRUE`다.
 
 ## 7. 변경 대상
 
@@ -334,22 +337,25 @@ capability bits 8/9/10도 OFF였다. 아래 private ABI는 이후 runtime implem
 
 MODE-13 PASS는 PC/WPF 증거 등급이며 C78/PLC/hardware activation 근거가 아니다.
 
-## 8. 작업 체크리스트
+## 8. 구현 체크리스트 — COMPLETE
 
-- [x] `MODE-01` No.33을 Immediate-only `MMC_ChngOpMode`로 고정하고 Ex를 분리
-- [x] `MODE-02` command ID/capability bit와 PLC owner kind 6/resource 4 ABI freeze/source 반영
-- [x] `MODE-03` immutable request/ack/outcome/recovery model과 sync/async API 구현
-- [x] `MODE-04` exact golden bytes, malformed parser와 capability-off zero-wire test 구현
-- [x] `MODE-05` Start/ReadOutcome/Retire LASAL parser와 dormant deterministic failure 구현
-- [x] `MODE-06` 6061 preflight -> 6060 write -> 6061 verify state machine 구현
-- [x] `MODE-07` write-dispatch 이후 no-replay와 read-only recovery 구현
-- [x] `MODE-08` Home/SetPosition/motion/SDO ownership conflict와 safety preemption source 구현
-- [x] `MODE-09` generic D5 permanent unsafe object에 `0x6060` 추가
-- [ ] `MODE-10` source/static PASS; PR #17 fresh C78 artifact checkpoint는 존재하지만 current `dev` exact-source C78/PLC/fault matrix는 재검증 필요
-- [ ] `MODE-11` CSP same-mode no-write와 exact one-write/readback packet 검증 — PR #18 software bench tooling 준비, physical evidence 미완료
-- [ ] `MODE-12` 축 1~4 timeout/disconnect/mismatch/quarantine/retire 검증
-- [x] `MODE-13` WPF pre-dispatch journal/startup no-replay recovery와 smoke test PASS
-- [ ] `MODE-14` capability bits 8/9/10 paired activation
+- [x] `MODE-01` No.33 Immediate-only `MMC_ChngOpMode` 의미 고정
+- [x] `MODE-02` command/capability/owner ABI freeze
+- [x] `MODE-03` immutable prepare/start/query/retire model 및 sync/async API
+- [x] `MODE-04` exact frame/parser/capability zero-wire contract
+- [x] `MODE-05` `0x7D23/24/25` LASAL route/handler
+- [x] `MODE-06` `6061 -> 6060 -> 6061` runtime state machine
+- [x] `MODE-07` irreversible write 이후 no-replay/read-only recovery
+- [x] `MODE-08` ownership conflict와 safety preemption
+- [x] `MODE-09` Generic D5 raw `0x6060` permanent deny
+- [x] `MODE-10` 32KiB method split 및 source/static contract
+- [x] `MODE-11` PP/PV/IP/CSP exact requested-mode ACK/write/readback contract
+- [x] `MODE-12` timeout/uncertainty/quarantine/terminal outcome/exact retire lifecycle
+- [x] `MODE-13` WPF durable pre-dispatch journal, Running polling, no false PASS, no-replay recovery
+- [x] `MODE-14` capability triad + supported mask paired activation
+
+SetOperationMode feature implementation은 완료다. 아래 8.1 이후 checkpoint는 개발 과정의 historical
+evidence로 보존한다. 전체 API production release와 repository-wide CI/artifact hygiene는 별도 gate다.
 
 ### 8.1 2026-08-20 PC/SDK checkpoint
 

@@ -1,9 +1,9 @@
 # LASAL Motion Control API 설명서
 
-문서 버전: 2.5-development
+문서 버전: 2.6-development
 적용 API: LasalMotionControlLib 0.9.1-preview
 대상 환경: Windows, .NET Framework 4.8
-기준일: 2026-08-31
+기준일: 2026-09-01
 
 \pagebreak
 
@@ -27,6 +27,7 @@
 | 2.3-candidate | 2026-08-12 | `cbf2548` actual EXE X 종료/재실행과 binary identity gate, `3c63dea` 13-role active Python dependency closure, `d4204b4` exact Gate D PC/static snapshot 승인, `RPC_INIT_FRESH_TCP_ONCE_V2` bounded pre-response transport recovery와 canonical tracked release-input 경계 추가 |
 | 2.4-development | 2026-08-20 | current API 문서 위치 통합, SetPosition P1/volatile backing/fail-closed 계약과 최신 PLC image load 경계 반영 |
 | 2.5-development | 2026-08-31 | SetOperationMode PP/PV/IP/CSP qualification-active 계약, Generic SDO R03~R05, branch cleanup, 17:28 capability freshness ordering blocker와 current 실기 절차 반영 |
+| 2.6-development | 2026-09-01 | SetOperationMode 구현 완료 상태, exact requested-mode ACK, one-shot 0x6060/read-only settling, bounded owner publish, durable outcome/retire 및 남은 기능 로드맵 정렬 |
 
 이 문서는 `LasalMotionControlLib.dll`의 API 기능, 호출 인자, UNIT, 반환값과 안전 제약을
 설명하는 current 기준 문서다. 구현률, 시험 수치, artifact identity와 다음 작업은
@@ -835,61 +836,83 @@ ticket/status를 보존한다. 제출 뒤 async cancellation은 ticket을 포함
 ticket을 자동 cancel하지 않는다. 이미 진행 중인 status RPC는 응답을 끝까지 수신한 뒤
 취소를 보고하므로 connection은 유지되고 보존된 ticket을 다시 조회할 수 있다.
 
-### 3.11.1 SetOperationMode current qualification contract
+### 3.11.1 SetOperationMode
 
-2.5-development SDK/source의 SetOperationMode는 CSP-only scaffold가 아니다. current `dev`는
-PP(1), PV(3), IP(7), CSP(8)를 `0x018A` supported-mode mask로 광고하고 Admin
-Start/Outcome/Retire triad를 활성화한다. Homing(6)은 이 API가 아니라 HomeDS402 계열이 소유한다.
+2.6-development의 SetOperationMode는 current `dev`에서 구현 완료된 single-axis operation-mode
+변경 lifecycle이다. 지원 mode는 PLC가 `SetOperationModeSupportedMask=0x018A`로 광고하는
+PP(1), PV(3), IP(7), CSP(8)이며 Homing(6)은 HomeDS402/HomeDS402Ex가 소유한다.
 
-| 단계 | `LMCSingleAxis` API | Command | current source |
-|---|---|---:|---|
-| Prepare | `PrepareSetOperationMode` | wire 없음 | current capability/identity validation |
-| Start once | `SetOperationMode[Async]` | `0x7D23` | qualification-active |
-| Exact outcome query | `ReadSetOperationModeOutcome[Async]` | `0x7D24` | qualification-active |
-| Exact terminal retirement | `RetireSetOperationModeOutcome[Async]` | `0x7D25` | qualification-active |
+```csharp
+public LMCPreparedAxisSetOperationMode PrepareSetOperationMode(
+    LMCDriveOperationMode requestedMode,
+    uint timeoutMilliseconds,
+    LMCAdminCapabilities verifiedCapabilities,
+    LMCDiagnosticCapabilities verifiedDiagnosticCapabilities,
+    LMCAxisSetOperationModeExecuteToken executeToken)
 
-Start ACK는 completion evidence가 아니며 prepared command는 one-shot이다. result가 불확실한
-경우 `0x7D23` 또는 원 `0x6060` Write를 자동 replay하지 않는다. recovery는 exact durable
-identity로 outcome/current-mode observation/retirement만 수행한다. raw Generic SDO로
-`0x6060`을 직접 쓰는 것은 계속 금지한다.
+public LMCAxisSetOperationModeStartAcknowledgement SetOperationMode(
+    LMCPreparedAxisSetOperationMode preparedCommand)
+public Task<LMCAxisSetOperationModeStartAcknowledgement> SetOperationModeAsync(
+    LMCPreparedAxisSetOperationMode preparedCommand,
+    CancellationToken cancellationToken)
 
-실제 cross-mode 후보는 Start 전에 fresh `ReadDriveStatusAsync()`로 LASAL status,
-DS402 `0x6041`, `0x6061`을 읽고 `Standstill=True`, DS402 Fault=False,
-OperationEnabled=False를 요구한다. current mode가 requested mode와 같으면 PLC lifecycle은
-`SucceededNoWrite`가 될 수 있으므로 CSP->CSP 성공만으로 `0x6060` Write 성공을 증명하지 않는다.
+public LMCAxisSetOperationModeOutcomeResult ReadSetOperationModeOutcome(
+    LMCAxisSetOperationModeRecoveryKey recoveryKey,
+    LMCAdminCapabilities verifiedCapabilities,
+    LMCDiagnosticCapabilities verifiedDiagnosticCapabilities)
 
-### 3.11.2 2026-08-28 17:28 실기 blocker
-
-Axis1 current CSP(8)에서 PP/PV/IP 요청은 모두 `StatusWord=0x02D0`으로 cross-mode preflight를
-통과했다. 그러나 다음 단계에서 아래 host exception으로 종료됐다.
-
-```text
-The supplied diagnostics capabilities are not the current observation.
+public LMCAxisSetOperationModeOutcomeRetirementResult RetireSetOperationModeOutcome(
+    LMCAxisSetOperationModeRecoveryKey recoveryKey,
+    uint recordGeneration,
+    LMCAdminCapabilities verifiedCapabilities,
+    LMCDiagnosticCapabilities verifiedDiagnosticCapabilities)
 ```
 
-현재 원인은 PLC reject가 아니라 capability observation ordering이다. WPF가 Diagnostics capability
-observation N을 저장한 뒤 `ReadDriveStatusAsync()`가 `0x6041`/`0x6061` inline D5 Read를 수행하고,
-각 submission 내부 `Diagnostics.GetCapabilities()`가 observation을 N+1/N+2로 진행시킨다. 이후
-`PrepareSetOperationMode(... observation N ...)`이 `requireCurrentObservation=true`에서 stale로
-거부된다.
+비동기 Outcome/Retire overload와 terminal-outcome 기반 Retire overload도 제공한다. wire command는
+Start `0x7D23`, exact outcome query `0x7D24`, exact-generation retirement `0x7D25`다.
+`PrepareSetOperationMode`는 wire를 보내지 않으며 current capability/identity와 execute token을
+검증한다. prepared Start는 one-shot이다.
 
-따라서 이 재현에서는 durable journal arm, `0x7D23`, 실제 `0x6060` mutation까지 도달하지 않았다.
-현재 corrective ordering은 다음으로 고정한다.
+| 항목 | current 계약 |
+|---|---|
+| 지원 mode | PP(1), PV(3), IP(7), CSP(8) |
+| same-target | 이미 `0x6061`이 requested mode면 `SucceededNoWrite` 가능 |
+| cross-mode preflight | Standstill=True, DS402 Fault=False, OperationEnabled=False |
+| mode write | exact requested mode를 `0x6060:0`에 최대 1회 dispatch |
+| verify | `0x6061:0` exact readback; 반영 지연은 original deadline 안에서 read-only 재확인 |
+| recovery | original `0x7D23`/`0x6060` replay 금지; exact-key query만 사용 |
+| terminal | owner release와 executor reusable evidence를 포함한 terminal outcome |
+| retire | terminal record의 exact generation과 identity가 일치할 때만 `0x7D25` |
 
-```text
-Admin capability / selected-mode 확인
--> GetPhysicalAxis
--> fresh ReadDriveStatus preflight
--> FINAL Diagnostics capability refresh
--> capability/admission validation
--> PrepareSetOperationMode
--> durable ArmBeforeDispatch
--> Start exactly once
-```
+Start ACK는 completion evidence가 아니다. TCP 계층은 ACK와 well-shaped domain failure에서
+CSP 상수값을 기대하지 않고 **exact requested mode**를 echo/검증한다. 따라서 PP/PV/IP/CSP가
+동일한 wire 계약을 사용한다.
 
-freshness fence, Build/BootId/MapRevision identity, one-shot confirmation, DS402 safety fence와
-no-replay 정책을 완화해서 해결하지 않는다. 해당 ordering fix와 regression이 `dev`에 반영되기 전까지
-PP/PV/IP physical mode-change PASS로 판정하지 않는다.
+### 3.11.2 실행 완료와 durable recovery
+
+WPF current path는 Start 전에 physical axis와 fresh drive status를 읽고, preflight가 내부 D5
+capability observation sequence를 변경한 뒤 **FINAL Diagnostics capability refresh**를 수행한다.
+그 current observation으로 Prepare한 뒤 durable journal을 먼저 arm하고 Start를 정확히 한 번만
+보낸다. freshness, Build/BootId/MapRevision, Standstill/Fault/OperationEnabled fence는 생략하지 않는다.
+
+Start가 Running이면 WPF는 exact recovery key로 `0x7D24`를 반복 조회한다. 이 조회는 read-only이며
+original Start를 replay하지 않는다.
+
+- `Succeeded`: terminal evidence 저장 -> exact-generation `0x7D25` retire -> PASS.
+- `Failed` / `Aborted`: terminal evidence 저장과 retire를 완료한 뒤 실패로 반환한다. 실패를 PASS로
+  바꾸지 않는다.
+- Running 지속, outcome query reject 또는 indeterminate: durable record와 mutation interlock을
+  유지한다. `CloseConnection`은 허용되지만 motion stop, 결과 확정 또는 record 해제를 뜻하지 않는다.
+
+PLC는 정상 `0x6061` readback이 requested mode와 다르더라도 original operation deadline을 늘리지
+않은 채 최소 50 ms 간격으로 read-only verify를 재시도한다. write callback/owner 상태가 불확정이면
+fail-closed quarantine을 유지한다. terminal owner publish/release도 original deadline 안에서만 bounded
+retry하며 이 과정에서 새 SDO Write를 만들지 않는다.
+
+raw Generic SDO Write로 `0x6060`을 직접 우회하는 경로는 permanent deny 상태다. SetOperationMode의
+과거 capability-freshness, readback settling, owner publish 및 CSP-fixed ACK 원인 분석은
+`design/SET_OPERATION_MODE_READBACK_SETTLING_FIX_20260831.md`에 historical evidence로 보존한다.
+SetOperationMode 기능 구현 완료와 전체 `0.9.1-preview` production release 승인은 별개다.
 
 ## 3.12 Move 완료와 restart recovery 경계
 

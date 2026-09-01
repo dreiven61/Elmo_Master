@@ -1,10 +1,10 @@
 # LASAL Motion Control API 개발 진척도
 
-- 문서 버전: 1.3-current
-- 기준일: 2026-08-31
+- 문서 버전: 1.4-current
+- 기준일: 2026-09-01
 - API: `LasalMotionControlLib 0.9.1-preview`
 - current integration branch: `dev`
-- reviewed source baseline before this docs sync: `db954731c27c30f43f706b101276b81b022bd60a`
+- current source baseline: `dev@0afbc2a79dff1b63f908b1bde3bd2502843045ff` (`dev : SetOpMode Complete`)
 - 릴리스 판정: **production NO-GO**
 
 이 문서는 API 구현률, latest current qualification, 제한과 다음 작업의 current 정본이다.
@@ -45,14 +45,12 @@ history 문서에 남기고 이 문서에는 current 판정만 유지한다.
   backend가 미완료라 `Dormant`다.
 - HomeDS402는 method 37 source/runtime에 더해 H37-02/03/04/10 hardware-independent qualification이
   current `dev`에 통합됐다. fresh C78/generated artifact, PLC/hardware와 activation은 미완료다.
-- SetOperationMode는 PP/PV/IP/CSP lifecycle, supported mask `0x018A`, durable no-replay recovery와 live cross-mode preflight까지 qualification-active다. 17:28 실기에서 preflight 후 Diagnostics capability observation이 stale되는 host ordering blocker가 확인됐으며 실제 `0x6060` mutation은 아직 미도달이다.
+- SetOperationMode는 `dev@0afbc2a79dff1b63f908b1bde3bd2502843045ff`에서 구현 완료로 닫혔다. PP/PV/IP/CSP, exact requested-mode ACK, one-shot `0x6060`, read-only `0x6061` settling, bounded owner publish, durable no-replay outcome/retire와 WPF terminal 처리까지 current Active 계약이다.
 - Generic SDO는 R03 generic 1/2/4-byte scalar Write, R04 exact editor/preview, R05 durable no-replay recovery와 safe-state corrective가 통합됐다. source gate는 ON이지만 physical Write/readback PASS는 아직 아니다.
 - HomeDS402Ex는 wire/SDK/WPF/scaffold/full-identity ownership/retained store/profile preparation/source-static
   collector까지 통합됐지만 physical runtime은 no-op이고 bit 11은 OFF다.
-- WPF dynamic SetOperationMode/HomeDS402Ex recovery localization은 current `dev`에서 양쪽 Debug/Release
-  workflow가 green이다.
-- full SourceOnly의 current known downstream blocker는 generated `Classes.lcb` physical identity ratchet이다.
-  artifact identity는 fresh C78 build + review 없이 자동 갱신하지 않는다.
+- SetOperationMode 기능 구현은 완료됐지만 repository qualification hygiene는 별도 관리한다. current SetOperationMode static run은 기능/안전 contract 93개가 PASS하고 LASAL metadata Client 순서와 generated declaration 순서 불일치 1건에서 멈췄다. current WPF workflow failure는 hosted runner의 MSBuild 탐색 단계에서 발생해 test body가 실행되지 않은 CI 환경 문제다.
+- generated LASAL artifact identity와 repository-wide SourceOnly ratchet은 HomeDS402/HomeDS402Ex 등 남은 기능의 release qualification에서 계속 명시적으로 검토하며 자동 갱신하지 않는다.
 - production 판정은 계속 **NO-GO**다.
 
 ## 3. 요구사항 커버리지
@@ -68,7 +66,7 @@ history 문서에 남기고 이 문서에는 current 판정만 유지한다.
 
 - 완전/적응 구현: `40/65 = 61.5%`
 - 부분 포함: `53/65 = 81.5%`
-- High-priority 21개 관점: Active 17, Partial 3(SetPosition, DS402 Home, SetOperationMode), Dormant 1(HomeDS402Ex)
+- High-priority 21개 관점: Active 18, Partial 2(SetPosition, DS402 Home), Dormant 1(HomeDS402Ex)
 
 ## 4. 기능별 current 상태
 
@@ -82,7 +80,7 @@ history 문서에 남기고 이 문서에는 current 판정만 유지한다.
 | SetPosition | `0x7D12/7D14/7D1A` | Dormant | volatile store, runtime/native execution fail-closed |
 | DS402 Home | `0x7D15/7D16/7D17` | Dormant | H37 software/source qualification current-dev PASS, five activation gates + bit 6 OFF, fresh C78/hardware 미완료 |
 | HomeDS402Ex | `0x7D1B/7D1C/7D1D` | Dormant | full identity/retained store/profile preparation/source-static 존재; physical runtime no-op, bit 11 OFF |
-| SetOperationMode | `0x7D23/7D24/7D25` | Limited | PP/PV/IP/CSP qualification-active; current blocker는 preflight 뒤 Diagnostics capability freshness ordering, physical `0x6060` dispatch 미도달 |
+| SetOperationMode | `0x7D23/7D24/7D25` | Active | 구현 완료: PP/PV/IP/CSP, exact requested-mode ACK, one-shot write/read-only verify, durable no-replay outcome/retire |
 | Diagnostics capability | `0x7E00` | Active | 매 connection fresh BootId/MapRevision/mask 필요 |
 | D1/D2 | `0x7E01/02/10/20`, `0x7E30-33` | Active/Limited | typed catalog/PI/Bulk; fault/partial/soak 확대 필요 |
 | D3 Recorder | `0x7E40-49` | Active/Limited | Single/Ring/Trigger, single recorder owner |
@@ -141,67 +139,45 @@ full SourceOnly은 source/static contract를 통과한 뒤 exact known generated
 
 HomeDS402 capability bit 6과 five activation values는 계속 OFF다.
 
-## 6. SetOperationMode current checkpoint
+## 6. SetOperationMode 완료 checkpoint
 
-current `dev` source truth:
+SetOperationMode feature implementation은 `dev@0afbc2a79dff1b63f908b1bde3bd2502843045ff`
+(`dev : SetOpMode Complete`)에서 완료 상태로 닫는다.
 
-- qualification activation ON
+current source contract:
+
+- qualification/runtime activation ON
 - Admin Start/Outcome/Retire triad ON
 - `SetOperationModeSupportedMask=0x018A` = PP(1), PV(3), IP(7), CSP(8)
 - Homing(6)은 HomeDS402/HomeDS402Ex 소유
-- durable pre-dispatch arm, exact outcome, exact-generation retirement
-- Write-dispatched 이후 original Start/`0x6060` replay 금지
+- Start `0x7D23`, ReadOutcome `0x7D24`, Retire `0x7D25`
+- cross-mode fresh drive preflight: Standstill=True, Fault=False, OperationEnabled=False
+- same-target `SucceededNoWrite`와 real cross-mode write 구분
+- exact requested mode ACK/domain-failure echo; CSP(8) 고정 ACK 판정 제거
+- `0x6060` exact requested-mode write 최대 1회
+- normal verify mismatch는 original deadline 안에서 50ms 이상 간격의 `0x6061` read-only settling
+- write-dispatched 이후 original Start/`0x6060` automatic replay 0회
+- terminal owner publish/release는 original deadline 안에서 bounded retry, 추가 SDO write 0회
+- terminal owner released + executor reusable evidence를 outcome에 포함
+- WPF Running은 PASS가 아니며 exact-key `0x7D24` polling 후 terminal proof를 보존
+- Succeeded는 exact-generation retire 이후에만 PASS
+- Failed/Aborted는 terminal evidence/retire 후 실패로 반환
+- indeterminate/query reject는 durable record와 mutation fence 유지
 - raw Generic SDO `0x6060` permanent deny
-- same-target `SucceededNoWrite`와 real cross-mode를 구분
-- cross-mode preflight: Standstill=True, Fault=False, OperationEnabled=False
 
-PR #58 software evidence:
+2026-08-28 capability freshness blocker, 2026-08-31 readback/owner-publish 조사와 CSP-fixed ACK root cause는
+모두 current implementation에서 corrective가 반영된 **historical investigation**이다. 상세 chronology는
+`design/SET_OPERATION_MODE_READBACK_SETTLING_FIX_20260831.md`에 보존한다.
 
-- API Debug full suite 1200/1200 PASS
-- Generic SDO WPF focused smoke 17/17 PASS
-- API/WPF Debug + Release build PASS
-- corrective/static verifier PASS
+current CI를 feature implementation status와 혼동하지 않는다.
 
-이 evidence는 physical SetOperationMode PASS가 아니다.
+- SetOperationMode C78 evidence tool run `33455821803`: SUCCESS
+- SetOperationMode static run `33455821841`: functional/safety checks **93 PASS**, metadata Client/generated declaration order mismatch **1 FAIL**
+- SetOperationMode WPF run `33455821887`: hosted runner `Locate MSBuild` 실패로 test body 미실행
 
-2026-08-28 17:28 live finding:
-
-```text
-Axis1 currentMode=8 -> requestedMode=3 : preflight PASS, StatusWord=0x02D0
-Axis1 currentMode=8 -> requestedMode=1 : preflight PASS, StatusWord=0x02D0
-Axis1 currentMode=8 -> requestedMode=7 : preflight PASS, StatusWord=0x02D0
-Axis1 currentMode=8 -> requestedMode=8 : same-target no-write candidate
-```
-
-모든 시도는 이후 다음 host exception으로 종료됐다.
-
-```text
-The supplied diagnostics capabilities are not the current observation.
-```
-
-root cause는 capability freshness ordering이다.
-
-```text
-RefreshDiagnosticsCapabilities -> observation N
-ReadDriveStatusAsync
-  -> 0x6041 inline D5 -> Diagnostics.GetCapabilities -> N+1
-  -> 0x6061 inline D5 -> Diagnostics.GetCapabilities -> N+2
-PrepareSetOperationMode(cached N)
-  -> requireCurrentObservation=true
-  -> stale reject / ZERO mutation wire
-```
-
-따라서 현재 blocker는 PLC supported-mode reject가 아니며 `0x7D23`/`0x6060`까지 도달하지 않았다.
-corrective는 freshness fence 제거가 아니라 preflight 뒤 FINAL Diagnostics capability refresh를 수행하는
-ordering fix다.
-
-완료 조건:
-
-1. old observation이 preflight 후 stale reject되는 safety regression 유지
-2. preflight 후 final Diagnostics refresh한 current observation으로 Prepare 성공
-3. final refresh와 Prepare 사이 capability-producing call 없음
-4. Prepare 성공 전 journal/Start mutation 0회
-5. software regression green 후 Axis1 PP/PV/IP/CSP physical matrix 재개
+후자의 두 항목은 repository/CI qualification hygiene로 남기되 SetOperationMode 기능 구현을 다시
+미완료 상태로 되돌리지 않는다. 전체 API production release 판정은 다른 미완료 기능과 release gate
+때문에 계속 NO-GO다.
 
 ## 7. HomeDS402Ex current checkpoint
 
@@ -246,16 +222,32 @@ current hard gates:
 
 ## 9. current 개발 우선순위
 
-1. **SetOperationMode capability freshness ordering fix** — fresh drive preflight 뒤 FINAL Diagnostics capability refresh
-2. focused regression — stale old observation reject + final-current observation Prepare success + zero-wire boundary
-3. updated `dev` API/WPF Debug/Release validation
-4. Axis1 SetOperationMode PP/PV/IP/CSP physical matrix (`0x6060` exact-one-write / `0x6061` readback)
-5. Axis1 Generic SDO safe non-semantic 1/2/4-byte Write + exact readback matrix
-6. SetOperationMode/Generic SDO timeout, disconnect, response-loss, durable no-replay recovery matrix
-7. Axis2..4 확대
-8. HomeDS402 fresh C78/generated artifact + hardware matrix
-9. HomeDS402Ex approved profile / artifact closure
-10. SetPosition issue #44 external blocker closure 후 durable A/B backend + RT exactly-once
+SetOperationMode 구현 완료 후 우선순위는 다음으로 재정렬한다.
+
+1. **Generic SDO 완료 — issue #46의 잔여 범위**
+   - Axis1 safe non-semantic 1/2/4-byte Write + exact readback
+   - Manual Server / programmatic dual-entry BUSY arbitration과 race/no-wire 검증
+   - timeout/disconnect/readback-mismatch durable no-replay recovery
+   - Axis2..4 확대
+2. **HomeDS402 — issue #32**
+   - current exact `dev` C78/generated artifact review와 SourceOnly ratchet closure
+   - same-image PLC/hardware 정상/fault/timeout matrix
+   - activation은 독립 release gate 통과 전까지 OFF 유지
+3. **HomeDS402Ex — issue #28 + #35**
+   - 축1..4 wiring/polarity/method/scale profile 승인
+   - fresh C78/generated artifact + SourceOnly closure
+   - 이후에만 physical parameter program/restore와 homing runtime 진행
+4. **SetPosition — issue #44**
+   - vendor `CheckSum.CRC32` golden fixture 확보
+   - LASAL IDE-generated `_FileSys` ABI 확보
+   - 두 외부 prerequisite 없이는 durable A/B backend를 추측 구현하지 않음
+5. **후순위 dormant/missing surface**
+   - PI Write, Recorder Double, Dynamic node/DI, Extended SDO result activation 검토
+   - `0x7E23` Digital Output Write LASAL route/owner/allowlist 구현
+6. **Repository/release hygiene**
+   - hosted Windows MSBuild discovery workflow 정리
+   - LASAL metadata/generated declaration order 및 generated artifact ratchet 정합화
+   - 기능별 source SHA / artifact / PLC image / WPF binary evidence set 정리
 
 ## 10. branch / qualification 상태
 
@@ -279,5 +271,6 @@ production `Active` 승격에는 API별로 같은 승인 세트에서 다음이 
 6. paired capability/gate activation
 7. manual/progress/WPF release synchronization
 
-현재 HomeDS402, SetOperationMode, HomeDS402Ex, SetPosition은 이 전체 gate를 닫지 못했으므로 production
-판정은 계속 **NO-GO**다.
+SetOperationMode feature implementation은 완료됐지만 Generic SDO physical completion, HomeDS402,
+HomeDS402Ex, SetPosition과 dormant/missing surface가 이 전체 gate를 닫지 못했다. 따라서 전체 API의
+production 판정은 계속 **NO-GO**다.
