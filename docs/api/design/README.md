@@ -5,15 +5,17 @@
 - current baseline: `dev@0afbc2a79dff1b63f908b1bde3bd2502843045ff` (`dev : SetOpMode Complete`)
 - current status snapshot: `DEVELOPMENT_STATUS_20260901.md`
 - **remaining implementation master: `REMAINING_IMPLEMENTATION_DESIGN_20260901.md`**
+- **current P0 detailed design: `SDO_WRITE_DETAILED_DESIGN_20260901.md`**
 - current API progress: `../API_DEVELOPMENT_PROGRESS.md`
 - current API manual: `../API_MANUAL.md`
 - SetOperationMode: **IMPLEMENTATION COMPLETE / Active**
-- current P0 implementation: **Generic SDO 잔여 범위** (issue #46)
+- current P0 implementation: **Generic SDO Write 잔여 범위** (issue #46)
 - production release posture: **NO-GO**
 
 이 폴더의 current 판정은 `dev` source와 최신 current snapshot을 우선한다. SetOperationMode 이후
 남은 기능의 **구현 순서, dependency, source delta와 activation gate는
-`REMAINING_IMPLEMENTATION_DESIGN_20260901.md`를 정본으로 사용한다.**
+`REMAINING_IMPLEMENTATION_DESIGN_20260901.md`를 정본으로 사용한다.** Generic SDO Write를 실제 첫
+구현 tranche로 진행할 때는 `SDO_WRITE_DETAILED_DESIGN_20260901.md`를 current 상세 정본으로 사용한다.
 `DEVELOPMENT_STATUS_20260827.md`, `DEVELOPMENT_STATUS_20260828.md`,
 `DEVELOPMENT_STATUS_20260831.md`와 각 blocker 문서는 historical evidence로 보존한다.
 
@@ -57,9 +59,10 @@ SetOperationMode 구현 완료를 전체 API production 승인으로 확대 해�
 
 ---
 
-## 2. P0 — Generic SDO
+## 2. P0 — Generic SDO Write
 
 issue #46은 SetOperationMode 부분을 완료 처리하고 **Generic SDO 잔여 범위만** 추적한다.
+상세 구현 정본은 `SDO_WRITE_DETAILED_DESIGN_20260901.md`다.
 
 current source:
 
@@ -95,14 +98,17 @@ permanent semantic/dedicated-owner raw blocklist:
 0x20FC
 ```
 
-남은 완료 gate:
+current detailed implementation order:
 
-1. Axis1 safe non-semantic 1/2/4-byte Write + exact readback
-2. Manual/programmatic simultaneous access -> BUSY/no race/no hidden write
-3. timeout/disconnect/readback mismatch durable no-replay
-4. Axis2..4 확대
+1. `SWR-01` UI24 preset authorization과 generic policy 분리
+2. `SWR-02` target-bound qualification proof를 image/session transport proof로 변경
+3. `SWR-03` ordinary Write baseline Read -> immutable confirmation -> pre-write guard Read -> journal -> one-shot Write -> exact readback
+4. `SWR-04` Manual/programmatic contention + timeout/orphan/cancel/disconnect regression
+5. `SWR-05/06` Axis1 1/2/4-byte physical/failure matrix
+6. `SWR-07` Axis2..4 확대
+7. `SWR-08` issue/manual/distribution/release sync
 
-Axis1 UI24 four-ticket path는 qualification preset일 뿐 generic API의 유일 target이 아니다.
+Axis1 UI24 four-ticket path는 qualification canary/preset일 뿐 generic API의 유일 target이나 address authorization이 아니다.
 
 ---
 
@@ -164,11 +170,12 @@ issue #44의 외부 prerequisite:
 ## 7. current 문서 우선순위
 
 1. `REMAINING_IMPLEMENTATION_DESIGN_20260901.md` — SetOperationMode 이후 남은 기능 구현 master plan
-2. `DEVELOPMENT_STATUS_20260901.md` — 전체 current status snapshot
-3. `../API_DEVELOPMENT_PROGRESS.md` — 구현률/남은 작업/current qualification
-4. `../API_MANUAL.md` — public/current API 사용 계약
-5. 기능별 `*_DESIGN.md` — frozen wire/state machine/세부 계약
-6. 기능별 historical evidence 문서
+2. `SDO_WRITE_DETAILED_DESIGN_20260901.md` — current P0 Generic SDO Write 상세 구현/qualification 정본
+3. `DEVELOPMENT_STATUS_20260901.md` — 전체 current status snapshot
+4. `../API_DEVELOPMENT_PROGRESS.md` — 구현률/남은 작업/current qualification
+5. `../API_MANUAL.md` — public/current API 사용 계약
+6. 기능별 `*_DESIGN.md` — frozen wire/state machine/세부 계약
+7. 기능별 historical evidence 문서
 
 문서가 충돌하면 current `dev` source와 위 순서를 기준으로 정리한다.
 
