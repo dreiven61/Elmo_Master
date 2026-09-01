@@ -50,12 +50,8 @@ jobs:
       - name: Validate current markers and diff
         shell: powershell
         run: |
-          $manual = Get-Content -LiteralPath '.\docs\api\API_MANUAL.md' -Raw -Encoding UTF8
-          $progress = Get-Content -LiteralPath '.\docs\api\API_DEVELOPMENT_PROGRESS.md' -Raw -Encoding UTF8
-          $snapshot = Get-Content -LiteralPath '.\docs\api\design\DEVELOPMENT_STATUS_20260901.md' -Raw -Encoding UTF8
-          if (-not $manual.Contains('2.6-development')) { throw 'Manual version marker missing.' }
-          if (-not $progress.Contains('SetOperationMode 완료 checkpoint')) { throw 'Progress completion marker missing.' }
-          if (-not $snapshot.Contains('SetOperationMode COMPLETE')) { throw 'Current snapshot marker missing.' }
+          python -c "from pathlib import Path; m=Path('docs/api/API_MANUAL.md').read_text(encoding='utf-8'); p=Path('docs/api/API_DEVELOPMENT_PROGRESS.md').read_text(encoding='utf-8'); s=Path('docs/api/design/DEVELOPMENT_STATUS_20260901.md').read_text(encoding='utf-8'); assert '2.6-development' in m; assert '1.4-current' in p; assert '0afbc2a79dff1b63f908b1bde3bd2502843045ff' in p and s; assert 'Generic SDO' in p"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           git diff --check
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           git status --short
