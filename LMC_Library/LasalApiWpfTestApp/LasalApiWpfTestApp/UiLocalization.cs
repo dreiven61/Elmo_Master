@@ -863,6 +863,18 @@ namespace LasalMotionControlApiExample
                 "Journal ready; no unresolved record. AdminTriad=False, SupportedModeMask=0x0000, DiagnosticsIdentity=False. Current PLC activation is expected to keep Start disabled until bits 8/9/10 are explicitly enabled after MODE-13 evidence passes."] =
                 "Journal 준비됨; 미해결 record 없음. AdminTriad=False, SupportedModeMask=0x0000, DiagnosticsIdentity=False. MODE-13 evidence PASS 후 bit 8/9/10을 명시적으로 활성화할 때까지 현재 PLC activation은 Start를 비활성으로 유지해야 합니다.";
             values[
+                "Journal ready; no unresolved record. AdminTriad=False, SupportedModeMask=0x0000, DiagnosticsIdentity=False, Confirmed=False, SelectedModeAdvertised=False, AdmissionAllowed=True, JournalReady=True. Start is enabled only when every displayed gate and the axis/timeout/idle gates are true."] =
+                "Journal 준비됨; 미해결 record 없음. AdminTriad=False, SupportedModeMask=0x0000, DiagnosticsIdentity=False, Confirmed=False, SelectedModeAdvertised=False, AdmissionAllowed=True, JournalReady=True. 표시된 모든 gate와 축/timeout/idle gate가 true일 때만 Start가 활성화됩니다.";
+            values[
+                "CLOSED: generic SDO Write is disabled by this SDK build policy."] =
+                "닫힘: 이 SDK build policy에서 Generic SDO Write가 비활성화되어 있습니다.";
+            values[
+                "CLOSED: this UI[24] transport-canary qualification requires exactly one known preset; this does not determine generic SDO Write authorization."] =
+                "닫힘: 이 UI[24] transport-canary qualification에는 known preset 정확히 1개가 필요합니다. 이는 Generic SDO Write 허가조건이 아닙니다.";
+            values[
+                "CLOSED: select the single SDK-known UI[24] transport-canary preset."] =
+                "닫힘: SDK에 등록된 단일 UI[24] transport-canary preset을 선택하십시오.";
+            values[
                 "Recovery is bound to endpoint + DiagnosticsBuild + BootId + MapRevision + 128-bit ClientIntentId + RequestId + axis + requested mode. Recovery queries 0x7D24 only; terminal proof is persisted before exact-generation 0x7D25 retirement."] =
                 "복구는 endpoint + DiagnosticsBuild + BootId + MapRevision + 128-bit ClientIntentId + RequestId + axis + requested mode에 묶입니다. 복구는 0x7D24만 조회하며 terminal proof는 exact-generation 0x7D25 폐기 전에 저장됩니다.";
             values[
@@ -950,8 +962,8 @@ namespace LasalMotionControlApiExample
             values["Read mode submits one tracked SDO Read."] =
                 "Read mode는 추적되는 SDO Read 하나를 전송합니다.";
             values[
-                "Generic scalar SDO Write accepts direct Slave/Object/SubIndex/Type/Length/Value input. Known targets are optional presets. Semantic motion objects remain blocked; Write Once requires PLC bits 8/9/13, PowerOn=False, Standstill=True, stable position, exact two-click confirmation, durable journal, and exact readback."] =
-                "Generic scalar SDO Write는 Slave/Object/SubIndex/Type/Length/Value 직접 입력을 받습니다. 알려진 target은 선택 preset입니다. Semantic motion object는 차단되며 Write Once에는 PLC bit 8/9/13, PowerOn=False, Standstill=True, 안정 위치, exact 2회 클릭 확인, durable journal 및 exact readback이 필요합니다.";
+                "Generic scalar SDO Write accepts direct Slave/Object/SubIndex/Type/Length/Value input. Known targets are optional presets. Semantic motion objects remain blocked; Write Once requires PLC bits 8/9/13, Standstill=True, DS402 Fault=False, OperationEnabled=False, stable position, exact two-click confirmation, durable journal, and exact readback."] =
+                "Generic scalar SDO Write는 Slave/Object/SubIndex/Type/Length/Value 직접 입력을 받습니다. 알려진 target은 선택 preset입니다. Semantic motion object는 차단되며 Write Once에는 PLC bit 8/9/13, Standstill=True, DS402 Fault=False, OperationEnabled=False, 안정 위치, exact 2회 클릭 확인, durable journal 및 exact readback이 필요합니다.";
             values["Verify Recovered SDO Readback"] =
                 "복구된 SDO Readback 확인";
             values["Acknowledge Stale SDO Write"] =

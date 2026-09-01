@@ -1552,6 +1552,106 @@ namespace LasalMotionControlApiExample
                 FormatInlineSdoReadSuccess(result);
         }
 
+        private async Task<LMCSdoReadResult> ReadSdoWriteGuardValueAsync(
+            LMCConnection currentConnection,
+            LMCSdoRequest readRequest,
+            LMCDiagnosticCapabilities capabilities,
+            string operationStage)
+        {
+            var guard = ArmExternalD5SubmissionOutcomeGuard(
+                LMCOperationKind.SDORead,
+                readRequest,
+                currentConnection,
+                capabilities.DiagnosticsBootId,
+                capabilities.MapRevision,
+                readRequest.SlaveReference,
+                readRequest.TimeoutCycles,
+                operationStage);
+            try
+            {
+                var result = await currentConnection.Diagnostics
+                    .ReadSdoInlineAsync(
+                        readRequest,
+                        CancellationToken.None);
+                TransitionExternalD5SubmissionOutcomeGuardToAccepted(
+                    guard,
+                    result.Ticket,
+                    result.Ticket.DiagnosticsBootId,
+                    result.Ticket.SubmissionMapRevision);
+                DisarmExternalD5SubmissionOutcomeGuard(
+                    guard,
+                    "TERMINAL_SUCCESS",
+                    result.Status.State + "/" + result.Status.Outcome);
+                return result;
+            }
+            catch (Exception error)
+            {
+                try
+                {
+                    var terminalFailure = error
+                        as LMCSdoReadOperationException;
+                    if (terminalFailure != null)
+                    {
+                        TransitionExternalD5SubmissionOutcomeGuardToAccepted(
+                            guard,
+                            terminalFailure.Ticket,
+                            terminalFailure.Ticket.DiagnosticsBootId,
+                            terminalFailure.Ticket.SubmissionMapRevision);
+                        AdoptDiagnosticOperationTicket(
+                            terminalFailure.Ticket);
+                        diagnosticOperationStatus =
+                            terminalFailure.OperationStatus;
+                        DisarmExternalD5SubmissionOutcomeGuard(
+                            guard,
+                            "TERMINAL_OPERATION_FAILURE",
+                            terminalFailure.OperationStatus.State
+                                + "/"
+                                + terminalFailure.OperationStatus.Outcome);
+                    }
+                    else
+                    {
+                        D5ExternalReadFailureOrchestrator
+                            .RouteSubmissionFailure(
+                                error,
+                                (state, detail) =>
+                                    DisarmExternalD5SubmissionOutcomeGuard(
+                                        guard,
+                                        state,
+                                        detail),
+                                (ticket, actualBootId, actualMapRevision) =>
+                                {
+                                    TransitionExternalD5SubmissionOutcomeGuardToAccepted(
+                                        guard,
+                                        ticket,
+                                        actualBootId,
+                                        actualMapRevision);
+                                    AdoptDiagnosticOperationTicket(ticket);
+                                    PreserveExternalD5Ticket(
+                                        ticket,
+                                        readRequest,
+                                        currentConnection,
+                                        readRequest.SlaveReference,
+                                        readRequest.TimeoutCycles,
+                                        actualMapRevision,
+                                        operationStage);
+                                },
+                                (unresolvedError, failureContext) =>
+                                    PreserveExternalD5RawSubmissionOutcomeUncertain(
+                                        guard,
+                                        unresolvedError,
+                                        failureContext));
+                    }
+                }
+                catch (Exception routingError)
+                {
+                    throw new InvalidOperationException(
+                        "The SDO Write guard Read failed and its outcome routing also failed. No Write was submitted.",
+                        new AggregateException(error, routingError));
+                }
+                throw;
+            }
+        }
+
         private async void ButtonSubmitSdo_Click(
             object sender,
             RoutedEventArgs e)
@@ -1635,6 +1735,8 @@ namespace LasalMotionControlApiExample
                             isRequiredWriteReadback
                                 || RequiresGeneralInlineSdoRead(request));
                     D5SdoQuarantineHandle submissionGuard;
+                    byte[] baselineData = null;
+                    byte[] preWriteGuardData = null;
                     try
                     {
                         if (isRequiredWriteReadback
@@ -1652,6 +1754,13 @@ namespace LasalMotionControlApiExample
                             request);
                         if (request.IsWrite)
                         {
+                            if (!HasCurrentSdoWriteActivationQualificationProof(
+                                    currentConnection,
+                                    capabilities))
+                            {
+                                throw new InvalidOperationException(
+                                    "Manual SDO Write requires a current image/session transport qualification proof. Run the same-value SDO Write qualification first.");
+                            }
                             await VerifyD5SdoQualificationSafeAxisAsync(
                                 currentConnection,
                                 request.SlaveReference,
@@ -1660,16 +1769,54 @@ namespace LasalMotionControlApiExample
                                         CultureInfo.InvariantCulture),
                                 CancellationToken.None,
                                 false);
-                            if (!sdoWriteConfirmationState.TryConsumeOrArm(
+                            if (!sdoWriteConfirmationState.TryConsume(
                                 currentConnection,
                                 currentConnection.SessionGeneration,
                                 capabilities.DiagnosticsBootId,
                                 capabilities.MapRevision,
-                                request))
+                                request,
+                                out baselineData))
                             {
+                                var baselineRequest = LMCSdoRequest.CreateRead(
+                                    request.SlaveReference,
+                                    request.ObjectIndex,
+                                    request.SubIndex,
+                                    request.ValueType,
+                                    request.DataLength,
+                                    request.TimeoutCycles);
+                                var baselineResult =
+                                    await ReadSdoWriteGuardValueAsync(
+                                        currentConnection,
+                                        baselineRequest,
+                                        capabilities,
+                                        "manual-sdo-write-baseline");
+                                baselineData = baselineResult.ResultData;
+                                if (baselineData == null
+                                    || baselineData.Length
+                                        != request.DataLength)
+                                {
+                                    throw new InvalidOperationException(
+                                        "The SDO Write baseline Read returned a non-canonical result length. No Write was submitted.");
+                                }
+                                if (!HasCurrentSdoWriteActivationQualificationProof(
+                                        currentConnection,
+                                        capabilities))
+                                {
+                                    throw new InvalidOperationException(
+                                        "The SDO Write transport proof changed during baseline acquisition. No Write was submitted.");
+                                }
+                                sdoWriteConfirmationState.Arm(
+                                    currentConnection,
+                                    currentConnection.SessionGeneration,
+                                    capabilities.DiagnosticsBootId,
+                                    capabilities.MapRevision,
+                                    request,
+                                    baselineData);
                                 confirmationArmed = true;
                                 TextDiagnosticOperationSummary.Text =
-                                    FormatArmedSdoWriteConfirmation(request);
+                                    FormatArmedSdoWriteConfirmation(
+                                        request,
+                                        baselineData);
                                 WriteLog(
                                     "SDO Write confirmation armed without submission. Edit fields freely; only a second click with the exact same immutable request and connection identity can submit it.");
                                 WriteExternalD5TrackingLog(
@@ -1690,6 +1837,46 @@ namespace LasalMotionControlApiExample
                                         CultureInfo.InvariantCulture),
                                 CancellationToken.None,
                                 false);
+
+                            capabilities =
+                                await ReadExternalD5TrackingCapabilitiesAsync(
+                                    currentConnection,
+                                    "manual-sdo-write-final-preflight",
+                                    request.DataLength,
+                                    true);
+                            RequireManualSdoOperationCapabilities(
+                                capabilities,
+                                request);
+                            if (!HasCurrentSdoWriteActivationQualificationProof(
+                                    currentConnection,
+                                    capabilities))
+                            {
+                                throw new InvalidOperationException(
+                                    "The SDO Write transport proof is no longer current. No Write was submitted.");
+                            }
+                            var preWriteGuardRequest =
+                                LMCSdoRequest.CreateRead(
+                                    request.SlaveReference,
+                                    request.ObjectIndex,
+                                    request.SubIndex,
+                                    request.ValueType,
+                                    request.DataLength,
+                                    request.TimeoutCycles);
+                            var preWriteGuardResult =
+                                await ReadSdoWriteGuardValueAsync(
+                                    currentConnection,
+                                    preWriteGuardRequest,
+                                    capabilities,
+                                    "manual-sdo-write-prewrite-guard");
+                            preWriteGuardData =
+                                preWriteGuardResult.ResultData;
+                            if (!SdoDataEqual(
+                                    baselineData,
+                                    preWriteGuardData))
+                            {
+                                throw new InvalidOperationException(
+                                    "The SDO target changed after confirmation. Baseline and pre-Write guard bytes differ; no Write was submitted.");
+                            }
                         }
 
                         submissionGuard =
@@ -1701,7 +1888,9 @@ namespace LasalMotionControlApiExample
                                 capabilities.MapRevision,
                                 request.SlaveReference,
                                 request.TimeoutCycles,
-                                operationStage);
+                                operationStage,
+                                baselineData,
+                                preWriteGuardData);
                     }
                     catch (Exception preSubmissionError)
                     {
@@ -1729,7 +1918,13 @@ namespace LasalMotionControlApiExample
                                 .SubmitReadbackAsync(
                                      request,
                                      CancellationToken.None)
-                            : await currentConnection.Diagnostics
+                            : request.IsWrite
+                                ? await currentConnection.Diagnostics
+                                    .SubmitSdoWriteIdentityPinnedAsync(
+                                        request,
+                                        capabilities,
+                                        CancellationToken.None)
+                                : await currentConnection.Diagnostics
                                     .SubmitSdoAsync(
                                         request,
                                         CancellationToken.None);
@@ -2475,6 +2670,12 @@ namespace LasalMotionControlApiExample
                     ? (SdoOperationMode)ComboSdoOperation.SelectedItem
                     : SdoOperationMode.Read;
             var isSdoWrite = sdoOperation == SdoOperationMode.Write;
+            var hasCurrentSdoWriteTransportProof = !isSdoWrite
+                || (connection != null
+                    && diagnosticCapabilities != null
+                    && HasCurrentSdoWriteActivationQualificationProof(
+                        connection,
+                        diagnosticCapabilities));
             var canSubmitSdoOperation = (isSdoWrite
                     ? canSubmitMutationOperation
                     : canSubmitReadOnlyOperation)
@@ -2542,6 +2743,7 @@ namespace LasalMotionControlApiExample
                         && !isSdoWrite
                     : isSdoWrite
                     ? supportsSdoWrite
+                        && hasCurrentSdoWriteTransportProof
                         && DiagnosticsMutationJournalCanArm
                     : supportsSdoRead);
             var inlineReadLength = ComboSdoDataLength.SelectedItem
@@ -2810,8 +3012,7 @@ namespace LasalMotionControlApiExample
 
         private bool HasCurrentSdoWriteActivationQualificationProof(
             LMCConnection currentConnection,
-            LMCDiagnosticCapabilities capabilities,
-            LMCSdoWriteTarget target)
+            LMCDiagnosticCapabilities capabilities)
         {
             var proof = sdoWriteActivationQualificationProof;
             if (proof == null)
@@ -2819,10 +3020,15 @@ namespace LasalMotionControlApiExample
                 return false;
             }
 
+            if (d5SdoQualificationQuarantine.HasEntries)
+            {
+                RetireSdoWriteActivationQualificationProof();
+                return false;
+            }
+
             if (proof.MatchesCurrent(
                 currentConnection,
-                capabilities,
-                target))
+                capabilities))
             {
                 return true;
             }
@@ -3478,7 +3684,7 @@ namespace LasalMotionControlApiExample
                         ? "Confirm & Submit SDO Write"
                         : "Arm SDO Write";
                 TextDiagnosticOperationSummary.Text =
-                    "Generic scalar SDO Write accepts direct Slave/Object/SubIndex/Type/Length/Value input. Known targets are optional presets. Semantic motion objects remain blocked; Write Once requires PLC bits 8/9/13, PowerOn=False, Standstill=True, stable position, exact two-click confirmation, durable journal, and exact readback.";
+                    "Generic scalar SDO Write accepts direct Slave/Object/SubIndex/Type/Length/Value input. Known targets are optional presets. Semantic motion objects remain blocked; Write Once requires PLC bits 8/9/13, Standstill=True, DS402 Fault=False, OperationEnabled=False, stable position, exact two-click confirmation, durable journal, and exact readback.";
             }
             else
             {
@@ -4380,7 +4586,8 @@ namespace LasalMotionControlApiExample
         }
 
         private static string FormatArmedSdoWriteConfirmation(
-            LMCSdoRequest request)
+            LMCSdoRequest request,
+            byte[] baselineData = null)
         {
             if (request == null || !request.IsWrite)
             {
@@ -4392,7 +4599,7 @@ namespace LasalMotionControlApiExample
             var writeData = request.WriteData;
             return "SDO WRITE CONFIRMATION ARMED - NOT SUBMITTED"
                     + Environment.NewLine
-                    + "The selected axis passed PowerOn=False, Standstill=True, and stable-position checks."
+                    + "The selected axis passed Standstill=True, DS402 Fault=False, OperationEnabled=False, and stable-position checks."
                     + Environment.NewLine
                     + "Review this immutable snapshot, then click Confirm & Submit SDO Write. The safety checks run again immediately before journal arm and submission."
                     + Environment.NewLine
@@ -4412,6 +4619,11 @@ namespace LasalMotionControlApiExample
                     + "Value: " + FormatSdoWriteSnapshotValue(request, writeData)
                     + Environment.NewLine
                     + "Wire bytes: " + BitConverter.ToString(writeData)
+                    + (baselineData == null
+                        ? string.Empty
+                        : Environment.NewLine
+                            + "Baseline bytes: "
+                            + BitConverter.ToString(baselineData))
                     + Environment.NewLine
                     + "Timeout cycles: " + request.TimeoutCycles.ToString(
                         CultureInfo.InvariantCulture);
@@ -4423,29 +4635,68 @@ namespace LasalMotionControlApiExample
         {
             if (request == null
                 || writeData == null
-                || writeData.Length != 4)
+                || writeData.Length != request.DataLength)
             {
                 return "UNAVAILABLE";
             }
 
-            var raw = (uint)writeData[0]
-                | ((uint)writeData[1] << 8)
-                | ((uint)writeData[2] << 16)
-                | ((uint)writeData[3] << 24);
+            uint raw = 0;
+            for (var index = 0; index < writeData.Length; index++)
+            {
+                raw |= (uint)writeData[index] << (8 * index);
+            }
+            var hexWidth = writeData.Length * 2;
+            var rawHex = raw.ToString(
+                "X" + hexWidth.ToString(CultureInfo.InvariantCulture));
+            if (request.ValueType == LMCSignalValueType.Bool)
+            {
+                return (raw == 0 ? "False" : "True")
+                    + " (0x" + rawHex + ")";
+            }
+            if (request.ValueType == LMCSignalValueType.Int8)
+            {
+                return unchecked((sbyte)raw).ToString(
+                    CultureInfo.InvariantCulture)
+                    + " (0x" + rawHex + ")";
+            }
+            if (request.ValueType == LMCSignalValueType.Int16)
+            {
+                return unchecked((short)raw).ToString(
+                    CultureInfo.InvariantCulture)
+                    + " (0x" + rawHex + ")";
+            }
             if (request.ValueType == LMCSignalValueType.Int32)
             {
                 return unchecked((int)raw).ToString(
                     CultureInfo.InvariantCulture)
-                    + " (0x" + raw.ToString("X8") + ")";
+                    + " (0x" + rawHex + ")";
             }
 
-            if (request.ValueType == LMCSignalValueType.UInt32)
+            if (request.ValueType == LMCSignalValueType.UInt8
+                || request.ValueType == LMCSignalValueType.UInt16
+                || request.ValueType == LMCSignalValueType.UInt32)
             {
                 return raw.ToString(CultureInfo.InvariantCulture)
-                    + " (0x" + raw.ToString("X8") + ")";
+                    + " (0x" + rawHex + ")";
             }
 
-            return "0x" + raw.ToString("X8");
+            return "0x" + rawHex;
+        }
+
+        private static bool SdoDataEqual(byte[] left, byte[] right)
+        {
+            if (left == null || right == null || left.Length != right.Length)
+            {
+                return false;
+            }
+            for (var index = 0; index < left.Length; index++)
+            {
+                if (left[index] != right[index])
+                {
+                    return false;
+                }
+            }
+            return true;
         }
 
         private static string FormatSdoWriteManualReadbackWarning(

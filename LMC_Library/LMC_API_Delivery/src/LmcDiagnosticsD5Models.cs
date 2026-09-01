@@ -476,14 +476,14 @@ namespace LasalMotionControlLib
                 && valueType != LMCSignalValueType.UInt32)
             {
                 throw new NotSupportedException(
-                    "The active SDO Write policy supports only 32-bit integer targets.");
+                    "Known SDO Write presets support only 32-bit integer values.");
             }
 
             if (dataLength != 4)
             {
                 throw new ArgumentOutOfRangeException(
                     "dataLength",
-                    "The active SDO Write policy supports exactly four data bytes.");
+                    "Known SDO Write presets support exactly four data bytes.");
             }
 
             if (minimumIntegerValue > maximumIntegerValue)
@@ -530,7 +530,7 @@ namespace LasalMotionControlLib
 
         /// <summary>
         /// Creates a canonical four-byte little-endian request for this
-        /// approved target. Submission still rechecks the central allowlist.
+        /// known preset. Submission still rechecks the generic request policy.
         /// </summary>
         public LMCSdoRequest CreateRequest(
             long integerValue,
@@ -550,7 +550,7 @@ namespace LasalMotionControlLib
             {
                 throw new ArgumentOutOfRangeException(
                     "integerValue",
-                    "The SDO Write value is outside the approved target range.");
+                    "The SDO Write value is outside the known preset range.");
             }
 
             uint raw;
@@ -641,6 +641,8 @@ namespace LasalMotionControlLib
     public enum LMCSdoWritePolicyBlockers : uint
     {
         None = 0,
+        // Legacy compatibility value. Generic policy evaluation never emits
+        // this blocker because known presets are not address authorization.
         NoApprovedTarget = 1u << 0,
         ConnectionUnavailable = 1u << 1,
         CapabilityObservationUnavailable = 1u << 2,
@@ -650,7 +652,8 @@ namespace LasalMotionControlLib
         SdoWriteCapabilityMissing = 1u << 6,
         GeneralInlineReadCapabilityMissing = 1u << 7,
         CapabilityIdentityInvalid = 1u << 8,
-        PayloadCapacityInsufficient = 1u << 9
+        PayloadCapacityInsufficient = 1u << 9,
+        WritePolicyDisabled = 1u << 10
     }
 
     /// <summary>
@@ -701,6 +704,9 @@ namespace LasalMotionControlLib
 
         public IReadOnlyList<LMCSdoWriteTarget> ApprovedTargets
         {
+            // Compatibility name: this is an immutable known-preset snapshot,
+            // not a generic address allowlist. It may be empty while generic
+            // submission policy is otherwise ready.
             get { return approvedTargets; }
         }
     }
@@ -718,19 +724,20 @@ namespace LasalMotionControlLib
         private static readonly bool SdoWriteUi24Axis4Enabled = false;
 
         private static readonly uint[] AllowedPIWriteSignalIds = new uint[0];
-        private static readonly LMCSdoWriteTarget[] AllowedSdoWrites =
-            CreateAllowedSdoWriteTargets(
+        private static readonly LMCSdoWriteTarget[] KnownSdoWritePresets =
+            CreateKnownSdoWritePresets(
                 SdoWriteEnabled,
                 SdoWriteUi24Axis1Enabled,
                 SdoWriteUi24Axis2Enabled,
                 SdoWriteUi24Axis3Enabled,
                 SdoWriteUi24Axis4Enabled);
         private static readonly ReadOnlyCollection<LMCSdoWriteTarget>
-            ApprovedSdoWriteTargets = Array.AsReadOnly(AllowedSdoWrites);
+            KnownSdoWritePresetSnapshot =
+                Array.AsReadOnly(KnownSdoWritePresets);
 
         internal static IReadOnlyList<LMCSdoWriteTarget> GetApprovedSdoWriteTargets()
         {
-            return ApprovedSdoWriteTargets;
+            return KnownSdoWritePresetSnapshot;
         }
 
         internal static LMCSdoWritePolicyEvaluation EvaluateSdoWritePolicy(
@@ -739,6 +746,23 @@ namespace LasalMotionControlLib
             bool isConnected,
             LMCDiagnosticCapabilities capabilities,
             IReadOnlyList<LMCSdoWriteTarget> approvedTargets)
+        {
+            return EvaluateSdoWritePolicy(
+                owner,
+                sessionGeneration,
+                isConnected,
+                capabilities,
+                approvedTargets,
+                SdoWriteEnabled);
+        }
+
+        internal static LMCSdoWritePolicyEvaluation EvaluateSdoWritePolicy(
+            LMCDiagnostics owner,
+            long sessionGeneration,
+            bool isConnected,
+            LMCDiagnosticCapabilities capabilities,
+            IReadOnlyList<LMCSdoWriteTarget> approvedTargets,
+            bool writePolicyEnabled)
         {
             if (owner == null)
             {
@@ -751,9 +775,9 @@ namespace LasalMotionControlLib
             }
 
             var blockers = LMCSdoWritePolicyBlockers.None;
-            if (!SdoWriteEnabled)
+            if (!writePolicyEnabled)
             {
-                blockers |= LMCSdoWritePolicyBlockers.NoApprovedTarget;
+                blockers |= LMCSdoWritePolicyBlockers.WritePolicyDisabled;
             }
 
             if (!isConnected)
@@ -938,7 +962,7 @@ namespace LasalMotionControlLib
             }
         }
 
-        internal static LMCSdoWriteTarget[] CreateAllowedSdoWriteTargets(
+        internal static LMCSdoWriteTarget[] CreateKnownSdoWritePresets(
             bool globalEnabled,
             bool axis1Enabled,
             bool axis2Enabled,

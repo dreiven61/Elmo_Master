@@ -17,8 +17,8 @@ namespace LasalMotionControlLib.Tests
         internal static void Register(ICollection<TestCase> tests)
         {
             tests.Add(
-                "Policy.DiagnosticsD5.SdoWritePublicPolicyAxis1OnlyAndImmutable",
-                PublicPolicyAxis1OnlyAndImmutable);
+                "Policy.DiagnosticsD5.SdoWritePublicKnownPresetAndImmutable",
+                PublicKnownPresetAndImmutable);
             tests.Add(
                 "Rpc.DiagnosticsD5.SdoWritePolicyEvaluationIsZeroWire",
                 PublicEvaluationIsZeroWire);
@@ -39,7 +39,7 @@ namespace LasalMotionControlLib.Tests
                 EncoderMaintenanceObjectsSyncAndAsyncAreZeroWire);
         }
 
-        private static void PublicPolicyAxis1OnlyAndImmutable()
+        private static void PublicKnownPresetAndImmutable()
         {
             using (var connection = new LMCConnection())
             {
@@ -64,6 +64,10 @@ namespace LasalMotionControlLib.Tests
                     "The immutable policy target snapshot must expose a read-only IList view.");
                 AssertEx.Throws<NotSupportedException>(
                     () => mutableView.Add(CreateUi24Target(1)));
+                AssertEx.Equal(
+                    1u,
+                    (uint)LMCSdoWritePolicyBlockers.NoApprovedTarget,
+                    "The legacy public blocker value changed.");
             }
         }
 
@@ -223,7 +227,31 @@ namespace LasalMotionControlLib.Tests
                 AssertEx.Equal(1, ready.ApprovedTargets.Count);
                 AssertEx.True(
                     ReferenceEquals(target, ready.ApprovedTargets[0]),
-                    "The immutable policy snapshot changed the approved target identity.");
+                    "The immutable policy snapshot changed the known preset identity.");
+
+                var emptyPresetReady = EvaluateInjected(
+                    ownerConnection.Diagnostics,
+                    ownerConnection.SessionGeneration,
+                    true,
+                    readyCapabilities,
+                    new LMCSdoWriteTarget[0]);
+                AssertEx.True(
+                    emptyPresetReady.CanAttemptSubmission,
+                    "An empty known-preset list blocked generic SDO Write policy.");
+                AssertEx.Equal(
+                    LMCSdoWritePolicyBlockers.None,
+                    emptyPresetReady.Blockers);
+                AssertEx.Equal(0, emptyPresetReady.ApprovedTargets.Count);
+
+                AssertExactBlocker(
+                    LMCSdoWritePolicyBlockers.WritePolicyDisabled,
+                    EvaluateInjected(
+                        ownerConnection.Diagnostics,
+                        ownerConnection.SessionGeneration,
+                        true,
+                        readyCapabilities,
+                        new LMCSdoWriteTarget[0],
+                        false));
 
                 sourceTargets.Clear();
                 AssertEx.Equal(
@@ -544,12 +572,30 @@ namespace LasalMotionControlLib.Tests
             LMCDiagnosticCapabilities capabilities,
             IReadOnlyList<LMCSdoWriteTarget> approvedTargets)
         {
+            return EvaluateInjected(
+                owner,
+                sessionGeneration,
+                isConnected,
+                capabilities,
+                approvedTargets,
+                true);
+        }
+
+        private static LMCSdoWritePolicyEvaluation EvaluateInjected(
+            LMCDiagnostics owner,
+            long sessionGeneration,
+            bool isConnected,
+            LMCDiagnosticCapabilities capabilities,
+            IReadOnlyList<LMCSdoWriteTarget> approvedTargets,
+            bool writePolicyEnabled)
+        {
             return LMCDiagnosticsWritePolicy.EvaluateSdoWritePolicy(
                 owner,
                 sessionGeneration,
                 isConnected,
                 capabilities,
-                approvedTargets);
+                approvedTargets,
+                writePolicyEnabled);
         }
 
         private static IReadOnlyList<LMCSdoWriteTarget> OneTarget(

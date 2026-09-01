@@ -27,6 +27,8 @@ namespace LasalMotionControlApiExample
     internal sealed class DiagnosticsSdoWriteMutationMetadata
     {
         private readonly byte[] expectedWriteData;
+        private readonly byte[] baselineData;
+        private readonly byte[] preWriteGuardData;
 
         internal DiagnosticsSdoWriteMutationMetadata(
             ushort slaveReference,
@@ -46,6 +48,8 @@ namespace LasalMotionControlApiExample
                 null,
                 0,
                 0,
+                null,
+                null,
                 expectedWriteData,
                 true)
         {
@@ -72,6 +76,38 @@ namespace LasalMotionControlApiExample
                 endpointIp,
                 endpointPort,
                 diagnosticsBuild,
+                null,
+                null,
+                expectedWriteData,
+                false)
+        {
+        }
+
+        internal DiagnosticsSdoWriteMutationMetadata(
+            ushort slaveReference,
+            ushort objectIndex,
+            byte subIndex,
+            LMCSignalValueType valueType,
+            ushort dataLength,
+            uint timeoutCycles,
+            string endpointIp,
+            int endpointPort,
+            uint diagnosticsBuild,
+            byte[] baselineData,
+            byte[] preWriteGuardData,
+            byte[] expectedWriteData)
+            : this(
+                slaveReference,
+                objectIndex,
+                subIndex,
+                valueType,
+                dataLength,
+                timeoutCycles,
+                endpointIp,
+                endpointPort,
+                diagnosticsBuild,
+                baselineData,
+                preWriteGuardData,
                 expectedWriteData,
                 false)
         {
@@ -87,6 +123,8 @@ namespace LasalMotionControlApiExample
             string endpointIp,
             int endpointPort,
             uint diagnosticsBuild,
+            byte[] baselineData,
+            byte[] preWriteGuardData,
             byte[] expectedWriteData,
             bool allowLegacyIdentity)
         {
@@ -128,6 +166,22 @@ namespace LasalMotionControlApiExample
                     "expectedWriteData");
             }
 
+            if ((baselineData == null) != (preWriteGuardData == null))
+            {
+                throw new ArgumentException(
+                    "Baseline and pre-Write guard data must both be present or both be absent.",
+                    "baselineData");
+            }
+            if (baselineData != null
+                && (baselineData.Length != dataLength
+                    || preWriteGuardData.Length != dataLength
+                    || !ByteArraysEqual(baselineData, preWriteGuardData)))
+            {
+                throw new ArgumentException(
+                    "Baseline and pre-Write guard data must exactly match DataLength and each other.",
+                    "baselineData");
+            }
+
             if (allowLegacyIdentity)
             {
                 if (endpointIp != null || endpointPort != 0 || diagnosticsBuild != 0)
@@ -160,6 +214,12 @@ namespace LasalMotionControlApiExample
             EndpointPort = endpointPort;
             DiagnosticsBuild = diagnosticsBuild;
             this.expectedWriteData = (byte[])expectedWriteData.Clone();
+            this.baselineData = baselineData == null
+                ? null
+                : (byte[])baselineData.Clone();
+            this.preWriteGuardData = preWriteGuardData == null
+                ? null
+                : (byte[])preWriteGuardData.Clone();
         }
 
         internal ushort SlaveReference { get; private set; }
@@ -184,6 +244,28 @@ namespace LasalMotionControlApiExample
         {
             get { return (byte[])expectedWriteData.Clone(); }
         }
+        internal bool HasBaselineGuardEvidence
+        {
+            get { return baselineData != null && preWriteGuardData != null; }
+        }
+        internal byte[] BaselineData
+        {
+            get
+            {
+                return baselineData == null
+                    ? null
+                    : (byte[])baselineData.Clone();
+            }
+        }
+        internal byte[] PreWriteGuardData
+        {
+            get
+            {
+                return preWriteGuardData == null
+                    ? null
+                    : (byte[])preWriteGuardData.Clone();
+            }
+        }
 
         private static string NormalizeEndpointIp(string endpointIp)
         {
@@ -205,19 +287,24 @@ namespace LasalMotionControlApiExample
             {
                 case LMCSignalValueType.Int8:
                 case LMCSignalValueType.UInt8:
+                case LMCSignalValueType.Bool:
+                case LMCSignalValueType.BitField8:
                     return 1;
 
                 case LMCSignalValueType.Int16:
                 case LMCSignalValueType.UInt16:
+                case LMCSignalValueType.BitField16:
                     return 2;
 
                 case LMCSignalValueType.Int32:
                 case LMCSignalValueType.UInt32:
+                case LMCSignalValueType.Real32:
+                case LMCSignalValueType.BitField32:
                     return 4;
 
                 default:
                     throw new NotSupportedException(
-                        "Durable SDO recovery supports canonical 1/2/4-byte integer scalar types only.");
+                        "Durable SDO recovery supports canonical 1/2/4-byte scalar types only.");
             }
         }
 
@@ -227,7 +314,25 @@ namespace LasalMotionControlApiExample
                 || objectIndex == 0x6060
                 || objectIndex == 0x607A
                 || objectIndex == 0x60FF
-                || objectIndex == 0x6071;
+                || objectIndex == 0x6071
+                || objectIndex == 0x3204
+                || objectIndex == 0x20FC;
+        }
+
+        private static bool ByteArraysEqual(byte[] left, byte[] right)
+        {
+            if (left == null || right == null || left.Length != right.Length)
+            {
+                return false;
+            }
+            for (var index = 0; index < left.Length; index++)
+            {
+                if (left[index] != right[index])
+                {
+                    return false;
+                }
+            }
+            return true;
         }
     }
 
@@ -859,7 +964,8 @@ namespace LasalMotionControlApiExample
 
         private const int LegacyFormatVersion = 1;
         private const int TypedSdoFormatVersion = 2;
-        private const int FormatVersion = 3;
+        private const int DurableIdentityFormatVersion = 3;
+        private const int FormatVersion = 4;
         private const int ChecksumLength = 32;
         private const int MaximumFileLength = 65536;
         private const int MaximumTextByteLength = 8192;
@@ -1319,9 +1425,26 @@ namespace LasalMotionControlApiExample
                     StringComparison.Ordinal)
                 && left.EndpointPort == right.EndpointPort
                 && left.DiagnosticsBuild == right.DiagnosticsBuild
+                && left.HasBaselineGuardEvidence
+                    == right.HasBaselineGuardEvidence
+                && ByteArraysEqualNullable(
+                    left.BaselineData,
+                    right.BaselineData)
+                && ByteArraysEqualNullable(
+                    left.PreWriteGuardData,
+                    right.PreWriteGuardData)
                 && ByteArraysEqual(
                     left.ExpectedWriteData,
                     right.ExpectedWriteData);
+        }
+
+        private static bool ByteArraysEqualNullable(
+            byte[] left,
+            byte[] right)
+        {
+            return left == null || right == null
+                ? left == right
+                : ByteArraysEqual(left, right);
         }
 
         private void PersistRecord(DiagnosticsMutationRecord record)
@@ -1531,6 +1654,7 @@ namespace LasalMotionControlApiExample
                 var version = reader.ReadInt32();
                 if (version != LegacyFormatVersion
                     && version != TypedSdoFormatVersion
+                    && version != DurableIdentityFormatVersion
                     && version != FormatVersion)
                 {
                     throw new InvalidDataException(
@@ -1663,6 +1787,16 @@ namespace LasalMotionControlApiExample
                 writer.Write(metadata.EndpointPort);
                 writer.Write(metadata.DiagnosticsBuild);
             }
+            writer.Write(metadata.HasBaselineGuardEvidence);
+            if (metadata.HasBaselineGuardEvidence)
+            {
+                var baselineData = metadata.BaselineData;
+                var preWriteGuardData = metadata.PreWriteGuardData;
+                writer.Write(baselineData.Length);
+                writer.Write(baselineData);
+                writer.Write(preWriteGuardData.Length);
+                writer.Write(preWriteGuardData);
+            }
         }
 
         private static DiagnosticsSdoWriteMutationMetadata
@@ -1700,7 +1834,7 @@ namespace LasalMotionControlApiExample
                     "Diagnostics mutation SDO data is incomplete.");
             }
 
-            if (version < FormatVersion)
+            if (version < DurableIdentityFormatVersion)
             {
                 return new DiagnosticsSdoWriteMutationMetadata(
                     slaveReference,
@@ -1715,6 +1849,15 @@ namespace LasalMotionControlApiExample
             var durableIdentityMarker = reader.ReadByte();
             if (durableIdentityMarker == 0)
             {
+                if (version >= FormatVersion)
+                {
+                    var legacyGuardMarker = reader.ReadByte();
+                    if (legacyGuardMarker != 0)
+                    {
+                        throw new InvalidDataException(
+                            "Legacy diagnostics mutation metadata cannot contain baseline guard evidence.");
+                    }
+                }
                 return new DiagnosticsSdoWriteMutationMetadata(
                     slaveReference,
                     objectIndex,
@@ -1733,6 +1876,44 @@ namespace LasalMotionControlApiExample
             var endpointIp = ReadText(reader);
             var endpointPort = reader.ReadInt32();
             var diagnosticsBuild = reader.ReadUInt32();
+            if (version < FormatVersion)
+            {
+                return new DiagnosticsSdoWriteMutationMetadata(
+                    slaveReference,
+                    objectIndex,
+                    subIndex,
+                    valueType,
+                    dataLength,
+                    timeoutCycles,
+                    endpointIp,
+                    endpointPort,
+                    diagnosticsBuild,
+                    expectedData);
+            }
+
+            var guardEvidenceMarker = reader.ReadByte();
+            if (guardEvidenceMarker == 0)
+            {
+                return new DiagnosticsSdoWriteMutationMetadata(
+                    slaveReference,
+                    objectIndex,
+                    subIndex,
+                    valueType,
+                    dataLength,
+                    timeoutCycles,
+                    endpointIp,
+                    endpointPort,
+                    diagnosticsBuild,
+                    expectedData);
+            }
+            if (guardEvidenceMarker != 1)
+            {
+                throw new InvalidDataException(
+                    "Diagnostics mutation baseline guard marker is non-canonical.");
+            }
+
+            var baselineData = ReadSdoEvidenceData(reader, dataLength);
+            var preWriteGuardData = ReadSdoEvidenceData(reader, dataLength);
             return new DiagnosticsSdoWriteMutationMetadata(
                 slaveReference,
                 objectIndex,
@@ -1743,7 +1924,28 @@ namespace LasalMotionControlApiExample
                 endpointIp,
                 endpointPort,
                 diagnosticsBuild,
+                baselineData,
+                preWriteGuardData,
                 expectedData);
+        }
+
+        private static byte[] ReadSdoEvidenceData(
+            BinaryReader reader,
+            ushort dataLength)
+        {
+            var length = reader.ReadInt32();
+            if (length != dataLength)
+            {
+                throw new InvalidDataException(
+                    "Diagnostics mutation SDO guard data length is invalid.");
+            }
+            var data = reader.ReadBytes(length);
+            if (data.Length != length)
+            {
+                throw new InvalidDataException(
+                    "Diagnostics mutation SDO guard data is incomplete.");
+            }
+            return data;
         }
 
         private static string ReadText(BinaryReader reader)

@@ -341,7 +341,9 @@ namespace LasalMotionControlApiExample
                                 capabilities.MapRevision,
                                 writeRequest.SlaveReference,
                                 writeRequest.TimeoutCycles,
-                                "same-value-write");
+                                "same-value-write",
+                                scope.BaselineData,
+                                scope.PreWriteGuardStatus.ResultData);
                             CommitQualificationIrreversibleOutcome(
                                 "same-value SDO Write durable journal armed before the single Write attempt");
                         },
@@ -459,6 +461,10 @@ namespace LasalMotionControlApiExample
                     currentConnection,
                     completed.FinalCapabilities,
                     input.Target,
+                    completed.BaselineTicket,
+                    completed.PreWriteGuardTicket,
+                    completed.WriteTicket,
+                    completed.ReadbackTicket,
                     out activationProof))
             {
                 throw new InvalidOperationException(
@@ -802,9 +808,9 @@ namespace LasalMotionControlApiExample
             }
 
             if ((evaluation.Blockers
-                    & LMCSdoWritePolicyBlockers.NoApprovedTarget) != 0)
+                    & LMCSdoWritePolicyBlockers.WritePolicyDisabled) != 0)
             {
-                return "CLOSED: this SDK build has no approved SDO Write target. Confirm UI[24] is unused and select one test axis before enabling matching SDK/PLC gates.";
+                return "CLOSED: generic SDO Write is disabled by this SDK build policy.";
             }
 
             if (!evaluation.CanAttemptSubmission)
@@ -817,7 +823,7 @@ namespace LasalMotionControlApiExample
             if (evaluation.ApprovedTargets.Count != 1
                 || approvedSdoWriteTargets.Count != 1)
             {
-                return "CLOSED: activation qualification requires exactly one approved target; multi-axis Write exposure is not accepted.";
+                return "CLOSED: this UI[24] transport-canary qualification requires exactly one known preset; this does not determine generic SDO Write authorization.";
             }
 
             var selectedTarget = ComboD5SdoWriteQualificationTarget
@@ -833,7 +839,7 @@ namespace LasalMotionControlApiExample
                     approvedSdoWriteTargets[0],
                     selectedTarget))
             {
-                return "CLOSED: select the single SDK-approved qualification target.";
+                return "CLOSED: select the single SDK-known UI[24] transport-canary preset.";
             }
 
             if (diagnosticCapabilities == null
@@ -936,8 +942,7 @@ namespace LasalMotionControlApiExample
             var manualWriteProofCurrent =
                 HasCurrentSdoWriteActivationQualificationProof(
                     connection,
-                    capabilities,
-                    selectedTarget);
+                    capabilities);
 
             var builder = new StringBuilder();
             builder.Append("OVERALL       ")

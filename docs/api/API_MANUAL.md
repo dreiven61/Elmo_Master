@@ -1909,9 +1909,12 @@ PLC generic admission은 non-enabled base state `0x40`(Switch On Disabled), `0x2
 0x3204 / 0x20FC project-owned maintenance objects
 ```
 
-WPF ordinary editor는 exact request preview와 reserved/semantic warning을 표시한다. Write 결과가
-불확실한 경우 자동 재전송하지 않으며 R05 durable record는 endpoint + DiagnosticsBuild + BootId +
-MapRevision + exact request identity에 묶인다. restart recovery는 read-only 결과 확인 경로만 허용한다.
+WPF ordinary editor는 exact request preview와 reserved/semantic warning을 표시한다. 첫 클릭은 exact
+baseline Read 뒤 immutable request+baseline만 arm하고, 두 번째 exact 클릭은 fresh safe-state/capability와
+pre-write Read equality를 확인한 뒤 journal v4에 baseline/prewrite/expected bytes를 저장하고 Write를
+한 번만 submit한다. Write 결과가 불확실한 경우 자동 재전송하거나 값을 자동 restore하지 않으며
+durable record는 endpoint + DiagnosticsBuild + BootId + MapRevision + exact request identity에 묶인다.
+restart recovery는 read-only 결과 확인 경로만 허용한다.
 
 과거 Axis1 UI[24] `0x2F00:24` same-value four-ticket qualification은 특정 live qualification preset으로
 남아 있지만, 더 이상 Generic SDO API 전체의 유일한 허용 target으로 해석하지 않는다.

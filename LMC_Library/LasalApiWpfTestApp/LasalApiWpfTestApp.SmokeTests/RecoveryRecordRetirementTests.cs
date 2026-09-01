@@ -56,6 +56,83 @@ namespace LasalMotionControlApiExample
             tests.Add(
                 "Wpf.RecoveryRetirement.DiagnosticsMutationLegacyEndpointBindingExactCas",
                 DiagnosticsMutationLegacyEndpointBindingExactCas);
+            tests.Add(
+                "Wpf.DiagnosticsMutationJournal.SdoWriteBaselineGuardV4RoundTrip",
+                DiagnosticsMutationSdoWriteBaselineGuardV4RoundTrip);
+        }
+
+        private static void
+            DiagnosticsMutationSdoWriteBaselineGuardV4RoundTrip()
+        {
+            var root = CreateTemporaryDirectory();
+            try
+            {
+                var baseline = new byte[] { 0x34, 0x12 };
+                var expected = new byte[] { 0x78, 0x56 };
+                using (var journal = DiagnosticsMutationJournal.Open(root))
+                {
+                    journal.Arm(
+                        DiagnosticsMutationKind.SdoWrite,
+                        Guid.NewGuid(),
+                        FixedUtc(),
+                        StoredBootId,
+                        StoredMapRevision,
+                        5,
+                        "Slave=2,Object=0x2001,SubIndex=3,Type=UInt16,Length=2",
+                        "WriteData=78-56",
+                        new DiagnosticsSdoWriteMutationMetadata(
+                            2,
+                            0x2001,
+                            3,
+                            LMCSignalValueType.UInt16,
+                            2,
+                            250,
+                            "127.0.0.1",
+                            4000,
+                            1,
+                            baseline,
+                            baseline,
+                            expected));
+                }
+
+                using (var reopened = DiagnosticsMutationJournal.Open(root))
+                {
+                    var metadata = reopened.CurrentRecord.SdoWriteMetadata;
+                    AssertEx.True(metadata.HasBaselineGuardEvidence);
+                    AssertEx.SequenceEqual(
+                        baseline,
+                        metadata.BaselineData);
+                    AssertEx.SequenceEqual(
+                        baseline,
+                        metadata.PreWriteGuardData);
+                    AssertEx.SequenceEqual(
+                        expected,
+                        metadata.ExpectedWriteData);
+                }
+
+                AssertEx.Throws<ArgumentOutOfRangeException>(
+                    () => new DiagnosticsSdoWriteMutationMetadata(
+                        1,
+                        0x3204,
+                        0,
+                        LMCSignalValueType.UInt16,
+                        2,
+                        100,
+                        new byte[] { 0, 0 }));
+                AssertEx.Throws<ArgumentOutOfRangeException>(
+                    () => new DiagnosticsSdoWriteMutationMetadata(
+                        1,
+                        0x20FC,
+                        0,
+                        LMCSignalValueType.UInt32,
+                        4,
+                        100,
+                        new byte[] { 0, 0, 0, 0 }));
+            }
+            finally
+            {
+                DeleteTemporaryDirectory(root);
+            }
         }
 
         private static void

@@ -46,7 +46,9 @@ history 문서에 남기고 이 문서에는 current 판정만 유지한다.
 - HomeDS402는 method 37 source/runtime에 더해 H37-02/03/04/10 hardware-independent qualification이
   current `dev`에 통합됐다. fresh C78/generated artifact, PLC/hardware와 activation은 미완료다.
 - SetOperationMode는 `dev@0afbc2a79dff1b63f908b1bde3bd2502843045ff`에서 구현 완료로 닫혔다. PP/PV/IP/CSP, exact requested-mode ACK, one-shot `0x6060`, read-only `0x6061` settling, bounded owner publish, durable no-replay outcome/retire와 WPF terminal 처리까지 current Active 계약이다.
-- Generic SDO는 R03 generic 1/2/4-byte scalar Write, R04 exact editor/preview, R05 durable no-replay recovery와 safe-state corrective가 통합됐다. source gate는 ON이지만 physical Write/readback PASS는 아직 아니다.
+- Generic SDO는 R03~R05와 SWR-01~04 software 구현이 통합됐다. image/session transport proof,
+  ordinary baseline/pre-write guard, journal v4 evidence, identity-pinned one-shot submit 및 PLC 1/2/4-byte
+  parser가 source/static 기준 완료됐다. source gate는 ON이지만 physical Write/readback PASS는 아직 아니다.
 - HomeDS402Ex는 wire/SDK/WPF/scaffold/full-identity ownership/retained store/profile preparation/source-static
   collector까지 통합됐지만 physical runtime은 no-op이고 bit 11은 OFF다.
 - SetOperationMode 기능 구현은 완료됐지만 repository qualification hygiene는 별도 관리한다. current SetOperationMode static run은 기능/안전 contract 93개가 PASS하고 LASAL metadata Client 순서와 generated declaration 순서 불일치 1건에서 멈췄다. current WPF workflow failure는 hosted runner의 MSBuild 탐색 단계에서 발생해 test body가 실행되지 않은 CI 환경 문제다.
@@ -86,7 +88,7 @@ history 문서에 남기고 이 문서에는 current 판정만 유지한다.
 | D3 Recorder | `0x7E40-49` | Active/Limited | Single/Ring/Trigger, single recorder owner |
 | D4 Double | `0x7E4A-4D` | Dormant | capability/proof gate OFF |
 | D5 SDO Read | `0x7E50` read | Active/Limited | general inline read, exact ticket identity 필요 |
-| D5 SDO Write | `0x7E50` write | Limited | generic safe non-semantic 1/2/4-byte scalar policy + durable recovery 통합; OperationEnabled/semantic raw object deny, hardware readback matrix 미완료 |
+| D5 SDO Write | `0x7E50` write | Limited | SWR-01~04 software 완료: generic safe non-semantic 1/2/4-byte parser/policy + baseline/prewrite/journal v4 + one-shot/durable recovery; hardware readback matrix 미완료 |
 | Encoder maintenance | `0x7E53/54/55` | Active/Limited | TW20/TW19 fixed payload; terminal과 actual drive effect 구분 |
 | Static topology | `0x7E11/12` | Active | configured inventory, runtime health 증거 아님 |
 | Dynamic node/DI | `0x7E13/22` | Dormant | route/source 존재, bits 15/16 OFF |
@@ -225,6 +227,8 @@ current hard gates:
 SetOperationMode 구현 완료 후 우선순위는 다음으로 재정렬한다.
 
 1. **Generic SDO 완료 — issue #46의 잔여 범위**
+   - SWR-01~04 software implementation은 완료
+   - fresh C78 Rebuild/Link와 PLC download
    - Axis1 safe non-semantic 1/2/4-byte Write + exact readback
    - Manual Server / programmatic dual-entry BUSY arbitration과 race/no-wire 검증
    - timeout/disconnect/readback-mismatch durable no-replay recovery

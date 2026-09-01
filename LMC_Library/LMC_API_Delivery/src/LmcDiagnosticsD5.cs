@@ -481,6 +481,56 @@ namespace LasalMotionControlLib
             }
         }
 
+        internal async Task<LMCOperationTicket>
+            SubmitSdoWriteIdentityPinnedAsync(
+                LMCSdoRequest request,
+                LMCDiagnosticCapabilities requiredCapabilities,
+                CancellationToken cancellationToken)
+        {
+            var attemptTracker = new LMCSdoSubmissionAttemptTracker(request);
+            try
+            {
+                if (request == null)
+                {
+                    throw new ArgumentNullException("request");
+                }
+                if (requiredCapabilities == null)
+                {
+                    throw new ArgumentNullException("requiredCapabilities");
+                }
+                if (!request.IsWrite)
+                {
+                    throw new InvalidOperationException(
+                        "Identity-pinned SDO submission accepts Write requests only.");
+                }
+
+                ValidateSdoSubmitPolicy(request);
+                attemptTracker.BeginSessionPreflight();
+                var sessionGeneration = connection.SessionGeneration;
+                ValidateRequiredSdoWriteSubmissionIdentity(
+                    request,
+                    requiredCapabilities,
+                    null,
+                    sessionGeneration,
+                    null);
+                return await RunStateMutatingAsync(
+                    () => SubmitSdoWriteIdentityPinnedCore(
+                        request,
+                        requiredCapabilities,
+                        null,
+                        sessionGeneration,
+                        attemptTracker),
+                    cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                LMCSdoSubmissionFailureContext.Attach(
+                    exception,
+                    attemptTracker.CreateFailureContext());
+                throw;
+            }
+        }
+
         private LMCOperationTicket SubmitSdoWriteIdentityPinnedCore(
             LMCSdoRequest request,
             LMCDiagnosticCapabilities requiredCapabilities,
@@ -1335,9 +1385,9 @@ namespace LasalMotionControlLib
                     "The identity-pinned SDO Write requires nonzero Build, BootId, and MapRevision capabilities from this diagnostics owner and session.");
             }
 
-            if (requiredTarget == null
-                || !requiredTarget.Matches(writeRequest)
-                || !IsApprovedSdoWriteTarget(requiredTarget))
+            if (requiredTarget != null
+                && (!requiredTarget.Matches(writeRequest)
+                    || !IsApprovedSdoWriteTarget(requiredTarget)))
             {
                 throw new InvalidOperationException(
                     "The identity-pinned SDO Write request does not exactly match its SDK-approved target tuple and range.");

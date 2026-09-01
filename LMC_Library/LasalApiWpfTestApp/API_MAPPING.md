@@ -59,12 +59,12 @@
 | Recorder Double exact inventory / adoption / explicit cleanup | `0x7E4A`, `0x7E4B`, `0x7E49`, `0x7E44`, `0x7E43`, `0x7E47`, `0x7E48` | reconnect WPF adapter가 `ReadRecorderBankInventoryAsync` 뒤 occupied bank는 exact `AdoptRecorderAsync`, empty configuration은 `AdoptEmptyRecorderConfigurationAsync`로 채택한다. 일부 Adopt 성공 handle도 즉시 보존한다. bank는 Status, 필요 시 Stop -> Ready/Uploading 뒤 B -> A, 마지막으로 동일 Buffer 0 identity의 configuration을 명시적으로 Release한다. detail 32는 `LMCRecorderConfigurationAbsentException`으로 승격해 pending final Release journal만 zero-mutation resolve |
 | Recorder Double token-qualified Configure / resolver | `0x7E4C`, `0x7E4D` | config-only/qualification WPF adapter가 recovery Guid에서 결정적 nonzero ConfigId를 만든다. `ValidateRecoverableDoubleRecorderConfiguration`으로 owner/session-bound capability snapshot과 전체 설정을 저널 arm 전에 검증하고, pinned-capability `ConfigureRecoverableDoubleRecorderAsync` overload로 같은 BootId/MapRevision을 one-shot 전송한다. v3 `ClientTokenV1` journal의 ConfigRevision=0 recovery는 `ReadRecoverableRecorderBankInventoryAsync`로 typed absence 또는 actual revision을 durable 저장한 뒤 0x7E4A/49/4B 경로를 사용한다. startup은 journal만 복구하고 wire를 자동 replay하지 않는다 |
 | PI Write ticket submit | `0x7E21` | `SubmitPIWriteAsync` |
-| SDO Read / Write ticket submit | `0x7E50` | `SubmitSdoAsync`; manual Write는 현재 connection/session/DiagnosticsBuild/BootId/MapRevision/exact target에 귀속된 same-value four-ticket PASS proof 전에 zero-wire. proof 후에도 첫 클릭에서 immutable request를 비모달 arm하고 exact identity와 byte-identical 요청의 두 번째 클릭만 실제 submit. 실제 Write는 internal `SubmitSdoWriteIdentityPinnedAsync`가 mutation gate 안에서 fresh capability와 proof identity를 다시 exact 비교하며 mismatch는 `NotAttempted`/`0x7E50` 0회다. 요청 편집은 기존 arm을 즉시 폐기 |
+| SDO Read / Write ticket submit | `0x7E50` | `SubmitSdoAsync`; manual Write는 현재 connection/session/DiagnosticsBuild/BootId/MapRevision/capability에 귀속된 four-ticket transport proof 전에 zero-wire. proof는 target authorization이 아니다. 첫 클릭은 exact baseline Read 뒤 immutable request+baseline을 arm하고, 두 번째 exact 클릭은 pre-write Read equality와 journal v4 arm 뒤 generic `SubmitSdoWriteIdentityPinnedAsync`를 한 번 호출한다. mutation gate의 fresh identity mismatch는 `NotAttempted`/`0x7E50` 0회다. 요청 편집은 기존 arm을 즉시 폐기 |
 | SDO 1/2/4-byte bounded terminal Read | `0x7E00`, `0x7E50`, `0x7E03` | `ReadSdoInline`, `ReadSdoInlineAsync`; accepted ticket와 exact `Completed/Success` status/result를 `LMCSdoReadResult`로 반환 |
 | D5 Contention -> ResourceBusy -> Recovery | `0x7E00`, `0x7E50`, `0x7E03` | `D5SdoContentionQualificationOrchestrator.RunAsync` + `SubmitSdoAsync`, `GetOperationStatusAsync` |
 | D5 Timeout -> Drain -> Recovery | `0x7E00`, `0x7E50`, `0x7E03` | `D5SdoTimeoutQualificationOrchestrator.RunAsync` + `SubmitSdoAsync`, `GetOperationStatusAsync` |
 | SDO Write exact readback | `0x7E50`, `0x7E03` | `CreateSdoWriteVerificationContext`, `SubmitReadbackAsync`, `Evaluate` |
-| SDO Write policy/readiness | wire 없음 | immutable `EvaluateSdoWritePolicy`; cached blocker matrix와 PLC bit 9/SDK `NoApprovedTarget` 독립 표시 |
+| SDO Write policy/readiness | wire 없음 | immutable `EvaluateSdoWritePolicy`; cached blocker matrix와 PLC bit 9를 평가한다. `ApprovedTargets`는 known preset metadata이며 0건이어도 generic admission을 차단하지 않는다. global SDK gate OFF는 `WritePolicyDisabled`; legacy `NoApprovedTarget`은 호환성만 유지한다. |
 | Extended SDO result chunk | `0x7E51` | `ReadSdoResultChunkAsync` |
 | Diagnostics ticket status / cancel | `0x7E03`, `0x7E04` | `GetOperationStatusAsync`, `CancelOperationAsync` |
 
@@ -367,8 +367,9 @@ exact Write readback용으로 유지하며, pending Write readback 또는 Write 
 비활성화한다. 이 버튼은 CREVIS topology/I/O 경로와 연결하지 않는다.
 SDO의 4/8/12-byte 결과는 `0x7E03 GetOperationStatus` response에 inline으로
 포함된다. 더 큰 Read는 `ExtendedSdoResultChunk` capability가 필요하고 terminal
-success 뒤 `0x7E51 ReadSdoResultChunk`를 반복해 전체 결과를 조립한다. PI/SDO Write
-버튼은 PLC capability와 SDK allowlist가 모두 허용하지 않으면 실행되지 않는다.
+success 뒤 `0x7E51 ReadSdoResultChunk`를 반복해 전체 결과를 조립한다. PI Write는 SDK
+allowlist, Generic SDO Write는 PLC capability와 SDK generic request policy가 허용하지 않으면
+실행되지 않는다. UI24 qualification 버튼은 별도의 known-preset canary 조건도 요구한다.
 
 D5 contention runner는 `SDORead + SDOReadGeneralInline`, `MaxSdoDataBytes=4`, nonzero
 BootId/MapRevision에서만 활성화된다. canonical target은 Slave 1..4의 `0x6061:0 Int8/1`로
@@ -386,21 +387,23 @@ accepted-context 또는 outcome-uncertain evidence가 있으면 즉시 중단하
 다른 recovery ticket이 baseline과 같은 Int8 값을 `Completed/Success`로 반환해야 PASS다. 이 역시
 PC/build 계약이며 실제 PLC timeout/drain packet 증거는 별도다.
 
-현재 `0x7E50` SDO Write 인프라는 `OperationFlags=1`, exact 36-byte request,
-`ValueType=Int32(4)`, `DataLength=4`만 받으며 ticket의 `OperationKind`는
-`SDOWrite(3)`이다. PLC와 SDK source의 global gate 및 UI[24] axis 1 gate만 `TRUE`이고
-axis 2~4 gate는 `FALSE`다. SDK approved target은 Slave/Axis 1 Gold UI[24]
-`0x2F00:24`, `Int32`, 4-byte, 값 범위 `-1073741823..1073741823` 한 건뿐이다.
-GUI의 Write draft 필드는 로컬 편집할 수 있지만 exact approved target 외 임의 SDO address,
-axis 2~4, DS402 motion/control object, PI Write `0x7E21`, extended result `0x7E51`은
-허용하지 않는다.
+현재 `0x7E50` Generic SDO Write source policy는 `OperationFlags=1`, canonical
+1/2/4-byte scalar request와 `OperationKind=SDOWrite(3)`을 지원한다. PLC와 SDK의 global gate가
+generic runtime support를 결정하며 UI[24] axis flags는 qualification preset 노출만 결정한다.
+SDK known preset은 Slave/Axis 1 Gold UI[24] `0x2F00:24`, `Int32`, 4-byte, 값 범위
+`-1073741823..1073741823` 한 건이다. 이 목록은 generic address authorization이 아니며 0건이어도
+generic cached policy가 준비될 수 있다. DS402 motion/control 및 dedicated-owner blocklist,
+PI Write `0x7E21`, extended result `0x7E51` 제한은 유지한다.
+일반 WPF Write의 SWR-02/03 source 전환은 완료됐다. 다만 이 판정은 production-ready가 아니라
+software implementation ready이며 C78/PLC/physical qualification은 별도다.
 일반 manual editor Write는 이 source gate만으로 활성화되지 않는다. same-value qualification이
 baseline Read, unchanged pre-Write guard Read, byte-identical Write 1회, guarded exact Readback을
 서로 다른 네 ticket으로 PASS한 뒤 process-local activation proof를 만든다. proof는 현재
 `LMCConnection` reference/session generation, `DiagnosticsBuild`, `DiagnosticsBootId`,
-`MapRevision`과 approved target의 tuple/range에 귀속되며 재연결이나 identity/target 변경을
-건너 재사용되지 않는다. identity mismatch 또는 disconnect를 한 번 관측한 proof는 영구 폐기돼
-A -> B -> A에서도 다시 활성화되지 않는다. manual second-click은 proof-bound capability와 target을
+`MapRevision`, BaseCycleTime, MaxSdoDataBytes와 required capability bits에 귀속되며 재연결이나
+image/capability 변경을 건너 재사용되지 않는다. identity mismatch 또는 disconnect를 한 번 관측한
+proof는 영구 폐기돼 A -> B -> A에서도 다시 활성화되지 않는다. manual second-click은 current proof와
+ordinary exact request를
 SDK mutation gate에 전달하고, SDK의 fresh Build/BootId/MapRevision exact 비교를 통과한 경우만
 `0x7E50`을 만든다.
 
@@ -415,8 +418,8 @@ WPF readiness refresh도 cached immutable target/capability snapshot만 사용�
 Gold UI[24]가 사용자 drive program에서 실제로 미사용인지와 live EtherCAT mailbox/packet 동작은
 아직 검증되지 않았다.
 
-승인 후에도 GUI submit은 exact SDK target 선택, PLC capability 재확인, 선택 축의
-`PowerOn=False`/`Standstill=True`와 actual position 3회 안정, 명시적 확인 및 D5
+승인 후에도 GUI submit은 generic SDK policy, PLC capability 재확인, 선택 축의
+`Standstill=True`/`Fault=False`/`OperationEnabled=False`와 actual position 3회 안정, 명시적 확인 및 D5
 quarantine 등록을 요구한다. Write outcome이 불명확하면 read recovery proof로 자동
 해제하지 않는다. Write가 `Completed/Success`여도 동일 Slave/Index/SubIndex/Type/Length를
 원 Write의 owner/current session, `DiagnosticsBootId`, `MapRevision`에 묶인 guarded Read로
@@ -428,7 +431,7 @@ submitted request와 supplied Write request를 flags/target/type/length/timeout/
 요구한다. exact guarded readback submit과 terminal result 판정을 하나의
 owner/session/BootId/MapRevision provenance에 고정하며, fresh capabilities와 Read status도 해당
 owner/session에 bind된 객체만 인정한다. capability observation sequence도 context 생성 baseline보다
-커야 한다. public context 생성은 SDK의 Axis 1 exact target 제한이나 fresh bit 9 조건을 우회하지 않는다.
+커야 한다. public context 생성은 SDK generic semantic policy나 fresh bit 9 조건을 우회하지 않는다.
 기반 guarded `SubmitSdo[Async](readRequest, writeTicket)`도 immutable submitted Write provenance와
 read target/type/length를 exact 대조하며 readback retry timeout 차이만 허용한다.
 SDO/output Write의 dispatch 전

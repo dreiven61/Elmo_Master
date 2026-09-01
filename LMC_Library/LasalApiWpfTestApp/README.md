@@ -1035,37 +1035,43 @@ Axis1 source gate와 fresh LASAL IDE Rebuild/Link는 반영됐지만 PLC downloa
     4-byte(Int32/UInt32/Real32/BitField32) Read를 제출한다. terminal 상태까지
     `Refresh Ticket`을 반복하고 inline 결과를 `Save Result`로 저장할 수 있다.
     8/12-byte Read, `0x7E51` extended result와 PI Write는 계속 비활성이다.
-    SDO Write UI/API/PLC source 인프라는 `OperationFlags=1`, exact 36-byte request,
-    `ValueType=Int32(4)`, `DataLength=4`, `OperationKind=SDOWrite(3)` 계약으로 준비됐다.
-    public immutable SDO Write policy는 cached capability/target snapshot의 blocker matrix를
-    wire 없이 평가하고 WPF에 `EVALUATION_WIRE=NONE`, bit 9와 `NoApprovedTarget`을 각각 표시한다.
-    현재 SDK allowlist는 축 1 Gold UI[24] `0x2F00:24`, Int32/4-byte,
+    SDO Write UI/API/PLC source 인프라는 `OperationFlags=1`, canonical 1/2/4-byte scalar request,
+    `OperationKind=SDOWrite(3)` 계약으로 준비됐다. public immutable SDO Write policy는 cached
+    capability/known-preset snapshot의 blocker matrix를 wire 없이 평가하고 WPF에
+    `EVALUATION_WIRE=NONE`과 bit 9를 표시한다. known preset 0건은 generic admission blocker가
+    아니며 global SDK gate OFF는 `WritePolicyDisabled`다. legacy `NoApprovedTarget`은 호환성만 유지한다.
+    현재 SDK known preset은 축 1 Gold UI[24] `0x2F00:24`, Int32/4-byte,
     값 범위 `-1073741823..1073741823` 한 건이다. target은
     표시되지만 현재 연결 PLC의 bit 9가 0이면 Submit은 `SdoWriteCapabilityMissing`으로 차단된다.
     변경 PLC를 Rebuild/Link/download하고 fresh bit 9와 새 BootId/MapRevision을 확인한 뒤에만
-    다음 안전 gate로 진행한다. 축 2~4와 다른 tuple은 계속 승인되지 않는다.
-    임의 SDO address와 DS402 motion/control object는 계속 차단된다.
+    다음 안전 gate로 진행한다. UI24 preset은 transport canary이며 generic address authorization이
+    아니다. DS402 motion/control 및 dedicated-owner blocklist는 계속 차단된다. SWR-02/03 source
+    workflow는 완료됐지만 C78/PLC/physical qualification 전에는 production-ready가 아니다.
 
     source gate가 열려 있어도 일반 manual editor의 Write Submit은 바로 열리지 않는다.
     먼저 same-value qualification이 baseline Read, pre-Write guard Read, byte-identical Write 1회,
     guarded exact Readback을 서로 다른 4개 ticket으로 PASS해야 한다. PASS가 만든
     process-local activation proof는 현재 `LMCConnection` reference/session generation,
-    `DiagnosticsBuild`, `DiagnosticsBootId`, `MapRevision`과 exact approved target tuple/range에
-    귀속된다. 재연결하거나 이 중 하나라도 바뀌면 manual Write는 다시
+    `DiagnosticsBuild`, `DiagnosticsBootId`, `MapRevision`, BaseCycleTime, MaxSdoDataBytes와 required
+    capability bits에 귀속된다. UI24 tuple은 proof provenance로 남지만 ordinary target authorization은
+    아니다. 재연결하거나 image/capability가 바뀌면 manual Write는 다시
     `Run Same-Value Qualification First`로 fail-closed한다. mismatch나 disconnect를 한 번
     관측한 proof는 영구 폐기되므로 A -> B -> A로 identity가 돌아와도 다시 활성화되지 않는다.
 
-    이 current-session proof 후의 manual Write submit도 exact SDK target만 선택할 수 있다. WPF는 capability를 다시
-    확인하고 `_LMCAxisN`의 `PowerOn=False`, `Standstill=True`, actual position 3회 안정을
-    검사한 뒤 첫 클릭에서 target/value/wire bytes의 immutable snapshot만 화면에 arm한다.
+    이 current-session proof 후 manual Write는 slave 1..4의 generic policy 허용 target을 사용할 수 있다.
+    WPF는 capability를 다시 확인하고 `_LMCAxisN`의 `Standstill=True`, DS402 Fault=False,
+    OperationEnabled=False와 actual position 3회 안정을 검사한 뒤 첫 클릭에서 exact baseline Read를
+    수행하고 target/value/wire/baseline bytes의 immutable snapshot을 화면에 arm한다.
     modal 확인창은 없고 편집기는 계속 열린다. 동일 connection/session/BootId/MapRevision과
     byte-identical 요청으로 `Confirm & Submit SDO Write`를 다시 눌러야 두 번째 안전검사,
-    journal arm과 실제 전송으로 진행한다. 중간에 요청을 편집하면 이전 snapshot을 즉시 폐기하고
+    exact pre-Write guard Read가 baseline과 같을 때 journal v4 arm과 실제 전송으로 진행한다.
+    중간에 요청을 편집하면 이전 snapshot을 즉시 폐기하고
     버튼을 `Arm SDO Write`로 되돌리며, 변경된 요청을 새로 arm한다. same-value qualification은 baseline Read, 실행 전 네 operator
     checkbox 확인 뒤 baseline 값이 바뀌지 않았음을
-    확인하는 pre-Write guard Read, 최종 두 번째 안전검사, 동일 4-byte Write 1회, guarded exact
-    Readback을 서로 다른 4개 ticket으로 수행한다. 현재 Axis1-only source gate에서는 네 operator
-    확인 중 하나라도 없거나 PLC bit 9가 없으면 강제 handler 호출도 zero-wire이며 실제
+    확인하는 pre-Write guard Read, 최종 두 번째 안전검사, 동일 4-byte canary Write 1회, guarded exact
+    Readback을 서로 다른 4개 ticket으로 수행한다. canary preset은 Axis1-only지만 generic source
+    gate는 slave 1..4와 canonical 1/2/4-byte를 지원한다. 네 operator 확인 중 하나라도 없거나 PLC
+    bit 9가 없으면 강제 handler 호출도 zero-wire이며 실제
     PLC/live Write 증거는 아직 없다. activation proof는 PC 세션 admission 증거일 뿐
     PLC download, EtherCAT mailbox completion, pcap 순서나 물리 무변화를 대신 증명하지 않는다.
     actual second-click은 proof의 capability/target을 SDK identity-pinned submit에 넘긴다. SDK는
@@ -1073,7 +1079,7 @@ Axis1 source gate와 fresh LASAL IDE Rebuild/Link는 반영됐지만 PLC downloa
     비교하며, drift면 `NotAttempted`/`0x7E50` 0회로 종료한다.
     실제 Submit 진입 시 GUI가 immutable request snapshot을 사용하기 때문에 ordinary in-flight
     Read/Write와 성공 Write 뒤 exact readback pending 중에도 다음 요청 값을 편집할 수 있다.
-    capability/allowlist 갱신도 선택 대상과 draft를 자동 적용해 덮지 않는다. 두 번째 submit은
+    capability/known-preset 갱신도 선택 대상과 draft를 자동 적용해 덮지 않는다. 두 번째 submit은
     operation slot이 끝날 때까지 계속 막는다. exact readback interlock은 editor를 고정하지 않고
     admission에서 원 owner/session/BootId/MapRevision과 exact request만 허용한다. `Load Required
     Exact Readback`은 현재 draft를 process-local same-session snapshot으로 보존한 뒤 exact Read를
@@ -1088,7 +1094,7 @@ Axis1 source gate와 fresh LASAL IDE Rebuild/Link는 반영됐지만 PLC downloa
     같은 owner/session에 bind된 exact `Completed+Success` Write terminal status까지 context 생성에
     요구한다. 그 context의 guarded readback submit과 owner/session-bound fresh capability/Read status
     terminal 판정을 사용하며 capability observation sequence는 context 생성 baseline보다 커야 한다.
-    public context도 Axis1-only SDK allowlist를 우회하지 않는다. terminal
+    public context도 generic SDK request policy와 current Axis1 UI24 canary workflow를 우회하지 않는다. terminal
     result의 type/length와 4-byte 값이 Write 값과 정확히 일치할 때까지
     다른 mutation과 Close를 차단한다. Stop,
     PowerOff와 기존 resource cleanup은 계속 허용한다. SDO/output Write는 실제 dispatch 전에
@@ -1097,7 +1103,8 @@ Axis1 source gate와 fresh LASAL IDE Rebuild/Link는 반영됐지만 PLC downloa
     v2 record는 exact Slave/Object/SubIndex/Type/Length/Timeout/expected bytes를 checksum 범위에
     저장하고 legacy v1은 typed 정보가 없으므로 protocol recovery를 zero-wire로 거부한다. 미해결
     record가 남은 재시작에서는 Write를 재전송하지 않는다. v2 SDO record가 terminal success이고
-    SDK allowlist의 exact target과 일치할 때만 운영자가 read-only recovery를 한 번 실행할 수 있으며,
+    current UI24 canary preset의 exact target과 일치할 때만 운영자가 read-only recovery를 한 번
+    실행할 수 있다. 이는 current WPF recovery 제한이며 generic SDK address authorization이 아니며,
     Read 전후의 fresh BootId/MapRevision과 exact bytes가 일치하고 같은 record/state의 atomic
     CAS가 성공하면 durable tombstone을 먼저 쓴다. 그 외 record는
     물리 확인과 명시적 recovery acknowledgement로만 해소한다. current-process digital

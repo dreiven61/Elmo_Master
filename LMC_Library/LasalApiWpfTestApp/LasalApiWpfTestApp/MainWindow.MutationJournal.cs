@@ -221,7 +221,9 @@ namespace LasalMotionControlApiExample
             LMCSdoRequest request,
             LMCConnection ownerConnection,
             uint diagnosticsBootId,
-            uint mapRevision)
+            uint mapRevision,
+            byte[] baselineData,
+            byte[] preWriteGuardData)
         {
             if (request == null || !request.IsWrite)
             {
@@ -278,6 +280,8 @@ namespace LasalMotionControlApiExample
                         durableEndpointIp,
                         durableEndpointPort,
                         capabilities.DiagnosticsBuild,
+                        baselineData,
+                        preWriteGuardData,
                         request.WriteData));
             }
             catch (Exception error)

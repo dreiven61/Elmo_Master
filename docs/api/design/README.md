@@ -98,17 +98,19 @@ permanent semantic/dedicated-owner raw blocklist:
 0x20FC
 ```
 
-current detailed implementation order:
+current detailed implementation/qualification order:
 
-1. `SWR-01` UI24 preset authorization과 generic policy 분리
-2. `SWR-02` target-bound qualification proof를 image/session transport proof로 변경
-3. `SWR-03` ordinary Write baseline Read -> immutable confirmation -> pre-write guard Read -> journal -> one-shot Write -> exact readback
-4. `SWR-04` Manual/programmatic contention + timeout/orphan/cancel/disconnect regression
-5. `SWR-05/06` Axis1 1/2/4-byte physical/failure matrix
-6. `SWR-07` Axis2..4 확대
-7. `SWR-08` issue/manual/distribution/release sync
+1. `SWR-01` UI24 preset authorization과 generic policy 분리 — **SOURCE/PC COMPLETE (2026-09-01)**
+2. `SWR-02` image/session transport proof — **SOFTWARE COMPLETE (2026-09-01)**
+3. `SWR-03` baseline -> confirmation -> pre-write guard -> journal v4 -> one-shot Write -> exact readback — **SOFTWARE COMPLETE (2026-09-01)**
+4. `SWR-04` shared executor/no-replay source contract — **SOFTWARE COMPLETE; physical regression pending**
+5. `SWR-05/06` Axis1 1/2/4-byte physical/failure matrix — pending user qualification
+6. `SWR-07` Axis2..4 physical matrix — pending user qualification
+7. `SWR-08` issue/distribution/release sync — pending physical evidence
 
 Axis1 UI24 four-ticket path는 qualification canary/preset일 뿐 generic API의 유일 target이나 address authorization이 아니다.
+SWR-01 결과는 `SDO_WRITE_SWR01_IMPLEMENTATION_RESULT_20260901.md`, current software 전체 결과와
+검증 경계는 `SDO_WRITE_SOFTWARE_IMPLEMENTATION_RESULT_20260901.md`에 기록한다.
 
 ---
 
@@ -171,11 +173,12 @@ issue #44의 외부 prerequisite:
 
 1. `REMAINING_IMPLEMENTATION_DESIGN_20260901.md` — SetOperationMode 이후 남은 기능 구현 master plan
 2. `SDO_WRITE_DETAILED_DESIGN_20260901.md` — current P0 Generic SDO Write 상세 구현/qualification 정본
-3. `DEVELOPMENT_STATUS_20260901.md` — 전체 current status snapshot
-4. `../API_DEVELOPMENT_PROGRESS.md` — 구현률/남은 작업/current qualification
-5. `../API_MANUAL.md` — public/current API 사용 계약
-6. 기능별 `*_DESIGN.md` — frozen wire/state machine/세부 계약
-7. 기능별 historical evidence 문서
+3. `SDO_WRITE_SOFTWARE_IMPLEMENTATION_RESULT_20260901.md` — SWR-01~04 software 결과와 physical 경계
+4. `DEVELOPMENT_STATUS_20260901.md` — 전체 current status snapshot
+5. `../API_DEVELOPMENT_PROGRESS.md` — 구현률/남은 작업/current qualification
+6. `../API_MANUAL.md` — public/current API 사용 계약
+7. 기능별 `*_DESIGN.md` — frozen wire/state machine/세부 계약
+8. 기능별 historical evidence 문서
 
 문서가 충돌하면 current `dev` source와 위 순서를 기준으로 정리한다.
 

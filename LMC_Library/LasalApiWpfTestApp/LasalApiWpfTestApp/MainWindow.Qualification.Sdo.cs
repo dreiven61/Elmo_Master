@@ -1862,7 +1862,9 @@ namespace LasalMotionControlApiExample
                             CultureInfo.InvariantCulture),
                         "axisReference=" + selectedAxis.AxisReference.ToString(
                             CultureInfo.InvariantCulture),
-                        "powerOn=false",
+                        "powerOn=" + (latestStatus.IsPowerOn
+                            ? "true"
+                            : "false"),
                         "standstill=true",
                         "stablePositionSamples=" + stableSamples.ToString(
                             CultureInfo.InvariantCulture),
@@ -1879,7 +1881,7 @@ namespace LasalMotionControlApiExample
             }
 
             throw new TimeoutException(
-                "D5 SDO qualification did not observe three identical powered-off axis positions within "
+                "D5 SDO safety preflight did not observe three identical safe axis positions within "
                 + D5SdoQualificationSafetyTimeoutMilliseconds.ToString(
                     CultureInfo.InvariantCulture)
                 + " ms. LastPosition="
@@ -3642,6 +3644,32 @@ namespace LasalMotionControlApiExample
                 uint timeoutCycles,
                 string stage)
         {
+            return ArmExternalD5SubmissionOutcomeGuard(
+                operationKind,
+                request,
+                ownerConnection,
+                expectedDiagnosticsBootId,
+                expectedMapRevision,
+                slaveReference,
+                timeoutCycles,
+                stage,
+                null,
+                null);
+        }
+
+        private D5SdoQuarantineHandle
+            ArmExternalD5SubmissionOutcomeGuard(
+                LMCOperationKind operationKind,
+                LMCSdoRequest request,
+                LMCConnection ownerConnection,
+                uint expectedDiagnosticsBootId,
+                uint expectedMapRevision,
+                ushort slaveReference,
+                uint timeoutCycles,
+                string stage,
+                byte[] baselineData,
+                byte[] preWriteGuardData)
+        {
             var handle = d5SdoQualificationQuarantine.ArmUnknown(
                 operationKind,
                 request,
@@ -3662,7 +3690,9 @@ namespace LasalMotionControlApiExample
                         request,
                         ownerConnection,
                         expectedDiagnosticsBootId,
-                        expectedMapRevision);
+                        expectedMapRevision,
+                        baselineData,
+                        preWriteGuardData);
                     durableMutationArmed = true;
                 }
 

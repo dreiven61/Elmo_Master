@@ -69,6 +69,15 @@ issue #46의 SetOperationMode 범위는 완료됐고 issue는 Generic SDO 잔여
 - arbitrary WPF editor / exact request preview
 - durable exact-request journal / no automatic replay
 - ordinary safe-state gate
+- **SWR-01 SOURCE/PC COMPLETE**: UI24 known preset과 generic admission 분리. preset 0건이어도
+  global/capability policy가 준비되면 `CanAttemptSubmission=True`; legacy `NoApprovedTarget`은 호환성만
+  유지하고 generic evaluation은 더 이상 set하지 않음
+- **SWR-02~04 SOFTWARE COMPLETE (working tree, 2026-09-01)**:
+  - four-ticket canary 결과를 target authorization이 아닌 image/session transport proof로 저장
+  - ordinary Write의 exact baseline Read -> immutable confirmation -> exact pre-write guard Read
+  - journal v4에 baseline/prewrite/expected bytes를 저장하고 equality 뒤에만 one-shot dispatch
+  - generic identity-pinned submit과 Manual/programmatic shared executor ownership 유지
+  - PLC `0x7E50` parser가 Bool/8-bit=1, 16-bit=2, 32-bit=4 byte payload를 exact length로 수용
 
 계속 차단하는 semantic/dedicated-owner object:
 
@@ -76,12 +85,19 @@ issue #46의 SetOperationMode 범위는 완료됐고 issue는 Generic SDO 잔여
 0x6040 0x6060 0x607A 0x60FF 0x6071 0x3204 0x20FC
 ```
 
-다음 완료 순서:
+남은 qualification 순서:
 
-1. Axis1 safe non-semantic 1/2/4-byte exact Write/readback
-2. Manual/programmatic 동시 접근 BUSY arbitration
-3. timeout/disconnect/readback mismatch durable recovery
-4. Axis2..4 matrix
+1. C78 Rebuild/Link와 PLC download
+2. Axis1 safe non-semantic 1/2/4-byte exact Write/readback
+3. Manual/programmatic 동시 접근 BUSY arbitration
+4. timeout/disconnect/readback mismatch durable recovery
+5. Axis2..4 matrix
+
+VS2019 Debug WPF/Smoke project와 SDK test project는 build PASS했고 SWR-01~04 source verifier도 PASS했다.
+요청에 따라 test executable, C78 build/link, PLC download, 실축 Write/readback과 packet evidence는
+실행하지 않았다. 따라서 **software implementation ready / physical qualification pending**이며 Generic
+SDO 전체 release 상태는 계속 P0/NO-GO다. 상세 결과는
+`SDO_WRITE_SOFTWARE_IMPLEMENTATION_RESULT_20260901.md`를 따른다.
 
 ---
 

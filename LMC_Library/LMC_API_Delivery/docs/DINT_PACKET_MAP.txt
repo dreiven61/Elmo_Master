@@ -978,28 +978,26 @@ successful terminal status carries exactly 1, 2 or 4 inline bytes and all unused
 result-tail bytes are zero. 8/12-byte reads and result chunks remain fail-closed;
 malformed shapes return BoundsInvalid or CapacityExceeded.
 
-The general prepared Write path accepts only OperationFlags=1, an exact 36-byte request,
-ValueType=Int32(4), DataLength=4 and four little-endian data bytes. There is no
-TW19/TW20 exception in this parser or its central policy. When the PLC
-global gate and the matching per-axis gate are enabled and every policy/state
-check passes, the returned ticket uses OperationKind=SDOWrite(3); successful
-terminal status has ResultLength=0 and zero result data. The only approved
-source/policy target is Axis 1 Gold UI[24], SlaveReference=1, 0x2F00:24,
-Int32/4, with the conservative local range -1073741823..1073741823.
-LMC_DIAG_D5_SDO_WRITE_GLOBAL_ENABLED and
-LMC_DIAG_D5_SDO_WRITE_UI24_AXIS1_ENABLED are TRUE; the Axis 2..4 gates remain
-FALSE. The matching C# SdoWriteEnabled/SdoWriteUi24Axis1Enabled gates and exact
-allowlist are enabled while the Axis 2..4 gates remain false. The WPF manual
-Write control remains disabled until baseline Read, pre-write guard Read,
-same-value Write and guarded readback complete with four distinct tickets on
-the exact current connection/session/DiagnosticsBuild/BootId/MapRevision and
-target. Its second confirmation uses the SDK identity-pinned submit path, which
-refreshes capabilities inside the mutation gate and sends no 0x7E50 frame on
-identity drift. This is source/PC activation, not current PLC or hardware proof.
-Arbitrary
-SDO writes are not supported. DS402 direct motion/control objects 0x6040, 0x607A,
-0x60FF and 0x6071 are permanently UnsafeWriteBlocked. PI Write 0x7E21 and extended
-result 0x7E51 remain disabled.
+The generic prepared Write path accepts OperationFlags=1 and an exact
+32+DataLength-byte request. Canonical scalar shapes are Bool/Int8/UInt8/
+BitField8=1, Int16/UInt16/BitField16=2, and Int32/UInt32/Real32/BitField32=4.
+The parser copies exactly 1, 2 or 4 little-endian bytes into the request-owned
+Write buffer before central policy evaluation. There is no TW19/TW20 exception
+in this parser or its central policy. When the PLC global gate and every
+policy/state check pass, the returned ticket uses OperationKind=SDOWrite(3);
+successful terminal status has ResultLength=0 and zero result data. Axis 1 Gold
+UI[24], SlaveReference=1, 0x2F00:24, Int32/4, range
+-1073741823..1073741823 remains a conservative transport qualification preset,
+not generic address authorization. LMC_DIAG_D5_SDO_WRITE_GLOBAL_ENABLED and the
+Axis1 preset flag are TRUE; Axis2..4 preset flags remain FALSE. Generic runtime
+supports SlaveReference 1..4 independently of preset count. The WPF manual Write
+control requires a current image/session four-ticket transport proof, exact
+baseline and pre-write guard equality, a durable journal, one identity-pinned
+submit and exact terminal readback. Identity drift sends no 0x7E50 frame. This is
+source/PC implementation evidence, not current PLC or hardware proof. DS402
+direct motion/control and dedicated-owner objects 0x6040, 0x6060, 0x607A,
+0x60FF, 0x6071, 0x3204 and 0x20FC are permanently UnsafeWriteBlocked. PI Write
+0x7E21 and extended result 0x7E51 remain disabled.
 
 Dedicated encoder maintenance uses only the following triad. Header Reference is
 zero; the target drive is carried inside the request.

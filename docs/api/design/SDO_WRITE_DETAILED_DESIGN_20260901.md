@@ -1015,11 +1015,11 @@ negative:
 
 Generic SDO Write를 `IMPLEMENTATION COMPLETE`로 올리려면 다음이 모두 필요하다.
 
-- [ ] preset authorization과 generic policy 분리
-- [ ] transport proof image/session scoped
-- [ ] ordinary generic baseline/pre-write guard implementation
-- [ ] durable journal baseline/prewrite/request evidence
-- [ ] exact one-shot submit ordering static proof
+- [x] preset authorization과 generic policy 분리
+- [x] transport proof image/session scoped
+- [x] ordinary generic baseline/pre-write guard implementation
+- [x] durable journal baseline/prewrite/request evidence
+- [x] exact one-shot submit ordering static proof
 - [ ] generic 1/2/4 SDK golden + verification tests
 - [ ] permanent semantic blocklist regression
 - [ ] PLC safe-state gate regression
@@ -1031,6 +1031,8 @@ Generic SDO Write를 `IMPLEMENTATION COMPLETE`로 올리려면 다음이 모두 
 - [ ] distribution/manual sync
 
 위 항목 중 hardware target evidence가 없는 width/axis는 PASS로 추정하지 않는다.
+2026-09-01 current working tree에서 SWR-01~04 software tranche와 C# build/static verifier는 완료했다.
+test executable, C78/PLC 및 physical matrix는 사용자가 수행하므로 위 나머지 gate는 미완료로 유지한다.
 
 ---
 

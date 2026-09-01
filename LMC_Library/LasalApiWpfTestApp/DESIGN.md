@@ -27,10 +27,10 @@ journal lock 실패 상태로 실행되는 것을 막는다.
   crash-window와 config-only manual Configure 계약까지 구현됐다. `ManualActions`,
   `ManualConfigureRoute`, `QualificationExecution`, `ReconnectRecovery` proof/route gate는 PLC
   qualification 전까지 모두 false
-- SDO/Write Policy: general-inline SDO Read와 exact allowlist 기반 SDO Write의 ticket
+- SDO/Write Policy: general-inline SDO Read와 generic scalar SDO Write의 ticket
   submit/status/queued cancel, Read의 typed 1/2/4-byte inline 결과 표시/save, Write의
-  same-value four-ticket activation proof, 그 proof 후의 safe-axis preflight와 명시적
-  two-click 확인, capability 및 write allowlist로 차단되는 임의 Write와 extended result 확인
+  UI24 transport-canary four-ticket activation proof, 그 proof 후의 safe-axis preflight와 명시적
+  two-click 확인, capability 및 semantic/dedicated-owner blocklist와 extended result 확인
 - Read-only API: Admin capability를 선행 확인한 뒤 physical axis 1~4의 semantic
   parameter, fixed group `0x0100` parameter, typed drive operation mode와 non-atomic
   drive status를 읽는 Phase 1 실기 검증 화면
@@ -249,15 +249,16 @@ TriggerMask를 항상 0으로 보내고 Mask는 BitField16/32와 non-zero Trigge
 `GetOperationStatusAsync`의 terminal `ResultData`를 raw bytes로 표시하고 저장한다.
 SDK와 WPF에 extended result parser/download scaffold가 있더라도 current inline policy와
 PLC capability가 8/12-byte 및 `0x7E51` 경로를 차단하므로 현재 화면 계약에 포함하지
-않는다. SDO Write 인프라는 `0x7E50`의 exact Int32/4-byte request, SDK target descriptor,
-PLC global+per-axis compile-time gate와 제출 직전 DS402 상태 재검사, WPF PowerOff/Standstill/stable
-  position preflight와 비모달 2단계 confirmation state까지 구현했다. 첫 클릭은 exact
-  connection/session/BootId/MapRevision과 immutable request만 arm하고, 같은 요청의 두 번째 클릭만
+않는다. SDO Write 인프라는 `0x7E50`의 canonical 1/2/4-byte scalar request, SDK known-preset
+  descriptor, PLC global generic gate와 제출 직전 DS402 상태 재검사, WPF Standstill/Fault=false/
+  OperationEnabled=false/stable-position preflight와 비모달 2단계 confirmation state까지 구현했다.
+  첫 클릭은 exact baseline Read 뒤 connection/session/BootId/MapRevision, immutable request와 baseline
+  bytes를 arm하고, 같은 요청의 두 번째 클릭만
   confirmation을 소비한다. 요청 필드를 편집하면 기존 confirmation을 즉시 폐기하고 버튼을
   `Arm SDO Write`로 되돌린다. 편집된 요청이나 새 session은 기존 confirmation을 소비하지 않고
-  새로 arm한다. 현재 제한 승인 target은 축 1 `UI[24] 0x2F00:24`, Int32/4-byte,
-  값 범위 `-1073741823..1073741823` 한 건이다.
-  SDK와 PLC의 global 및 axis 1 gate만 TRUE이고 axis 2~4 gate는 FALSE다. 변경 LASAL source를
+  새로 arm한다. 현재 known transport-canary preset은 축 1 `UI[24] 0x2F00:24`, Int32/4-byte,
+  값 범위 `-1073741823..1073741823` 한 건이다. 이 preset은 generic address authorization이 아니다.
+  SDK와 PLC의 global gate가 generic support를 결정하고 UI24 axis flags는 preset 노출만 결정한다. 변경 LASAL source를
   Rebuild/Link하고 PLC에 download한 뒤 fresh capability bit 9와 새 BootId/MapRevision이 확인돼야
   same-value qualification의 Write precondition이 열린다. 일반 manual Submit은 그 qualification의
   current-session proof까지 추가로 필요하다. PLC의 DS402 검사는 async
@@ -267,18 +268,20 @@ PLC global+per-axis compile-time gate와 제출 직전 DS402 상태 재검사, W
   4개 ticket으로 고정한다. fresh bit 9가 없거나 네 operator confirmation 중 하나라도 없으면
   handler까지 zero-wire이며 이 PC 계약은 PLC/live Write 성공 증거가 아니다.
   PASS가 만든 process-local activation proof는 현재 `LMCConnection` reference/session
-  generation, `DiagnosticsBuild`, `DiagnosticsBootId`, `MapRevision`과 exact target tuple/range에
+  generation, `DiagnosticsBuild`, `DiagnosticsBootId`, `MapRevision`, BaseCycleTime,
+  MaxSdoDataBytes와 required capability bits에
   귀속된다. 일반 manual editor Write는 이 proof 전에 fail-closed하고, 재연결이나
   PLC build/BootId/MapRevision/target 변경 후에 예전 proof를 재사용하지 않는다. mismatch나
   disconnect를 한 번 관측한 proof는 영구 revoke되어 A -> B -> A에서도 살아나지 않는다.
-  second-click 실제 전송은 proof-bound capability/target을 SDK의 identity-pinned overload에
+  second-click 실제 전송은 current proof/capability와 ordinary generic request를 SDK의 identity-pinned overload에
   넘기며, SDK mutation gate 안의 fresh Build/BootId/MapRevision exact 비교가 실패하면
   `NotAttempted`와 `0x7E50` 0회로 끝난다.
-  public policy evaluation은 immutable approved-target snapshot과 cached
+  public policy evaluation은 immutable known-preset snapshot과 cached
   connection/capability/identity/payload blocker matrix만 사용해 wire를 보내지 않는다. WPF
-  readiness는 `EVALUATION_WIRE=NONE`, PLC bit 9와 `NoApprovedTarget`을 각각 표시한다. SDK target
-  목록은 Axis1 exact tuple 하나뿐이며, bit 9가 없는 기존 PLC, 축 2~4와 다른 tuple은 wire 전에
-  fail-closed한다. Phase 1 PI Write는 SDK compile-time allowlist가 empty인
+  readiness는 `EVALUATION_WIRE=NONE`과 PLC bit 9를 표시한다. known preset 0건은 generic blocker가
+  아니며 global SDK gate OFF는 `WritePolicyDisabled`로 표시한다. 기존 `NoApprovedTarget` enum 값은
+  호환성만 유지한다. UI24 canary 실행 자체는 Axis1 exact tuple 한 건에 묶이지만, PASS proof는
+  ordinary generic target authorization이 아니라 current image/session transport 증거다. Phase 1 PI Write는 SDK compile-time allowlist가 empty인
 것에 더해
 `Phase1AllowsPiWrite=false`가 input/button을 비활성화하고 click handler도 다시 거부한다.
 
@@ -880,9 +883,10 @@ application/SDK 계약이다. 실제 PLC scheduler, EtherCAT 반응, 물리 정�
   SDO/output Write는 dispatch 전 crash-safe journal을 arm하고 accepted/terminal/readback 상태를
   원자적으로 저장한다. journal format v2는 SDO의 Slave/Object/SubIndex/Type/Length/Timeout과
   expected bytes를 checksum 범위에 typed metadata로 보존한다. 시작 시 미해결 record는
-  command/ticket 또는 Write를 재생하지 않는다. legacy v1 SDO record와 승인되지 않은 target은
-  protocol recovery를 wire 전에 거부한다. terminal-success v2 record가 current SDK allowlist의
-  exact target과 일치할 때만 운영자가 1회 read-only recovery를 실행할 수 있다. Read 전후의
+  command/ticket 또는 Write를 재생하지 않는다. legacy v1 SDO record와 current recovery workflow가
+  재구성할 수 없는 target은 protocol recovery를 wire 전에 거부한다. terminal-success v2 record가
+  current UI24 canary preset의 exact target과 일치할 때만 운영자가 1회 read-only recovery를 실행할
+  수 있다. 이는 current WPF recovery 제한이며 generic SDK address authorization이 아니다. Read 전후의
   fresh BootId/MapRevision과 exact read bytes가 일치하고 같은 record/state의 atomic CAS가
   성공하면 Resolved tombstone을 먼저 영속화한 뒤 성공을 반환한다. 그 외 record는 target의 물리
   확인과 명시적 recovery ACK로만 해소한다. checksum corruption과
@@ -1009,8 +1013,8 @@ application/SDK 계약이다. 실제 PLC scheduler, EtherCAT 반응, 물리 정�
   fresh `DiagnosticsBootId`/`MapRevision`은 `0x7E50` 전에 검사한다. terminal 해제도 Read
   ticket/status/fresh capability가 같은 owner/session provenance와 원 identity에 모두 일치하고
   fresh capability observation sequence가 context baseline보다 크며 exact 4-byte 값이 같을 때만
-  허용한다. 이 public context는 Axis1-only SDK SDO Write allowlist를 우회하지 않으며 bit 9 off,
-  축 2~4 또는 다른 tuple에서는 새 Write가 계속 fail-closed다.
+  허용한다. 이 public context는 generic SDK request policy와 current UI24 canary workflow를 우회하지
+  않으며 bit 9 off, 축 2~4 또는 다른 tuple에서는 current WPF canary Write가 계속 fail-closed다.
 - D5 quarantine은 UI field의 mutable list가 아니라 `D5SdoQuarantineLedger`가 소유한다.
   owner-bound opaque handle, immutable evidence snapshot, entry/global revision과 exact-once
   disarm을 사용한다. accepted ticket은 `LMCOperationTicket.BelongsTo`로 owner connection을

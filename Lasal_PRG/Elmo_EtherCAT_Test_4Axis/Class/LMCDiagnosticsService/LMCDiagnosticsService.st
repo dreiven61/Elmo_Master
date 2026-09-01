@@ -522,6 +522,8 @@ END_FUNCTION
 #define LMC_DIAG_D3_ENABLED           TRUE
 #define LMC_DIAG_D5_SDO_READ_ENABLED  TRUE
 #define LMC_DIAG_D5_SDO_WRITE_GLOBAL_ENABLED TRUE
+// UI24 axis flags expose qualification presets only. Generic bit9 and
+// request admission depend on the global gate and the generic request policy.
 #define LMC_DIAG_D5_SDO_WRITE_UI24_AXIS1_ENABLED TRUE
 #define LMC_DIAG_D5_SDO_WRITE_UI24_AXIS2_ENABLED FALSE
 #define LMC_DIAG_D5_SDO_WRITE_UI24_AXIS3_ENABLED FALSE
@@ -2296,9 +2298,20 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 				if sdoOperationFlags = 1 then
 					expectedRequestSize += TO_UDINT(sdoDataLength);
 				end_if;
-				if (sdoOperationFlags = 1) & (sdoDataLength = 4) &
-					(RequestSize = 36) then
-					requestSdoWriteData := (pRequest + 32)^$UDINT;
+				if (sdoOperationFlags = 1) &
+					((sdoDataLength = 1) | (sdoDataLength = 2) |
+					 (sdoDataLength = 4)) &
+					(RequestSize = expectedRequestSize) then
+					case sdoDataLength of
+						1:
+							requestSdoWriteData := TO_UDINT(
+								(pRequest + 32)^$USINT);
+						2:
+							requestSdoWriteData := TO_UDINT(
+								(pRequest + 32)^$UINT);
+						4:
+							requestSdoWriteData := (pRequest + 32)^$UDINT;
+					end_case;
 					writePolicyDetail := GetSdoWritePolicyDetail(
 						requestSdoSlaveReference, requestSdoObjectIndex,
 						requestSdoSubIndex, requestSdoValueType, sdoDataLength,
@@ -2329,11 +2342,6 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 				elsif requestSdoObjectIndex = 0 then
 					detailCode := 12;
 				elsif (requestSdoValueType < 1) | (requestSdoValueType > 11) then
-					detailCode := 5;
-				elsif (sdoOperationFlags = 1) & (sdoDataLength <> 4) then
-					detailCode := 5;
-				elsif (sdoOperationFlags = 1) &
-					(requestSdoValueType <> 4) then
 					detailCode := 5;
 				elsif (sdoOperationFlags = 1) & (writePolicyDetail <> 0) then
 					detailCode := writePolicyDetail;
