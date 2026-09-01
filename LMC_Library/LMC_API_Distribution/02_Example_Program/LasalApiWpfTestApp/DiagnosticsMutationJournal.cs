@@ -43,11 +43,11 @@ namespace LasalMotionControlApiExample
                     "Durable SDO recovery supports SlaveReference 1 through 4 only.");
             }
 
-            if (objectIndex == 0 || IsPermanentlyUnsafeObject(objectIndex))
+            if (objectIndex == 0)
             {
                 throw new ArgumentOutOfRangeException(
                     "objectIndex",
-                    "Durable SDO recovery cannot target a direct motion/control object.");
+                    "Durable SDO recovery requires a nonzero ObjectIndex.");
             }
 
             if (valueType != LMCSignalValueType.Int32
@@ -99,11 +99,6 @@ namespace LasalMotionControlApiExample
             get { return (byte[])expectedWriteData.Clone(); }
         }
 
-        private static bool IsPermanentlyUnsafeObject(ushort objectIndex)
-        {
-            // Address selection is not denylisted for generic SDO Write.
-            return false;
-        }
     }
 
     internal enum DiagnosticsSdoRestartRecoveryDisposition

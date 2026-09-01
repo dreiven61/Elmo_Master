@@ -288,7 +288,6 @@ namespace LasalMotionControlApiExample
                 "Reset Replay Blocked - Safety Recovery Required",
                 "Group Reset",
                 "Arm SDO Write",
-                "Run Same-Value Qualification First",
                 "Submit Required Exact Readback",
                 "Readback Session Mismatch",
                 "Confirm & Submit SDO Write",
@@ -831,7 +830,7 @@ namespace LasalMotionControlApiExample
                                 StringComparison.Ordinal));
                     PumpUiOnce();
                     AssertEx.Equal(
-                        "먼저 동일 값 Qualification 실행",
+                        "SDO Write 준비",
                         (string)window.ButtonSubmitSdo.Content,
                         "Korean SDO Write mode did not localize its action.");
                     window.TextSdoWriteData.Text = "1";

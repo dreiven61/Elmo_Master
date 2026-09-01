@@ -2,7 +2,7 @@
 
 - 기준일: 2026-09-01
 - current integration / qualification source: `dev`
-- current baseline: `dev@eeebda2b36a52a442f4919cbe70011536103b7be` (`dev: finalize generic SDO Write session qualification`)
+- inspected baseline: `dev@29d1fc77e5bc10c96f172480beee1a8f645a1364` (`docs: make direct SDO Write override canonical`)
 - current status snapshot: `DEVELOPMENT_STATUS_20260901.md`
 - **remaining implementation master: `REMAINING_IMPLEMENTATION_DESIGN_20260901.md`**
 - **current P0 detailed design: `SDO_WRITE_DETAILED_DESIGN_20260901.md`**
@@ -129,10 +129,10 @@ current detailed implementation/qualification order:
 2. `SWR-02` image/session transport proof — **SOFTWARE COMPLETE, diagnostic evidence only**
 3. `SWR-03` baseline -> confirmation -> pre-write guard -> journal v4 -> one-shot Write -> exact readback — **SOFTWARE COMPLETE**
 4. `SWR-04` shared executor/no-replay source contract — **SOFTWARE COMPLETE; physical regression pending**
-5. `DMW-01` proof-based UI button lock 제거 — **PENDING**
-6. `DMW-02` ordinary handler의 qualification proof mandatory checks 제거 — **PENDING**
-7. `DMW-03` UI/title/localization을 optional qualification 의미로 정리 — **PENDING**
-8. `DMW-04` no-proof direct Write WPF regression + distribution mirror — **PENDING**
+5. `DMW-01` proof-based UI button lock 제거 — **SOFTWARE COMPLETE (2026-09-02)**
+6. `DMW-02` ordinary handler의 qualification proof mandatory checks 제거 — **SOFTWARE COMPLETE (2026-09-02)**
+7. `DMW-03` UI/title/localization을 optional qualification 의미로 정리 — **SOFTWARE COMPLETE (2026-09-02)**
+8. `DMW-04` no-proof direct Write WPF regression + distribution source mirror — **SOFTWARE COMPLETE (2026-09-02)**
 9. `SWR-05/06` Axis1 1/2/4-byte physical/failure matrix — pending user qualification
 10. `SWR-07` Axis2..4 physical matrix — pending user qualification
 11. `SWR-08` issue/distribution/release sync — pending physical evidence

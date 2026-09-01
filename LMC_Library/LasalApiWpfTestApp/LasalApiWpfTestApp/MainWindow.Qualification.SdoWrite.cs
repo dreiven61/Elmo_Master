@@ -118,8 +118,8 @@ namespace LasalMotionControlApiExample
             }
 
             // A new live qualification attempt supersedes any earlier
-            // session proof. Only this attempt's complete four-ticket PASS
-            // may reopen the ordinary manual Write path.
+            // session proof. This proof is diagnostic evidence only and is
+            // not an admission requirement for ordinary manual Write.
             sdoWriteActivationQualificationProof = null;
             EnsureNoPendingManualD5Operation();
             EnsureNoUnresolvedD5SdoQualificationTicket(
@@ -468,7 +468,7 @@ namespace LasalMotionControlApiExample
                     out activationProof))
             {
                 throw new InvalidOperationException(
-                    "The same-value SDO Write round trip passed, but its exact current-session activation proof could not be captured. Manual SDO Write remains blocked.");
+                    "The same-value SDO Write round trip passed, but its exact current-session diagnostic proof could not be captured.");
             }
 
             WriteD5SdoQualificationLog(
@@ -1064,11 +1064,11 @@ namespace LasalMotionControlApiExample
                 .AppendLine("/4");
             builder.AppendLine(
                 "AXIS PROOF     PENDING_RUNNER_PREFLIGHT | PowerOn=False, Standstill=True, stable position are not cached here.");
-            builder.Append("MANUAL WRITE  ")
+            builder.Append("QUAL PROOF    ")
                 .Append(manualWriteProofCurrent
-                    ? "OPEN_CURRENT_SESSION"
-                    : "CLOSED_RUN_SAME_VALUE_FIRST")
-                .AppendLine(" | proof never transfers across connection sessions or PLC identity changes.");
+                    ? "CURRENT_SESSION_PASS"
+                    : "NOT_CURRENT")
+                .AppendLine(" | optional engineering diagnostic only; ordinary manual SDO Write admission does not depend on this proof.");
             builder.Append("NEXT          ")
                 .Append(GetD5SdoWriteSameValueGateReason());
             return builder.ToString();

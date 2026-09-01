@@ -682,8 +682,8 @@ namespace LasalMotionControlApiExample
             // Common actionable fields and status text. Protocol identifiers,
             // value-type tokens, and raw numeric values intentionally remain
             // unchanged.
-            values["LASAL Motion Control API Example [LIVE Axis qualification / qualified Axis1 UI24 SDO Write]"] =
-                "LASAL 모션 제어 API 예제 [실제 축 qualification / 검증된 Axis1 UI24 SDO Write]";
+            values["LASAL Motion Control API Example [Generic SDO Write / LIVE Diagnostics]"] =
+                "LASAL 모션 제어 API 예제 [Generic SDO Write / 실제 진단]";
             values["Axis"] = "축";
             values["Axis Error"] = "축 오류";
             values["Operation"] = "작업";
@@ -866,8 +866,6 @@ namespace LasalMotionControlApiExample
                 "Reset 확인 계속 (0x2049 재전송 없음)";
 
             values["Arm SDO Write"] = "SDO Write 준비";
-            values["Run Same-Value Qualification First"] =
-                "먼저 동일 값 Qualification 실행";
             values["Submit Required Exact Readback"] =
                 "필수 정확 Readback 전송";
             values["Readback Session Mismatch"] =

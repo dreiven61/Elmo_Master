@@ -464,8 +464,7 @@ namespace LasalMotionControlLib
                 throw new ArgumentOutOfRangeException("slaveReference");
             }
 
-            if (objectIndex == 0
-                || LMCSdoRequest.IsPermanentlyUnsafeObject(objectIndex))
+            if (objectIndex == 0)
             {
                 throw new ArgumentOutOfRangeException(
                     "objectIndex",
@@ -896,11 +895,10 @@ namespace LasalMotionControlLib
                     "Generic SDO Write supports SlaveReference 1 through 4 only.");
             }
 
-            if (request.ObjectIndex == 0
-                || LMCSdoRequest.IsPermanentlyUnsafeObject(request.ObjectIndex))
+            if (request.ObjectIndex == 0)
             {
                 throw new NotSupportedException(
-                    "Generic SDO Write cannot target semantic or dedicated-owner objects.");
+                    "Generic SDO Write requires a nonzero ObjectIndex.");
             }
 
             var expectedLength =

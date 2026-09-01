@@ -381,17 +381,17 @@ ObjectIndex 자체로 막히지 않는지 최소 다음 tuple을 request-policy/
 
 다음이 모두 만족되면 `DIRECT_MANUAL_SDO_WRITE_ENABLEMENT`를 software complete로 판정한다.
 
-- [ ] WPF button이 qualification proof 없이 Write mode에서 활성화됨
-- [ ] first click baseline/arm, Write 0회
-- [ ] second click exactly one Write
-- [ ] runtime handler에 qualification proof mandatory check 0개
-- [ ] Same-Value runner는 optional diagnostic으로 동작
-- [ ] safe-axis / baseline / prewrite / journal / no-replay / exact readback 유지
-- [ ] ObjectIndex denylist 0개, ObjectIndex 0만 invalid
-- [ ] canonical WPF와 distribution mirror 동기화
-- [ ] Debug/Release WPF build PASS
-- [ ] relevant smoke/regression PASS
-- [ ] stale qualification-required UI/localization 문구 제거
+- [x] WPF button이 qualification proof 없이 Write mode에서 활성화됨
+- [x] first click baseline/arm, Write 0회
+- [x] second click exactly one Write
+- [x] runtime handler에 qualification proof mandatory check 0개
+- [x] Same-Value runner는 optional diagnostic으로 동작
+- [x] safe-axis / baseline / prewrite / journal / no-replay / exact readback 유지
+- [x] ObjectIndex denylist 0개, ObjectIndex 0만 invalid
+- [x] canonical WPF와 distribution source mirror 동기화
+- [x] canonical Debug/Release WPF build PASS
+- [x] relevant smoke/regression PASS
+- [x] stale qualification-required UI/localization 문구 제거
 
 이 gate는 PC/software 판정이다. 실제 drive ObjectIndex/값의 안전성과 physical side effect는 각 hardware qualification의 별도 evidence다.
 
@@ -412,3 +412,48 @@ ObjectIndex 자체로 막히지 않는지 최소 다음 tuple을 request-policy/
 코드 변경 시 이 문서의 핵심 불변식은 다음 한 문장이다.
 
 > **Same-Value Qualification은 선택적 진단이고, ordinary Generic SDO Write의 admission은 current request의 capability/session/safety/confirmation/journal/readback 계약으로 결정한다.**
+
+---
+
+# 11. 구현 결과 — 2026-09-02
+
+판정: **PC/software complete / PLC 및 physical qualification pending**
+
+- canonical WPF Debug/Release: VS2019 MSBuild PASS
+- SDK Debug: `dotnet build` PASS, warning 0 / error 0
+- SDK automated regression: 1200/1200 PASS
+- WPF SDO focused smoke: 17/17 PASS
+- WPF localization smoke: 9/9 PASS
+- `Verify-LasalGenericSdoWrite.ps1`: PASS
+- distribution example source mirror에는 동일한 direct-manual 의미를 반영했다.
+- 기존 distribution package의 `01_API/LasalMotionControlLib.dll`은 current SDK보다 오래되어 standalone
+  distribution build는 기존 missing-type 오류로 실패한다. 검증된 release candidate 재조립 전까지 기존
+  배포 binary를 current로 판정하지 않는다.
+- LASAL C78 build/download와 실제 drive Write/readback은 이 PC 검증에 포함하지 않았다.
+
+### 2026-09-02 cached observation deadlock 보정
+
+실기 화면에서 Read는 성공했지만 ordinary Write 버튼이 비활성화되는 추가 결함을 확인했다. PLC는
+`bit8/read=1`, `bit9/write=1`, `bit13/general=1`을 광고했고 journal/admission도 정상이었으나,
+SDK 내부 SDO preflight가 capability observation sequence를 갱신한 뒤 WPF cached observation이
+`CapabilityObservationNotCurrent`로 남았다.
+
+ordinary manual Write UI는 이 blocker 하나만 존재할 때 버튼을 열고 click handler의 fresh capability
+preflight에서 다시 검증하도록 수정했다. 다른 capability/identity/payload/policy blocker는 모두 계속
+fail-closed한다. canonical Release build, distribution example source의 current SDK reference build와
+WPF SDO focused smoke 17/17을 통과했으며 PLC Write/readback 결과는 사용자 실기 재시험 전까지
+미확정이다.
+
+### 2026-09-02 1-byte quarantine evidence 결함 보정
+
+`0x6060:0 / UInt8 / Length=1` 실기 시도는 baseline과 pre-write guard를 통과했지만 실제 submit 전에
+PC evidence 계층의 4-byte 고정 검사에서 중단됐다. 따라서 해당 로그는 drive/PLC Write 실패가 아니라
+`NOT_SUBMITTED_PREFLIGHT_FAILED`다.
+
+- 4-byte 고정 검사를 exact 1/2/4-byte 검사로 변경했다.
+- baseline Read가 terminal slot을 교체한 뒤 남아 있던 이전 UI ticket을 폐기하여 후속
+  `DetailCode=23` stale 조회를 막았다.
+- canonical Release와 distribution current-SDK reference build가 warning/error 없이 통과했다.
+- WPF SDO focused smoke는 18/18 PASS다.
+
+수정 후에도 physical Write/terminal/readback은 사용자 실기 재시험으로 별도 판정한다.

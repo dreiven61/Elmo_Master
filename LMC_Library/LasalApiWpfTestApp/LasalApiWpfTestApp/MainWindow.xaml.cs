@@ -22,7 +22,7 @@ namespace LasalMotionControlApiExample
         private const int PreResponseTransportFreshSessionRetryDelayMilliseconds =
             1000;
         private const string TopologyUiFeatureMarker =
-            "CREVIS_TOPOLOGY_AXIS1_UI24_SDO_WRITE_LIVE_AXIS_QUAL_V5";
+            "GENERIC_SDO_WRITE_DIRECT_MANUAL_V1";
         private const string ReconnectPolicyMarker =
             "RPC_INIT_FRESH_TCP_ONCE_V2";
         private static readonly PlcUnitOption[] PlcUnitOptions =
@@ -360,7 +360,7 @@ namespace LasalMotionControlApiExample
 
             Title = "LASAL Motion Control API Example v"
                 + version
-                + " [LIVE Axis qualification / qualified Axis1 UI24 SDO Write]";
+                + " [Generic SDO Write / LIVE Diagnostics]";
             WriteLog(
                 "Executable identity: Path="
                 + executablePath

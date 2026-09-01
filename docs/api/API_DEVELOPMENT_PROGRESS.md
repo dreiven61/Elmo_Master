@@ -88,7 +88,7 @@ history 문서에 남기고 이 문서에는 current 판정만 유지한다.
 | D3 Recorder | `0x7E40-49` | Active/Limited | Single/Ring/Trigger, single recorder owner |
 | D4 Double | `0x7E4A-4D` | Dormant | capability/proof gate OFF |
 | D5 SDO Read | `0x7E50` read | Active/Limited | general inline read, exact ticket identity 필요 |
-| D5 SDO Write | `0x7E50` write | Limited | SWR-01~04 software 완료: generic safe non-semantic 1/2/4-byte parser/policy + baseline/prewrite/journal v4 + one-shot/durable recovery; hardware readback matrix 미완료 |
+| D5 SDO Write | `0x7E50` write | Limited | SWR-01~04 + DMW-01~04 software 완료: qualification proof 없이 direct manual Arm/confirm 가능, generic nonzero ObjectIndex 1/2/4-byte policy + baseline/prewrite/journal v4 + one-shot/durable recovery. Read 뒤 `CapabilityObservationNotCurrent` UI 재잠금과 1-byte Write의 pre-submit quarantine evidence 4-byte 고정 결함을 2026-09-02 수정하고 focused smoke 18/18 PASS; 실기 로그의 `DetailCode=23`은 교체된 이전 terminal ticket 재조회로 확인해 stale ticket 폐기 적용. PLC/physical Write terminal 및 exact readback matrix 미완료 |
 | Encoder maintenance | `0x7E53/54/55` | Active/Limited | TW20/TW19 fixed payload; terminal과 actual drive effect 구분 |
 | Static topology | `0x7E11/12` | Active | configured inventory, runtime health 증거 아님 |
 | Dynamic node/DI | `0x7E13/22` | Dormant | route/source 존재, bits 15/16 OFF |

@@ -29,8 +29,8 @@ journal lock 실패 상태로 실행되는 것을 막는다.
   qualification 전까지 모두 false
 - SDO/Write Policy: general-inline SDO Read와 generic scalar SDO Write의 ticket
   submit/status/queued cancel, Read의 typed 1/2/4-byte inline 결과 표시/save, Write의
-  UI24 transport-canary four-ticket activation proof, 그 proof 후의 safe-axis preflight와 명시적
-  two-click 확인, capability 및 semantic/dedicated-owner blocklist와 extended result 확인
+  optional UI24 transport-canary four-ticket evidence, proof와 독립된 safe-axis preflight와 명시적
+  two-click 확인, nonzero ObjectIndex/canonical scalar capability 및 extended result 확인
 - Read-only API: Admin capability를 선행 확인한 뒤 physical axis 1~4의 semantic
   parameter, fixed group `0x0100` parameter, typed drive operation mode와 non-atomic
   drive status를 읽는 Phase 1 실기 검증 화면
@@ -171,10 +171,10 @@ CREVIS configured topology는 Connect 성공 뒤 `0x7E00` capability를 갱신�
 오해하지 않게 하고, 실패 영역에 capability/BootId/MapRevision과 오류를 직접 표시한다. 자동
 load 자체는 read-only topology 조회뿐이며 motion 또는 mutation command를 보내지 않는다. 창 제목과
 시작 로그는 실행 파일 경로, 버전, build UTC와
-`CREVIS_TOPOLOGY_AXIS1_UI24_SDO_WRITE_LIVE_AXIS_QUAL_V5` marker를 남겨
+`GENERIC_SDO_WRITE_DIRECT_MANUAL_V1` marker를 남겨
 오래된 GUI binary를 즉시 구분한다.
-`LMC_API_Distribution` 아래 복제본은 이 current source/session-proof 계약과 동기화되지
-않은 stale artifact이므로 현재 실행/배포 기준으로 사용하지 않는다.
+`LMC_API_Distribution` source mirror에는 direct-manual 의미를 반영했지만 기존 packaged DLL/EXE는
+current release candidate가 아니므로 현재 실행/배포 기준으로 사용하지 않는다.
 SDK topology aggregate는 owner/session-bound이며 topology-bound Health/Digital I/O는 unbound,
 foreign, reconnect-stale topology를 capability/read RPC 전에 거부하고 원 session generation을
 exchange까지 유지한다. raw topology/I/O overload와 로컬 validator는 observation-only 호환 경로다.

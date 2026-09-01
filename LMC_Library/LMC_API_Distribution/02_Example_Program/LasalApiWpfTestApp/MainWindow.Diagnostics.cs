@@ -1241,18 +1241,7 @@ namespace LasalMotionControlApiExample
                 && mode == SdoOperationMode.Write
                 && !HasPendingD5SdoWriteReadback)
             {
-                var selectedTarget = ComboSdoWriteTarget == null
-                    ? null
-                    : ComboSdoWriteTarget.SelectedItem
-                        as LMCSdoWriteTarget;
-                var englishCaption =
-                    HasCurrentSdoWriteActivationQualificationProof(
-                        connection,
-                        diagnosticCapabilities,
-                        selectedTarget)
-                        ? "Arm SDO Write"
-                        : "Run Same-Value Qualification First";
-                ButtonSubmitSdo.Content = englishCaption;
+                ButtonSubmitSdo.Content = "Arm SDO Write";
                 UiLocalizationService.Apply(
                     ButtonSubmitSdo,
                     currentUiLanguage);
@@ -1643,7 +1632,6 @@ namespace LasalMotionControlApiExample
                             isRequiredWriteReadback
                                 || RequiresGeneralInlineSdoRead(request));
                     D5SdoQuarantineHandle submissionGuard;
-                    LMCSdoWriteTarget pinnedWriteTarget = null;
                     try
                     {
                         if (isRequiredWriteReadback
@@ -1661,22 +1649,6 @@ namespace LasalMotionControlApiExample
                             request);
                         if (request.IsWrite)
                         {
-                            var currentApprovedTarget =
-                                FindApprovedSdoWriteTargetForRequest(
-                                    currentConnection.Diagnostics
-                                        .GetApprovedSdoWriteTargets(),
-                                    request);
-                            if (!HasCurrentSdoWriteActivationQualificationProof(
-                                    currentConnection,
-                                    capabilities,
-                                    currentApprovedTarget))
-                            {
-                                throw new InvalidOperationException(
-                                    "Manual SDO Write is blocked until the exact current connection session, DiagnosticsBuild, BootId, MapRevision, and approved target pass the four-ticket Same-Value SDO Write qualification. No Write was submitted.");
-                            }
-
-                            pinnedWriteTarget = currentApprovedTarget;
-
                             await VerifyD5SdoQualificationSafeAxisAsync(
                                 currentConnection,
                                 request.SlaveReference,
@@ -1713,14 +1685,6 @@ namespace LasalMotionControlApiExample
                                     + request.SlaveReference.ToString(
                                         CultureInfo.InvariantCulture),
                                 CancellationToken.None);
-                            if (!HasCurrentSdoWriteActivationQualificationProof(
-                                    currentConnection,
-                                    capabilities,
-                                    pinnedWriteTarget))
-                            {
-                                throw new InvalidOperationException(
-                                    "The manual SDO Write activation proof changed or was retired during final axis verification. No Write was submitted.");
-                            }
                         }
 
                         submissionGuard =
@@ -1765,7 +1729,6 @@ namespace LasalMotionControlApiExample
                                     .SubmitSdoWriteIdentityPinnedAsync(
                                         request,
                                         capabilities,
-                                        pinnedWriteTarget,
                                         CancellationToken.None)
                                 : await currentConnection.Diagnostics
                                     .SubmitSdoAsync(
@@ -2517,15 +2480,6 @@ namespace LasalMotionControlApiExample
                     ? canSubmitMutationOperation
                     : canSubmitReadOnlyOperation)
                 || requiredReadbackSubmissionAvailable;
-            var hasApprovedSdoWriteTarget =
-                ComboSdoWriteTarget.SelectedItem is LMCSdoWriteTarget;
-            var selectedSdoWriteTarget = ComboSdoWriteTarget.SelectedItem
-                as LMCSdoWriteTarget;
-            var manualSdoWriteActivationQualified = !isSdoWrite
-                || HasCurrentSdoWriteActivationQualificationProof(
-                    currentConnection,
-                    diagnosticCapabilities,
-                    selectedSdoWriteTarget);
             if (!isSdoWrite
                 && supportsSdoRead
                 && !supportsGeneralSdoRead
@@ -2572,17 +2526,14 @@ namespace LasalMotionControlApiExample
                     ? "Submit Required Exact Readback"
                     : "Readback Session Mismatch"
                 : isSdoWrite
-                    ? !manualSdoWriteActivationQualified
-                        ? "Run Same-Value Qualification First"
-                        : sdoWriteConfirmationState.IsArmed
-                            ? "Confirm & Submit SDO Write"
-                            : "Arm SDO Write"
+                    ? sdoWriteConfirmationState.IsArmed
+                        ? "Confirm & Submit SDO Write"
+                        : "Arm SDO Write"
                     : "Submit SDO Read";
             ButtonSubmitSdo.ToolTip = isSdoWrite
                 && !HasPendingD5SdoWriteReadback
-                && !manualSdoWriteActivationQualified
-                    ? "Manual SDO Write is fail-closed until this exact connection session, DiagnosticsBuild, BootId, MapRevision, and approved target pass the four-ticket Same-Value SDO Write qualification below."
-                    : "Write mode uses two-click confirmation after the current-session same-value activation proof. Read mode submits one tracked SDO Read.";
+                    ? "Write mode uses two-click confirmation, safe-axis preflight, a durable no-replay journal, and mandatory exact readback. Same-value qualification is an optional engineering diagnostic."
+                    : "Read mode submits one tracked SDO Read.";
             ButtonSubmitSdo.IsEnabled = connected
                 && idle
                 && canSubmitSdoOperation
@@ -2592,8 +2543,6 @@ namespace LasalMotionControlApiExample
                         && !isSdoWrite
                     : isSdoWrite
                     ? supportsSdoWrite
-                        && hasApprovedSdoWriteTarget
-                        && manualSdoWriteActivationQualified
                         && DiagnosticsMutationJournalCanArm
                     : supportsSdoRead);
             var inlineReadLength = ComboSdoDataLength.SelectedItem
@@ -2761,7 +2710,29 @@ namespace LasalMotionControlApiExample
         {
             var evaluation = EvaluateCachedSdoWritePolicy();
             return evaluation != null
-                && evaluation.CanAttemptSubmission;
+                && CanAttemptManualSdoWriteWithFreshPreflight(evaluation);
+        }
+
+        internal static bool CanAttemptManualSdoWriteWithFreshPreflight(
+            LMCSdoWritePolicyEvaluation evaluation)
+        {
+            if (evaluation == null)
+            {
+                return false;
+            }
+
+            // SubmitSdoAsync/ReadSdoInlineAsync perform their own capability
+            // reads. That legitimately supersedes the WPF's last displayed
+            // observation and must not permanently disable the next manual
+            // Write. The click handler always reads fresh capabilities before
+            // baseline/guard/Write work, so only this one cache-age blocker is
+            // recoverable at button-admission time. Every capability, identity,
+            // payload, connection, and SDK-policy blocker remains fail-closed.
+            var nonRefreshableBlockers = evaluation.Blockers
+                & ~LMCSdoWritePolicyBlockers
+                    .CapabilityObservationNotCurrent;
+            return nonRefreshableBlockers
+                == LMCSdoWritePolicyBlockers.None;
         }
 
         private LMCSdoWritePolicyEvaluation EvaluateCachedSdoWritePolicy()
@@ -3552,24 +3523,11 @@ namespace LasalMotionControlApiExample
             if (mode == SdoOperationMode.Write)
             {
                 ApplySelectedSdoWriteTarget();
-                var selectedTarget = ComboSdoWriteTarget == null
-                    ? null
-                    : ComboSdoWriteTarget.SelectedItem
-                        as LMCSdoWriteTarget;
-                var activationProofCurrent =
-                    HasCurrentSdoWriteActivationQualificationProof(
-                        connection,
-                        diagnosticCapabilities,
-                        selectedTarget);
-                ButtonSubmitSdo.Content = !activationProofCurrent
-                    ? "Run Same-Value Qualification First"
-                    : sdoWriteConfirmationState.IsArmed
-                        ? "Confirm & Submit SDO Write"
-                        : "Arm SDO Write";
+                ButtonSubmitSdo.Content = sdoWriteConfirmationState.IsArmed
+                    ? "Confirm & Submit SDO Write"
+                    : "Arm SDO Write";
                 TextDiagnosticOperationSummary.Text =
-                    approvedSdoWriteTargets.Count == 0
-                        ? "SDO Write fields may be prepared, but Submit is fail-closed: this SDK build has no approved target. Confirm a reserved drive object before enabling the SDK and PLC allowlists."
-                        : "SDO Write fields remain editable, but Submit must exactly match the selected SDK-approved target. The GUI also requires PLC bits 8/9/13, PowerOn=False, Standstill=True, stable position, and explicit confirmation.";
+                    "SDO Write accepts a valid generic 1/2/4-byte request. Known targets are optional presets. The GUI also requires PLC write capabilities, PowerOn=False, Standstill=True, stable position, and explicit two-click confirmation.";
             }
             else
             {

@@ -2,7 +2,7 @@
     x:Class="LasalMotionControlApiExample.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    Title="LASAL Motion Control API Example [LIVE Axis qualification / qualified Axis1 UI24 SDO Write]"
+    Title="LASAL Motion Control API Example [Generic SDO Write / LIVE Diagnostics]"
     Width="1180"
     Height="860"
     MinWidth="980"

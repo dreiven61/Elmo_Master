@@ -176,9 +176,9 @@ CREVIS/topology 화면은 Connect 직후 capability와 static 7-entry inventory�
 Reload에서도 capability부터 새로 읽는다. load 실패 또는 connection loss 시 이전 topology 행은
 폐기하고 늦은 다른 session 응답은 commit 직전에 거부하며, 화면에 capability bits,
 DiagnosticsBuild, BootId, MapRevision과 오류를 남긴다. 창 제목과 시작 로그의
-`CREVIS_TOPOLOGY_AXIS1_UI24_SDO_WRITE_LIVE_AXIS_QUAL_V5` 실행 파일 marker로 구버전 GUI 실행 여부를 구분한다. `LMC_API_Distribution`
-복제본은 이 current source/session-proof 계약과 동기화되지 않은 stale artifact이므로 현재
-실행/배포 mapping 기준으로 사용하지 않는다. configured
+`GENERIC_SDO_WRITE_DIRECT_MANUAL_V1` 실행 파일 marker로 구버전 GUI 실행 여부를 구분한다.
+`LMC_API_Distribution` source mirror에는 direct-manual 의미를 반영했지만 기존 packaged DLL/EXE는
+current release candidate가 아니므로 실행/배포 mapping 기준으로 사용하지 않는다. configured
 schema 열과 `LIVE` health/DI 열은 분리돼 있다. 기본 선택된 `Auto refresh live state`는 bit 15
 node health 또는 bit 16 selected DI가 있을 때만 동작한다. auto-loaded topology aggregate도
 owner/session-bound이며 topology-bound read는 unbound, foreign, reconnect-stale aggregate를
@@ -392,18 +392,12 @@ PC/build 계약이며 실제 PLC timeout/drain packet 증거는 별도다.
 generic runtime support를 결정하며 UI[24] axis flags는 qualification preset 노출만 결정한다.
 SDK known preset은 Slave/Axis 1 Gold UI[24] `0x2F00:24`, `Int32`, 4-byte, 값 범위
 `-1073741823..1073741823` 한 건이다. 이 목록은 generic address authorization이 아니며 0건이어도
-generic cached policy가 준비될 수 있다. DS402 motion/control 및 dedicated-owner blocklist,
-PI Write `0x7E21`, extended result `0x7E51` 제한은 유지한다.
+generic cached policy가 준비될 수 있다. Generic SDO Write의 ObjectIndex denylist는 없고
+`0x0000`만 invalid다. PI Write `0x7E21`, extended result `0x7E51` 제한은 유지한다.
 일반 WPF Write의 SWR-02/03 source 전환은 완료됐다. 다만 이 판정은 production-ready가 아니라
 software implementation ready이며 C78/PLC/physical qualification은 별도다.
-일반 manual editor Write는 이 source gate만으로 활성화되지 않는다. same-value qualification이
-baseline Read, unchanged pre-Write guard Read, byte-identical Write 1회, guarded exact Readback을
-서로 다른 네 ticket으로 PASS한 뒤 process-local activation proof를 만든다. proof는 현재
-`LMCConnection` reference/session generation, `DiagnosticsBuild`, `DiagnosticsBootId`,
-`MapRevision`, BaseCycleTime, MaxSdoDataBytes와 required capability bits에 귀속되며 재연결이나
-image/capability 변경을 건너 재사용되지 않는다. identity mismatch 또는 disconnect를 한 번 관측한
-proof는 영구 폐기돼 A -> B -> A에서도 다시 활성화되지 않는다. manual second-click은 current proof와
-ordinary exact request를
+same-value qualification은 optional transport diagnostic이며 일반 manual editor의 admission에
+필요하지 않다. manual second-click은 ordinary exact request와 current capability identity를
 SDK mutation gate에 전달하고, SDK의 fresh Build/BootId/MapRevision exact 비교를 통과한 경우만
 `0x7E50`을 만든다.
 
@@ -411,8 +405,7 @@ SDK mutation gate에 전달하고, SDK의 fresh Build/BootId/MapRevision exact �
 연결해야 한다. 새 PLC source가 광고하는 expected capability는 base `0x613F`에 bit 9와
 TW[20]/TW[19] bit 18/19를 더한 `0xC633F`이고, WPF는 fresh current-session capabilities의 bit 9와 nonzero
 `DiagnosticsBootId`/`MapRevision`을 확인하기 전까지 same-value qualification Write와 manual
-Submit을 모두 비활성으로 유지한다. manual Submit은 이 조건에 더해 current-session activation
-proof가 필요하다. 기존 download가
+Submit을 모두 비활성으로 유지한다. manual Submit에는 별도 activation proof가 필요하지 않다. 기존 download가
 계속 bit 9=0을 광고하면 target 편집만 가능하고 wire 전송은 0회다. public policy evaluation과
 WPF readiness refresh도 cached immutable target/capability snapshot만 사용하므로 wire가 0회다.
 Gold UI[24]가 사용자 drive program에서 실제로 미사용인지와 live EtherCAT mailbox/packet 동작은

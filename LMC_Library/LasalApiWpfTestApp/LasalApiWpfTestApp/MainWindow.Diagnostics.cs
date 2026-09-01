@@ -1754,13 +1754,6 @@ namespace LasalMotionControlApiExample
                             request);
                         if (request.IsWrite)
                         {
-                            if (!HasCurrentSdoWriteActivationQualificationProof(
-                                    currentConnection,
-                                    capabilities))
-                            {
-                                throw new InvalidOperationException(
-                                    "Manual SDO Write requires a current image/session transport qualification proof. Run the same-value SDO Write qualification first.");
-                            }
                             await VerifyD5SdoQualificationSafeAxisAsync(
                                 currentConnection,
                                 request.SlaveReference,
@@ -1798,12 +1791,12 @@ namespace LasalMotionControlApiExample
                                     throw new InvalidOperationException(
                                         "The SDO Write baseline Read returned a non-canonical result length. No Write was submitted.");
                                 }
-                                if (!HasCurrentSdoWriteActivationQualificationProof(
-                                        currentConnection,
-                                        capabilities))
+                                if (currentOperationIsTerminal
+                                    && diagnosticOperationTicket != null)
                                 {
-                                    throw new InvalidOperationException(
-                                        "The SDO Write transport proof changed during baseline acquisition. No Write was submitted.");
+                                    ClearSupersededManualDiagnosticOperation(
+                                        diagnosticOperationTicket,
+                                        "manual-sdo-write-baseline-replaced-terminal-slot");
                                 }
                                 sdoWriteConfirmationState.Arm(
                                     currentConnection,
@@ -1847,13 +1840,6 @@ namespace LasalMotionControlApiExample
                             RequireManualSdoOperationCapabilities(
                                 capabilities,
                                 request);
-                            if (!HasCurrentSdoWriteActivationQualificationProof(
-                                    currentConnection,
-                                    capabilities))
-                            {
-                                throw new InvalidOperationException(
-                                    "The SDO Write transport proof is no longer current. No Write was submitted.");
-                            }
                             var preWriteGuardRequest =
                                 LMCSdoRequest.CreateRead(
                                     request.SlaveReference,
@@ -2670,12 +2656,6 @@ namespace LasalMotionControlApiExample
                     ? (SdoOperationMode)ComboSdoOperation.SelectedItem
                     : SdoOperationMode.Read;
             var isSdoWrite = sdoOperation == SdoOperationMode.Write;
-            var hasCurrentSdoWriteTransportProof = !isSdoWrite
-                || (connection != null
-                    && diagnosticCapabilities != null
-                    && HasCurrentSdoWriteActivationQualificationProof(
-                        connection,
-                        diagnosticCapabilities));
             var canSubmitSdoOperation = (isSdoWrite
                     ? canSubmitMutationOperation
                     : canSubmitReadOnlyOperation)
@@ -2726,17 +2706,13 @@ namespace LasalMotionControlApiExample
                     ? "Submit Required Exact Readback"
                     : "Readback Session Mismatch"
                 : isSdoWrite
-                    ? !hasCurrentSdoWriteTransportProof
-                        ? "Run Same-Value Qualification First"
-                        : sdoWriteConfirmationState.IsArmed
-                            ? "Confirm & Submit SDO Write"
-                            : "Arm SDO Write"
+                    ? sdoWriteConfirmationState.IsArmed
+                        ? "Confirm & Submit SDO Write"
+                        : "Arm SDO Write"
                     : "Submit SDO Read";
             ButtonSubmitSdo.ToolTip = isSdoWrite
                 && !HasPendingD5SdoWriteReadback
-                    ? !hasCurrentSdoWriteTransportProof
-                        ? "Run the approved UI24 same-value qualification once for this connection/session. After PASS, the proof is transport-scoped and manual ObjectIndex/SubIndex values do not need to match UI24."
-                        : "Write Once accepts any valid generic 1/2/4-byte SDO Write request. Known targets are optional presets; two-click confirmation, safe-axis preflight, durable no-replay journal, and mandatory exact readback remain enforced."
+                    ? "Write Once accepts any valid generic 1/2/4-byte SDO Write request. Known targets are optional presets; two-click confirmation, safe-axis preflight, durable no-replay journal, and mandatory exact readback remain enforced. Same-value qualification is an optional engineering diagnostic."
                     : "Read mode submits one tracked SDO Read.";
             ButtonSubmitSdo.IsEnabled = connected
                 && idle
@@ -2747,7 +2723,6 @@ namespace LasalMotionControlApiExample
                         && !isSdoWrite
                     : isSdoWrite
                     ? supportsSdoWrite
-                        && hasCurrentSdoWriteTransportProof
                         && DiagnosticsMutationJournalCanArm
                     : supportsSdoRead);
             var inlineReadLength = ComboSdoDataLength.SelectedItem
@@ -2915,7 +2890,29 @@ namespace LasalMotionControlApiExample
         {
             var evaluation = EvaluateCachedSdoWritePolicy();
             return evaluation != null
-                && evaluation.CanAttemptSubmission;
+                && CanAttemptManualSdoWriteWithFreshPreflight(evaluation);
+        }
+
+        internal static bool CanAttemptManualSdoWriteWithFreshPreflight(
+            LMCSdoWritePolicyEvaluation evaluation)
+        {
+            if (evaluation == null)
+            {
+                return false;
+            }
+
+            // SubmitSdoAsync/ReadSdoInlineAsync perform their own capability
+            // reads. That legitimately supersedes the WPF's last displayed
+            // observation and must not permanently disable the next manual
+            // Write. The click handler always reads fresh capabilities before
+            // baseline/guard/Write work, so only this one cache-age blocker is
+            // recoverable at button-admission time. Every capability, identity,
+            // payload, connection, and SDK-policy blocker remains fail-closed.
+            var nonRefreshableBlockers = evaluation.Blockers
+                & ~LMCSdoWritePolicyBlockers
+                    .CapabilityObservationNotCurrent;
+            return nonRefreshableBlockers
+                == LMCSdoWritePolicyBlockers.None;
         }
 
         private LMCSdoWritePolicyEvaluation EvaluateCachedSdoWritePolicy()

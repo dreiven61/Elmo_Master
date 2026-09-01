@@ -10,9 +10,10 @@ Visual Studio 2019에서 `LasalApiWpfTestApp.sln`을 열고 `Debug|Any CPU` 또�
 `Release|Any CPU`로 빌드한다. solution 표시는 Any CPU지만 실행 프로젝트의
 `PlatformTarget`은 x64다. 출력 파일 이름은 `LasalMotionControlApiExample.exe`다.
 현재 실행 파일은 시작 로그의
-`CREVIS_TOPOLOGY_AXIS1_UI24_SDO_WRITE_LIVE_AXIS_QUAL_V5` marker로 구분한다.
-`LMC_API_Distribution` 아래 복제본은 이 current source/session-proof 계약과 동기화되지
-않은 stale artifact이므로 현재 예제 실행이나 배포 기준으로 사용하지 않는다.
+`GENERIC_SDO_WRITE_DIRECT_MANUAL_V1` marker로 구분한다.
+`LMC_API_Distribution` 아래 예제 source mirror에는 direct-manual 의미를 반영했지만, 기존
+`01_API` DLL과 Run binary는 current SDK로 재조립한 release candidate가 아니므로 배포 기준으로
+사용하지 않는다.
 앱은 `MainWindow`와 recovery journal을 열기 전에 Windows session 단위 named Mutex를
 획득한다. 이미 실행 중이면 두 번째 프로세스는 경고를 표시하고 journal 또는 network port를
 열지 않은 채 종료한다.
@@ -105,7 +106,7 @@ Debug/Release direct runner 각각 `1133/1133`, WPF
 Debug/Release Rebuild PASS, full smoke `339/339`, reconnect targeted `6/6`을 PASS했다.
 독립 callback/reconnect review도 `9/9`, P0/P1 없음이다. startup identity는
 `ReconnectPolicy=RPC_INIT_FRESH_TCP_ONCE_V2`, `SdkPath`, `SdkBuildUtc`를 함께 기록하며
-topology marker는 계속 `CREVIS_TOPOLOGY_AXIS1_UI24_SDO_WRITE_LIVE_AXIS_QUAL_V5`다.
+feature marker는 `GENERIC_SDO_WRITE_DIRECT_MANUAL_V1`이다.
 
 별도 actual-EXE relaunch gate는 Debug/Release에서 각각 `1/1` PASS했다. Runner가 실제
 `LasalMotionControlApiExample.exe`의 PID/HWND를 찾고 외부에서
@@ -1045,20 +1046,12 @@ Axis1 source gate와 fresh LASAL IDE Rebuild/Link는 반영됐지만 PLC downloa
     표시되지만 현재 연결 PLC의 bit 9가 0이면 Submit은 `SdoWriteCapabilityMissing`으로 차단된다.
     변경 PLC를 Rebuild/Link/download하고 fresh bit 9와 새 BootId/MapRevision을 확인한 뒤에만
     다음 안전 gate로 진행한다. UI24 preset은 transport canary이며 generic address authorization이
-    아니다. DS402 motion/control 및 dedicated-owner blocklist는 계속 차단된다. SWR-02/03 source
+    아니다. Generic Write는 ObjectIndex `0x0000`만 invalid이며 주소 denylist를 두지 않는다. SWR-02/03 source
     workflow는 완료됐지만 C78/PLC/physical qualification 전에는 production-ready가 아니다.
 
-    source gate가 열려 있어도 일반 manual editor의 Write Submit은 바로 열리지 않는다.
-    먼저 same-value qualification이 baseline Read, pre-Write guard Read, byte-identical Write 1회,
-    guarded exact Readback을 서로 다른 4개 ticket으로 PASS해야 한다. PASS가 만든
-    process-local activation proof는 현재 `LMCConnection` reference/session generation,
-    `DiagnosticsBuild`, `DiagnosticsBootId`, `MapRevision`, BaseCycleTime, MaxSdoDataBytes와 required
-    capability bits에 귀속된다. UI24 tuple은 proof provenance로 남지만 ordinary target authorization은
-    아니다. 재연결하거나 image/capability가 바뀌면 manual Write는 다시
-    `Run Same-Value Qualification First`로 fail-closed한다. mismatch나 disconnect를 한 번
-    관측한 proof는 영구 폐기되므로 A -> B -> A로 identity가 돌아와도 다시 활성화되지 않는다.
-
-    이 current-session proof 후 manual Write는 slave 1..4의 generic policy 허용 target을 사용할 수 있다.
+    일반 manual editor의 Write Submit은 same-value qualification proof 없이 열린다. UI24
+    same-value four-ticket runner는 transport canary/engineering diagnostic이며 ordinary admission
+    gate가 아니다. manual Write는 slave 1..4의 valid nonzero ObjectIndex를 사용할 수 있다.
     WPF는 capability를 다시 확인하고 `_LMCAxisN`의 `Standstill=True`, DS402 Fault=False,
     OperationEnabled=False와 actual position 3회 안정을 검사한 뒤 첫 클릭에서 exact baseline Read를
     수행하고 target/value/wire/baseline bytes의 immutable snapshot을 화면에 arm한다.
@@ -1074,7 +1067,7 @@ Axis1 source gate와 fresh LASAL IDE Rebuild/Link는 반영됐지만 PLC downloa
     bit 9가 없으면 강제 handler 호출도 zero-wire이며 실제
     PLC/live Write 증거는 아직 없다. activation proof는 PC 세션 admission 증거일 뿐
     PLC download, EtherCAT mailbox completion, pcap 순서나 물리 무변화를 대신 증명하지 않는다.
-    actual second-click은 proof의 capability/target을 SDK identity-pinned submit에 넘긴다. SDK는
+    actual second-click은 current capability와 immutable request를 SDK identity-pinned submit에 넘긴다. SDK는
     mutation 직렬화 구간에서 fresh capability를 다시 읽고 Build/BootId/MapRevision을 exact
     비교하며, drift면 `NotAttempted`/`0x7E50` 0회로 종료한다.
     실제 Submit 진입 시 GUI가 immutable request snapshot을 사용하기 때문에 ordinary in-flight

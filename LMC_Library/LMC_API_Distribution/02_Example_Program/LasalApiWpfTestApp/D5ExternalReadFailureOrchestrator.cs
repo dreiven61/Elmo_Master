@@ -442,13 +442,18 @@ namespace LasalMotionControlApiExample
                     "request");
             }
 
-            if (operationKind == LMCOperationKind.SDOWrite
-                && (request.DataLength != 4
-                    || request.WriteData.Length != 4))
+            if (operationKind == LMCOperationKind.SDOWrite)
             {
-                throw new ArgumentException(
-                    "SDO Write quarantine evidence requires exactly four immutable WriteData bytes.",
-                    "request");
+                var writeData = request.WriteData;
+                if ((request.DataLength != 1
+                        && request.DataLength != 2
+                        && request.DataLength != 4)
+                    || writeData.Length != request.DataLength)
+                {
+                    throw new ArgumentException(
+                        "SDO Write quarantine evidence requires canonical 1/2/4-byte immutable WriteData that exactly matches DataLength.",
+                        "request");
+                }
             }
         }
 

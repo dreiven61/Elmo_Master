@@ -45,8 +45,10 @@ Require-Match $sdk 'D5 SDO WriteData must contain exactly 1, 2, 4, 8, or 12 byte
     'SDK request model does not represent narrow scalar Write payloads.'
 Require-Match $sdk 'Generic SDO Write supports SlaveReference 1 through 4 only' `
     'SDK generic slave-range policy is missing.'
-Require-Match $sdk '(?s)case 0x6040:\s*case 0x6060:\s*case 0x607A:\s*case 0x60FF:\s*case 0x6071:\s*case 0x3204:\s*case 0x20FC:' `
-    'SDK semantic/dedicated-owner raw-write block list is incomplete.'
+Require-Match $sdk '(?s)internal static bool IsPermanentlyUnsafeObject\(ushort objectIndex\).*?return false;' `
+    'SDK generic SDO Write address policy is not explicitly denylist-free.'
+Require-NoMatch $sdk '(?s)RequireSdoWriteAllowed.*?request\.ObjectIndex == 0\s*\|\|' `
+    'SDK generic SDO Write admission still chains an ObjectIndex denylist.'
 Require-Match $sdk 'ExpectedReadLength\(request\.ValueType\)' `
     'SDK generic Write does not reuse canonical scalar widths.'
 Require-Match $sdk '(?s)request\.ObjectIndex == 0x2F00.*?request\.SubIndex == 24' `
@@ -79,6 +81,13 @@ Require-Match $wpfDiagnostics 'manual-sdo-write-baseline' `
     'Ordinary SDO Write baseline Read stage is missing.'
 Require-Match $wpfDiagnostics 'manual-sdo-write-prewrite-guard' `
     'Ordinary SDO Write pre-Write guard Read stage is missing.'
+if ([regex]::Matches(
+        $wpfDiagnostics,
+        'HasCurrentSdoWriteActivationQualificationProof').Count -ne 1) {
+    throw 'Ordinary WPF SDO Write still references the optional qualification proof.'
+}
+Require-NoMatch $wpfDiagnostics 'Run Same-Value Qualification First' `
+    'Ordinary WPF SDO Write still exposes the old mandatory qualification action.'
 Require-Match $wpfDiagnostics '(?s)SdoDataEqual\(\s*baselineData,\s*preWriteGuardData\).*?ArmExternalD5SubmissionOutcomeGuard.*?SubmitSdoWriteIdentityPinnedAsync' `
     'Ordinary SDO Write ordering is not baseline equality -> durable arm -> one identity-pinned submit.'
 Require-NoMatch $wpfDiagnostics '(?s)SubmitSdoWriteIdentityPinnedAsync.*?SubmitSdoWriteIdentityPinnedAsync' `
@@ -87,15 +96,22 @@ Require-Match $journal 'private const int FormatVersion = 4;' `
     'Durable SDO journal schema was not advanced for baseline guard evidence.'
 Require-Match $journal '(?s)BaselineData.*?PreWriteGuardData.*?ExpectedWriteData' `
     'Durable SDO journal does not retain baseline, pre-Write guard, and expected bytes.'
-Require-Match $journal '(?s)objectIndex == 0x3204.*?objectIndex == 0x20FC' `
-    'Durable SDO recovery block list is missing dedicated-owner objects.'
+Require-Match $journal 'if \(objectIndex == 0\)' `
+    'Durable SDO recovery does not reject ObjectIndex zero.'
+Require-NoMatch $journal 'IsPermanentlyUnsafeObject|objectIndex == 0x6040|objectIndex == 0x6060|objectIndex == 0x607A|objectIndex == 0x60FF|objectIndex == 0x6071|objectIndex == 0x3204|objectIndex == 0x20FC' `
+    'Durable SDO recovery still contains an ObjectIndex denylist.'
 Require-Match $sdkSubmit '(?s)SubmitSdoWriteIdentityPinnedAsync\(\s*LMCSdoRequest request,\s*LMCDiagnosticCapabilities requiredCapabilities,\s*CancellationToken' `
     'SDK generic identity-pinned SDO Write overload is missing.'
 
 Require-NoMatch $plc '\(ObjectIndex <> 0x2F00\) \| \(SubIndex <> 24\)' `
     'PLC still rejects generic SDO Write by the old UI[24] address gate.'
-Require-Match $plc '(?s)\(ObjectIndex = 0x6040\) \| \(ObjectIndex = 0x6060\).*?\(ObjectIndex = 0x607A\).*?\(ObjectIndex = 0x60FF\).*?\(ObjectIndex = 0x6071\).*?\(ObjectIndex = 0x3204\).*?\(ObjectIndex = 0x20FC\)' `
-    'PLC semantic/dedicated-owner raw-write block list is incomplete.'
+$plcPolicy = [regex]::Match(
+    $plc,
+    '(?s)FUNCTION LMCDiagnosticsService::GetSdoWritePolicyDetail.*?END_FUNCTION').Value
+Require-Match $plcPolicy '\(ObjectIndex = 0\)' `
+    'PLC generic SDO Write does not reject ObjectIndex zero.'
+Require-NoMatch $plcPolicy '0x6040|0x6060|0x607A|0x60FF|0x6071|0x3204|0x20FC' `
+    'PLC generic SDO Write policy still contains the former ObjectIndex denylist.'
 Require-Match $plc '(?s)case ValueType of\s*1, 9, 10, 11:.*?DataLength <> 1.*?2, 3, 7:.*?DataLength <> 2.*?4, 5, 6, 8:.*?DataLength <> 4' `
     'PLC canonical 1/2/4-byte scalar type/length admission is missing.'
 Require-Match $plc '(?s)case sdoDataLength of\s*1:.*?\(pRequest \+ 32\)\^\$USINT.*?2:.*?\(pRequest \+ 32\)\^\$UINT.*?4:.*?\(pRequest \+ 32\)\^\$UDINT' `

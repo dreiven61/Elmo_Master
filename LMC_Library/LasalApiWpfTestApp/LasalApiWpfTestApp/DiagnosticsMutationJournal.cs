@@ -135,11 +135,11 @@ namespace LasalMotionControlApiExample
                     "Durable SDO recovery supports SlaveReference 1 through 4 only.");
             }
 
-            if (objectIndex == 0 || IsPermanentlyUnsafeObject(objectIndex))
+            if (objectIndex == 0)
             {
                 throw new ArgumentOutOfRangeException(
                     "objectIndex",
-                    "Durable SDO recovery cannot target a direct motion/control object.");
+                    "Durable SDO recovery requires a nonzero ObjectIndex.");
             }
 
             var expectedDataLength = GetCanonicalScalarDataLength(
@@ -306,12 +306,6 @@ namespace LasalMotionControlApiExample
                     throw new NotSupportedException(
                         "Durable SDO recovery supports canonical 1/2/4-byte scalar types only.");
             }
-        }
-
-        private static bool IsPermanentlyUnsafeObject(ushort objectIndex)
-        {
-            // Address selection is not denylisted for generic SDO Write.
-            return false;
         }
 
         private static bool ByteArraysEqual(byte[] left, byte[] right)

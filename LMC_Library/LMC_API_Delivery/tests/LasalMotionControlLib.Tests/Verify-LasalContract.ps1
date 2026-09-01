@@ -51887,12 +51887,16 @@ foreach ($axis in 1..4) {
     Assert-Match $diagnosticsModels ("SdoWriteUi24Axis{0}Enabled\s*=\s*{1};" -f $axis, $expectedCSharpGate) ("The SDK axis {0} UI[24] SDO Write gate does not match ExpectedSdoWriteAxis={1}." -f $axis, $ExpectedSdoWriteAxis)
 }
 Assert-Match $diagnosticsModels '(?s)new LMCSdoWriteTarget\(\s*"Reserved diagnostic UI\[24\]",\s*slaveReference,\s*0x2F00,\s*24,\s*LMCSignalValueType\.Int32,\s*4,\s*-1073741823,\s*1073741823\)' 'The SDK SDO Write tuple/range does not match the PLC UI[24] Int32/four-byte policy.'
-Assert-Match $diagnosticsService '(?s)FUNCTION LMCDiagnosticsService::GetSdoWritePolicyDetail.*?ObjectIndex = 0x6040.*?ObjectIndex = 0x607A.*?ObjectIndex = 0x60FF.*?ObjectIndex = 0x6071.*?DetailCode := 8;.*?LMC_DIAG_D5_SDO_WRITE_GLOBAL_ENABLED = FALSE.*?DetailCode := 7;.*?ObjectIndex <> 0x2F00.*?SubIndex <> 24.*?ValueType <> 4.*?DataLength <> 4.*?case SlaveReference of.*?1:.*?LMC_DIAG_D5_SDO_WRITE_UI24_AXIS1_ENABLED = FALSE.*?DetailCode := 7;.*?2:.*?LMC_DIAG_D5_SDO_WRITE_UI24_AXIS2_ENABLED = FALSE.*?DetailCode := 7;.*?3:.*?LMC_DIAG_D5_SDO_WRITE_UI24_AXIS3_ENABLED = FALSE.*?DetailCode := 7;.*?4:.*?LMC_DIAG_D5_SDO_WRITE_UI24_AXIS4_ENABLED = FALSE.*?DetailCode := 7;.*?end_case;.*?writeValue < -1073741823.*?writeValue > 1073741823.*?DetailCode := 12;.*?CheckAxisState = FALSE.*?pSnapshot = NIL.*?SnapshotSize < 304.*?statusWord and 0x0000006F.*?0x00000040.*?DetailCode := 19;.*?END_FUNCTION' 'LMCDiagnosticsService central SDO Write unsafe-object, disabled per-axis UI[24] tuple, bounded value, and DS402 state policy is incomplete.'
 $genericSdoPolicyBlock = [regex]::Match(
     (Get-LasalScanText $diagnosticsService),
     '(?s)FUNCTION LMCDiagnosticsService::GetSdoWritePolicyDetail.*?END_FUNCTION').Value
-if ($genericSdoPolicyBlock -match '(?i)0x3204|0x20FC|TW19|TW20') {
-    throw 'LMCDiagnosticsService generic SDO Write policy must contain no dedicated 0x20FC or TW[] LONG-alias bypass.'
+Assert-Match $genericSdoPolicyBlock 'LMC_DIAG_D5_SDO_WRITE_GLOBAL_ENABLED = FALSE' 'LMCDiagnosticsService generic SDO Write global gate is missing.'
+Assert-Match $genericSdoPolicyBlock '\(ObjectIndex = 0\)' 'LMCDiagnosticsService generic SDO Write must reject ObjectIndex zero.'
+Assert-Match $genericSdoPolicyBlock '(?s)case ValueType of.*?1, 9, 10, 11:.*?DataLength <> 1.*?2, 3, 7:.*?DataLength <> 2.*?4, 5, 6, 8:.*?DataLength <> 4' 'LMCDiagnosticsService generic SDO Write scalar width policy is incomplete.'
+Assert-Match $genericSdoPolicyBlock '(?s)ObjectIndex = 0x2F00.*?SubIndex = 24.*?writeValue < -1073741823.*?writeValue > 1073741823' 'LMCDiagnosticsService UI24 preset range guard is missing or not scoped to the preset.'
+Assert-Match $genericSdoPolicyBlock '(?s)CheckAxisState = FALSE.*?pSnapshot = NIL.*?SnapshotSize < 304.*?statusWord and 0x0000006F.*?0x00000040.*?0x00000021.*?0x00000023' 'LMCDiagnosticsService generic SDO Write safe-axis policy is incomplete.'
+if ($genericSdoPolicyBlock -match '(?i)0x6040|0x6060|0x607A|0x60FF|0x6071|0x3204|0x20FC|TW19|TW20') {
+    throw 'LMCDiagnosticsService generic SDO Write policy must contain no ObjectIndex denylist or dedicated alias bypass.'
 }
 Assert-NoCaseInsensitiveMemberShadowing $diagnosticsService 'LMCDiagnosticsService'
 if ([regex]::Matches($diagnosticsService, '<Client Name="SdoAxis[1-4]" Required="true" Internal="false"/>').Count -ne 4 -or

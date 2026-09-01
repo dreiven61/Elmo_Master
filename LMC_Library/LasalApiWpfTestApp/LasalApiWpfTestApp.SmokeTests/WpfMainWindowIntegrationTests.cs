@@ -65,6 +65,9 @@ namespace LasalApiWpfTestApp.SmokeTests
                 "Wpf.Sdo.WriteConfirmationRequiresExactSecondClickWithoutModal",
                 WriteConfirmationRequiresExactSecondClickWithoutModal);
             tests.Add(
+                "Wpf.Sdo.QuarantineEvidenceAcceptsGenericScalarWidths",
+                QuarantineEvidenceAcceptsGenericScalarWidths);
+            tests.Add(
                 "Wpf.Sdo.InlineReadOneClickRendersTypedTerminalResult",
                 InlineReadOneClickRendersTypedTerminalResult);
             tests.Add(
@@ -83,8 +86,8 @@ namespace LasalApiWpfTestApp.SmokeTests
                 "Wpf.Sdo.InlineReadGeneralCapabilityOffForcedAttemptIsZeroWire",
                 InlineReadGeneralCapabilityOffForcedAttemptIsZeroWire);
             tests.Add(
-                "Wpf.Sdo.WriteSameValueAxis1OnlyRequiresConfirmations",
-                WriteSameValueAxis1OnlyRequiresConfirmations);
+                "Wpf.Sdo.DirectManualWriteDoesNotRequireQualificationProof",
+                DirectManualWriteDoesNotRequireQualificationProof);
             tests.Add(
                 "Wpf.Sdo.WriteSameValueTerminalEvidenceSurvivesUiRefresh",
                 WriteSameValueTerminalEvidenceSurvivesUiRefresh);
@@ -3071,7 +3074,7 @@ namespace LasalApiWpfTestApp.SmokeTests
                         "CREVIS topology auto-load did not reach the rendered state.");
 
                     AssertEx.Contains(
-                            "[LIVE Axis qualification / qualified Axis1 UI24 SDO Write]",
+                            "[Generic SDO Write / LIVE Diagnostics]",
                         window.Title);
                     AssertEx.Equal(
                         "Load CREVIS / Topology",
@@ -5752,7 +5755,7 @@ namespace LasalApiWpfTestApp.SmokeTests
                             first));
                     InvokePrivate(window, "UpdateUiState");
                     AssertEx.Equal(
-                        "Run Same-Value Qualification First",
+                        "Confirm & Submit SDO Write",
                         Convert.ToString(
                             window.ButtonSubmitSdo.Content,
                             CultureInfo.InvariantCulture));
@@ -5863,9 +5866,9 @@ namespace LasalApiWpfTestApp.SmokeTests
                         LMCSignalValueType.Int32,
                         productionTarget.ValueType);
                     AssertEx.Equal((ushort)4, productionTarget.DataLength);
-                    AssertEx.False(
+                    AssertEx.True(
                         window.ButtonSubmitSdo.IsEnabled,
-                        "SDO Write submit must remain disabled while the cached capability observation is stale.");
+                        "An SDK-internal capability read must not permanently disable manual SDO Write. The click handler performs a fresh fail-closed capability preflight before any baseline or Write work.");
                     AssertEx.False(
                         window.ButtonReadSdoInline.IsEnabled,
                         "Inline SDO Read must remain disabled while the editor is in Write mode.");
@@ -5970,8 +5973,60 @@ namespace LasalApiWpfTestApp.SmokeTests
             }
         }
 
+        private static void QuarantineEvidenceAcceptsGenericScalarWidths()
+        {
+            var requests = new[]
+            {
+                LMCSdoRequest.CreateWrite(
+                    1,
+                    0x6060,
+                    0,
+                    LMCSignalValueType.UInt8,
+                    new byte[] { 0x01 },
+                    1000),
+                LMCSdoRequest.CreateWrite(
+                    1,
+                    0x2000,
+                    1,
+                    LMCSignalValueType.UInt16,
+                    new byte[] { 0x34, 0x12 },
+                    1000),
+                LMCSdoRequest.CreateWrite(
+                    1,
+                    0x2001,
+                    2,
+                    LMCSignalValueType.UInt32,
+                    new byte[] { 0x78, 0x56, 0x34, 0x12 },
+                    1000)
+            };
+
+            foreach (var request in requests)
+            {
+                var evidence = new D5SdoQuarantineEvidence(
+                    1,
+                    1,
+                    1,
+                    DiagnosticsBootId,
+                    DiagnosticMapRevision,
+                    LMCOperationKind.SDOWrite,
+                    request,
+                    request.SlaveReference,
+                    request.TimeoutCycles,
+                    null,
+                    "generic-scalar-write",
+                    "test",
+                    "test-evidence");
+
+                AssertEx.True(evidence.HasRequestMetadata);
+                AssertEx.Equal(request.DataLength, evidence.DataLength);
+                AssertEx.SequenceEqual(
+                    request.WriteData,
+                    evidence.WriteData);
+            }
+        }
+
         private static void
-            WriteSameValueAxis1OnlyRequiresConfirmations()
+            DirectManualWriteDoesNotRequireQualificationProof()
         {
             var capabilities = LMCDiagnosticCapability.SDORead
                 | LMCDiagnosticCapability.SDOWrite
@@ -6019,14 +6074,42 @@ namespace LasalApiWpfTestApp.SmokeTests
 
                     window.ComboSdoOperation.SelectedIndex = 1;
                     PumpDispatcherOnce();
-                    AssertEx.False(
+                    AssertEx.True(
                         window.ButtonSubmitSdo.IsEnabled,
-                        "Manual SDO Write must remain closed until the current-session same-value transport qualification passes.");
+                        "Manual SDO Write must be available without a same-value qualification proof when the current capabilities and safety gates are ready.");
                     AssertEx.Equal(
-                        "Run Same-Value Qualification First",
+                        "Arm SDO Write",
                         Convert.ToString(
                             window.ButtonSubmitSdo.Content,
                             CultureInfo.InvariantCulture));
+
+                    var policyEvaluation =
+                        (LMCSdoWritePolicyEvaluation)InvokePrivate(
+                            window,
+                            "EvaluateCachedSdoWritePolicy");
+                    AssertEx.NotNull(policyEvaluation);
+                    SetProperty(
+                        policyEvaluation,
+                        "Blockers",
+                        LMCSdoWritePolicyBlockers
+                            .CapabilityObservationNotCurrent);
+                    AssertEx.True(
+                        MainWindow
+                            .CanAttemptManualSdoWriteWithFreshPreflight(
+                                policyEvaluation),
+                        "CapabilityObservationNotCurrent alone must be recoverable by the click handler's fresh preflight.");
+                    SetProperty(
+                        policyEvaluation,
+                        "Blockers",
+                        LMCSdoWritePolicyBlockers
+                            .CapabilityObservationNotCurrent
+                            | LMCSdoWritePolicyBlockers
+                                .SdoWriteCapabilityMissing);
+                    AssertEx.False(
+                        MainWindow
+                            .CanAttemptManualSdoWriteWithFreshPreflight(
+                                policyEvaluation),
+                        "A stale observation combined with a missing PLC SDO Write capability must remain fail-closed.");
 
                     var currentConnection = GetPrivateField(
                         window,
@@ -6059,11 +6142,11 @@ namespace LasalApiWpfTestApp.SmokeTests
                         "sdoWriteActivationQualificationProof",
                         null);
                     InvokePrivate(window, "UpdateUiState");
-                    AssertEx.False(
+                    AssertEx.True(
                         window.ButtonSubmitSdo.IsEnabled,
-                        "Removing the current-session transport proof must close manual SDO Write.");
+                        "Removing optional same-value qualification evidence must not close manual SDO Write.");
                     AssertEx.Equal(
-                        "Run Same-Value Qualification First",
+                        "Arm SDO Write",
                         Convert.ToString(
                             window.ButtonSubmitSdo.Content,
                             CultureInfo.InvariantCulture));
@@ -6124,27 +6207,41 @@ namespace LasalApiWpfTestApp.SmokeTests
                         System.Windows.Visibility.Collapsed,
                         window.TextSdoSemanticWarning.Visibility);
 
-                    window.TextSdoIndex.Text = "0x6060";
-                    var formerlyReservedRequestArguments =
-                        new object[] { null, null };
-                    AssertEx.True(
-                        (bool)InvokePrivate(
-                            window,
-                            "TryCreateSdoRequest",
-                            formerlyReservedRequestArguments),
-                        Convert.ToString(
-                            formerlyReservedRequestArguments[1],
-                            CultureInfo.InvariantCulture));
-                    var formerlyReservedRequest =
-                        formerlyReservedRequestArguments[0] as LMCSdoRequest;
-                    AssertEx.NotNull(formerlyReservedRequest);
-                    AssertEx.Equal(
-                        (ushort)0x6060,
-                        formerlyReservedRequest.ObjectIndex);
-                    InvokePrivate(window, "UpdateSdoRequestPreview");
-                    AssertEx.Equal(
-                        System.Windows.Visibility.Collapsed,
-                        window.TextSdoSemanticWarning.Visibility);
+                    foreach (var formerlyReservedObject in new ushort[]
+                    {
+                        0x6040, 0x6060, 0x607A, 0x60FF,
+                        0x6071, 0x3204, 0x20FC
+                    })
+                    {
+                        window.TextSdoIndex.Text = "0x"
+                            + formerlyReservedObject.ToString(
+                                "X4",
+                                CultureInfo.InvariantCulture);
+                        var formerlyReservedRequestArguments =
+                            new object[] { null, null };
+                        AssertEx.True(
+                            (bool)InvokePrivate(
+                                window,
+                                "TryCreateSdoRequest",
+                                formerlyReservedRequestArguments),
+                            Convert.ToString(
+                                formerlyReservedRequestArguments[1],
+                                CultureInfo.InvariantCulture));
+                        var formerlyReservedRequest =
+                            formerlyReservedRequestArguments[0]
+                                as LMCSdoRequest;
+                        AssertEx.NotNull(formerlyReservedRequest);
+                        AssertEx.Equal(
+                            formerlyReservedObject,
+                            formerlyReservedRequest.ObjectIndex);
+                        InvokePrivate(window, "UpdateSdoRequestPreview");
+                        AssertEx.Equal(
+                            System.Windows.Visibility.Collapsed,
+                            window.TextSdoSemanticWarning.Visibility);
+                        AssertEx.True(
+                            window.ButtonSubmitSdo.IsEnabled,
+                            "A valid Generic SDO Write ObjectIndex was blocked by address.");
+                    }
 
                     AssertEx.False(
                         window.ButtonRunD5SdoWriteSameValueQualification
