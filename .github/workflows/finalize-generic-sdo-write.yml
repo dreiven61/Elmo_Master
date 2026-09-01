@@ -35,9 +35,13 @@ jobs:
         shell: pwsh
         run: git diff --check
 
-      - name: Run API tests and WPF build
+      - name: Run API C# tests
         shell: pwsh
-        run: msbuild 'LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\LasalMotionControlLib.Tests.csproj' /t:RunTests /p:Configuration=Debug /p:Platform=AnyCPU /nologo /verbosity:minimal
+        run: msbuild 'LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\LasalMotionControlLib.Tests.csproj' /t:RunPcTests /p:Configuration=Debug /p:Platform=AnyCPU /nologo /verbosity:minimal
+
+      - name: Build development WPF app
+        shell: pwsh
+        run: msbuild 'LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp\LasalApiWpfTestApp.csproj' /t:Build /p:Configuration=Debug /p:Platform=AnyCPU /nologo /verbosity:minimal
 
       - name: Run WPF smoke tests
         shell: pwsh
