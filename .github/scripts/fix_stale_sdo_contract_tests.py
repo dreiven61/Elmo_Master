@@ -87,10 +87,20 @@ replace_exact(
 localization = Path("LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/UiLocalizationTests.cs")
 replace_exact(
     localization,
-    '"SDO Write 준비"',
-    '"먼저 동일 값 Qualification 실행"',
-    2,
-    "Korean SDO Write qualification-first caption",
+    """                    AssertEx.Equal(
+                        \"SDO Write 준비\",
+                        (string)window.ButtonSubmitSdo.Content,
+                        \"Korean SDO Write mode did not localize its action.\");
+                    window.TextSdoWriteData.Text = \"1\";
+""",
+    """                    AssertEx.Equal(
+                        \"먼저 동일 값 Qualification 실행\",
+                        (string)window.ButtonSubmitSdo.Content,
+                        \"Korean SDO Write mode did not localize its action.\");
+                    window.TextSdoWriteData.Text = \"1\";
+""",
+    1,
+    "Korean SDO Write qualification-first initial caption",
 )
 
 recovery = Path("LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/RecoveryRecordRetirementTests.cs")
@@ -160,30 +170,6 @@ text = replace_in_method(
 """,
     1,
     "confirmation-state smoke has no transport proof",
-)
-text = replace_in_method(
-    text,
-    "WriteConfirmationRequiresExactSecondClickWithoutModal",
-    """                    AssertEx.False(
-                        uiState.IsArmed,
-                        \"Editing any SDO Write request field must invalidate the armed snapshot immediately.\");
-                    AssertEx.Equal(
-                        \"Arm SDO Write\",
-                        Convert.ToString(
-                            window.ButtonSubmitSdo.Content,
-                            CultureInfo.InvariantCulture));
-""",
-    """                    AssertEx.False(
-                        uiState.IsArmed,
-                        \"Editing any SDO Write request field must invalidate the armed snapshot immediately.\");
-                    AssertEx.Equal(
-                        \"Run Same-Value Qualification First\",
-                        Convert.ToString(
-                            window.ButtonSubmitSdo.Content,
-                            CultureInfo.InvariantCulture));
-""",
-    1,
-    "edited confirmation-state smoke has no transport proof",
 )
 
 text = replace_in_method(
