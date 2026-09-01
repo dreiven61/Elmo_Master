@@ -22,6 +22,8 @@ namespace LasalMotionControlApiExample
         private AxisSetOperationModeRecoveryJournal
             axisSetOperationModeRecoveryJournal;
         private string axisSetOperationModeRecoveryJournalError;
+        private string axisSetOperationModeLastOutcomeNotice;
+        private Guid axisSetOperationModeLastOutcomeNoticeIdentity;
         private bool axisSetOperationModeUiInterlockHooked;
         private bool axisSetOperationModeInterlockReapplyQueued;
         private int axisSetOperationModeStartUiHandlerEntryCount;
@@ -481,6 +483,7 @@ namespace LasalMotionControlApiExample
             switch (button.Name)
             {
                 case "ButtonConnect":
+                case "ButtonCloseConnection":
                 case "ButtonPowerOff":
                 case "ButtonStop":
                 case "ButtonGroupPowerOff":
@@ -1029,13 +1032,47 @@ namespace LasalMotionControlApiExample
             }
 
             LMCAxisSetOperationModeOutcomeResult outcome;
+            var queryClock = System.Diagnostics.Stopwatch.StartNew();
+            // This is a PC observation budget, not a new PLC operation timeout.
+            // Repeated queries retain the exact key and never send another Start.
+            var queryBudgetMs = Math.Min((long)key.TimeoutMilliseconds, 60000L) + 3000L;
             try
             {
-                outcome = await currentAxis.ReadSetOperationModeOutcomeAsync(
-                    key,
-                    adminCapabilities,
-                    diagnosticCapabilities,
-                    CancellationToken.None);
+                do
+                {
+                    outcome = await currentAxis.ReadSetOperationModeOutcomeAsync(
+                        key,
+                        adminCapabilities,
+                        diagnosticCapabilities,
+                        CancellationToken.None);
+                    if (outcome.IsTerminal)
+                    {
+                        break;
+                    }
+
+                    RefreshAxisSetOperationModeRecoveryUi(
+                        "OUTCOME RUNNING. " + FormatAxisSetOperationModeOutcomeDiagnostics(outcome)
+                        + ". Waiting with read-only 0x7D24 queries; no Start replay.");
+                    if (queryClock.ElapsedMilliseconds >= queryBudgetMs)
+                    {
+                        RefreshAxisSetOperationModeRecoveryUi(
+                            "OUTCOME WAIT TIMED OUT. Completion is NOT proven. "
+                            + "Use Query / Retire Recovery; the durable record remains active and Start replay is blocked.");
+                        throw new TimeoutException(
+                            "SetOperationMode remains Running after the bounded outcome wait. "
+                            + "Completion is NOT proven. The durable record is retained; "
+                            + "use Query / Retire Recovery. No Start replay or retirement was sent.");
+                    }
+
+                    // Yield the dispatcher: Stop/PowerOff remain available while
+                    // conflicting mutations stay fenced by the active journal.
+                    await Task.Delay(100);
+                    EnsureAxisSetOperationModeRecoveryEndpointMatchesCurrent(
+                        record, "SetOperationMode outcome polling");
+                    EnsureAxisSetOperationModeRecoveryIdentity(
+                        record, "SetOperationMode outcome polling");
+                }
+                while (true);
             }
             catch (LMCAxisSetOperationModeOutcomeQueryException error)
             {
@@ -1045,23 +1082,17 @@ namespace LasalMotionControlApiExample
                 RefreshAxisSetOperationModeRecoveryUi(
                     "OUTCOME QUERY REJECTED. "
                     + diagnostics
-                    + ". The durable record remains active; no Start replay or retirement was sent.");
+                    + ". The durable record remains active; no Start replay or retirement was sent. "
+                    + "For Detail=46 inspect PLC AxisOperationModeState: axis record +11=observed mode, "
+                    + "+24=quarantine reason; [144..147]=write validation/OS/abort/length. "
+                    + "Closing the connection does not clear this record or stop motion; "
+                    + "do not clear a live uncertain record.");
                 WriteLog(
                     "SetOperationMode outcome query rejected | "
                     + diagnostics
                     + ". No Start replay or retirement was sent.");
                 throw;
             }
-            if (!outcome.IsTerminal)
-            {
-                RefreshAxisSetOperationModeRecoveryUi(
-                    "OUTCOME RUNNING. QueryRequestId="
-                    + outcome.QueryRequestId.ToString(
-                        CultureInfo.InvariantCulture)
-                    + ". No Start replay or retirement was sent.");
-                return;
-            }
-
             var outcomeDiagnostics =
                 FormatAxisSetOperationModeOutcomeDiagnostics(outcome);
             record = axisSetOperationModeRecoveryJournal.RecordTerminalOutcome(
@@ -1080,6 +1111,12 @@ namespace LasalMotionControlApiExample
                 currentAxis,
                 record,
                 key);
+            if (outcome.RecordState != LMCAxisSetOperationModeOutcomeRecordState.Succeeded)
+            {
+                throw new InvalidOperationException(
+                    "SetOperationMode did not succeed. " + outcomeDiagnostics
+                    + ". Exact terminal evidence was archived and retired; the recovery interlock is cleared.");
+            }
         }
 
         private async Task RetireObservedAxisSetOperationModeOutcomeAsync(
@@ -1401,6 +1438,11 @@ namespace LasalMotionControlApiExample
 
             if (!string.IsNullOrEmpty(overrideStatus))
             {
+                axisSetOperationModeLastOutcomeNotice = overrideStatus;
+                axisSetOperationModeLastOutcomeNoticeIdentity =
+                    axisSetOperationModeRecoveryJournal == null
+                        || axisSetOperationModeRecoveryJournal.CurrentRecord == null
+                    ? Guid.Empty : axisSetOperationModeRecoveryJournal.CurrentRecord.Identity;
                 textAxisSetOperationModeRecoveryStatus.Text = overrideStatus;
                 return;
             }
@@ -1419,7 +1461,9 @@ namespace LasalMotionControlApiExample
             {
                 textAxisSetOperationModeRecoveryStatus.Text =
                     "UNRESOLVED / START REPLAY BLOCKED | "
-                    + FormatAxisSetOperationModeRecoveryRecord(record);
+                    + FormatAxisSetOperationModeRecoveryRecord(record)
+                    + (record.Identity == axisSetOperationModeLastOutcomeNoticeIdentity
+                        ? Environment.NewLine + axisSetOperationModeLastOutcomeNotice : string.Empty);
                 return;
             }
 

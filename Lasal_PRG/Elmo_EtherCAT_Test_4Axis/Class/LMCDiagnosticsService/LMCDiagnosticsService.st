@@ -20,8 +20,8 @@
 	<Channels>
 		<Server Name="ClassSvr" GUID="{9DB9E1D9-002C-4FBC-A4C3-38A7C42F3815}" Visualized="false" Initialize="false" WriteProtected="true" Retentive="false"/>
 		<Server Name="DiagnosticsBootCounter" GUID="{030E4D7F-6C9D-4B30-AFDD-30FCCA2226DA}" Visualized="false" Initialize="true" DefValue="0" WriteProtected="false" Retentive="File" Comment="Persistent diagnostics resource generation counter."/>
-		<Client Name="InputLatch" Required="true" Internal="false"/>
 		<Client Name="AxisOwnership" Required="true" Internal="false"/>
+		<Client Name="InputLatch" Required="true" Internal="false"/>
 		<Client Name="RecorderStore" Required="true" Internal="false"/>
 		<Client Name="SdoAxis1" Required="true" Internal="false"/>
 		<Client Name="SdoAxis2" Required="true" Internal="false"/>
@@ -689,6 +689,17 @@ END_FUNCTION
 #define LMC_DIAG_MODE_RUNTIME_FAILURE_DETAIL 139
 #define LMC_DIAG_MODE_RUNTIME_QUARANTINE_REASON 140
 #define LMC_DIAG_MODE_RUNTIME_PREEMPT_START_MS 141
+#define LMC_DIAG_MODE_RUNTIME_VERIFY_READ_MS 142
+#define LMC_DIAG_MODE_RUNTIME_RECOVERY_CLOCK_STARTED 143
+#define LMC_DIAG_MODE_RUNTIME_WRITE_VALIDATION 144
+#define LMC_DIAG_MODE_RUNTIME_WRITE_OS_RESULT 145
+#define LMC_DIAG_MODE_RUNTIME_WRITE_ABORT 146
+#define LMC_DIAG_MODE_RUNTIME_WRITE_LENGTH 147
+#define LMC_DIAG_MODE_RUNTIME_OWNER_PUBLISH_RESULT 148
+#define LMC_DIAG_MODE_RUNTIME_OWNER_PUBLISH_ATTEMPTS 149
+#define LMC_DIAG_MODE_RUNTIME_OWNER_PUBLISH_MS 150
+#define LMC_DIAG_MODE_VERIFY_POLL_INTERVAL_MS 50
+#define LMC_DIAG_MODE_OWNER_PUBLISH_INTERVAL_MS 50
 #define LMC_DIAG_MODE_META_RECORD_GENERATION 160
 #define LMC_DIAG_MODE_META_OPERATION_TOKEN 161
 #define LMC_DIAG_MODE_STAGE_PREFLIGHT_START 1
@@ -10227,6 +10238,12 @@ FUNCTION LMCDiagnosticsService::ProcessAxisSetOperationModeMutationStages
 				4: if executorConnected then completionResult := SdoAxis4.CopyCompletion(currentToken, #completion, sizeof(completion)); end_if;
 			end_case;
 			if completionResult = 0 then
+				// Keep the consumed write callback available for IDE diagnosis.
+				// A callback alone is not proof that the requested mode is active.
+				AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_WRITE_VALIDATION]$UDINT := completion.ValidationCode;
+				AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_WRITE_OS_RESULT] := completion.OsResult;
+				AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_WRITE_ABORT]$UDINT := completion.AbortCode;
+				AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_WRITE_LENGTH]$UDINT := completion.ActualLength;
 				AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
 					LMC_DIAG_MODE_STAGE_VERIFY_START;
 			elsif (completionResult = -2) | (completionResult = -3) then
@@ -10251,6 +10268,16 @@ FUNCTION LMCDiagnosticsService::ProcessAxisSetOperationModeMutationStages
 			end_if;
 
 		LMC_DIAG_MODE_STAGE_VERIFY_START:
+			// A previous valid but different 0x6061 value is not a timeout of
+			// the SDO transport. Keep the original deadline, never replay WRITE.
+			if expired &
+			   ((evidenceFlags and LMC_DIAG_MODE_EVIDENCE_VERIFY_COMPLETED) <> 0) then
+				AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_QUARANTINE_REASON] :=
+					LMC_DIAG_MODE_QUARANTINE_VERIFY_MISMATCH;
+				AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
+					LMC_DIAG_MODE_STAGE_QUARANTINE;
+				RETURN;
+			end_if;
 			if expired | (executorConnected = FALSE) then
 				AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_QUARANTINE_REASON] :=
 					LMC_DIAG_MODE_QUARANTINE_VERIFY_START;
@@ -10259,6 +10286,9 @@ FUNCTION LMCDiagnosticsService::ProcessAxisSetOperationModeMutationStages
 				RETURN;
 			end_if;
 			if executorReusable = FALSE then RETURN; end_if;
+			if (AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_VERIFY_READ_MS]$UDINT <> 0) &
+			   ((serviceNow - AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_VERIFY_READ_MS]$UDINT) <
+			    LMC_DIAG_MODE_VERIFY_POLL_INTERVAL_MS) then RETURN; end_if;
 			nextToken := AxisOperationModeState[LMC_DIAG_MODE_META_OPERATION_TOKEN]$UDINT + 1;
 			if nextToken = 0 then nextToken := 1; end_if;
 			AxisOperationModeState[LMC_DIAG_MODE_META_OPERATION_TOKEN]$UDINT := nextToken;
@@ -10293,6 +10323,7 @@ FUNCTION LMCDiagnosticsService::ProcessAxisSetOperationModeMutationStages
 					TimeoutMs:=remainingMs);
 			end_case;
 			if startResult = READY then
+				AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_VERIFY_READ_MS]$UDINT := serviceNow;
 				evidenceFlags := evidenceFlags or LMC_DIAG_MODE_EVIDENCE_VERIFY_DISPATCHED;
 				AxisOperationModeState[recordBase + 18]$UDINT := evidenceFlags;
 				AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
@@ -10324,6 +10355,11 @@ FUNCTION LMCDiagnosticsService::ProcessAxisSetOperationModeMutationStages
 					if observedMode = AxisOperationModeState[recordBase + 10]$SINT then
 						AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
 							LMC_DIAG_MODE_STAGE_TERMINAL_SUCCESS;
+					elsif expired = FALSE then
+						// A mode transition can outlive its write acknowledgement.
+						// Poll only 0x6061; retain the original operation deadline.
+						AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
+							LMC_DIAG_MODE_STAGE_VERIFY_START;
 					else
 						AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_QUARANTINE_REASON] :=
 							LMC_DIAG_MODE_QUARANTINE_VERIFY_MISMATCH;
@@ -10427,6 +10463,15 @@ FUNCTION LMCDiagnosticsService::ProcessAxisSetOperationModeRecoveryStages
 		LMC_DIAG_MODE_STAGE_RECOVERY_START:
 			// Recovery after a dispatched mutation is read-only. Wait for the
 			// executor to reconnect and drain; never fall back to WRITE_START.
+			if AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_RECOVERY_CLOCK_STARTED] <> 0 then
+				if expired then
+					AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
+						LMC_DIAG_MODE_STAGE_QUARANTINE;
+					RETURN;
+				end_if;
+				if (serviceNow - AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_VERIFY_READ_MS]$UDINT) <
+				   LMC_DIAG_MODE_VERIFY_POLL_INTERVAL_MS then RETURN; end_if;
+			end_if;
 			if executorConnected = FALSE then
 				RETURN;
 			end_if;
@@ -10439,17 +10484,22 @@ FUNCTION LMCDiagnosticsService::ProcessAxisSetOperationModeRecoveryStages
 			AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_SDO_TOKEN]$UDINT := nextToken;
 			AxisOperationModeState[recordBase + 17]$UDINT := nextToken;
 			currentToken := nextToken;
-			AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_START_MS]$UDINT := serviceNow;
-			AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_TIMEOUT_MS]$UDINT :=
-				LMC_DIAG_MODE_RECOVERY_READ_TIMEOUT_MS;
+			if AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_RECOVERY_CLOCK_STARTED] = 0 then
+				AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_RECOVERY_CLOCK_STARTED] := 1;
+				AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_START_MS]$UDINT := serviceNow;
+				AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_TIMEOUT_MS]$UDINT :=
+					LMC_DIAG_MODE_RECOVERY_READ_TIMEOUT_MS;
+				remainingMs := LMC_DIAG_MODE_RECOVERY_READ_TIMEOUT_MS;
+			end_if;
 			startResult := ERROR;
 			case axisReference of
-				1: startResult := SdoAxis1.TryStartRead(OperationToken:=currentToken, ObjectIndex:=0x6061, SubIndex:=0, ReadLength:=1, TimeoutMs:=LMC_DIAG_MODE_RECOVERY_READ_TIMEOUT_MS);
-				2: startResult := SdoAxis2.TryStartRead(OperationToken:=currentToken, ObjectIndex:=0x6061, SubIndex:=0, ReadLength:=1, TimeoutMs:=LMC_DIAG_MODE_RECOVERY_READ_TIMEOUT_MS);
-				3: startResult := SdoAxis3.TryStartRead(OperationToken:=currentToken, ObjectIndex:=0x6061, SubIndex:=0, ReadLength:=1, TimeoutMs:=LMC_DIAG_MODE_RECOVERY_READ_TIMEOUT_MS);
-				4: startResult := SdoAxis4.TryStartRead(OperationToken:=currentToken, ObjectIndex:=0x6061, SubIndex:=0, ReadLength:=1, TimeoutMs:=LMC_DIAG_MODE_RECOVERY_READ_TIMEOUT_MS);
+				1: startResult := SdoAxis1.TryStartRead(OperationToken:=currentToken, ObjectIndex:=0x6061, SubIndex:=0, ReadLength:=1, TimeoutMs:=remainingMs);
+				2: startResult := SdoAxis2.TryStartRead(OperationToken:=currentToken, ObjectIndex:=0x6061, SubIndex:=0, ReadLength:=1, TimeoutMs:=remainingMs);
+				3: startResult := SdoAxis3.TryStartRead(OperationToken:=currentToken, ObjectIndex:=0x6061, SubIndex:=0, ReadLength:=1, TimeoutMs:=remainingMs);
+				4: startResult := SdoAxis4.TryStartRead(OperationToken:=currentToken, ObjectIndex:=0x6061, SubIndex:=0, ReadLength:=1, TimeoutMs:=remainingMs);
 			end_case;
 			if startResult = READY then
+				AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_VERIFY_READ_MS]$UDINT := serviceNow;
 				evidenceFlags := evidenceFlags or LMC_DIAG_MODE_EVIDENCE_VERIFY_DISPATCHED;
 				AxisOperationModeState[recordBase + 18]$UDINT := evidenceFlags;
 				AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
@@ -10484,8 +10534,13 @@ FUNCTION LMCDiagnosticsService::ProcessAxisSetOperationModeRecoveryStages
 					else
 						AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_QUARANTINE_REASON] :=
 							LMC_DIAG_MODE_QUARANTINE_VERIFY_MISMATCH;
-						AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
-							LMC_DIAG_MODE_STAGE_QUARANTINE;
+						if expired then
+							AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
+								LMC_DIAG_MODE_STAGE_QUARANTINE;
+						else
+							AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
+								LMC_DIAG_MODE_STAGE_RECOVERY_START;
+						end_if;
 					end_if;
 				else
 					AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_QUARANTINE_REASON] :=
@@ -10580,6 +10635,8 @@ FUNCTION LMCDiagnosticsService::ProcessAxisSetOperationModeRecoveryStages
 			    AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_ADMISSION_TOKEN]$UDINT) |
 			   (AxisOperationModeState[recordBase + 28]$UDINT <>
 			    AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_OWNER_GENERATION]$UDINT) then
+				AxisOperationModeState[recordBase + 21] := -4;
+				AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_OWNER_PUBLISH_RESULT] := -4;
 				AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_QUARANTINE_REASON] :=
 					LMC_DIAG_MODE_QUARANTINE_OWNER_PUBLISH;
 				AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
@@ -10587,6 +10644,13 @@ FUNCTION LMCDiagnosticsService::ProcessAxisSetOperationModeRecoveryStages
 				RETURN;
 			end_if;
 
+			if (AxisOperationModeState[
+			   LMC_DIAG_MODE_RUNTIME_OWNER_PUBLISH_ATTEMPTS] > 0) &
+			   ((serviceNow - AxisOperationModeState[
+			     LMC_DIAG_MODE_RUNTIME_OWNER_PUBLISH_MS]$UDINT) <
+			    LMC_DIAG_MODE_OWNER_PUBLISH_INTERVAL_MS) then
+				RETURN;
+			end_if;
 			ownerResult := -1;
 			if IsClientConnected(#AxisOwnership) then
 				if finalRecordState = LMC_DIAG_MODE_RECORD_SUCCEEDED then
@@ -10609,7 +10673,10 @@ FUNCTION LMCDiagnosticsService::ProcessAxisSetOperationModeRecoveryStages
 						ObservationCycle:=currentCycle);
 				end_if;
 			end_if;
+			AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_OWNER_PUBLISH_MS]$UDINT :=
+				serviceNow;
 			if ownerResult = 0 then
+				AxisOperationModeState[recordBase + 21] := 0;
 				evidenceFlags := AxisOperationModeState[recordBase + 18]$UDINT or
 					LMC_DIAG_MODE_EVIDENCE_OWNER_RELEASED;
 				AxisOperationModeState[recordBase + 18]$UDINT := evidenceFlags;
@@ -10617,10 +10684,25 @@ FUNCTION LMCDiagnosticsService::ProcessAxisSetOperationModeRecoveryStages
 				_memset(dest:=#AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_BASE],
 					usByte:=0, cntr:=32 * 4);
 			else
-				AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_QUARANTINE_REASON] :=
-					LMC_DIAG_MODE_QUARANTINE_OWNER_PUBLISH;
-				AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
-					LMC_DIAG_MODE_STAGE_QUARANTINE;
+				// PublishAxisOwnership validates the exact retained owner before its
+				// first mutation for this non-Home owner. Keep the staged terminal
+				// record immutable and retry only this release boundary. Never replay
+				// 0x7D23 or either SDO. A persistent identity failure still quarantines
+				// at the caller supplied operation deadline.
+				AxisOperationModeState[recordBase + 21] := ownerResult;
+				AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_OWNER_PUBLISH_RESULT] :=
+					ownerResult;
+				if AxisOperationModeState[
+				   LMC_DIAG_MODE_RUNTIME_OWNER_PUBLISH_ATTEMPTS] < 2147483647 then
+					AxisOperationModeState[
+						LMC_DIAG_MODE_RUNTIME_OWNER_PUBLISH_ATTEMPTS] += 1;
+				end_if;
+				if expired then
+					AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_QUARANTINE_REASON] :=
+						LMC_DIAG_MODE_QUARANTINE_OWNER_PUBLISH;
+					AxisOperationModeState[LMC_DIAG_MODE_RUNTIME_STAGE] :=
+						LMC_DIAG_MODE_STAGE_QUARANTINE;
+				end_if;
 			end_if;
 
 		LMC_DIAG_MODE_STAGE_QUARANTINE:

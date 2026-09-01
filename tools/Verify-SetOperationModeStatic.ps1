@@ -147,6 +147,9 @@ Assert-Regex $control '(?m)^#define[\t ]+LMC_OWNER_RESOURCE_DIAGNOSTICS_SDO_ENGI
 Assert-Regex $tcp '0x7D23,[\t ]*0x7D24,[\t ]*0x7D25' 'TCP routes Start/ReadOutcome/Retire together' -MinimumCount 1
 Assert-Regex $tcp 'diagnosticsOwnerKind[\t ]*:=[\t ]*6;[\s\S]{0,160}diagnosticsResourceKind[\t ]*:=[\t ]*4;' 'TCP Start admission uses owner kind 6/resource 4' -MinimumCount 1
 Assert-Regex $tcp 'RequestBuf\[54\]\$SINT = 8[\s\S]{0,160}RequestBuf\[54\]\$SINT = 1[\s\S]{0,160}RequestBuf\[54\]\$SINT = 3[\s\S]{0,160}RequestBuf\[54\]\$SINT = 7' 'TCP Start admission accepts PP/PV/IP/CSP requested-mode allowlist' -ExpectedCount 1
+Assert-Regex $tcp 'Sendbuf\[24\]\$DINT := TO_DINT\(RequestBuf\[54\]\$SINT\);' 'TCP admission rejection echoes the requested operation mode' -ExpectedCount 1
+Assert-Regex $tcp 'Sendbuf\[24\]\$DINT = TO_DINT\(RequestBuf\[54\]\$SINT\)' 'TCP exact ACK classification compares the requested operation mode' -ExpectedCount 2
+Assert-Regex $tcp 'Sendbuf\[24\]\$DINT = 8' 'TCP exact ACK classification has no CSP-only mode literal' -ExpectedCount 0
 Assert-Regex $diagnostics '(?m)^#define[\t ]+LMC_DIAG_MODE_DETAIL_OWNERSHIP_CHANNEL[\t ]+52[\t ]*$' 'SetOperationMode has a dedicated AxisOwnership-channel unavailable detail' -ExpectedCount 1
 Assert-Regex $diagnostics '(?m)^#define[\t ]+LMC_DIAG_MODE_DETAIL_ADMISSION_IDENTITY[\t ]+63[\t ]*$' 'SetOperationMode has a dedicated admission-identity unavailable detail' -ExpectedCount 1
 Assert-Regex $diagnostics '(?m)^#define[\t ]+LMC_DIAG_MODE_DETAIL_FEATURE_DISABLED[\t ]+64[\t ]*$' 'SetOperationMode has a dedicated feature-disabled detail' -ExpectedCount 1
@@ -209,6 +212,15 @@ if ($null -ne $mutationMode) {
     }
     Assert-Regex $mutationMode 'TryStartWrite\([^;\r\n]*ObjectIndex:=0x6060' 'one logical 0x6060 write site fans out to exactly four physical axes' -ExpectedCount 4
     Assert-Regex $mutationMode 'LMC_DIAG_MODE_EVIDENCE_WRITE_DISPATCHED' 'mutation helper persists irreversible 0x6060 dispatch evidence' -MinimumCount 1
+    Assert-Regex $mutationMode 'elsif expired = FALSE then[\s\S]{0,260}LMC_DIAG_MODE_STAGE_VERIFY_START;' 'valid non-target readback polls again before the original deadline' -ExpectedCount 1
+    Assert-Regex $mutationMode 'RUNTIME_VERIFY_READ_MS\]\$UDINT\) <\s*LMC_DIAG_MODE_VERIFY_POLL_INTERVAL_MS' 'verification readbacks are rate limited' -ExpectedCount 1
+    Assert-Regex $mutationMode 'RUNTIME_START_MS\]\$UDINT\s*:=' 'normal verify polling never resets the operation clock' -ExpectedCount 0
+    Assert-Regex $mutationMode 'if expired &[\s\S]{0,100}LMC_DIAG_MODE_EVIDENCE_VERIFY_COMPLETED[\s\S]{0,220}LMC_DIAG_MODE_QUARANTINE_VERIFY_MISMATCH' 'persistent mismatch stays quarantined at deadline, not silently released' -ExpectedCount 1
+    foreach ($field in @('VALIDATION', 'ABORT', 'LENGTH')) {
+        Assert-Regex $mutationMode "LMC_DIAG_MODE_RUNTIME_WRITE_$field\]\`$UDINT := completion\." "write callback $field remains inspectable while unresolved" -ExpectedCount 1
+    }
+    Assert-Regex $mutationMode 'LMC_DIAG_MODE_RUNTIME_WRITE_OS_RESULT\] := completion\.OsResult;' 'signed DINT OS result is stored directly without unsigned overlay' -ExpectedCount 1
+    Assert-Regex $mutationMode 'LMC_DIAG_MODE_RUNTIME_WRITE_OS_RESULT\]\$UDINT\s*:=' 'signed OS result is never implicitly assigned to UDINT (C78 E0166)' -ExpectedCount 0
 }
 
 # MODE-07 recovery/terminal/quarantine stages are permanently read-only with
@@ -227,6 +239,14 @@ if ($null -ne $recoveryMode) {
     }
     Assert-Regex $recoveryMode 'TryStartWrite\([^;\r\n]*ObjectIndex:=0x6060' 'recovery helper never replays a 0x6060 write' -ExpectedCount 0
     Assert-Regex $recoveryMode 'never fall back to WRITE_START' 'recovery helper retains explicit read-only no-replay invariant' -ExpectedCount 1
+    Assert-Regex $recoveryMode 'RUNTIME_RECOVERY_CLOCK_STARTED\] = 0 then[\s\S]{0,170}RUNTIME_START_MS\]\$UDINT := serviceNow;' 'recovery read budget is initialized once, not extended on each poll' -ExpectedCount 1
+    Assert-Regex $recoveryMode 'ObjectIndex:=0x6061, SubIndex:=0, ReadLength:=1, TimeoutMs:=remainingMs' 'all recovery axes receive only the remaining budget' -ExpectedCount 4
+    Assert-Regex $recoveryMode 'LMC_DIAG_MODE_QUARANTINE_VERIFY_MISMATCH;[\s\S]{0,300}if expired then[\s\S]{0,300}else[\s\S]{0,180}LMC_DIAG_MODE_STAGE_RECOVERY_START;' 'recovery mismatch polls reads only until its deadline' -ExpectedCount 1
+    Assert-Regex $recoveryMode 'LMC_DIAG_MODE_RUNTIME_OWNER_PUBLISH_RESULT\][\s\S]{0,80}ownerResult;' 'terminal owner-publish result remains inspectable while unresolved' -ExpectedCount 1
+    Assert-Regex $recoveryMode 'LMC_DIAG_MODE_RUNTIME_OWNER_PUBLISH_ATTEMPTS\][\s\S]{0,160}\+= 1;' 'terminal owner-publish retries retain a bounded attempt count' -ExpectedCount 1
+    Assert-Regex $recoveryMode 'RUNTIME_OWNER_PUBLISH_MS\]\$UDINT\) <[\s\S]{0,100}LMC_DIAG_MODE_OWNER_PUBLISH_INTERVAL_MS' 'terminal owner-publish retries are rate limited' -ExpectedCount 1
+    Assert-Regex $recoveryMode 'if expired then[\s\S]{0,220}LMC_DIAG_MODE_QUARANTINE_OWNER_PUBLISH;[\s\S]{0,180}LMC_DIAG_MODE_STAGE_QUARANTINE;' 'owner publish failure quarantines only at the original operation deadline' -ExpectedCount 1
+    Assert-Regex $recoveryMode 'TryStartWrite\(' 'terminal owner-publish retry does not introduce any SDO write' -ExpectedCount 0
 }
 
 # MODE-08 preemption constants and exact SetOperationMode identity recognition.

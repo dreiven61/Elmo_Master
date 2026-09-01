@@ -515,11 +515,13 @@ P20 ExpectedMapRevision U32, nonzero
 P24 DuplicatedRequestId U32, equal to common P4 and nonzero
 P28/P32/P36/P40 ClientIntentId0..3 U32, not all zero
 P44 AxisReference U16, equal to outer Reference
-P46 RequestedMode I8 = 8 (CSP), P47 Reserved U8 = 0
+P46 RequestedMode I8 = 1 (PP), 3 (PV), 7 (IP), or 8 (CSP),
+P47 Reserved U8 = 0
 P48 TimeoutMilliseconds U32, nonzero
 P52 Flags U32 = 0 (Immediate-only)
 The successful or well-shaped domain-failure ACK payload is exactly 24 bytes:
-P16 RequestedMode DINT = 8, P20 NativeCommandState U32 = 0. SetOperationMode uses
+P16 RequestedMode DINT echoes the exact requested mode, P20 NativeCommandState U32 = 0.
+SetOperationMode uses
 the SDO executor and does not publish a native axis-command bitfield here. A malformed common-frame
 failure may use only the 16-byte common envelope. An ACK is acceptance only, not
 terminal completion. A prepared Start may cross the TCP write boundary at most

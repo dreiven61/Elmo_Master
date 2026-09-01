@@ -2721,7 +2721,7 @@ case CommandID of
         Sendbuf[20]$UDINT := 42;
       end_if;
       if diagnosticsOperationModeStartValid then
-        Sendbuf[24]$DINT := 8;
+        Sendbuf[24]$DINT := TO_DINT(RequestBuf[54]$SINT);
       else
         Sendbuf[24]$DINT := RequestBuf[44]$DINT;
       end_if;
@@ -2785,7 +2785,7 @@ case CommandID of
 			(Sendbuf[14]$INT = 0) &
 			(Sendbuf[16]$UDINT = RequestBuf[12]$UDINT) &
 			(Sendbuf[20]$UDINT = 0) &
-			(Sendbuf[24]$DINT = 8) &
+			(Sendbuf[24]$DINT = TO_DINT(RequestBuf[54]$SINT)) &
 			(Sendbuf[28]$UDINT = 0);
 		  diagnosticsExactFailure :=
 			(diagnosticsResponseSize = 24) &
@@ -2794,7 +2794,7 @@ case CommandID of
 			(Sendbuf[14]$INT = -31000) &
 			(Sendbuf[16]$UDINT = RequestBuf[12]$UDINT) &
 			(Sendbuf[20]$UDINT <> 0) &
-			(Sendbuf[24]$DINT = 8) &
+			(Sendbuf[24]$DINT = TO_DINT(RequestBuf[54]$SINT)) &
 			(((Sendbuf[20]$UDINT = 63) &
 			  ((Sendbuf[28]$UDINT AND 0xFFF0E0E0) = 0) &
 			  ((Sendbuf[28]$UDINT AND 0x000F0000) <> 0x000F0000)) |

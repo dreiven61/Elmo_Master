@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using LasalMotionControlApiExample;
 using LasalMotionControlLib;
 using LasalMotionControlLib.Tests;
@@ -13,6 +14,12 @@ namespace LasalApiWpfTestApp.SmokeTests
         internal static void RegisterAxisSetOperationModeRecoveryTests(
             ICollection<TestCase> tests)
         {
+            tests.Add("Wpf.SetOperationModeRecovery.PollRunningThenSucceededAndRetire",
+                () => SetOperationModePollsToFinalOutcome(2));
+            tests.Add("Wpf.SetOperationModeRecovery.PollRunningThenFailedRetiresWithoutPass",
+                () => SetOperationModePollsToFinalOutcome(3));
+            tests.Add("Wpf.SetOperationModeRecovery.PollRunningThenIndeterminateKeepsFence",
+                () => SetOperationModePollsToFinalOutcome(5));
             tests.Add(
                 "Wpf.SetOperationModeRecovery.StartupArmedPromotesAndLocksEndpoint",
                 SetOperationModeStartupArmedPromotesAndLocksEndpoint);
@@ -34,6 +41,127 @@ namespace LasalApiWpfTestApp.SmokeTests
             tests.Add(
                 "Wpf.SetOperationModeRecovery.RejectIdentityMismatchRetainsInterlock",
                 SetOperationModeRejectIdentityMismatchRetainsInterlock);
+        }
+
+        private static void SetOperationModePollsToFinalOutcome(ushort finalState)
+        {
+            var key = new LMCAxisSetOperationModeRecoveryKey(
+                1, 30, 1, DiagnosticsBootId, DiagnosticMapRevision,
+                1, 2, 3, 4, 1, LMCDriveOperationMode.ProfilePosition, 5000);
+            var capabilities = LMCDiagnosticCapability.EtherCATTopology;
+            var steps = CreateConnectAndTopologySteps(capabilities);
+            steps.Add(new FakeRpcStep(0x7D00, null) { ResponseFactory = request =>
+            {
+                var payload = CommonPayload(40, TestFrame.ReadUInt32(request, 12));
+                TestFrame.WriteUInt32(payload, 16, 0x700);
+                TestFrame.WriteUInt16(payload, 28, 4);
+                TestFrame.WriteUInt16(payload, 36, 6);
+                TestFrame.WriteUInt16(payload, 38, 0x018A);
+                return TestFrame.Response(0, payload);
+            }});
+            steps.Add(CapabilitiesStep(11, capabilities));
+            var lookup = new byte[6];
+            TestFrame.WriteUInt16(lookup, 4, 1);
+            steps.Add(new FakeRpcStep(0x103C, TestFrame.Response(0, lookup)));
+            var info = new byte[8];
+            TestFrame.WriteUInt32(info, 0, 1);
+            steps.Add(new FakeRpcStep(0x202B, TestFrame.Response(0, info)));
+            steps.Add(ModePollingOutcomeStep(key, 1, 0x7D24));
+            steps.Add(ModePollingOutcomeStep(key, 1, 0x7D24));
+            steps.Add(ModePollingOutcomeStep(key, finalState, 0x7D24));
+            if (finalState != 5)
+                steps.Add(ModePollingOutcomeStep(key, finalState, 0x7D25));
+            steps.Add(CloseStep());
+            var root = CreateSetOperationModeTemporaryDirectory();
+            MainWindow window = null;
+            try
+            {
+                using (var server = new FakeRpcServer(steps.ToArray()))
+                {
+                    window = CreateWindow(root, server.Port);
+                    Click(window.ButtonConnect);
+                    WaitForConnectCompleted(window, "Mode polling setup did not connect.");
+                    var journal = window.AxisSetOperationModeRecoveryJournalForTests;
+                    var armed = journal.ArmBeforeDispatch(Guid.NewGuid(), "127.0.0.1",
+                        server.Port, "_LMCAxis1", key, DateTime.UtcNow);
+                    journal.PromoteToRecoveryRequired(armed, DateTime.UtcNow.AddMilliseconds(1));
+                    window.RefreshAxisSetOperationModeRecoveryUiForTests();
+                    Click(window.AxisSetOperationModeRecoverButtonForTests);
+                    WaitUntil(() => server.ReceivedRequests.Count(r => TestFrame.ReadUInt16(r, 0) == 0x7D24) >= 1,
+                        "No first outcome query.");
+                    // Pump the real WPF dispatcher during the await; no early PASS,
+                    // no journal release and no conflicting mutation while Running.
+                    AssertEx.True(window.AxisSetOperationModeRecoveryInterlockForTests);
+                    AssertEx.False(window.AxisSetOperationModeStartButtonForTests.IsEnabled);
+                    AssertEx.False(window.TextExecutionLog.Text.Contains("Recover SetOperationMode Outcome PASS."));
+                    WaitUntil(() => window.TextOperationState.Text ==
+                        (finalState == 2 ? "Recover SetOperationMode Outcome completed" : "Recover SetOperationMode Outcome failed"),
+                        "Polling did not settle at the expected final result.");
+                    AssertEx.Equal(3, server.ReceivedRequests.Count(r => TestFrame.ReadUInt16(r, 0) == 0x7D24));
+                    AssertEx.Equal(0, server.ReceivedRequests.Count(r => TestFrame.ReadUInt16(r, 0) == 0x7D23));
+                    AssertEx.Equal(finalState == 5 ? 0 : 1,
+                        server.ReceivedRequests.Count(r => TestFrame.ReadUInt16(r, 0) == 0x7D25));
+                    AssertEx.Equal(finalState == 5, window.AxisSetOperationModeRecoveryInterlockForTests);
+                    if (finalState == 5)
+                    {
+                        // The final UpdateUiState must not erase the failure guidance.
+                        var status = (System.Windows.Controls.TextBlock)GetPrivateField(window,
+                            "textAxisSetOperationModeRecoveryStatus");
+                        AssertEx.Contains("OUTCOME QUERY REJECTED", status.Text);
+                        window.Dispatcher.Invoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle,
+                            new Action(() => { }));
+                        AssertEx.True(window.ButtonCloseConnection.IsEnabled);
+                    }
+                    if (finalState != 2)
+                        AssertEx.False(window.TextExecutionLog.Text.Contains("Recover SetOperationMode Outcome PASS."));
+                    CloseConnectedWindow(window);
+                    server.Verify();
+                }
+            }
+            finally
+            {
+                CloseWindowBestEffort(window);
+                DeleteSetOperationModeTemporaryDirectory(root);
+            }
+        }
+
+        private static FakeRpcStep ModePollingOutcomeStep(
+            LMCAxisSetOperationModeRecoveryKey key, ushort state, ushort command)
+        {
+            return new FakeRpcStep(command, null) { ResponseFactory = request =>
+            {
+                // Check the original intent and target on every poll/retirement.
+                AssertEx.Equal(key.OriginalRequestId, TestFrame.ReadUInt32(request, 32));
+                AssertEx.Equal((byte)1, request[54]);
+                var id = TestFrame.ReadUInt32(request, 12);
+                var payload = CommonPayload(state == 5 ? 16 : 112, id);
+                if (state == 5)
+                {
+                    TestFrame.WriteUInt16(payload, 4, 1);
+                    TestFrame.WriteInt16(payload, 6, -31000);
+                    TestFrame.WriteUInt32(payload, 12, 46);
+                    return TestFrame.Response(0, payload);
+                }
+                // Echo the frozen key from offset 8 of the request payload.
+                Buffer.BlockCopy(request, 20, payload, 20, 44);
+                TestFrame.WriteUInt16(payload, 16, state);
+                payload[55] = state == 2 ? (byte)1 : (byte)8;
+                TestFrame.WriteUInt32(payload, 72, 99);
+                TestFrame.WriteUInt32(payload, 76, state == 1 ? 15u : 63u);
+                TestFrame.WriteUInt32(payload, 80, 100);
+                TestFrame.WriteUInt32(payload, 84, state == 1 ? 0u : 110u);
+                TestFrame.WriteUInt32(payload, 92, 7);
+                payload[96] = 8;
+                TestFrame.WriteUInt16(payload, 104, 0x02D0);
+                TestFrame.WriteUInt32(payload, 108, 1);
+                if (state == 3)
+                {
+                    TestFrame.WriteUInt16(payload, 64, 1);
+                    TestFrame.WriteInt16(payload, 66, -31000);
+                    TestFrame.WriteUInt32(payload, 68, (uint)LMCAdminDetailCode.SetOperationModeExecutionFailed);
+                }
+                return TestFrame.Response(0, payload);
+            }};
         }
 
         private static void SetOperationModeStartupArmedPromotesAndLocksEndpoint()

@@ -164,6 +164,8 @@ current PLC source는 위 상태 머신과 no-replay recovery를 구현한다.
 - warm-start/reconnect recovery는 dispatch evidence가 있는 exact Running record만 복구 후보로 삼는다.
 - dispatch 이후 복구는 `0x6061` read-only 경로만 사용한다.
 - observed mode가 requested mode와 같아야 success를 commit한다.
+- 2026-08-31 readback 보완: 정상 6061 응답이 다른 mode이면 원래 deadline까지 50ms 간격으로 read-only 재확인한다. 불일치 한 번으로 즉시 격리하지 않으며 timeout clock을 반복 갱신하지 않는다. 만료 후 불확정은 quarantine을 유지한다.
+- WPF는 Running 응답을 완료/PASS로 표시하지 않고 bounded exact-key 조회 후 terminal proof 저장 및 exact retire까지 진행한다. 상세 구현/검증 한계는 `SET_OPERATION_MODE_READBACK_SETTLING_FIX_20260831.md` 참조.
 - terminal payload를 stage/readback한 뒤에만 owner release를 수행하고 RecordState를 terminal로 바꾼다.
 - indeterminate record는 quarantine으로 보존한다.
 - terminal exact-generation retire만 record를 제거한다.
@@ -309,7 +311,8 @@ capability bits 8/9/10도 OFF였다. 아래 private ABI는 이후 runtime implem
 - `LMCControlCommandService`가 `0x7D23` exact identity 56과 lifecycle admission을 validate/commit한다.
 - `LMCDiagnosticsService`는 4축 x 32-DINT record와 32-DINT runtime 영역을 사용한다.
 - Start는 `6061` preflight 후 same-mode면 no-write success, 아니면 standstill/power-off/owner/SDO
-  안전 조건을 확인한 뒤 exact one-byte `6060=8` write를 시도한다.
+  안전 조건을 확인한 뒤 PLC가 광고한 PP(1)/PV(3)/IP(7)/CSP(8) 중 요청된 exact one-byte
+  `6060` write를 시도한다.
 - `READY`만 irreversible dispatch evidence로 기록한다.
 - write dispatch 이후 timeout/callback uncertainty는 `6061` read-only recovery로만 이동한다.
 - warm-start는 write-dispatched Running record만 reconstruct한다.

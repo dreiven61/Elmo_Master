@@ -2,6 +2,7 @@
 
 - 기준일: 2026-08-31
 - current integration / qualification source: `dev`
+- latest 8 -> 1 readback/WPF fix (physical retest pending): [SET_OPERATION_MODE_READBACK_SETTLING_FIX_20260831.md](SET_OPERATION_MODE_READBACK_SETTLING_FIX_20260831.md)
 - current status snapshot: `DEVELOPMENT_STATUS_20260831.md`
 - current SetOperationMode implementation result: `SET_OPERATION_MODE_START_EXECUTION_IMPLEMENTATION_RESULT_20260831.md`
 - current Detail 49 observability implementation result: `SET_OPERATION_MODE_DETAIL49_OBSERVABILITY_IMPLEMENTATION_RESULT_20260831.md`
