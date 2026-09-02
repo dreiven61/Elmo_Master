@@ -21,7 +21,23 @@ jobs:
           fetch-depth: 0
 
       - name: Apply source patch
-        run: python .github/scripts/patch-2drive-encoder-maintenance.py
+        shell: pwsh
+        run: |
+          $path = '.github/scripts/patch-2drive-encoder-maintenance.py'
+          $text = Get-Content -Raw $path
+          $old = @'
+              if text.find(start_marker, start + len(start_marker)) >= 0:
+                  raise RuntimeError(f"{path}: start marker is not unique")
+          '@
+          if (-not $text.Contains($old)) {
+              throw 'Temporary patch helper guard was not found.'
+          }
+          $text = $text.Replace($old, '')
+          [System.IO.File]::WriteAllText(
+              $path,
+              $text,
+              [System.Text.UTF8Encoding]::new($false))
+          python $path
 
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
