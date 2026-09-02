@@ -10,9 +10,9 @@ permissions:
   contents: write
 
 jobs:
-  patch-and-validate:
+  inspect-verifier:
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
     steps:
       - name: Checkout dev
         uses: actions/checkout@v4
@@ -20,103 +20,23 @@ jobs:
           ref: dev
           fetch-depth: 0
 
-      - name: Apply retained rebase diagnostic fix
+      - name: Inspect current verifier contexts
         shell: pwsh
         run: |
-          $helper = 'tools/Apply-PowerOnRebaseDiagnosticFix.ps1'
-          $helperLines = Get-Content -LiteralPath $helper
-          $helperLines = @($helperLines | Where-Object {
-            ($_ -notmatch '^\$old=') -and
-            ($_ -notmatch '^\$new=') -and
-            ($_ -notmatch '^ReplaceOne \$fixture \$old \$new ')
-          })
-          Set-Content -LiteralPath $helper -Value $helperLines -Encoding utf8
-          ./tools/Apply-PowerOnRebaseDiagnosticFix.ps1 -RepositoryRoot $PWD
-
-          $fixture = 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalAxisRebaseBarrier.Fixture.ps1'
-          $lines = [Collections.Generic.List[string]](Get-Content -LiteralPath $fixture)
-          $hits = @()
-          for ($i = 0; $i -lt $lines.Count; $i++) {
-            if (($lines[$i] -match 'rebaseAdmissionAllowed') -and ($lines[$i] -match '\)-2''\)')) { $hits += $i }
-          }
-          if ($hits.Count -ne 1) { throw "Expected one ReserveConflictDrift line, found $($hits.Count)." }
-          $lines[$hits[0]] = $lines[$hits[0]].Replace(")-2')", ")LMC_OWNER_REBASE_REQUIRED')")
-          Set-Content -LiteralPath $fixture -Value $lines -Encoding utf8
-
           $verifier = 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
-          $text = [IO.File]::ReadAllText($verifier)
-          $needle = 'rebaseAdmissionAllowed\s*=\s*FALSE\)\s+then\s*Result\s*:=\s*)-2'
-          $replacement = 'rebaseAdmissionAllowed\s*=\s*FALSE\)\s+then\s*Result\s*:=\s*)LMC_OWNER_REBASE_REQUIRED'
-          $count = ([regex]::Matches($text, [regex]::Escape($needle))).Count
-          if (($count -lt 1) -or ($count -gt 4)) { throw "Unexpected exact verifier contract count: $count" }
-          $text = $text.Replace($needle, $replacement)
-          [IO.File]::WriteAllText($verifier, $text, (New-Object Text.UTF8Encoding($false)))
-
-          $testProject = 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/LasalMotionControlLib.Tests.csproj'
-          $p = [Collections.Generic.List[string]](Get-Content -LiteralPath $testProject)
-          if (-not (($p -join "`n") -match 'MaintenanceActionRecoveryJournal\.cs')) {
-            $anchor = -1
-            for ($i = 0; $i -lt $p.Count; $i++) {
-              if ($p[$i] -match 'RecoveryRecordRetirementLedger\.cs') { $anchor = $i; break }
-            }
-            if ($anchor -lt 0) { throw 'RecoveryRecordRetirementLedger compile anchor not found.' }
-            $p.Insert($anchor, '    <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\MaintenanceActionRecoveryJournal.cs">')
-            $p.Insert($anchor + 1, '      <Link>MaintenanceActionRecoveryJournal.cs</Link>')
-            $p.Insert($anchor + 2, '    </Compile>')
-            Set-Content -LiteralPath $testProject -Value $p -Encoding utf8
+          Write-Host '=== rebaseAdmissionAllowed contexts ==='
+          Select-String -LiteralPath $verifier -Pattern 'rebaseAdmissionAllowed' -Context 10,10 | ForEach-Object {
+            Write-Host ("LINE {0}" -f $_.LineNumber)
+            Write-Host ($_.Context.PreContext -join "`n")
+            Write-Host $_.Line
+            Write-Host ($_.Context.PostContext -join "`n")
+            Write-Host '---'
           }
-
-      - name: Verify targeted source invariants
-        shell: pwsh
-        run: |
-          $control = Get-Content -Raw 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
-          $tcp = Get-Content -Raw 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st'
-          $project = Get-Content -Raw 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/LasalMotionControlLib.Tests.csproj'
-          $verifier = Get-Content -Raw 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
-          if ($control -notmatch '#define\s+LMC_OWNER_REBASE_REQUIRED\s+-15') { throw 'Missing control -15 define.' }
-          if ($control -notmatch 'Result\s*:=\s*LMC_OWNER_REBASE_REQUIRED') { throw 'Dedicated rebase admission result missing.' }
-          if ($tcp -notmatch 'LMC_OWNER_ADAPTER_ERROR_REBASE_REQUIRED\s+-15') { throw 'Missing TCP -15 define.' }
-          if ($tcp -notmatch 'Sendbuf\[14\]\$INT\s*:=\s*LMC_OWNER_ADAPTER_ERROR_REBASE_REQUIRED') { throw 'Axis ACK -15 propagation missing.' }
-          if ($tcp -notmatch 'Sendbuf\[20\]\$UDINT\s*:=\s*65') { throw 'Admin rebase detail 65 missing.' }
-          if ($project -notmatch 'MaintenanceActionRecoveryJournal\.cs') { throw 'API test compile closure missing.' }
-          if ($verifier -notmatch 'rebaseAdmissionAllowed\\s\*=\\s\*FALSE.*LMC_OWNER_REBASE_REQUIRED') { throw 'Primary verifier rebase contract missing.' }
-
-      - name: Axis rebase verifier self-test
-        shell: pwsh
-        run: |
-          & 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalAxisRebaseBarrier.Fixture.ps1' -RunSelfTest -RepositoryRoot $PWD
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      - name: API Release tests
-        shell: pwsh
-        run: |
-          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
-          $msbuild = @(& $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe') | Select-Object -First 1
-          if ([string]::IsNullOrWhiteSpace($msbuild)) { throw 'MSBuild.exe not found.' }
-          & $msbuild 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/LasalMotionControlLib.Tests.csproj' /t:RunTests /p:Configuration=Release /nologo
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      - name: WPF Debug build
-        shell: pwsh
-        run: |
-          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
-          $msbuild = @(& $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe') | Select-Object -First 1
-          if ([string]::IsNullOrWhiteSpace($msbuild)) { throw 'MSBuild.exe not found.' }
-          & $msbuild 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.sln' /t:Build /p:Configuration=Debug /nologo
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      - name: Diff check
-        shell: pwsh
-        run: |
-          git diff --check
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      - name: Commit validated fix and remove one-shot tooling
-        shell: pwsh
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git rm -f '.github/workflows/oneshot-poweron-rebase-fix.yml' 'tools/Apply-PowerOnRebaseDiagnosticFix.ps1'
-          git add -A
-          git commit -m 'fix: expose retained rebase barrier on PowerOn'
-          git push origin HEAD:dev
+          Write-Host '=== ordinary safety repeat contexts ==='
+          Select-String -LiteralPath $verifier -Pattern 'ordinary safety repeat','immutable retained tuple immediately','Reserve positive result' -Context 12,12 | ForEach-Object {
+            Write-Host ("LINE {0}" -f $_.LineNumber)
+            Write-Host ($_.Context.PreContext -join "`n")
+            Write-Host $_.Line
+            Write-Host ($_.Context.PostContext -join "`n")
+            Write-Host '---'
+          }
