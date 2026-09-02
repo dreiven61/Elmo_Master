@@ -15,14 +15,24 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Locate ownership self-test source
+      - name: Inspect ordinary safety-repeat verifier body
         shell: powershell
         run: |
-          $patterns = @('ordinary safety-repeat','safety-repeat','immutable retained tuple','Reserve positive result','common axis ownership activation blocker')
-          $files = Get-ChildItem -Path . -Recurse -File -Include *.ps1,*.cs,*.st
-          foreach ($pattern in $patterns) {
-            Write-Host "===== PATTERN: $pattern ====="
-            $hits = $files | Select-String -Pattern $pattern -SimpleMatch -Context 12,30
-            if ($hits) { $hits | ForEach-Object { $_ | Format-List * | Out-String | Write-Host } }
-            else { Write-Host 'NO MATCH' }
+          function Show-Lines([string]$Path, [int]$Start, [int]$End) {
+            $lines = Get-Content -LiteralPath $Path
+            Write-Host "===== $Path lines $Start..$End ====="
+            for ($i = $Start; $i -le $End -and $i -le $lines.Count; $i++) {
+              Write-Host ("{0:D6}: {1}" -f $i, $lines[$i - 1])
+            }
           }
+          $contract = '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\Verify-LasalContract.ps1'
+          $fixture = '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\Verify-LasalAxisOwnershipActivationGuard.Fixture.ps1'
+          Show-Lines $contract 14170 14525
+          Show-Lines $contract 15535 15630
+          Show-Lines $fixture 1380 1490
+
+          Write-Host '===== likely Reserve/result source sites ====='
+          Get-ChildItem -Path '.\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class' -Recurse -File -Filter '*.st' |
+            Select-String -Pattern 'ReserveAxisOwner|OwnerReserve|ReservationResult|Retained|safetyRepeat' -Context 5,12 |
+            Select-Object -First 120 |
+            ForEach-Object { $_ | Format-List * | Out-String | Write-Host }
