@@ -30,17 +30,23 @@ jobs:
             if ($v[$i].Trim() -ceq '$expectedOutputPointerWrites = @(') { $start=$i; break }
           }
           if ($start -lt 0) { throw 'expectedOutputPointerWrites block not found.' }
-          $end = -1
-          for ($i=$start+1; $i -lt [Math]::Min($v.Count,$start+60); $i++) {
-            if ($v[$i].Trim() -ceq ')') { $end=$i; break }
+          $compareLine = -1
+          for ($i=$start+1; $i -lt [Math]::Min($v.Count,$start+80); $i++) {
+            if ($v[$i] -like '*if ([string]::Join(''*'', $outputPointerWrites) -cne*') { $compareLine=$i; break }
           }
-          if ($end -lt 0) { throw 'expectedOutputPointerWrites block end not found.' }
+          if ($compareLine -lt 0) {
+            for ($i=$start+1; $i -lt [Math]::Min($v.Count,$start+80); $i++) {
+              if ($v[$i] -match '\[string\]::Join' -and $v[$i] -match '\$outputPointerWrites') { $compareLine=$i; break }
+            }
+          }
+          if ($compareLine -lt 0) { throw 'expectedOutputPointerWrites comparison line not found.' }
+          $end = $compareLine - 1
           $block = @($v[$start..$end])
           if (($block -join "`n") -match '0x01000000') { throw 'Diagnostic output writes already present.' }
 
           $repeatAnchor=-1
           $freshAnchor=-1
-          for ($i=$start+1; $i -lt $end; $i++) {
+          for ($i=$start+1; $i -le $end; $i++) {
             if ($v[$i].Trim() -ceq "'pownergeneration^:=repeatownergeneration;',") { $repeatAnchor=$i }
             if ($v[$i].Trim() -ceq "'pownergeneration^:=nextgeneration;')") { $freshAnchor=$i }
           }
@@ -48,21 +54,17 @@ jobs:
             throw "Output inventory anchors missing repeat=$repeatAnchor fresh=$freshAnchor."
           }
 
-          $diag = @(
+          $repeatDiag = @(
             "        'peffectiveaxismask^:=peffectiveaxismask^or0x01000000;',",
             "        'peffectiveaxismask^:=peffectiveaxismask^or0x02000000;',",
             "        'peffectiveaxismask^:=peffectiveaxismask^or0x04000000;',",
             "        'peffectiveaxismask^:=peffectiveaxismask^or0x08000000;',",
-            "        'peffectiveaxismask^:=peffectiveaxismask^or0x10000000;'"
+            "        'peffectiveaxismask^:=peffectiveaxismask^or0x10000000;',"
           )
-
-          # Repeat path: all five entries are followed by later fresh entries, so comma-terminate all.
-          $repeatDiag = @($diag | ForEach-Object { if ($_.EndsWith(";'")) { $_ + ',' } else { $_ } })
           for ($j=$repeatDiag.Count-1; $j -ge 0; $j--) { $v.Insert($repeatAnchor+1,$repeatDiag[$j]) }
 
-          # Fresh anchor moved by repeat insertion. Locate it again and convert its closing parenthesis to comma.
           $freshAnchor=-1
-          for ($i=$start+1; $i -lt [Math]::Min($v.Count,$start+70); $i++) {
+          for ($i=$start+1; $i -lt [Math]::Min($v.Count,$start+80); $i++) {
             if ($v[$i].Trim() -ceq "'pownergeneration^:=nextgeneration;')") { $freshAnchor=$i; break }
           }
           if ($freshAnchor -lt 0) { throw 'Fresh output inventory anchor disappeared.' }
