@@ -16,45 +16,55 @@ jobs:
           ref: dev
           fetch-depth: 0
 
-      - name: Print next verifier failure context
+      - name: Compute actual compact mutation inventory
         shell: pwsh
         run: |
-          $path = 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
-          $lines = Get-Content -LiteralPath $path
-          $patterns = @(
-            'repeat proof or mutation-free output publication drifted',
-            'mutation-free output publication',
-            'repeat proof'
-          )
-          foreach ($pattern in $patterns) {
-            Write-Host "===== $pattern ====="
-            $matches = Select-String -LiteralPath $path -SimpleMatch $pattern
-            foreach ($m in $matches) {
-              $start=[Math]::Max(1,$m.LineNumber-130)
-              $end=[Math]::Min($lines.Count,$m.LineNumber+130)
-              Write-Host "LINES $start..$end (match $($m.LineNumber))"
-              for($n=$start;$n -le $end;$n++){
-                Write-Host (("{0,6}: {1}" -f $n,$lines[$n-1]))
-              }
-            }
-          }
-
-      - name: Print exact Reserve repeat and fresh publication blocks
-        shell: pwsh
-        run: |
+          $ErrorActionPreference = 'Stop'
           $path = 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
           $text = Get-Content -Raw -LiteralPath $path
           $m = [regex]::Match($text,'(?is)FUNCTION\s+GLOBAL\s+LMCControlCommandService::ReserveAxisOwnership\b.*?END_FUNCTION')
           if (-not $m.Success) { throw 'ReserveAxisOwnership not found.' }
-          $arr = $m.Value -split "`r?`n"
-          foreach ($needle in @('if repeatMode > 0 then','pEffectiveAxisMask^ := effectiveAxisMask;')) {
-            Write-Host "===== $needle ====="
-            $hits = $arr | Select-String -SimpleMatch $needle
-            foreach($hit in $hits){
-              $start=[Math]::Max(1,$hit.LineNumber-45)
-              $end=[Math]::Min($arr.Count,$hit.LineNumber+90)
-              for($n=$start;$n -le $end;$n++){
-                Write-Host (("{0,6}: {1}" -f $n,$arr[$n-1]))
-              }
+          $scan = $m.Value
+          $persistentMutationPattern = (
+            '(?is)(?:' +
+            '\bOwnership[A-Za-z0-9_]*State\s*\[[^\]]+\]\s*' +
+            '(?:\$[A-Za-z_][A-Za-z0-9_]*\s*)?' +
+            '(?::|\+|-|\*|/|and|or|xor)\s*=\s*[^;]+;' +
+            '|' +
+            '\b_memset\s*\(\s*dest\s*:=\s*' +
+            '#Ownership[A-Za-z0-9_]*State\s*\[.*?\)\s*;' +
+            '|' +
+            '\b_memcpy\s*\(\s*ptr1\s*:=\s*' +
+            '#Ownership[A-Za-z0-9_]*State\s*\[.*?\)\s*;' +
+            '|' +
+            '\bp(?:EffectiveAxisMask|AdmissionToken|OwnerGeneration)\s*' +
+            '\^\s*:=\s*[^;]+;' +
+            ')')
+          $persistentMutations = [regex]::Matches($scan,$persistentMutationPattern)
+          $normalizedMutations = @(
+            foreach($mutation in $persistentMutations){
+              [regex]::Replace($mutation.Value,'\s+','').ToLowerInvariant()
             }
+          )
+          $joined = [string]::Join('|',$normalizedMutations)
+          $sha=[Security.Cryptography.SHA256]::Create()
+          try {
+            $hash=([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($joined)))).Replace('-','')
+          } finally { $sha.Dispose() }
+          Write-Host "COUNT=$($normalizedMutations.Count)"
+          Write-Host "LENGTH=$($joined.Length)"
+          Write-Host "SHA256=$hash"
+          for($i=0;$i -lt $normalizedMutations.Count;$i++){
+            Write-Host (("MUT {0,3}: {1}" -f $i,$normalizedMutations[$i]))
           }
+
+      - name: Print verifier mutation contract block
+        shell: pwsh
+        run: |
+          $path='LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
+          $lines=Get-Content -LiteralPath $path
+          $m=Select-String -LiteralPath $path -SimpleMatch '$persistentMutationPattern = (' | Select-Object -First 1
+          if($null -eq $m){throw 'persistent mutation block not found'}
+          $start=[Math]::Max(1,$m.LineNumber-25)
+          $end=[Math]::Min($lines.Count,$m.LineNumber+190)
+          for($n=$start;$n -le $end;$n++){Write-Host (("{0,6}: {1}" -f $n,$lines[$n-1]))}
