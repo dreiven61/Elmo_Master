@@ -41,15 +41,11 @@ jobs:
             if (($f[$i] -match 'rebaseAdmissionAllowed') -and
                 ($f[$i] -match '\)-2''\)')) { $fixtureHits += $i }
           }
-          if ($fixtureHits.Count -ne 1) {
-            throw "Expected one ReserveConflictDrift line, found $($fixtureHits.Count)."
-          }
+          if ($fixtureHits.Count -ne 1) { throw "Expected one ReserveConflictDrift line, found $($fixtureHits.Count)." }
           $fi = $fixtureHits[0]
           $f[$fi] = $f[$fi].Replace(")-2')", ")LMC_OWNER_REBASE_REQUIRED')")
           Set-Content -LiteralPath $fixture -Value $f -Encoding utf8
 
-          # These are the three exact rebase-specific verifier lines observed
-          # in the current dev source. Ordinary safety-repeat remains untouched.
           $verifier = 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
           $v = [Collections.Generic.List[string]](Get-Content -LiteralPath $verifier)
           $replacements = @(
@@ -71,9 +67,7 @@ jobs:
             for ($i = 0; $i -lt $v.Count; $i++) {
               if ($v[$i] -ceq $pair[0]) { $hits += $i }
             }
-            if ($hits.Count -ne 1) {
-              throw "Verifier exact rebase contract expected once, found $($hits.Count): $($pair[0])"
-            }
+            if ($hits.Count -ne 1) { throw "Verifier exact rebase contract expected once, found $($hits.Count): $($pair[0])" }
             $v[$hits[0]] = $pair[1]
           }
           Set-Content -LiteralPath $verifier -Value $v -Encoding utf8
@@ -83,10 +77,7 @@ jobs:
           if (-not (($p -join "`n") -match 'MaintenanceActionRecoveryJournal\.cs')) {
             $anchor = -1
             for ($i = 0; $i -lt $p.Count; $i++) {
-              if ($p[$i] -match 'RecoveryRecordRetirementLedger\.cs') {
-                $anchor = $i
-                break
-              }
+              if ($p[$i] -match 'RecoveryRecordRetirementLedger\.cs') { $anchor = $i; break }
             }
             if ($anchor -lt 0) { throw 'RecoveryRecordRetirementLedger compile anchor not found.' }
             $p.Insert($anchor, '    <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\MaintenanceActionRecoveryJournal.cs">')
@@ -113,7 +104,7 @@ jobs:
           if ($catalog -notmatch 'AxisRebaseRequired') { throw 'C# error catalog -15 entry missing.' }
           if ($models -notmatch 'AxisRebaseRequired\s*=\s*65') { throw 'Admin detail enum 65 missing.' }
           if ($project -notmatch 'MaintenanceActionRecoveryJournal\.cs') { throw 'API test compile closure missing.' }
-          if (($verifier | Select-String -SimpleMatch 'LMC_OWNER_REBASE_REQUIRED' -AllMatches).Matches.Count -lt 3) { throw 'Primary verifier symbolic rebase expectations missing.' }
+          if ([regex]::Matches($verifier, 'LMC_OWNER_REBASE_REQUIRED').Count -lt 3) { throw 'Primary verifier symbolic rebase expectations missing.' }
 
       - name: Axis rebase verifier self-test
         shell: pwsh
