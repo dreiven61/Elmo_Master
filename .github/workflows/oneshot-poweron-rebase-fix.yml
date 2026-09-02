@@ -57,26 +57,22 @@ jobs:
           }
           Set-Content -LiteralPath $verifier -Value $v -Encoding utf8
 
-      - name: Print ordinary safety repeat construction contexts
+      - name: Print exact self-test call flow
         shell: pwsh
         run: |
           $path = 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
-          $patterns = @(
-            'ordinary safety-repeat',
-            'repeatReturnBody',
-            'repeatMode',
-            'common axis ownership activation',
-            'Reserve positive result',
-            'repeatAxisMask',
-            'rebaseAdmissionAllowed'
-          )
+          $lines = Get-Content -LiteralPath $path
+          $patterns = @('ordinaryRepeatSource =', 'ordinaryModeRepeatMissing =', 'ordinary safety-repeat self-test', 'Assert-SourceVerifierRejects', 'Assert-SourceOnly', 'CommonOverride $ordinaryRepeatSource')
           foreach ($pattern in $patterns) {
-            Write-Host "===== PATTERN: $pattern ====="
-            Select-String -LiteralPath $path -SimpleMatch $pattern -Context 35,35 | ForEach-Object {
-              Write-Host ("LINE {0}" -f $_.LineNumber)
-              Write-Host ($_.Context.PreContext -join "`n")
-              Write-Host $_.Line
-              Write-Host ($_.Context.PostContext -join "`n")
+            Write-Host "===== $pattern ====="
+            $matches = Select-String -LiteralPath $path -SimpleMatch $pattern
+            foreach ($m in $matches) {
+              $start = [Math]::Max(1, $m.LineNumber - 80)
+              $end = [Math]::Min($lines.Count, $m.LineNumber + 180)
+              Write-Host "LINES $start..$end (match $($m.LineNumber))"
+              for ($n = $start; $n -le $end; $n++) {
+                Write-Host (("{0,6}: {1}" -f $n, $lines[$n-1]))
+              }
               Write-Host '-----'
             }
           }
