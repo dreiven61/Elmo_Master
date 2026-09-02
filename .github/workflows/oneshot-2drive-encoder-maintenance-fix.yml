@@ -33,6 +33,12 @@ jobs:
               throw 'Temporary patch helper guard was not found.'
           }
           $text = $text.Replace($old, '')
+          $oldTcpNeedle = '    "      (diagnosticsOperationModeStartValid = FALSE)) |\n",'
+          $newTcpNeedle = '    "\t\t  (diagnosticsOperationModeStartValid = FALSE)) |\n",'
+          if (-not $text.Contains($oldTcpNeedle)) {
+              throw 'Temporary TCP dispatch needle was not found.'
+          }
+          $text = $text.Replace($oldTcpNeedle, $newTcpNeedle)
           [System.IO.File]::WriteAllText(
               $path,
               $text,
