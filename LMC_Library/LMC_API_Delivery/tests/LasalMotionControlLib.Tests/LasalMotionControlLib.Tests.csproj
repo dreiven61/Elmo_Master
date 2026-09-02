@@ -133,6 +133,9 @@
     <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\D5SdoWriteSameValueQualificationOrchestrator.cs">
       <Link>D5SdoWriteSameValueQualificationOrchestrator.cs</Link>
     </Compile>
+    <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\MaintenanceActionRecoveryJournal.cs">
+      <Link>MaintenanceActionRecoveryJournal.cs</Link>
+    </Compile>
     <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\RecoveryRecordRetirementLedger.cs">
       <Link>RecoveryRecordRetirementLedger.cs</Link>
     </Compile>

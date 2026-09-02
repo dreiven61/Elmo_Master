@@ -189,7 +189,7 @@ Add-NegativeFixture 'ReserveGroupResetNotAllowed' `
      '\(CommandId\s*=\s*)0x2049') '${1}0x204A'
 Add-NegativeFixture 'ReserveConflictDrift' `
     ('(FUNCTION\s+GLOBAL\s+LMCControlCommandService::ReserveAxisOwnership\b.*?' +
-     'rebaseAdmissionAllowed\s*=\s*FALSE\)\s+then\s*Result\s*:=\s*)-2') '${1}-3'
+     'rebaseAdmissionAllowed\s*=\s*FALSE\)\s+then\s*Result\s*:=\s*)LMC_OWNER_REBASE_REQUIRED') '${1}-3'
 Add-NegativeFixture 'CommitTw20Arms' `
     ('(FUNCTION\s+GLOBAL\s+LMCControlCommandService::CommitAxisOwnership\b.*?' +
      'OwnershipState\[recordBase\s*\+\s*25\]\$UINT\s*=\s*)2') '${1}1'

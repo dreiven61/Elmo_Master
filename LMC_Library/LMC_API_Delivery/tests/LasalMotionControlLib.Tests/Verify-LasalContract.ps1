@@ -8413,7 +8413,7 @@ function Assert-LasalAxisOwnershipReserveMutationFences {
         'rebaseAxisMask\s*:=\s*TO_UDINT\(rebaseReadResult\)\s*;.*?' +
         'if\s*\(\(effectiveAxisMask\s+and\s+rebaseAxisMask\)\s*<>\s*0\)' +
         '\s*&\s*\(rebaseAdmissionAllowed\s*=\s*FALSE\)\s+then\s*' +
-        'Result\s*:=\s*-2\s*;\s*RETURN\s*;\s*end_if\s*;\s*end_if\s*;') (
+        'Result\s*:=\s*LMC_OWNER_REBASE_REQUIRED\s*;\s*RETURN\s*;\s*end_if\s*;\s*end_if\s*;') (
         "$blocker retained rebase admission barrier drifted.")
     Assert-Match $scan (
         '(?is)if\s+repeatMode\s*>\s*0\s+then.*?' +
@@ -8937,7 +8937,7 @@ function Invoke-LasalAxisOwnershipReserveVerifierSelfTest {
             Name = 'RebaseBarrierBypassed'
             Pattern = (
                 '(?is)(\(rebaseAdmissionAllowed\s*=\s*)FALSE' +
-                '(\)\s+then\s*Result\s*:=\s*-2)')
+                '(\)\s+then\s*Result\s*:=\s*LMC_OWNER_REBASE_REQUIRED)')
             Replacement = '${1}TRUE${2}'
         },
         @{
@@ -14501,11 +14501,35 @@ function Assert-LasalOrdinarySafetyRepeatContract {
     }
     $repeatReturnBody = $repeatReturn.Groups['Body'].Value
     Assert-Match $repeatReturnBody (
-        '(?is)pEffectiveAxisMask\^\s*:=\s*repeatAxisMask\s*;\s*' +
+        '(?is)\A\s*' +
+        'if\s+repeatRootPresent\s+then\s*' +
+        'repeatPreemptCopyResult\s*:=\s*CopyAxisOwnershipPreemption\(\s*' +
+        'PreemptedAdmissionToken:=repeatPreemptedToken\s*,\s*' +
+        'PreemptedOwnerGeneration:=repeatPreemptedGeneration\s*,\s*' +
+        'pDest:=#repeatPreemptProbe\[0\]\s*,\s*DestSize:=144\s*\)\s*;\s*' +
+        'if\s+repeatPreemptCopyResult\s*<>\s*-4\s+then\s*' +
+        'OwnershipState\[24\]\s*:=\s*1\s*;\s*' +
+        'Result\s*:=\s*-3\s*;\s*RETURN\s*;\s*end_if\s*;\s*end_if\s*;\s*' +
+        'pEffectiveAxisMask\^\s*:=\s*repeatAxisMask\s*;\s*' +
         'pAdmissionToken\^\s*:=\s*repeatAdmissionToken\s*;\s*' +
         'pOwnerGeneration\^\s*:=\s*repeatOwnerGeneration\s*;\s*' +
+        'if\s+CommandId\s*=\s*0x7D23\s+then\s*.*?end_if\s*;\s*' +
         'Result\s*:=\s*repeatMode\s*;\s*RETURN\s*;\s*\z') (
         "$blocker Reserve positive result does not return the immutable retained tuple immediately.")
+    Assert-Match $repeatReturnBody (
+        '(?is)if\s+CommandId\s*=\s*0x7D23\s+then\s*' +
+        'if\s+CallerSessionEpoch\s*<>\s*0\s+then\s*' +
+        'pEffectiveAxisMask\^\s*:=\s*pEffectiveAxisMask\^\s+OR\s+0x01000000\s*;\s*end_if\s*;\s*' +
+        'if\s+RequestSequence\s*<>\s*0\s+then\s*' +
+        'pEffectiveAxisMask\^\s*:=\s*pEffectiveAxisMask\^\s+OR\s+0x02000000\s*;\s*end_if\s*;\s*' +
+        'if\s+repeatAdmissionToken\s*<>\s*0\s+then\s*' +
+        'pEffectiveAxisMask\^\s*:=\s*pEffectiveAxisMask\^\s+OR\s+0x04000000\s*;\s*end_if\s*;\s*' +
+        'if\s+repeatOwnerGeneration\s*<>\s*0\s+then\s*' +
+        'pEffectiveAxisMask\^\s*:=\s*pEffectiveAxisMask\^\s+OR\s+0x08000000\s*;\s*end_if\s*;\s*' +
+        'if\s+repeatAxisMask\s*<>\s*0\s+then\s*' +
+        'pEffectiveAxisMask\^\s*:=\s*pEffectiveAxisMask\^\s+OR\s+0x10000000\s*;\s*end_if\s*;\s*' +
+        'end_if\s*;') (
+        "$blocker Reserve 0x7D23 repeat diagnostic projection drifted.")
     $repeatReturnWithoutCorruptionFlag = [regex]::Replace(
         $repeatReturnBody,
         '(?i)OwnershipState\[24\]\s*:=\s*1\s*;',
@@ -15922,7 +15946,7 @@ function Assert-LasalAxisRebaseBarrierContract {
         '\(CommandId\s*=\s*0x2049\)\s*;.*?' +
         'if\s*\(\(effectiveAxisMask\s+and\s+rebaseAxisMask\)\s*<>\s*0\)\s*&\s*' +
         '\(rebaseAdmissionAllowed\s*=\s*FALSE\)\s+then\s*' +
-        'Result\s*:=\s*-2\s*;\s*RETURN\s*;') (
+        'Result\s*:=\s*LMC_OWNER_REBASE_REQUIRED\s*;\s*RETURN\s*;') (
         "$blocker ReserveAxisOwnership duplicate guard or allow matrix drifted.")
     $rebaseAllowAssignment = [regex]::Match(
         $reserve,
