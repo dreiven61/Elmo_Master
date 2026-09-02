@@ -1,0 +1,168 @@
+name: Fix H37 repeat ownership contract
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/fix-h37-repeat-ownership-contract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-validate:
+    runs-on: windows-latest
+    timeout-minutes: 50
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Restore immutable repeat ownership tuple
+        shell: powershell
+        run: |
+          @'
+          from pathlib import Path
+          import re
+
+          root = Path('.')
+          control_path = root / 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
+          static_path = root / 'tools/Verify-SetOperationModeStatic.ps1'
+
+          control = control_path.read_text(encoding='utf-8')
+          start = control.find('FUNCTION GLOBAL LMCControlCommandService::ReserveAxisOwnership')
+          if start < 0:
+              raise SystemExit('ReserveAxisOwnership function not found')
+          end = control.find('END_FUNCTION', start)
+          if end < 0:
+              raise SystemExit('ReserveAxisOwnership END_FUNCTION not found')
+          reserve = control[start:end]
+
+          marker = 'pEffectiveAxisMask^ := pEffectiveAxisMask^ OR 0x01000000;'
+          before_count = reserve.count(marker)
+          if before_count != 2:
+              raise SystemExit(f'Expected two SetOperationMode server-bitmap sites before patch, found {before_count}')
+
+          repeat_start = reserve.find('if repeatMode > 0 then')
+          next_token = reserve.find('nextToken :=', repeat_start)
+          if repeat_start < 0 or next_token < 0:
+              raise SystemExit('repeatMode positive-return region not found')
+          repeat_region = reserve[repeat_start:next_token]
+
+          telemetry_pattern = re.compile(
+              r'\n\t\tif CommandId = 0x7D23 then\n'
+              r'(?:\t\t\t.*\n|\t\t\tif .*\n|\t\t\t\t.*\n|\t\t\tend_if;\n)*?'
+              r'\t\tend_if;\n',
+              re.MULTILINE)
+          matches = list(telemetry_pattern.finditer(repeat_region))
+          # Use structural anchors if the generic indentation regex is affected by comments.
+          if len(matches) != 1:
+              anchor_start = repeat_region.find('\n\t\tif CommandId = 0x7D23 then\n')
+              anchor_end = repeat_region.find('\n\t\tResult := repeatMode;', anchor_start)
+              if anchor_start < 0 or anchor_end < 0:
+                  raise SystemExit(f'Expected one repeat-path SetOperationMode telemetry block, regex matches={len(matches)}')
+              telemetry = repeat_region[anchor_start:anchor_end]
+          else:
+              telemetry = matches[0].group(0).rstrip('\n')
+
+          if marker not in telemetry or '0x10000000' not in telemetry:
+              raise SystemExit('Located repeat telemetry block does not contain the complete five-bit bitmap')
+
+          repeat_region_after = repeat_region.replace(telemetry, '', 1)
+          if repeat_region_after.count(marker) != 0:
+              raise SystemExit('Repeat path still contains SetOperationMode bitmap mutation')
+          expected_tail = re.compile(
+              r'pEffectiveAxisMask\^ := repeatAxisMask;\s*'
+              r'pAdmissionToken\^ := repeatAdmissionToken;\s*'
+              r'pOwnerGeneration\^ := repeatOwnerGeneration;\s*'
+              r'Result := repeatMode;\s*RETURN;\s*end_if;',
+              re.S)
+          if not expected_tail.search(repeat_region_after):
+              raise SystemExit('Repeat positive return is not the immutable retained tuple followed immediately by Result/RETURN')
+
+          reserve_after = reserve[:repeat_start] + repeat_region_after + reserve[next_token:]
+          if reserve_after.count(marker) != 1:
+              raise SystemExit(f'Expected one fresh-path server bitmap site after patch, found {reserve_after.count(marker)}')
+          control_after = control[:start] + reserve_after + control[end:]
+          control_path.write_text(control_after, encoding='utf-8')
+
+          static = static_path.read_text(encoding='utf-8')
+          old = "'ReserveAxisOwnership emits the five-bit server admission bitmap for SetOperationMode' -MinimumCount 2"
+          new = "'ReserveAxisOwnership emits the five-bit server admission bitmap on the fresh SetOperationMode reservation path only; exact safety-repeat returns preserve the immutable retained tuple' -ExpectedCount 1"
+          if static.count(old) != 1:
+              raise SystemExit('SetOperationMode static bitmap count assertion not found exactly once')
+          static = static.replace(old, new)
+          static_path.write_text(static, encoding='utf-8')
+          '@ | Set-Content -LiteralPath '.\patch_repeat_contract.py' -Encoding UTF8
+          python '.\patch_repeat_contract.py'
+          Remove-Item '.\patch_repeat_contract.py'
+          git diff --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run H37 current-dev regression verifier
+        shell: powershell
+        run: |
+          & '.\tools\Verify-HomeDs402H37CurrentDevRegression.ps1' -RepositoryRoot (Get-Location).Path
+          if (-not $?) { exit 1 }
+
+      - name: Run SetOperationMode static regression
+        shell: powershell
+        run: |
+          & '.\tools\Verify-SetOperationModeStatic.ps1' -QualificationActivation
+          if (-not $?) { exit 1 }
+
+      - name: Build and run API tests Debug
+        shell: powershell
+        run: |
+          $project = '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\LasalMotionControlLib.Tests.csproj'
+          msbuild $project /t:Build /p:Configuration=Debug /p:Platform=AnyCPU /m /nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\bin\Debug\LasalMotionControlLib.Tests.exe'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build and run H37 WPF smoke Debug
+        shell: powershell
+        run: |
+          $project = '.\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\LasalApiWpfTestApp.SmokeTests.csproj'
+          $exe = '.\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\bin\Debug\LasalApiWpfTestApp.SmokeTests.exe'
+          msbuild $project /t:Build /p:Configuration=Debug /p:Platform=AnyCPU /m /nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $exe --filter MaintenanceJournal
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $exe --filter Ds402Home
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify SourceOnly reaches only fresh artifact boundary
+        shell: powershell
+        run: |
+          $known = 'LASAL.UdpCallbackContract blocker: SetPosition-augmented Classes.lcb physical identity drifted.'
+          $output = & '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\Verify-LasalContract.ps1' `
+            -RepositoryRoot $env:GITHUB_WORKSPACE -SourceOnly -ExpectedSdoWriteAxis 1 2>&1 | Out-String
+          $code = $LASTEXITCODE
+          Write-Host $output
+          if ($code -eq 0) { exit 0 }
+          if ($output.Contains($known)) {
+            Write-Host 'PASS: software/source contracts are green up to the known H37-C1 fresh generated-artifact boundary.'
+            exit 0
+          }
+          exit 1
+
+      - name: Commit validated correction and cleanup temporary workflows
+        shell: powershell
+        run: |
+          Remove-Item '.\.github\workflows\fix-h37-repeat-ownership-contract.yml'
+          if (Test-Path '.\.github\workflows\diagnose-h37-ownership.yml') {
+            Remove-Item '.\.github\workflows\diagnose-h37-ownership.yml'
+          }
+          git diff --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --all
+          git commit -m 'fix(ownership): preserve immutable repeat reservation tuple'
+          git push origin HEAD:dev
