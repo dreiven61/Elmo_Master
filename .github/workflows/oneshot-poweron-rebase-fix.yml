@@ -24,10 +24,6 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-
-          # The helper contains one obsolete fixture-string patch. The product
-          # edits themselves are exact-count guarded and have already been
-          # exercised in the previous validation runs.
           $helper = 'tools/Apply-PowerOnRebaseDiagnosticFix.ps1'
           $helperLines = Get-Content -LiteralPath $helper
           $helperLines = @($helperLines | Where-Object {
@@ -38,8 +34,6 @@ jobs:
           Set-Content -LiteralPath $helper -Value $helperLines -Encoding utf8
           ./tools/Apply-PowerOnRebaseDiagnosticFix.ps1 -RepositoryRoot $PWD
 
-          # Keep the dedicated negative fixture aligned with the symbolic
-          # retained-rebase result. Mutate only the ReserveConflictDrift line.
           $fixture = 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalAxisRebaseBarrier.Fixture.ps1'
           $f = [Collections.Generic.List[string]](Get-Content -LiteralPath $fixture)
           $fixtureHits = @()
@@ -54,22 +48,22 @@ jobs:
           $f[$fi] = $f[$fi].Replace(")-2')", ")LMC_OWNER_REBASE_REQUIRED')")
           Set-Content -LiteralPath $fixture -Value $f -Encoding utf8
 
-          # Update only the three rebase-specific contracts frozen in the
-          # primary verifier. Do not touch ordinary safety-repeat semantics.
+          # These are the three exact rebase-specific verifier lines observed
+          # in the current dev source. Ordinary safety-repeat remains untouched.
           $verifier = 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
           $v = [Collections.Generic.List[string]](Get-Content -LiteralPath $verifier)
           $replacements = @(
             @(
-              "        'Result\\s*:=\\s*-2\\s*;\\s*RETURN\\s*;\\s*end_if\\s*;\\s*end_if\\s*;') (",
-              "        'Result\\s*:=\\s*LMC_OWNER_REBASE_REQUIRED\\s*;\\s*RETURN\\s*;\\s*end_if\\s*;\\s*end_if\\s*;') ("
+              "        'Result\s*:=\s*-2\s*;\s*RETURN\s*;\s*end_if\s*;\s*end_if\s*;') (",
+              "        'Result\s*:=\s*LMC_OWNER_REBASE_REQUIRED\s*;\s*RETURN\s*;\s*end_if\s*;\s*end_if\s*;') ("
             ),
             @(
-              "                '(\\)\\s+then\\s*Result\\s*:=\\s*-2)')",
-              "                '(\\)\\s+then\\s*Result\\s*:=\\s*LMC_OWNER_REBASE_REQUIRED)')"
+              "                '(\)\s+then\s*Result\s*:=\s*-2)')",
+              "                '(\)\s+then\s*Result\s*:=\s*LMC_OWNER_REBASE_REQUIRED)')"
             ),
             @(
-              "        'Result\\s*:=\\s*-2\\s*;\\s*RETURN\\s*;') (",
-              "        'Result\\s*:=\\s*LMC_OWNER_REBASE_REQUIRED\\s*;\\s*RETURN\\s*;') ("
+              "        'Result\s*:=\s*-2\s*;\s*RETURN\s*;') (",
+              "        'Result\s*:=\s*LMC_OWNER_REBASE_REQUIRED\s*;\s*RETURN\s*;') ("
             )
           )
           foreach ($pair in $replacements) {
@@ -84,8 +78,6 @@ jobs:
           }
           Set-Content -LiteralPath $verifier -Value $v -Encoding utf8
 
-          # Current dev links RecoveryRecordRetirementLedger into the API test
-          # project but omitted the source that defines MaintenanceActionRecoveryState.
           $testProject = 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/LasalMotionControlLib.Tests.csproj'
           $p = [Collections.Generic.List[string]](Get-Content -LiteralPath $testProject)
           if (-not (($p -join "`n") -match 'MaintenanceActionRecoveryJournal\.cs')) {
@@ -96,9 +88,7 @@ jobs:
                 break
               }
             }
-            if ($anchor -lt 0) {
-              throw 'RecoveryRecordRetirementLedger compile anchor not found.'
-            }
+            if ($anchor -lt 0) { throw 'RecoveryRecordRetirementLedger compile anchor not found.' }
             $p.Insert($anchor, '    <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\MaintenanceActionRecoveryJournal.cs">')
             $p.Insert($anchor + 1, '      <Link>MaintenanceActionRecoveryJournal.cs</Link>')
             $p.Insert($anchor + 2, '    </Compile>')
@@ -123,7 +113,7 @@ jobs:
           if ($catalog -notmatch 'AxisRebaseRequired') { throw 'C# error catalog -15 entry missing.' }
           if ($models -notmatch 'AxisRebaseRequired\s*=\s*65') { throw 'Admin detail enum 65 missing.' }
           if ($project -notmatch 'MaintenanceActionRecoveryJournal\.cs') { throw 'API test compile closure missing.' }
-          if (($verifier | Select-String -Pattern 'Result\\s\*:=\\s\*LMC_OWNER_REBASE_REQUIRED' -AllMatches).Matches.Count -lt 2) { throw 'Primary verifier symbolic rebase expectations missing.' }
+          if (($verifier | Select-String -SimpleMatch 'LMC_OWNER_REBASE_REQUIRED' -AllMatches).Matches.Count -lt 3) { throw 'Primary verifier symbolic rebase expectations missing.' }
 
       - name: Axis rebase verifier self-test
         shell: pwsh
