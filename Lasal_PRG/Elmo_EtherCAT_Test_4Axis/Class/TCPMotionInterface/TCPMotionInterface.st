@@ -2705,6 +2705,22 @@ case CommandID of
 		diagnosticsAdmissionResult := -3;
 	  end_if;
 
+
+    if (CommandID = 0x7E53) &
+       (diagnosticsAdmissionResult <> 0) then
+      _memset(dest:=#Sendbuf[8], usByte:=0, cntr:=16);
+      Sendbuf[8]$UINT := 1;
+      Sendbuf[12]$UINT := 1;
+      Sendbuf[14]$INT := -32000;
+      Sendbuf[16]$UDINT := RequestBuf[12]$UDINT;
+      if diagnosticsAdmissionResult = -2 then
+        Sendbuf[20]$UDINT := 41;
+      else
+        Sendbuf[20]$UDINT := 43;
+      end_if;
+      diagnosticsResponseSize := 16;
+    end_if;
+
     if (diagnosticsDs402StartValid | diagnosticsHomeExStartValid |
         diagnosticsOperationModeStartValid) &
 		 (diagnosticsAdmissionResult <> 0) &
@@ -2731,7 +2747,8 @@ case CommandID of
 
     if (((diagnosticsDs402StartValid = FALSE) &
 		  (diagnosticsHomeExStartValid = FALSE) &
-		  (diagnosticsOperationModeStartValid = FALSE)) |
+      (diagnosticsOperationModeStartValid = FALSE) &
+       ((CommandID <> 0x7E53) | (diagnosticsAdmissionResult = 0))) |
 		  (diagnosticsDs402StartValid & diagnosticsDs402PreflightAccepted &
 		   (diagnosticsAdmissionResult = 0)) |
 		  (diagnosticsHomeExStartValid &

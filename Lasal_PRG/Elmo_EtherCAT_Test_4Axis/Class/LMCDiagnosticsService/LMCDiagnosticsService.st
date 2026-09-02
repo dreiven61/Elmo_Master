@@ -590,6 +590,8 @@ END_FUNCTION
 #define LMC_DIAG_ENCODER_DETAIL_ABORTED 40
 #define LMC_DIAG_ENCODER_DETAIL_SLOT_OCCUPIED 41
 #define LMC_DIAG_ENCODER_DETAIL_SEMANTIC 42
+#define LMC_DIAG_ENCODER_DETAIL_OWNERSHIP_ADMISSION 43
+#define LMC_DIAG_ENCODER_DETAIL_PHYSICAL_DRIVE_UNAVAILABLE 44
 #define LMC_DIAG_ENCODER_VERIFY_DRIVE_TARGET 0x00000001
 #define LMC_DIAG_ENCODER_VERIFY_SDO_CONTRACT 0x00000002
 #define LMC_DIAG_ENCODER_VERIFY_MOTOR_OFF_PRE 0x00000004
@@ -666,6 +668,7 @@ END_FUNCTION
 #define LMC_OWNER_STARTUP_DIAG_ENCODER  0x00000004
 #define LMC_OWNER_STARTUP_DIAG_GENERIC  0x00000008
 #define LMC_OWNER_STARTUP_DIAG_EXECUTOR 0x00000010
+#define LMC_DIAG_CONFIGURED_PHYSICAL_DRIVE_MASK 0x00000003
 
 
 #define LMC_DIAG_MODE_RECORD_STRIDE 32
@@ -2928,6 +2931,9 @@ FUNCTION LMCDiagnosticsService::HandleEncoderMaintenanceStart
 		((evidence0 = 0) & (evidence1 = 0) &
 		 (evidence2 = 0) & (evidence3 = 0)) then
 		detailCode := 12;
+	elsif ((TO_UDINT(1) shl TO_UDINT(driveReference - 1)) and
+	       LMC_DIAG_CONFIGURED_PHYSICAL_DRIVE_MASK) = 0 then
+		detailCode := LMC_DIAG_ENCODER_DETAIL_PHYSICAL_DRIVE_UNAVAILABLE;
 	elsif diagnosticsBuild <> 1 then
 		detailCode := LMC_DIAG_ENCODER_DETAIL_COMPATIBILITY;
 	elsif (currentBootId = 0) | (encoderStartBootId <> currentBootId) then
@@ -8742,14 +8748,35 @@ FUNCTION LMCDiagnosticsService::ProcessAxisOwnershipStartup
 		drainFlags := drainFlags or LMC_OWNER_STARTUP_DIAG_GENERIC;
 	end_if;
 
-	executorsReusable := (IsClientConnected(#SdoAxis1) <> 0) &
-		(IsClientConnected(#SdoAxis2) <> 0) &
-		(IsClientConnected(#SdoAxis3) <> 0) &
-		(IsClientConnected(#SdoAxis4) <> 0);
-	if executorsReusable then
-		executorsReusable := SdoAxis1.IsReusable() & SdoAxis2.IsReusable() &
-			SdoAxis3.IsReusable() & SdoAxis4.IsReusable();
+	executorsReusable := TRUE;
+	if (LMC_DIAG_CONFIGURED_PHYSICAL_DRIVE_MASK and 0x00000001) <> 0 then
+		executorsReusable := IsClientConnected(#SdoAxis1) <> 0;
+		if executorsReusable then
+			executorsReusable := SdoAxis1.IsReusable();
+		end_if;
 	end_if;
+	if executorsReusable &
+	   ((LMC_DIAG_CONFIGURED_PHYSICAL_DRIVE_MASK and 0x00000002) <> 0) then
+		executorsReusable := IsClientConnected(#SdoAxis2) <> 0;
+		if executorsReusable then
+			executorsReusable := SdoAxis2.IsReusable();
+		end_if;
+	end_if;
+	if executorsReusable &
+	   ((LMC_DIAG_CONFIGURED_PHYSICAL_DRIVE_MASK and 0x00000004) <> 0) then
+		executorsReusable := IsClientConnected(#SdoAxis3) <> 0;
+		if executorsReusable then
+			executorsReusable := SdoAxis3.IsReusable();
+		end_if;
+	end_if;
+	if executorsReusable &
+	   ((LMC_DIAG_CONFIGURED_PHYSICAL_DRIVE_MASK and 0x00000008) <> 0) then
+		executorsReusable := IsClientConnected(#SdoAxis4) <> 0;
+		if executorsReusable then
+			executorsReusable := SdoAxis4.IsReusable();
+		end_if;
+	end_if;
+
 	if executorsReusable then
 		drainFlags := drainFlags or LMC_OWNER_STARTUP_DIAG_EXECUTOR;
 	end_if;

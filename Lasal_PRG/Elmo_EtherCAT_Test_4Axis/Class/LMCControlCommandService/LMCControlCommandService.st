@@ -706,6 +706,7 @@ END_FUNCTION
 #define LMC_OWNER_STARTUP_PROOF_REQUIRED 0x0000000F
 #define LMC_OWNER_STARTUP_STATE_MAGIC 0x4F575350
 #define LMC_OWNER_STARTUP_SNAPSHOT_MAGIC 0x4C4D4353
+#define LMC_OWNER_CONFIGURED_PHYSICAL_AXIS_MASK 0x00000003
 #define LMC_OWNER_STARTUP_LATCH_REQUIRED 0x0000001F
 #define LMC_OWNER_STARTUP_DIAG_REQUIRED 0x0000001F
 #define LMC_OWNER_STARTUP_STABLE_SAMPLES 3
@@ -6937,15 +6938,20 @@ FUNCTION GLOBAL LMCControlCommandService::ReconcileAxisOwnershipStartup
 	end_if;
 
 	physicalIdle :=
-		((startupSnapshot[10] and 0x00000001) <> 0) &
-		((startupSnapshot[2] and LMC_AXIS_STATUS_STANDSTILL) <> 0) &
-		((startupSnapshot[2] and LMC_OWNER_STARTUP_AXIS_CLEAR_MASK) = 0) &
-		((startupSnapshot[3] and LMC_AXIS_STATUS_STANDSTILL) <> 0) &
-		((startupSnapshot[3] and LMC_OWNER_STARTUP_AXIS_CLEAR_MASK) = 0) &
-		((startupSnapshot[4] and LMC_AXIS_STATUS_STANDSTILL) <> 0) &
-		((startupSnapshot[4] and LMC_OWNER_STARTUP_AXIS_CLEAR_MASK) = 0) &
-		((startupSnapshot[5] and LMC_AXIS_STATUS_STANDSTILL) <> 0) &
-		((startupSnapshot[5] and LMC_OWNER_STARTUP_AXIS_CLEAR_MASK) = 0);
+		((startupSnapshot[10] and LMC_OWNER_STARTUP_LATCH_PHYSICAL) <> 0) &
+		(((LMC_OWNER_CONFIGURED_PHYSICAL_AXIS_MASK and 0x00000001) = 0) |
+		 (((startupSnapshot[2] and LMC_AXIS_STATUS_STANDSTILL) <> 0) &
+		  ((startupSnapshot[2] and LMC_OWNER_STARTUP_AXIS_CLEAR_MASK) = 0))) &
+		(((LMC_OWNER_CONFIGURED_PHYSICAL_AXIS_MASK and 0x00000002) = 0) |
+		 (((startupSnapshot[3] and LMC_AXIS_STATUS_STANDSTILL) <> 0) &
+		  ((startupSnapshot[3] and LMC_OWNER_STARTUP_AXIS_CLEAR_MASK) = 0))) &
+		(((LMC_OWNER_CONFIGURED_PHYSICAL_AXIS_MASK and 0x00000004) = 0) |
+		 (((startupSnapshot[4] and LMC_AXIS_STATUS_STANDSTILL) <> 0) &
+		  ((startupSnapshot[4] and LMC_OWNER_STARTUP_AXIS_CLEAR_MASK) = 0))) &
+		(((LMC_OWNER_CONFIGURED_PHYSICAL_AXIS_MASK and 0x00000008) = 0) |
+		 (((startupSnapshot[5] and LMC_AXIS_STATUS_STANDSTILL) <> 0) &
+		  ((startupSnapshot[5] and LMC_OWNER_STARTUP_AXIS_CLEAR_MASK) = 0)));
+
 
 	groupIdle := FALSE;
 	groupSignature := 0;

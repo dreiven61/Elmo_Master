@@ -80,7 +80,9 @@ namespace LasalMotionControlLib
         EncoderMaintenanceExecutionFailed = 39,
         EncoderMaintenanceAborted = 40,
         EncoderMaintenanceOutcomeSlotOccupied = 41,
-        EncoderMaintenanceSemanticVerificationFailed = 42
+        EncoderMaintenanceSemanticVerificationFailed = 42,
+        EncoderMaintenanceOwnershipAdmissionUnavailable = 43,
+        EncoderMaintenancePhysicalDriveUnavailable = 44
     }
 
     public sealed class LMCDiagnosticsResponse

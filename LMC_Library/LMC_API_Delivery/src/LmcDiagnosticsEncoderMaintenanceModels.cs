@@ -62,7 +62,9 @@ namespace LasalMotionControlLib
         ExecutionFailed = 39,
         Aborted = 40,
         OutcomeSlotOccupied = 41,
-        SemanticVerificationFailed = 42
+        SemanticVerificationFailed = 42,
+        OwnershipAdmissionUnavailable = 43,
+        PhysicalDriveUnavailable = 44
     }
 
     public enum LMCEncoderMaintenanceOutcomeRecordState : ushort
@@ -963,11 +965,34 @@ namespace LasalMotionControlLib
             LMCPreparedEncoderMaintenance preparedCommand,
             Exception innerException)
             : base(
-                "The PLC explicitly rejected the encoder maintenance start command. The one-shot prepared command remains consumed.",
+                BuildRejectedMessage(innerException),
                 innerException)
         {
             PreparedCommand = preparedCommand;
             RecoveryKey = preparedCommand.RecoveryKey;
+            var diagnosticsException =
+                innerException as LMCDiagnosticsCommandException;
+            DetailCode = diagnosticsException != null
+                && diagnosticsException.Response != null
+                    ? diagnosticsException.Response.DetailCode
+                    : 0;
+        }
+
+        private static string BuildRejectedMessage(Exception innerException)
+        {
+            var diagnosticsException =
+                innerException as LMCDiagnosticsCommandException;
+            if (diagnosticsException != null
+                && diagnosticsException.Response != null)
+            {
+                return "The PLC explicitly rejected the encoder maintenance start command. DetailCode="
+                    + diagnosticsException.Response.DetailCode
+                    + " ("
+                    + diagnosticsException.Response.Detail
+                    + "). The one-shot prepared command remains consumed.";
+            }
+
+            return "The PLC explicitly rejected the encoder maintenance start command. The one-shot prepared command remains consumed.";
         }
 
         public LMCPreparedEncoderMaintenance PreparedCommand
@@ -979,6 +1004,11 @@ namespace LasalMotionControlLib
         {
             get;
             private set;
+        }
+        public uint DetailCode { get; private set; }
+        public LMCEncoderMaintenanceDetailCode Detail
+        {
+            get { return (LMCEncoderMaintenanceDetailCode)DetailCode; }
         }
     }
 

@@ -334,6 +334,7 @@ END_FUNCTION
 #define LMC_ZERO_HOME_EVIDENCE_VERIFIED   0x0000001B
 #define LMC_ZERO_HOME_EVIDENCE_COMPLETE   0x0000003B
 #define LMC_OWNER_STARTUP_SNAPSHOT_MAGIC  0x4C4D4353
+#define LMC_CONFIGURED_PHYSICAL_DRIVE_MASK 0x00000003
 #define LMC_OWNER_STARTUP_LATCH_PHYSICAL  0x00000001
 #define LMC_OWNER_STARTUP_LATCH_ZERO_HOME 0x00000002
 #define LMC_OWNER_STARTUP_LATCH_DS402     0x00000004
@@ -2085,30 +2086,35 @@ FUNCTION VIRTUAL GLOBAL LMCEcatInputLatch::RtWork
 
 	ownershipLatchDrainFlags := 0;
 	if IsClientConnected(#EcatMaster) &
-		IsClientConnected(#Drive1) & IsClientConnected(#Drive2) &
-		IsClientConnected(#Drive3) & IsClientConnected(#Drive4) &
-		IsClientConnected(#LMCAxis1) & IsClientConnected(#LMCAxis2) &
-		IsClientConnected(#LMCAxis3) & IsClientConnected(#LMCAxis4) &
 		(masterState = 8) & (consecutiveInvalidCycles = 0) &
-		(SnapshotBytes[64]$DINT <> 0) &
-		(SnapshotBytes[68]$UDINT = 8) &
-		(SnapshotBytes[76]$UDINT = 0) &
-		(SnapshotBytes[92]$UDINT = cycleCounter) &
-		(SnapshotBytes[100]$DINT <> 0) &
-		(SnapshotBytes[104]$UDINT = 8) &
-		(SnapshotBytes[112]$UDINT = 0) &
-		(SnapshotBytes[128]$UDINT = cycleCounter) &
-		(SnapshotBytes[136]$DINT <> 0) &
-		(SnapshotBytes[140]$UDINT = 8) &
-		(SnapshotBytes[148]$UDINT = 0) &
-		(SnapshotBytes[164]$UDINT = cycleCounter) &
-		(SnapshotBytes[172]$DINT <> 0) &
-		(SnapshotBytes[176]$UDINT = 8) &
-		(SnapshotBytes[184]$UDINT = 0) &
-		(SnapshotBytes[200]$UDINT = cycleCounter) then
+		(((LMC_CONFIGURED_PHYSICAL_DRIVE_MASK and 0x00000001) = 0) |
+		 (IsClientConnected(#Drive1) & IsClientConnected(#LMCAxis1) &
+		  (SnapshotBytes[64]$DINT <> 0) &
+		  (SnapshotBytes[68]$UDINT = 8) &
+		  (SnapshotBytes[76]$UDINT = 0) &
+		  (SnapshotBytes[92]$UDINT = cycleCounter))) &
+		(((LMC_CONFIGURED_PHYSICAL_DRIVE_MASK and 0x00000002) = 0) |
+		 (IsClientConnected(#Drive2) & IsClientConnected(#LMCAxis2) &
+		  (SnapshotBytes[100]$DINT <> 0) &
+		  (SnapshotBytes[104]$UDINT = 8) &
+		  (SnapshotBytes[112]$UDINT = 0) &
+		  (SnapshotBytes[128]$UDINT = cycleCounter))) &
+		(((LMC_CONFIGURED_PHYSICAL_DRIVE_MASK and 0x00000004) = 0) |
+		 (IsClientConnected(#Drive3) & IsClientConnected(#LMCAxis3) &
+		  (SnapshotBytes[136]$DINT <> 0) &
+		  (SnapshotBytes[140]$UDINT = 8) &
+		  (SnapshotBytes[148]$UDINT = 0) &
+		  (SnapshotBytes[164]$UDINT = cycleCounter))) &
+		(((LMC_CONFIGURED_PHYSICAL_DRIVE_MASK and 0x00000008) = 0) |
+		 (IsClientConnected(#Drive4) & IsClientConnected(#LMCAxis4) &
+		  (SnapshotBytes[172]$DINT <> 0) &
+		  (SnapshotBytes[176]$UDINT = 8) &
+		  (SnapshotBytes[184]$UDINT = 0) &
+		  (SnapshotBytes[200]$UDINT = cycleCounter))) then
 		ownershipLatchDrainFlags := ownershipLatchDrainFlags or
 			LMC_OWNER_STARTUP_LATCH_PHYSICAL;
 	end_if;
+
 	if zeroHomeRequestSequence = zeroHomeAppliedSequence then
 		if (zeroHomeRequestSequence = 0) &
 			(AxisZeroHomeResult[0] = 0) &
