@@ -2,18 +2,20 @@
 
 - 기준일: 2026-09-02
 - current integration / qualification source: `dev`
-- current source baseline: `dev@90a86a795773d5f8eca211368aac3f0d64944a32` (`dev : SDO Write Func Complete`)
+- current source baseline: `dev@5666497c9baef01ee84e534b7041cf0bbb96baf5` (`dev : add SimulationSetup`)
 - current API progress: `../API_DEVELOPMENT_PROGRESS.md`
 - current API manual: `../API_MANUAL.md`
 - production release posture: **NO-GO**
 
 ## current implementation master
 
-**2026-09-02 이후 신규 구현은 다음 문서를 정본으로 사용한다.**
+**2026-09-02 최신 topology 변경 이후 신규 구현은 다음 문서를 정본으로 사용한다.**
 
-1. `REMAINING_IMPLEMENTATION_DESIGN_20260902.md` — 남은 기능 구현 순서/의존성 master
-2. `HOME_DS402_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md` — current P0 HomeDS402 완료/활성화 handoff
-3. `SET_POSITION_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md` — current P1 SetPosition durable runtime handoff
+1. `CURRENT_IMPLEMENTATION_HANDOFF_20260902.md` — 2 physical drives + SimulationSetup 이후 current source truth / 다음 작업
+2. `REMAINING_IMPLEMENTATION_DESIGN_20260902.md` — 남은 기능 구현 순서/의존성 master
+3. `HOME_DS402_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md` — HomeDS402 frozen lifecycle + completion handoff
+4. `SET_POSITION_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md` — SetPosition durable runtime handoff
+5. `SET_POSITION_CURRENT_SOURCE_INVENTORY_20260902.md` — SP-C0 current source inventory PASS evidence
 
 기존 상세 문서는 frozen wire/state-machine 또는 historical evidence로 계속 참조한다.
 
@@ -24,11 +26,39 @@
 - `SDO_WRITE_DETAILED_DESIGN_20260901.md`
 - `SDO_WRITE_DIRECT_MANUAL_ENABLEMENT_20260901.md`
 
-문서가 충돌하면 current `dev` source와 위 current implementation master 순서를 우선한다.
+문서가 충돌하면 current `dev` source와 `CURRENT_IMPLEMENTATION_HANDOFF_20260902.md`를 우선한다.
 
 ---
 
-## 1. 완료 기능
+## 1. current topology baseline
+
+current Motion/LASAL topology는 logical axis와 physical drive를 분리한다.
+
+```text
+Logical axes              : Axis1..Axis9
+Physical Elmo drives      : Axis1, Axis2
+Configured physical mask  : 0x00000003
+Simulation axes           : Axis3..Axis9
+```
+
+latest source changes:
+
+- `b746252c...` — 2-drive startup/encoder-maintenance admission 대응
+- `570fddd5...` — ownership service의 file-local `LMC_OWNER_STARTUP_LATCH_PHYSICAL` define 보완
+- `5666497c...` — `SimulationSetup` class + Motion Network wiring 추가
+
+`SimulationSetup`은 Axis1..9의 retentive 설정을 first scan에서 `_LMCAxisN.SimulateMode`에 즉시 전달한다.
+Motion Network current configured value는 Axis1/2 = non-simulation, Axis3..9 = simulation이다.
+
+따라서 이후 physical-drive-dependent 기능은 `axis <= 4` 같은 과거 가정이 아니라 configured physical mask를 사용한다.
+
+상세 current override:
+
+`CURRENT_IMPLEMENTATION_HANDOFF_20260902.md`
+
+---
+
+## 2. 완료 기능
 
 ### SetOperationMode
 
@@ -47,10 +77,7 @@
 
 상태: **FEATURE IMPLEMENTATION COMPLETE**
 
-current source baseline `90a86a7`에서 direct manual Generic SDO Write가 구현 완료됐다.
-
 - qualification proof 없이 direct manual Arm/Confirm
-- axis/slave 1..4
 - canonical 1/2/4-byte scalar
 - nonzero ObjectIndex generic policy
 - baseline Read
@@ -62,31 +89,55 @@ current source baseline `90a86a7`에서 direct manual Generic SDO Write가 구�
 - mandatory exact readback
 - no automatic replay
 
-SDO의 추가 physical/release evidence는 신규 기능 구현 P0가 아니라 qualification/release backlog로 관리한다.
+현재 physical topology는 Elmo Drive1/2만 존재하므로 physical SDO qualification/release evidence는 Slave1/2 기준으로 수행하고,
+비물리 target은 deterministic unavailable 처리 여부를 TOPO-C0에서 확인한다.
 
 ---
 
-## 2. current P0 — HomeDS402
+## 3. P0-A — current topology freeze / regression
+
+HomeDS402 구현을 계속하기 전에 `TOPO-C0`를 먼저 닫는다.
+
+필수 확인:
+
+- LASAL Compile/Rebuild 0 errors
+- SimulationSetup first-scan 적용
+- Axis1/2 `SimulateMode=0`
+- Axis3..9 `SimulateMode=1`
+- physical mask `0x03`이 InputLatch / Ownership / Diagnostics와 일치
+- Axis3/4 EtherCAT absence가 ownership startup을 막지 않음
+- Encoder Maintenance Axis1/2 정상 admission
+- Encoder Maintenance Axis3/4 physical request 명시적 unavailable
+
+이 단계는 activation이 아니라 topology baseline freeze다.
+
+---
+
+## 4. P0-B — HomeDS402
 
 대상: No.19 `MMC_HomeDS402Cmd`
 
-상태: **Dormant / core lifecycle implemented / activation pending**
+상태: **Dormant / core lifecycle implemented / topology rebaseline required**
 
-HomeDS402는 state machine 신규 구현 대상이 아니다. 기존 method37 lifecycle을 유지하고 다음 순서로
-완료한다.
+HomeDS402는 state machine 신규 구현 대상이 아니다. 기존 method37 lifecycle을 유지한다.
+
+latest topology 변경이 `LMCEcatInputLatch`, `LMCControlCommandService`, `LMCDiagnosticsService`, Motion Network를 수정했으므로
+기존 software qualification을 latest tree에서 다시 확인한다.
 
 ```text
-current-dev regression
--> fresh C78/generated artifact + SourceOnly
--> activation candidate OFF-state qualification
--> Axis1 hardware normal/failure matrix
--> Axis2..4 expansion
--> 5-value atomic activation
+TOPO-C0
+-> H37-C0R current-dev regression on latest tree
+-> H37-C1 fresh C78/generated artifact
+-> H37-C2 activation candidate OFF-state qualification
+-> H37-C3 Axis1 hardware normal/failure matrix
+-> H37-C4 Axis2 hardware + Axis3/4 nonphysical rejection matrix
+-> H37-C5 five-value atomic activation
 ```
 
-tracker: issue #32
+과거 `Axis2..4 hardware expansion` 문구는 current topology에서 그대로 적용하지 않는다.
+physical HomeDS402 hardware qualification 대상은 Axis1/2다.
 
-현재 5개 activation value는 모두 OFF 유지한다.
+현재 activation values는 모두 OFF 유지한다.
 
 - TCP ordinary ownership
 - Control ordinary ownership
@@ -94,96 +145,92 @@ tracker: issue #32
 - InputLatch startup sweep gate
 - Admin capability bit 6
 
-상세 정본:
+상세 frozen lifecycle:
 
 `HOME_DS402_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md`
 
+current topology override:
+
+`CURRENT_IMPLEMENTATION_HANDOFF_20260902.md`
+
 ---
 
-## 3. current P1 — SetPosition
+## 5. P1 — SetPosition
 
 대상: No.58 `MMC_SetPositionCmd`
 
-상태: **Dormant / durable runtime and exactly-once native execution missing**
+상태: **Dormant / SP-C0 COMPLETE / SP-C1 NEXT**
 
-이미 존재:
+SP-C0 current source inventory는 완료됐다.
 
-- SDK Start/Query/Retire
-- `0x7D12/0x7D14/0x7D1A` wire
-- volatile Store ABI
-- observation-only RT preflight
-- async lifecycle scaffold
-- WPF recovery journal model
-- deployment receipt/readback tooling 일부
+- validating commit: `08e85d456ad118abaec8405fe9ab1c1ec3baa974`
+- verifier: 37 checks PASS
+- WPF AxisSetPositionJournal: 11/11 PASS
+- evidence: `SET_POSITION_CURRENT_SOURCE_INVENTORY_20260902.md`
 
-실제 남은 구현 순서:
+다음 단계는 SP-C1 prerequisite capture다.
 
 ```text
-current source inventory
+current-tree SP-C0 smoke
 -> vendor CRC golden + IDE-generated _FileSys ABI
--> durable A/B file backend
--> Store durable Begin/Commit/Retire adapter
+-> durable A/B backend
+-> Store durable adapter
 -> RT claim-before-native exactly-once executor
--> stable terminal observer
--> terminal durable readback-before-owner-release
--> WPF restart/query/retire no-replay completion
--> source/C78 qualification
--> storage + Axis1..4 hardware matrix
+-> terminal-before-release integration
+-> WPF recovery completion
+-> C78/source qualification
+-> Axis1/2 hardware + Axis3/4 simulation qualification
 -> paired activation
 ```
 
-tracker: issue #44
+외부 evidence 전 금지:
 
-현재 OFF 유지:
+- vendor CRC 알고리즘 추측
+- `_FileSys` generated ABI hand-authoring
+- Store configured/ownership/max-jump/capability activation
 
-- `LMC_ADMIN_SET_POSITION_STORE_CONFIGURED`
-- ordinary ownership activation
-- Axis1..4 `SetPositionMaxJump`
-- Admin capability bits 3/5/7
-- production native SetPosition execution
+Axis5..9가 SimulationSetup에 존재한다고 해서 SetPosition public contract를 자동 확장하지 않는다.
 
-상세 정본:
+상세:
 
 `SET_POSITION_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md`
 
 ---
 
-## 4. HomeDS402Ex
-
-`HomeDS402`와 `HomeDS402Ex`를 혼동하지 않는다.
+## 6. HomeDS402Ex
 
 HomeDS402Ex는 별도 P2다.
 
-- issue #28: axis1..4 wiring/polarity/method/scale/range profile
+- issue #28: wiring/polarity/method/scale/range profile
 - issue #35: fresh C78/generated artifact + SourceOnly
-- 이후 parameter SDO + RT physical homing runtime 구현
+- 이후 parameter SDO + RT physical homing runtime
 
-현재 요청 범위의 우선순위는 HomeDS402와 SetPosition이다.
+current P0/P1이 닫히기 전 activation은 OFF 유지한다.
 
 ---
 
-## 5. 공통 구현 원칙
+## 7. 공통 구현 원칙
 
 - `dev`가 유일한 current integration source truth
+- logical axis와 physical drive를 분리
+- physical capability는 configured physical mask 기준
+- simulation PASS를 hardware PASS로 승격하지 않음
 - mutation wire/native boundary 이후 original mutation replay 0
 - terminal proof 전에 shared owner release 금지
 - capability/gate는 hardware qualification 전에 활성화하지 않음
 - generated LASAL ABI/artifact/hash를 추측하지 않음
-- source PASS / C78 PASS / PLC load / hardware PASS / production release를 분리 기록
-- 기능 변경은 작은 tranche로 커밋하고 activation은 별도 commit으로 분리
-- source SHA + generated artifact + PLC image + WPF/SDK identity를 같은 evidence set으로 기록
+- source PASS / LASAL compile / C78 artifact / PLC boot / hardware PASS를 분리 기록
+- topology 변경과 feature activation을 같은 changeset에 섞지 않음
+- physical drive count가 바뀌면 TOPO-C0를 다시 수행
 
 ---
 
-## 6. current 문서 우선순위
+## 8. current 문서 우선순위
 
-1. `REMAINING_IMPLEMENTATION_DESIGN_20260902.md`
-2. `HOME_DS402_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md`
-3. `SET_POSITION_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md`
-4. `../API_DEVELOPMENT_PROGRESS.md`
-5. `HOME_DS402_DESIGN.md` / `SET_POSITION_DESIGN.md`
-6. architecture 상세 설계
-7. historical implementation/result/evidence 문서
-
-Generic SDO 관련 신규 구현 판단에는 source baseline `90a86a7` 이후 상태를 사용하고,
-2026-09-01 문서의 SDO P0 표기를 current 우선순위로 사용하지 않는다.
+1. `CURRENT_IMPLEMENTATION_HANDOFF_20260902.md`
+2. `REMAINING_IMPLEMENTATION_DESIGN_20260902.md`
+3. `HOME_DS402_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md`
+4. `SET_POSITION_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md`
+5. `SET_POSITION_CURRENT_SOURCE_INVENTORY_20260902.md`
+6. `../API_DEVELOPMENT_PROGRESS.md`
+7. historical detailed design/evidence
