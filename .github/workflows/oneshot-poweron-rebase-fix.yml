@@ -23,8 +23,6 @@ jobs:
       - name: Apply retained rebase diagnostic fix
         shell: pwsh
         run: |
-          # The temporary helper's fixture-string assignment is intentionally
-          # removed here; patch that single fixture line structurally below.
           $helper = 'tools/Apply-PowerOnRebaseDiagnosticFix.ps1'
           $helperLines = Get-Content -LiteralPath $helper
           $helperLines = @($helperLines | Where-Object {
@@ -64,17 +62,28 @@ jobs:
           if ($tcp -notmatch 'Sendbuf\[20\]\$UDINT\s*:=\s*65') { throw 'Admin detail 65 propagation missing.' }
           if ($fixture -notmatch 'rebaseAdmissionAllowed.*LMC_OWNER_REBASE_REQUIRED') { throw 'Rebase negative fixture not updated.' }
 
+      - name: Axis rebase verifier self-test
+        shell: pwsh
+        run: |
+          & 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalAxisRebaseBarrier.Fixture.ps1' -RunSelfTest -RepositoryRoot $PWD
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: API Release tests
         shell: pwsh
         run: |
-          $msbuild = (Get-Command msbuild.exe -ErrorAction Stop).Source
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
+          if (-not (Test-Path $vswhere)) { throw 'vswhere.exe not found.' }
+          $msbuild = @(& $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe') | Select-Object -First 1
+          if ([string]::IsNullOrWhiteSpace($msbuild)) { throw 'MSBuild.exe not found by vswhere.' }
           & $msbuild 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/LasalMotionControlLib.Tests.csproj' /t:RunTests /p:Configuration=Release /nologo
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: WPF Debug build
         shell: pwsh
         run: |
-          $msbuild = (Get-Command msbuild.exe -ErrorAction Stop).Source
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
+          $msbuild = @(& $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe') | Select-Object -First 1
+          if ([string]::IsNullOrWhiteSpace($msbuild)) { throw 'MSBuild.exe not found by vswhere.' }
           & $msbuild 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.sln' /t:Build /p:Configuration=Debug /nologo
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
