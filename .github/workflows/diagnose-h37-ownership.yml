@@ -1,0 +1,28 @@
+name: Diagnose H37 ownership SourceOnly self-test
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/diagnose-h37-ownership.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Locate ownership self-test source
+        shell: powershell
+        run: |
+          $patterns = @('ordinary safety-repeat','safety-repeat','immutable retained tuple','Reserve positive result','common axis ownership activation blocker')
+          $files = Get-ChildItem -Path . -Recurse -File -Include *.ps1,*.cs,*.st
+          foreach ($pattern in $patterns) {
+            Write-Host "===== PATTERN: $pattern ====="
+            $hits = $files | Select-String -Pattern $pattern -SimpleMatch -Context 12,30
+            if ($hits) { $hits | ForEach-Object { $_ | Format-List * | Out-String | Write-Host } }
+            else { Write-Host 'NO MATCH' }
+          }
