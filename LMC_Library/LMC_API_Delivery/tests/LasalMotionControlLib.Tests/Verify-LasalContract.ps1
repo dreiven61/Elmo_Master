@@ -8262,9 +8262,19 @@ function Assert-LasalAxisOwnershipReserveMutationFences {
         'peffectiveaxismask^:=repeataxismask;',
         'padmissiontoken^:=repeatadmissiontoken;',
         'pownergeneration^:=repeatownergeneration;',
+        'peffectiveaxismask^:=peffectiveaxismask^or0x01000000;',
+        'peffectiveaxismask^:=peffectiveaxismask^or0x02000000;',
+        'peffectiveaxismask^:=peffectiveaxismask^or0x04000000;',
+        'peffectiveaxismask^:=peffectiveaxismask^or0x08000000;',
+        'peffectiveaxismask^:=peffectiveaxismask^or0x10000000;',
         'peffectiveaxismask^:=effectiveaxismask;',
         'padmissiontoken^:=nexttoken;',
-        'pownergeneration^:=nextgeneration;')
+        'pownergeneration^:=nextgeneration;',
+        'peffectiveaxismask^:=peffectiveaxismask^or0x01000000;',
+        'peffectiveaxismask^:=peffectiveaxismask^or0x02000000;',
+        'peffectiveaxismask^:=peffectiveaxismask^or0x04000000;',
+        'peffectiveaxismask^:=peffectiveaxismask^or0x08000000;',
+        'peffectiveaxismask^:=peffectiveaxismask^or0x10000000;')
     if ([string]::Join('|', $outputPointerWrites) -cne
         [string]::Join('|', $expectedOutputPointerWrites)) {
         throw "$blocker output pointer write inventory/order drifted."
