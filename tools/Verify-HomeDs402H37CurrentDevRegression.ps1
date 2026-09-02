@@ -37,8 +37,10 @@ function Invoke-Verifier {
     param([string]$RelativePath)
     $path = Join-Path $RepositoryRoot $RelativePath
     & $path -RepositoryRoot $RepositoryRoot
-    if ($LASTEXITCODE -ne 0) {
-        throw "Nested verifier failed: $RelativePath ($LASTEXITCODE)"
+    # The nested verifier scripts throw on failure and intentionally do not call
+    # exit on success, so LASTEXITCODE is not a valid success signal here.
+    if (-not $?) {
+        throw "Nested verifier failed: $RelativePath"
     }
     $script:CheckCount++
     Write-Host "PASS nested verifier $RelativePath"
