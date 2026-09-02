@@ -15,24 +15,27 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Inspect ordinary safety-repeat verifier body
+      - name: Inspect exact Reserve positive repeat return
         shell: powershell
         run: |
-          function Show-Lines([string]$Path, [int]$Start, [int]$End) {
-            $lines = Get-Content -LiteralPath $Path
-            Write-Host "===== $Path lines $Start..$End ====="
-            for ($i = $Start; $i -le $End -and $i -le $lines.Count; $i++) {
-              Write-Host ("{0:D6}: {1}" -f $i, $lines[$i - 1])
-            }
-          }
+          $control = '.\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCControlCommandService\LMCControlCommandService.st'
           $contract = '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\Verify-LasalContract.ps1'
           $fixture = '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\Verify-LasalAxisOwnershipActivationGuard.Fixture.ps1'
-          Show-Lines $contract 14170 14525
-          Show-Lines $contract 15535 15630
-          Show-Lines $fixture 1380 1490
 
-          Write-Host '===== likely Reserve/result source sites ====='
-          Get-ChildItem -Path '.\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class' -Recurse -File -Filter '*.st' |
-            Select-String -Pattern 'ReserveAxisOwner|OwnerReserve|ReservationResult|Retained|safetyRepeat' -Context 5,12 |
-            Select-Object -First 120 |
+          Write-Host '===== ACTUAL Reserve repeatMode > 0 block ====='
+          Select-String -Path $control -Pattern 'if repeatMode > 0 then' -SimpleMatch -Context 10,45 |
+            ForEach-Object { $_ | Format-List * | Out-String | Write-Host }
+
+          Write-Host '===== ACTUAL nextToken vicinity ====='
+          Select-String -Path $control -Pattern 'nextToken :=' -SimpleMatch -Context 30,10 |
+            Select-Object -First 4 |
+            ForEach-Object { $_ | Format-List * | Out-String | Write-Host }
+
+          Write-Host '===== VERIFIER repeat return assertions ====='
+          Select-String -Path $contract -Pattern '$repeatReturn =' -SimpleMatch -Context 0,38 |
+            ForEach-Object { $_ | Format-List * | Out-String | Write-Host }
+
+          Write-Host '===== FIXTURE mutations touching repeatMode return ====='
+          Select-String -Path $fixture -Pattern 'Result\s*:=\s*repeatMode|PositiveReturn|Immutable|repeatMode' -Context 4,12 |
+            Select-Object -Last 100 |
             ForEach-Object { $_ | Format-List * | Out-String | Write-Host }
