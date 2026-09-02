@@ -16,55 +16,62 @@ jobs:
           ref: dev
           fetch-depth: 0
 
-      - name: Compute actual compact mutation inventory
+      - name: Compute Reserve fingerprints
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
-          $path = 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
-          $text = Get-Content -Raw -LiteralPath $path
-          $m = [regex]::Match($text,'(?is)FUNCTION\s+GLOBAL\s+LMCControlCommandService::ReserveAxisOwnership\b.*?END_FUNCTION')
-          if (-not $m.Success) { throw 'ReserveAxisOwnership not found.' }
-          $scan = $m.Value
+          $ErrorActionPreference='Stop'
+          $path='Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
+          $text=Get-Content -Raw -LiteralPath $path
+          $m=[regex]::Match($text,'(?is)FUNCTION\s+GLOBAL\s+LMCControlCommandService::ReserveAxisOwnership\b.*?END_FUNCTION')
+          if(-not $m.Success){throw 'ReserveAxisOwnership not found'}
+          $scan=$m.Value
+
           $persistentMutationPattern = (
             '(?is)(?:' +
             '\bOwnership[A-Za-z0-9_]*State\s*\[[^\]]+\]\s*' +
             '(?:\$[A-Za-z_][A-Za-z0-9_]*\s*)?' +
             '(?::|\+|-|\*|/|and|or|xor)\s*=\s*[^;]+;' +
             '|' +
-            '\b_memset\s*\(\s*dest\s*:=\s*' +
-            '#Ownership[A-Za-z0-9_]*State\s*\[.*?\)\s*;' +
+            '\b_memset\s*\(\s*dest\s*:=\s*#Ownership[A-Za-z0-9_]*State\s*\[.*?\)\s*;' +
             '|' +
-            '\b_memcpy\s*\(\s*ptr1\s*:=\s*' +
-            '#Ownership[A-Za-z0-9_]*State\s*\[.*?\)\s*;' +
+            '\b_memcpy\s*\(\s*ptr1\s*:=\s*#Ownership[A-Za-z0-9_]*State\s*\[.*?\)\s*;' +
             '|' +
-            '\bp(?:EffectiveAxisMask|AdmissionToken|OwnerGeneration)\s*' +
-            '\^\s*:=\s*[^;]+;' +
+            '\bp(?:EffectiveAxisMask|AdmissionToken|OwnerGeneration)\s*\^\s*:=\s*[^;]+;' +
             ')')
-          $persistentMutations = [regex]::Matches($scan,$persistentMutationPattern)
-          $normalizedMutations = @(
-            foreach($mutation in $persistentMutations){
-              [regex]::Replace($mutation.Value,'\s+','').ToLowerInvariant()
-            }
-          )
-          $joined = [string]::Join('|',$normalizedMutations)
+          $mut=[regex]::Matches($scan,$persistentMutationPattern)
+          $norm=@(foreach($x in $mut){[regex]::Replace($x.Value,'\s+','').ToLowerInvariant()})
+          $joined=[string]::Join('|',$norm)
           $sha=[Security.Cryptography.SHA256]::Create()
-          try {
-            $hash=([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($joined)))).Replace('-','')
-          } finally { $sha.Dispose() }
-          Write-Host "COUNT=$($normalizedMutations.Count)"
-          Write-Host "LENGTH=$($joined.Length)"
-          Write-Host "SHA256=$hash"
-          for($i=0;$i -lt $normalizedMutations.Count;$i++){
-            Write-Host (("MUT {0,3}: {1}" -f $i,$normalizedMutations[$i]))
-          }
+          try{$mutHash=([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($joined)))).Replace('-','')}finally{$sha.Dispose()}
+          Write-Host "MUT_COUNT=$($norm.Count)"
+          Write-Host "MUT_LENGTH=$($joined.Length)"
+          Write-Host "MUT_SHA256=$mutHash"
 
-      - name: Print verifier mutation contract block
+          $resultSequence=[string]::Join('|',@([regex]::Matches($scan,'(?is)\bResult\s*:=\s*(?<Value>[^;]+)\s*;')|ForEach-Object{[regex]::Replace($_.Groups['Value'].Value,'\s+','').ToLowerInvariant()}))
+          Write-Host "RESULT_SEQUENCE=$resultSequence"
+
+          $flow=@([regex]::Matches($scan,'(?is)\bResult\s*:=\s*[^;]+\s*;|\bRETURN\s*;')|ForEach-Object{[regex]::Replace($_.Value,'\s+','').ToLowerInvariant()})
+          $flowJoined=[string]::Join('|',$flow)
+          $sha=[Security.Cryptography.SHA256]::Create()
+          try{$flowHash=([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($flowJoined)))).Replace('-','')}finally{$sha.Dispose()}
+          Write-Host "FLOW_COUNT=$($flow.Count)"
+          Write-Host "FLOW_LENGTH=$($flowJoined.Length)"
+          Write-Host "FLOW_SHA256=$flowHash"
+          Write-Host "FLOW=$flowJoined"
+
+          $semantic=[regex]::Replace($scan,'\s+','').ToLowerInvariant()
+          $sha=[Security.Cryptography.SHA256]::Create()
+          try{$semanticHash=([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($semantic)))).Replace('-','')}finally{$sha.Dispose()}
+          Write-Host "SEM_LENGTH=$($semantic.Length)"
+          Write-Host "SEM_SHA256=$semanticHash"
+
+      - name: Print current compact verifier tail
         shell: pwsh
         run: |
           $path='LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
           $lines=Get-Content -LiteralPath $path
-          $m=Select-String -LiteralPath $path -SimpleMatch '$persistentMutationPattern = (' | Select-Object -First 1
-          if($null -eq $m){throw 'persistent mutation block not found'}
-          $start=[Math]::Max(1,$m.LineNumber-25)
-          $end=[Math]::Min($lines.Count,$m.LineNumber+190)
+          $m=Select-String -LiteralPath $path -SimpleMatch 'repeat proof or mutation-free output publication drifted' | Select-Object -First 1
+          if($null -eq $m){throw 'target verifier block not found'}
+          $start=[Math]::Max(1,$m.LineNumber-15)
+          $end=[Math]::Min($lines.Count,$m.LineNumber+260)
           for($n=$start;$n -le $end;$n++){Write-Host (("{0,6}: {1}" -f $n,$lines[$n-1]))}
