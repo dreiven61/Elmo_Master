@@ -45,9 +45,6 @@ jobs:
           $lines[$idx] = $lines[$idx].Replace(")-2')", ")LMC_OWNER_REBASE_REQUIRED')")
           Set-Content -LiteralPath $fixture -Value $lines -Encoding utf8
 
-          # The primary contract verifier also freezes the same ReserveAxisOwnership
-          # barrier result. Replace only the -2 token whose local context contains
-          # both ReserveAxisOwnership and rebaseAdmissionAllowed.
           $verifier = 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
           $v = [Collections.Generic.List[string]](Get-Content -LiteralPath $verifier)
           $vhits = @()
@@ -57,15 +54,14 @@ jobs:
             $hi = [Math]::Min($v.Count - 1, $i + 8)
             $window = ($v[$lo..$hi] -join "`n")
             if (($window -match 'ReserveAxisOwnership') -and
-                ($window -match 'rebaseAdmissionAllowed')) {
-              $vhits += $i
-            }
+                ($window -match 'rebaseAdmissionAllowed')) { $vhits += $i }
           }
-          if ($vhits.Count -ne 1) {
-            throw "Expected one primary verifier rebase-result line, found $($vhits.Count)."
+          if (($vhits.Count -lt 1) -or ($vhits.Count -gt 4)) {
+            throw "Unexpected primary verifier rebase-result hit count: $($vhits.Count)."
           }
-          $vi = $vhits[0]
-          $v[$vi] = $v[$vi].Replace('-2', 'LMC_OWNER_REBASE_REQUIRED')
+          foreach ($vi in $vhits) {
+            $v[$vi] = $v[$vi].Replace('-2', 'LMC_OWNER_REBASE_REQUIRED')
+          }
           Set-Content -LiteralPath $verifier -Value $v -Encoding utf8
 
       - name: Verify targeted source invariants
