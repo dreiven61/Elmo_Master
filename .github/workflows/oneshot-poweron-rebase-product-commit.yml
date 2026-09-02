@@ -1,0 +1,70 @@
+name: One-shot PowerOn rebase product commit
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/oneshot-poweron-rebase-product-commit.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  commit-product-first:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Apply product source fix
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $helper = 'tools/Apply-PowerOnRebaseDiagnosticFix.ps1'
+          $helperLines = Get-Content -LiteralPath $helper
+          $helperLines = @($helperLines | Where-Object {
+            ($_ -notmatch '^\$old=') -and
+            ($_ -notmatch '^\$new=') -and
+            ($_ -notmatch '^ReplaceOne \$fixture \$old \$new ')
+          })
+          Set-Content -LiteralPath $helper -Value $helperLines -Encoding utf8
+          ./tools/Apply-PowerOnRebaseDiagnosticFix.ps1 -RepositoryRoot $PWD
+
+      - name: Verify source mutation before commit
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $control = Get-Content -Raw 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
+          $tcp = Get-Content -Raw 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st'
+          $catalog = Get-Content -Raw 'LMC_Library/LMC_API_Delivery/src/LmcErrorCatalog.cs'
+          $models = Get-Content -Raw 'LMC_Library/LMC_API_Delivery/src/LmcAdminModels.cs'
+          if ($control -notmatch '#define\s+LMC_OWNER_REBASE_REQUIRED\s+-15') { throw 'Missing LMC_OWNER_REBASE_REQUIRED=-15.' }
+          if ($control -notmatch 'Result\s*:=\s*LMC_OWNER_REBASE_REQUIRED') { throw 'Reserve rebase result was not updated.' }
+          if ($tcp -notmatch '#define\s+LMC_OWNER_ADAPTER_ERROR_REBASE_REQUIRED\s+-15') { throw 'Missing adapter rebase error.' }
+          if ($tcp -notmatch 'Sendbuf\[14\]\$INT\s*:=\s*LMC_OWNER_ADAPTER_ERROR_REBASE_REQUIRED') { throw 'PowerOn ACK propagation missing.' }
+          if ($tcp -notmatch 'Sendbuf\[20\]\$UDINT\s*:=\s*65') { throw 'Admin detail 65 propagation missing.' }
+          if ($catalog -notmatch 'AxisRebaseRequired') { throw 'C# error catalog entry missing.' }
+          if ($models -notmatch 'AxisRebaseRequired\s*=\s*65') { throw 'C# admin detail enum missing.' }
+
+      - name: Commit product source before any build
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- \
+            'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st' \
+            'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st' \
+            'LMC_Library/LMC_API_Delivery/src/LmcErrorCatalog.cs' \
+            'LMC_Library/LMC_API_Delivery/src/LmcAdminModels.cs' \
+            'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/ErrorCatalogTests.cs' \
+            'docs/architecture/LMC_ENCODER_MAINTENANCE_TW19_TW20_FIXED_ONE_ACTIVATION_2026-08-04.md' \
+            'docs/api/design/HOME_DS402_H37_OPERATOR_ACTIVATION_IMPLEMENTATION_20260902.md'
+          git diff --cached --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git commit -m 'fix: expose retained rebase barrier on PowerOn'
+          git push origin HEAD:dev
