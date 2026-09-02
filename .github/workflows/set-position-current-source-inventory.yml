@@ -43,7 +43,7 @@ jobs:
         shell: powershell
         run: |
           & '.\tools\Verify-SetPositionCurrentSourceInventory.ps1' -RepositoryRoot (Get-Location).Path
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not $?) { exit 1 }
 
       - name: Build WPF smoke runner and run SetPosition journal regression
         shell: powershell
@@ -52,7 +52,7 @@ jobs:
           $exe = '.\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\bin\Debug\LasalApiWpfTestApp.SmokeTests.exe'
           msbuild $project /t:Build /p:Configuration=Debug /p:Platform=AnyCPU /m /nologo
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          & $exe --filter AxisSetPositionRecoveryJournal
+          & $exe --filter Wpf.AxisSetPositionJournal
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Diff hygiene
