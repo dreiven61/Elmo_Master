@@ -16,32 +16,45 @@ jobs:
           ref: dev
           fetch-depth: 0
 
-      - name: Print verifier failure context
+      - name: Print next verifier failure context
         shell: pwsh
         run: |
           $path = 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
           $lines = Get-Content -LiteralPath $path
-          foreach ($range in @(@(8170,8320), @(8000,8180))) {
-            Write-Host "===== VERIFIER $($range[0])..$($range[1]) ====="
-            for ($n=$range[0]; $n -le [Math]::Min($range[1],$lines.Count); $n++) {
-              Write-Host (("{0,6}: {1}" -f $n,$lines[$n-1]))
+          $patterns = @(
+            'repeat proof or mutation-free output publication drifted',
+            'mutation-free output publication',
+            'repeat proof'
+          )
+          foreach ($pattern in $patterns) {
+            Write-Host "===== $pattern ====="
+            $matches = Select-String -LiteralPath $path -SimpleMatch $pattern
+            foreach ($m in $matches) {
+              $start=[Math]::Max(1,$m.LineNumber-130)
+              $end=[Math]::Min($lines.Count,$m.LineNumber+130)
+              Write-Host "LINES $start..$end (match $($m.LineNumber))"
+              for($n=$start;$n -le $end;$n++){
+                Write-Host (("{0,6}: {1}" -f $n,$lines[$n-1]))
+              }
             }
           }
 
-      - name: Print Reserve output pointer writes
+      - name: Print exact Reserve repeat and fresh publication blocks
         shell: pwsh
         run: |
           $path = 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
           $text = Get-Content -Raw -LiteralPath $path
           $m = [regex]::Match($text,'(?is)FUNCTION\s+GLOBAL\s+LMCControlCommandService::ReserveAxisOwnership\b.*?END_FUNCTION')
           if (-not $m.Success) { throw 'ReserveAxisOwnership not found.' }
-          $block = $m.Value
-          Write-Host '===== OUTPUT POINTER WRITES ====='
-          [regex]::Matches($block,'(?im)^.*?p(?:EffectiveAxisMask|AdmissionToken|OwnerGeneration)\^\s*:=.*?;.*$') | ForEach-Object { Write-Host $_.Value }
-          Write-Host '===== CONTEXT AROUND repeatMode > 0 ====='
-          $arr = $block -split "`r?`n"
-          $hit = ($arr | Select-String -SimpleMatch 'if repeatMode > 0 then' | Select-Object -First 1).LineNumber
-          if ($hit) {
-            $start=[Math]::Max(1,$hit-25); $end=[Math]::Min($arr.Count,$hit+65)
-            for($n=$start;$n -le $end;$n++){ Write-Host (("{0,6}: {1}" -f $n,$arr[$n-1])) }
+          $arr = $m.Value -split "`r?`n"
+          foreach ($needle in @('if repeatMode > 0 then','pEffectiveAxisMask^ := effectiveAxisMask;')) {
+            Write-Host "===== $needle ====="
+            $hits = $arr | Select-String -SimpleMatch $needle
+            foreach($hit in $hits){
+              $start=[Math]::Max(1,$hit.LineNumber-45)
+              $end=[Math]::Min($arr.Count,$hit.LineNumber+90)
+              for($n=$start;$n -le $end;$n++){
+                Write-Host (("{0,6}: {1}" -f $n,$arr[$n-1]))
+              }
+            }
           }
