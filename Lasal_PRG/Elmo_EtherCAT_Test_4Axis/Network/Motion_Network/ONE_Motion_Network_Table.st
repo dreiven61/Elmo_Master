@@ -528,7 +528,7 @@ FUNCTION GLOBAL TAB ONE_Motion_Network
 -1$UINT, 0$UINT, 
 0$UINT, 0$UINT,
 
-33$UDINT,
+34$UDINT,
 TO_UDINT(1047453148), "_AxisBase", 1$UINT, 58$UINT, 0$UINT,
 TO_UDINT(3162349954), "_LMCABSEncoder", 1$UINT, 0$UINT, 9$UINT,
 TO_UDINT(1422175863), "_LMCAxis", 1$UINT, 120$UINT, 9$UINT,
@@ -562,6 +562,7 @@ TO_UDINT(1198357413), "Controller", 1$UINT, 47$UINT, 0$UINT,
 TO_UDINT(3935910575), "LMCEcatInputLatch", 0$UINT, 0$UINT, 1$UINT,
 TO_UDINT(3890278202), "LMCRecorderStore", 0$UINT, 0$UINT, 1$UINT,
 TO_UDINT(28504452), "PosController", 2$UINT, 77$UINT, 9$UINT,
+TO_UDINT(3734862543), "SimulationSetup", 0$UINT, 0$UINT, 1$UINT,
 
 
 1$UINT, TO_UDINT(1342472465), "_LMCAXIS1\_LMCABSENCODER1", 
@@ -779,6 +780,8 @@ _NO_ATTR, TO_UDINT(2154544970), "POSCONTROLLER7",
 _NO_ATTR, TO_UDINT(282370779), "POSCONTROLLER8", 
 _NO_ATTR, TO_UDINT(1741918797), "POSCONTROLLER9", 
 
+_NO_ATTR, TO_UDINT(2295967212), "SIMULATIONSETUP1", 
+
 //Internal connections
 0$UDINT,
 162$UDINT,
@@ -945,7 +948,7 @@ TO_UDINT(159), "LMCMath_SO3", TO_UDINT(118),
 TO_UDINT(159), "_LMCRobotLog", TO_UDINT(160),
 TO_UDINT(159), "LMCBeltInternal", TO_UDINT(117),
 0$UDINT,
-172$UDINT,
+181$UDINT,
 TO_UDINT(9), "LMCController", TO_UDINT(174), "Signal_Input",
 TO_UDINT(9), "LMCPreRtWorkTrigger", TO_UDINT(172), "ClassSvr",
 TO_UDINT(9), "LMCMath", TO_UDINT(120), "ClassSvr",
@@ -1118,10 +1121,19 @@ TO_UDINT(172), "LMCAxis1", TO_UDINT(9), "Control",
 TO_UDINT(172), "LMCAxis2", TO_UDINT(10), "Control",
 TO_UDINT(172), "LMCAxis3", TO_UDINT(11), "Control",
 TO_UDINT(172), "LMCAxis4", TO_UDINT(12), "Control",
+TO_UDINT(183), "Simul_Axis_1", TO_UDINT(9), "SimulateMode",
+TO_UDINT(183), "Simul_Axis_2", TO_UDINT(10), "SimulateMode",
+TO_UDINT(183), "Simul_Axis_3", TO_UDINT(11), "SimulateMode",
+TO_UDINT(183), "Simul_Axis_4", TO_UDINT(12), "SimulateMode",
+TO_UDINT(183), "Simul_Axis_5", TO_UDINT(13), "SimulateMode",
+TO_UDINT(183), "Simul_Axis_6", TO_UDINT(14), "SimulateMode",
+TO_UDINT(183), "Simul_Axis_7", TO_UDINT(15), "SimulateMode",
+TO_UDINT(183), "Simul_Axis_8", TO_UDINT(16), "SimulateMode",
+TO_UDINT(183), "Simul_Axis_9", TO_UDINT(17), "SimulateMode",
 
 //Initialization values
 0$UDINT,
-309$UDINT,
+316$UDINT,
 TO_UDINT(0), "AbsEncoder", TO_UDINT(1),//|Motion_Network._LMCAxis1\_LMCABSEncoder1.AbsEncoder;
 TO_UDINT(1), "AbsEncoder", TO_UDINT(1),//|Motion_Network._LMCAxis2\_LMCABSEncoder1.AbsEncoder;
 TO_UDINT(2), "AbsEncoder", TO_UDINT(1),//|Motion_Network._LMCAxis3\_LMCABSEncoder1.AbsEncoder;
@@ -1431,6 +1443,13 @@ TO_UDINT(182), "vHWDelay", TO_UDINT(0),//|Motion_Network.PosController9.vHWDelay
 TO_UDINT(182), "oActive", TO_UDINT(0),//|Motion_Network.PosController9.oActive;
 TO_UDINT(182), "cDragLimit", TO_UDINT(0),//|Motion_Network.PosController9.cDragLimit;
 TO_UDINT(182), "cDragCalcDelay", TO_UDINT(0),//|Motion_Network.PosController9.cDragCalcDelay;
+TO_UDINT(183), "Axis_3", TO_UDINT(1),//|Motion_Network.SimulationSetup1.Axis_3;
+TO_UDINT(183), "Axis_4", TO_UDINT(1),//|Motion_Network.SimulationSetup1.Axis_4;
+TO_UDINT(183), "Axis_5", TO_UDINT(1),//|Motion_Network.SimulationSetup1.Axis_5;
+TO_UDINT(183), "Axis_6", TO_UDINT(1),//|Motion_Network.SimulationSetup1.Axis_6;
+TO_UDINT(183), "Axis_7", TO_UDINT(1),//|Motion_Network.SimulationSetup1.Axis_7;
+TO_UDINT(183), "Axis_8", TO_UDINT(1),//|Motion_Network.SimulationSetup1.Axis_8;
+TO_UDINT(183), "Axis_9", TO_UDINT(1),//|Motion_Network.SimulationSetup1.Axis_9;
 
 //Symbolic initialization values
 0$UDINT,

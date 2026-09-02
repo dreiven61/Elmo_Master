@@ -4743,6 +4743,34 @@
 				</Network>
 			</Networks>
 		</Object>
+		<Object
+			Name       = "SimulationSetup1"
+			GUID       = "{A54B0119-C60A-4794-83D2-826992E55829}"
+			Class      = "SimulationSetup"
+			Position   = "(5850,4350)"
+			Visualized = "false">
+			<Channels>
+				<Server Name="Axis_1"/>
+				<Server Name="Axis_2"/>
+				<Server Name="Axis_3" Value="1"/>
+				<Server Name="Axis_4" Value="1"/>
+				<Server Name="Axis_5" Value="1"/>
+				<Server Name="Axis_6" Value="1"/>
+				<Server Name="Axis_7" Value="1"/>
+				<Server Name="Axis_8" Value="1"/>
+				<Server Name="Axis_9" Value="1"/>
+				<Server Name="ClassSvr"/>
+				<Client Name="Simul_Axis_1" DrawChnConn="Text"/>
+				<Client Name="Simul_Axis_2" DrawChnConn="Text"/>
+				<Client Name="Simul_Axis_3" DrawChnConn="Text"/>
+				<Client Name="Simul_Axis_4" DrawChnConn="Text"/>
+				<Client Name="Simul_Axis_5" DrawChnConn="Text"/>
+				<Client Name="Simul_Axis_6" DrawChnConn="Text"/>
+				<Client Name="Simul_Axis_7" DrawChnConn="Text"/>
+				<Client Name="Simul_Axis_8" DrawChnConn="Text"/>
+				<Client Name="Simul_Axis_9" DrawChnConn="Text"/>
+			</Channels>
+		</Object>
 	</Components>
 	<Comments>
 	</Comments>
@@ -4807,6 +4835,15 @@
 		<Connection Source="LMCEcatInputLatch1.LMCAxis1" Destination="_LMCAxis1.Control" Vertices="(5850,3990),(3756,390),"/>
 		<Connection Source="LMCEcatInputLatch1.LMCAxis2" Destination="_LMCAxis2.Control" Vertices="(5850,4050),(3756,2310),"/>
 		<Connection Source="LMCEcatInputLatch1.LMCAxis4" Destination="_LMCAxis4.Control" Vertices="(5850,4170),(3756,5820),"/>
+		<Connection Source="SimulationSetup1.Simul_Axis_1" Destination="_LMCAxis1.SimulateMode" Vertices="(5850,4440),(3756,990),"/>
+		<Connection Source="SimulationSetup1.Simul_Axis_2" Destination="_LMCAxis2.SimulateMode" Vertices="(5850,4500),(3756,2910),"/>
+		<Connection Source="SimulationSetup1.Simul_Axis_3" Destination="_LMCAxis3.SimulateMode" Vertices="(5850,4560),(3756,4680),"/>
+		<Connection Source="SimulationSetup1.Simul_Axis_4" Destination="_LMCAxis4.SimulateMode" Vertices="(5850,4620),(3756,6420),"/>
+		<Connection Source="SimulationSetup1.Simul_Axis_5" Destination="_LMCAxis5.SimulateMode" Vertices="(5850,4680),(3756,8250),"/>
+		<Connection Source="SimulationSetup1.Simul_Axis_6" Destination="_LMCAxis6.SimulateMode" Vertices="(5850,4740),(3756,10170),"/>
+		<Connection Source="SimulationSetup1.Simul_Axis_7" Destination="_LMCAxis7.SimulateMode" Vertices="(5850,4800),(3756,11940),"/>
+		<Connection Source="SimulationSetup1.Simul_Axis_8" Destination="_LMCAxis8.SimulateMode" Vertices="(5850,4860),(3756,13680),"/>
+		<Connection Source="SimulationSetup1.Simul_Axis_9" Destination="_LMCAxis9.SimulateMode" Vertices="(5850,4920),(3756,15390),"/>
 		<Connection Source="_LMCAxis9.LMCController" Destination="PosController9.Signal_Input" Vertices="(3090,14850),(2410,14850),"/>
 		<Connection Source="_LMCAxis8.LMCController" Destination="PosController8.Signal_Input" Vertices="(3090,13140),(2410,13140),"/>
 		<Connection Source="_LMCAxis7.LMCController" Destination="PosController7.Signal_Input" Vertices="(3090,11400),(2410,11400),"/>
