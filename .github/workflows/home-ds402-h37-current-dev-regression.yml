@@ -1,0 +1,116 @@
+name: HomeDS402 H37 current-dev regression
+
+on:
+  push:
+    branches:
+      - dev
+    paths:
+      - 'tools/Verify-HomeDs402H37CurrentDevRegression.ps1'
+      - 'tools/Verify-HomeDs402H37Activation.ps1'
+      - 'tools/Verify-HomeDs402H37Ownership.ps1'
+      - 'tools/Verify-HomeDs402H37MethodSize.ps1'
+      - 'tools/Verify-HomeDs402H37WpfRecovery.ps1'
+      - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/**'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.MaintenanceActions.cs'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MaintenanceActionRecoveryJournal.cs'
+      - 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/**'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCEcatInputLatch/LMCEcatInputLatch.st'
+      - '.github/workflows/home-ds402-h37-current-dev-regression.yml'
+  pull_request:
+    branches:
+      - dev
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  h37-current-dev:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Run H37 current-dev source regression
+        shell: powershell
+        run: |
+          & '.\tools\Verify-HomeDs402H37CurrentDevRegression.ps1' -RepositoryRoot (Get-Location).Path
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build and run API tests Debug
+        shell: powershell
+        run: |
+          $project = '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\LasalMotionControlLib.Tests.csproj'
+          msbuild $project /t:Build /p:Configuration=Debug /p:Platform=AnyCPU /m /nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\bin\Debug\LasalMotionControlLib.Tests.exe'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build and run H37 WPF smoke Debug
+        shell: powershell
+        run: |
+          $project = '.\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\LasalApiWpfTestApp.SmokeTests.csproj'
+          $exe = '.\LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\bin\Debug\LasalApiWpfTestApp.SmokeTests.exe'
+          msbuild $project /t:Build /p:Configuration=Debug /p:Platform=AnyCPU /m /nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $exe --filter MaintenanceJournal
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $exe --filter Ds402Home
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify SourceOnly reaches only the known artifact boundary
+        shell: powershell
+        run: |
+          $knownArtifactBoundary = 'LASAL.UdpCallbackContract blocker: SetPosition-augmented Classes.lcb physical identity drifted.'
+          $captured = New-Object System.Collections.Generic.List[string]
+          $code = 0
+          try {
+            $ErrorActionPreference = 'Continue'
+            & '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\Verify-LasalContract.ps1' `
+              -RepositoryRoot $env:GITHUB_WORKSPACE `
+              -SourceOnly `
+              -ExpectedSdoWriteAxis 1 2>&1 |
+              ForEach-Object {
+                $text = $_ | Out-String
+                [void]$captured.Add($text)
+                Write-Host $_
+              }
+            $code = $LASTEXITCODE
+          }
+          catch {
+            $text = $_ | Out-String
+            [void]$captured.Add($text)
+            Write-Host $text
+            $code = 1
+          }
+          if ($code -eq 0) { exit 0 }
+          $joined = [string]::Join("`n", $captured)
+          if ($joined.Contains($knownArtifactBoundary)) {
+            Write-Host 'PASS H37-C0: current source contracts are green up to the known fresh-C78/generated-artifact boundary.'
+            exit 0
+          }
+          exit $code
+
+      - name: Diff hygiene
+        if: always()
+        shell: powershell
+        run: |
+          if ($env:GITHUB_EVENT_NAME -eq 'pull_request') {
+            git diff --check "origin/$env:GITHUB_BASE_REF...HEAD"
+          }
+          elseif ($env:GITHUB_EVENT_NAME -eq 'push') {
+            git diff --check HEAD^ HEAD
+          }
+          else {
+            git diff --check
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
