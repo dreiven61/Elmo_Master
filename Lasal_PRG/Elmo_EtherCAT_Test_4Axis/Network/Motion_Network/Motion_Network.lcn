@@ -846,7 +846,7 @@
 				<Server Name="SafeAxisState"/>
 				<Server Name="SetPos"/>
 				<Server Name="SetVelocity"/>
-				<Server Name="SimulateMode" Value="0"/>
+				<Server Name="SimulateMode" Value="1"/>
 				<Server Name="SWMaxPos" Value="10000 mm"/>
 				<Server Name="SWMinPos" Value="-10000 mm"/>
 				<Server Name="Tjerk" Value="0"/>
@@ -894,7 +894,7 @@
 								<Server Name="SafeAxisState"/>
 								<Server Name="SetPos"/>
 								<Server Name="SetVelocity"/>
-								<Server Name="SimulateMode" Value="0"/>
+								<Server Name="SimulateMode" Value="1"/>
 								<Server Name="SWMaxPos" Value="10000 mm"/>
 								<Server Name="SWMinPos" Value="-10000 mm"/>
 								<Server Name="Tjerk" Value="0"/>
@@ -1252,7 +1252,7 @@
 				<Server Name="SafeAxisState"/>
 				<Server Name="SetPos"/>
 				<Server Name="SetVelocity"/>
-				<Server Name="SimulateMode" Value="0"/>
+				<Server Name="SimulateMode" Value="1"/>
 				<Server Name="SWMaxPos" Value="10000 mm"/>
 				<Server Name="SWMinPos" Value="-10000 mm"/>
 				<Server Name="Tjerk" Value="0"/>
@@ -1300,7 +1300,7 @@
 								<Server Name="SafeAxisState"/>
 								<Server Name="SetPos"/>
 								<Server Name="SetVelocity"/>
-								<Server Name="SimulateMode" Value="0"/>
+								<Server Name="SimulateMode" Value="1"/>
 								<Server Name="SWMaxPos" Value="10000 mm"/>
 								<Server Name="SWMinPos" Value="-10000 mm"/>
 								<Server Name="Tjerk" Value="0"/>
