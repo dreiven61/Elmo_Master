@@ -61,16 +61,16 @@ $homeBlockMatch = [regex]::Match(
     $diagnostics,
     '(?s)FUNCTION\s+LMCDiagnosticsService::ProcessAxisDs402Home\b.*?END_FUNCTION')
 Assert-True $homeBlockMatch.Success 'ProcessAxisDs402Home source block exists on current dev'
-$home = $homeBlockMatch.Value
+$homeSourceBlock = $homeBlockMatch.Value
 
 # Preserve the dedicated Method-37 SDO sequence. These checks intentionally do not
 # authorize the feature; they only prove the SDO Write refactor did not rewrite H37.
-Assert-Match $home 'sdoIndex\s*:=\s*0x6061\s*;' 'H37 still reads Modes of operation display (0x6061)'
-Assert-Match $home '(?s)sdoIsWrite\s*:=\s*TRUE\s*;\s*sdoIndex\s*:=\s*0x607C\s*;' 'H37 still writes Home offset (0x607C) through its dedicated lifecycle'
-Assert-Match $home '(?s)sdoIsWrite\s*:=\s*TRUE\s*;\s*sdoIndex\s*:=\s*0x6098\s*;' 'H37 still writes Homing method (0x6098) through its dedicated lifecycle'
-Assert-Match $home '(?s)sdoIsWrite\s*:=\s*TRUE\s*;\s*sdoIndex\s*:=\s*0x6060\s*;.*?sdoData\s*:=\s*6\s*;' 'H37 still enters DS402 Homing mode 6'
-Assert-Match $home '(?s)sdoIsWrite\s*:=\s*TRUE\s*;\s*sdoIndex\s*:=\s*0x6060\s*;.*?sdoData\s*:=\s*8\s*;' 'H37 still restores CSP mode 8'
-Assert-NoMatch $home 'GetSdoWritePolicyDetail|LMC_DIAG_D5_SDO_WRITE_GLOBAL_ENABLED' 'H37 dedicated lifecycle is not routed through Generic D5 SDO Write admission'
+Assert-Match $homeSourceBlock 'sdoIndex\s*:=\s*0x6061\s*;' 'H37 still reads Modes of operation display (0x6061)'
+Assert-Match $homeSourceBlock '(?s)sdoIsWrite\s*:=\s*TRUE\s*;\s*sdoIndex\s*:=\s*0x607C\s*;' 'H37 still writes Home offset (0x607C) through its dedicated lifecycle'
+Assert-Match $homeSourceBlock '(?s)sdoIsWrite\s*:=\s*TRUE\s*;\s*sdoIndex\s*:=\s*0x6098\s*;' 'H37 still writes Homing method (0x6098) through its dedicated lifecycle'
+Assert-Match $homeSourceBlock '(?s)sdoIsWrite\s*:=\s*TRUE\s*;\s*sdoIndex\s*:=\s*0x6060\s*;.*?sdoData\s*:=\s*6\s*;' 'H37 still enters DS402 Homing mode 6'
+Assert-Match $homeSourceBlock '(?s)sdoIsWrite\s*:=\s*TRUE\s*;\s*sdoIndex\s*:=\s*0x6060\s*;.*?sdoData\s*:=\s*8\s*;' 'H37 still restores CSP mode 8'
+Assert-NoMatch $homeSourceBlock 'GetSdoWritePolicyDetail|LMC_DIAG_D5_SDO_WRITE_GLOBAL_ENABLED' 'H37 dedicated lifecycle is not routed through Generic D5 SDO Write admission'
 
 # H37 remains dormant until the artifact/hardware gates are closed.
 Assert-Match $diagnostics '(?m)^\s*#define\s+LMC_DIAG_DS402_HOME_ENABLED\s+FALSE\s*$' 'HomeDS402 runtime activation remains OFF during H37-C0'
