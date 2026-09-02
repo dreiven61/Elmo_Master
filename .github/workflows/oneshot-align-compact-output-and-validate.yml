@@ -1,0 +1,122 @@
+name: One-shot align compact output inventory and validate
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/oneshot-align-compact-output-and-validate.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  align-and-validate:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Align exact output pointer inventory
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $path = 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
+          $v = [Collections.Generic.List[string]](Get-Content -LiteralPath $path)
+          $start = -1
+          for ($i=0; $i -lt $v.Count; $i++) {
+            if ($v[$i].Trim() -ceq '$expectedOutputPointerWrites = @(') { $start=$i; break }
+          }
+          if ($start -lt 0) { throw 'expectedOutputPointerWrites block not found.' }
+          $end = -1
+          for ($i=$start+1; $i -lt [Math]::Min($v.Count,$start+60); $i++) {
+            if ($v[$i].Trim() -ceq ')') { $end=$i; break }
+          }
+          if ($end -lt 0) { throw 'expectedOutputPointerWrites block end not found.' }
+          $block = @($v[$start..$end])
+          if (($block -join "`n") -match '0x01000000') { throw 'Diagnostic output writes already present.' }
+
+          $repeatAnchor=-1
+          $freshAnchor=-1
+          for ($i=$start+1; $i -lt $end; $i++) {
+            if ($v[$i].Trim() -ceq "'pownergeneration^:=repeatownergeneration;',") { $repeatAnchor=$i }
+            if ($v[$i].Trim() -ceq "'pownergeneration^:=nextgeneration;')") { $freshAnchor=$i }
+          }
+          if ($repeatAnchor -lt 0 -or $freshAnchor -lt 0) {
+            throw "Output inventory anchors missing repeat=$repeatAnchor fresh=$freshAnchor."
+          }
+
+          $diag = @(
+            "        'peffectiveaxismask^:=peffectiveaxismask^or0x01000000;',",
+            "        'peffectiveaxismask^:=peffectiveaxismask^or0x02000000;',",
+            "        'peffectiveaxismask^:=peffectiveaxismask^or0x04000000;',",
+            "        'peffectiveaxismask^:=peffectiveaxismask^or0x08000000;',",
+            "        'peffectiveaxismask^:=peffectiveaxismask^or0x10000000;'"
+          )
+
+          # Repeat path: all five entries are followed by later fresh entries, so comma-terminate all.
+          $repeatDiag = @($diag | ForEach-Object { if ($_.EndsWith(";'")) { $_ + ',' } else { $_ } })
+          for ($j=$repeatDiag.Count-1; $j -ge 0; $j--) { $v.Insert($repeatAnchor+1,$repeatDiag[$j]) }
+
+          # Fresh anchor moved by repeat insertion. Locate it again and convert its closing parenthesis to comma.
+          $freshAnchor=-1
+          for ($i=$start+1; $i -lt [Math]::Min($v.Count,$start+70); $i++) {
+            if ($v[$i].Trim() -ceq "'pownergeneration^:=nextgeneration;')") { $freshAnchor=$i; break }
+          }
+          if ($freshAnchor -lt 0) { throw 'Fresh output inventory anchor disappeared.' }
+          $v[$freshAnchor] = $v[$freshAnchor].Replace(";')", ";',")
+          $freshDiag = @(
+            "        'peffectiveaxismask^:=peffectiveaxismask^or0x01000000;',",
+            "        'peffectiveaxismask^:=peffectiveaxismask^or0x02000000;',",
+            "        'peffectiveaxismask^:=peffectiveaxismask^or0x04000000;',",
+            "        'peffectiveaxismask^:=peffectiveaxismask^or0x08000000;',",
+            "        'peffectiveaxismask^:=peffectiveaxismask^or0x10000000;')"
+          )
+          for ($j=$freshDiag.Count-1; $j -ge 0; $j--) { $v.Insert($freshAnchor+1,$freshDiag[$j]) }
+
+          Set-Content -LiteralPath $path -Value $v -Encoding utf8
+
+          $updated = Get-Content -Raw -LiteralPath $path
+          $expected = [regex]::Match($updated,'(?is)\$expectedOutputPointerWrites\s*=\s*@\((?<Body>.*?)\)\s*if\s*\(\[string\]::Join')
+          if (-not $expected.Success) { throw 'Updated expected output block cannot be parsed.' }
+          $count = [regex]::Matches($expected.Groups['Body'].Value,"'peffectiveaxismask\^:=peffectiveaxismask\^or0x[0-9a-f]+;'").Count
+          if ($count -ne 10) { throw "Expected 10 diagnostic output entries, found $count." }
+
+      - name: Commit verifier alignment
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
+          git diff --cached --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git commit -m 'test: align compact ownership output inventory'
+          git push origin HEAD:dev
+
+      - name: API Release tests
+        shell: pwsh
+        run: |
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
+          $msbuild = @(& $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe') | Select-Object -First 1
+          if ([string]::IsNullOrWhiteSpace($msbuild)) { throw 'MSBuild.exe not found.' }
+          & $msbuild 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/LasalMotionControlLib.Tests.csproj' /t:RunTests /p:Configuration=Release /nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: WPF Debug build
+        shell: pwsh
+        run: |
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
+          $msbuild = @(& $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe') | Select-Object -First 1
+          if ([string]::IsNullOrWhiteSpace($msbuild)) { throw 'MSBuild.exe not found.' }
+          & $msbuild 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.sln' /t:Build /p:Configuration=Debug /nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Clean tree check
+        shell: pwsh
+        run: |
+          git diff --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not [string]::IsNullOrWhiteSpace((git status --porcelain))) { throw 'Working tree not clean.' }
