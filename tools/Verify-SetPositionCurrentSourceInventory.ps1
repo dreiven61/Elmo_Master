@@ -74,10 +74,10 @@ $ordinaryOffCount = [regex]::Matches(
     '(?m)^\s*#define\s+LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED\s+FALSE\s*$').Count
 Assert-True ($ordinaryOffCount -ge 2) 'Control and TCP ordinary ownership activation gates remain OFF'
 for ($axis = 1; $axis -le 4; $axis++) {
-    # LASAL configuration constants may use an untyped 0 or an explicit typed
-    # zero such as 0$DINT.  Both represent the same fail-closed max-jump value.
+    # Backslash is not PowerShell's escape character. Keep regex metacharacters
+    # single-escaped in this dynamically formatted pattern.
     $maxJumpPattern = (
-        "(?im)^\\s*#define\\s+LMC_ADMIN_SET_POSITION_MAX_JUMP_AXIS_?{0}\\s+0(?:\\$[A-Z][A-Z0-9_]*)?\\s*$" -f $axis)
+        "(?im)^\s*#define\s+LMC_ADMIN_SET_POSITION_MAX_JUMP_AXIS_?{0}\s+0(?:\$[A-Z][A-Z0-9_]*)?\s*$" -f $axis)
     Assert-Match $combinedLasal $maxJumpPattern ("Axis{0} SetPositionMaxJump remains zero" -f $axis)
 }
 
