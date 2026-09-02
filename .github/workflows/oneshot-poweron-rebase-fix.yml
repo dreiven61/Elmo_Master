@@ -44,18 +44,13 @@ jobs:
           Set-Content -LiteralPath $fixture -Value $lines -Encoding utf8
 
           $verifier = 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
-          $v = [Collections.Generic.List[string]](Get-Content -LiteralPath $verifier)
-          $vhits = @()
-          for ($i = 0; $i -lt $v.Count; $i++) {
-            if ($v[$i] -notmatch '-2') { continue }
-            $lo = [Math]::Max(0, $i - 8)
-            $hi = [Math]::Min($v.Count - 1, $i + 8)
-            $window = ($v[$lo..$hi] -join "`n")
-            if (($window -match 'ReserveAxisOwnership') -and ($window -match 'rebaseAdmissionAllowed')) { $vhits += $i }
-          }
-          if (($vhits.Count -lt 1) -or ($vhits.Count -gt 4)) { throw "Unexpected primary verifier hit count: $($vhits.Count)." }
-          foreach ($vi in $vhits) { $v[$vi] = $v[$vi].Replace('-2', 'LMC_OWNER_REBASE_REQUIRED') }
-          Set-Content -LiteralPath $verifier -Value $v -Encoding utf8
+          $text = [IO.File]::ReadAllText($verifier)
+          $needle = 'rebaseAdmissionAllowed\s*=\s*FALSE\)\s+then\s*Result\s*:=\s*)-2'
+          $replacement = 'rebaseAdmissionAllowed\s*=\s*FALSE\)\s+then\s*Result\s*:=\s*)LMC_OWNER_REBASE_REQUIRED'
+          $count = ([regex]::Matches($text, [regex]::Escape($needle))).Count
+          if (($count -lt 1) -or ($count -gt 4)) { throw "Unexpected exact verifier contract count: $count" }
+          $text = $text.Replace($needle, $replacement)
+          [IO.File]::WriteAllText($verifier, $text, (New-Object Text.UTF8Encoding($false)))
 
           $testProject = 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/LasalMotionControlLib.Tests.csproj'
           $p = [Collections.Generic.List[string]](Get-Content -LiteralPath $testProject)
@@ -77,12 +72,14 @@ jobs:
           $control = Get-Content -Raw 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
           $tcp = Get-Content -Raw 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st'
           $project = Get-Content -Raw 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/LasalMotionControlLib.Tests.csproj'
+          $verifier = Get-Content -Raw 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
           if ($control -notmatch '#define\s+LMC_OWNER_REBASE_REQUIRED\s+-15') { throw 'Missing control -15 define.' }
           if ($control -notmatch 'Result\s*:=\s*LMC_OWNER_REBASE_REQUIRED') { throw 'Dedicated rebase admission result missing.' }
           if ($tcp -notmatch 'LMC_OWNER_ADAPTER_ERROR_REBASE_REQUIRED\s+-15') { throw 'Missing TCP -15 define.' }
           if ($tcp -notmatch 'Sendbuf\[14\]\$INT\s*:=\s*LMC_OWNER_ADAPTER_ERROR_REBASE_REQUIRED') { throw 'Axis ACK -15 propagation missing.' }
           if ($tcp -notmatch 'Sendbuf\[20\]\$UDINT\s*:=\s*65') { throw 'Admin rebase detail 65 missing.' }
           if ($project -notmatch 'MaintenanceActionRecoveryJournal\.cs') { throw 'API test compile closure missing.' }
+          if ($verifier -notmatch 'rebaseAdmissionAllowed\\s\*=\\s\*FALSE.*LMC_OWNER_REBASE_REQUIRED') { throw 'Primary verifier rebase contract missing.' }
 
       - name: Axis rebase verifier self-test
         shell: pwsh
