@@ -1,0 +1,190 @@
+name: One-shot PowerOn rebase validate after product
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/oneshot-poweron-rebase-validate-after-product.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  align-tests-and-validate:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout product commit
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Align verifier and test project
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $fixture = 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalAxisRebaseBarrier.Fixture.ps1'
+          $f = [Collections.Generic.List[string]](Get-Content -LiteralPath $fixture)
+          $fixtureHits = @()
+          for ($i = 0; $i -lt $f.Count; $i++) {
+            if (($f[$i] -match 'rebaseAdmissionAllowed') -and
+                ($f[$i] -match '\)-2''\)')) { $fixtureHits += $i }
+          }
+          if ($fixtureHits.Count -ne 1) {
+            throw "Expected one ReserveConflictDrift line, found $($fixtureHits.Count)."
+          }
+          $fi = $fixtureHits[0]
+          $f[$fi] = $f[$fi].Replace(")-2')", ")LMC_OWNER_REBASE_REQUIRED')")
+          Set-Content -LiteralPath $fixture -Value $f -Encoding utf8
+
+          $verifier = 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
+          $v = [Collections.Generic.List[string]](Get-Content -LiteralPath $verifier)
+          $rebaseReplacements = @(
+            @(
+              "        'Result\s*:=\s*-2\s*;\s*RETURN\s*;\s*end_if\s*;\s*end_if\s*;') (",
+              "        'Result\s*:=\s*LMC_OWNER_REBASE_REQUIRED\s*;\s*RETURN\s*;\s*end_if\s*;\s*end_if\s*;') ("
+            ),
+            @(
+              "                '(\)\s+then\s*Result\s*:=\s*-2)')",
+              "                '(\)\s+then\s*Result\s*:=\s*LMC_OWNER_REBASE_REQUIRED)')"
+            ),
+            @(
+              "        'Result\s*:=\s*-2\s*;\s*RETURN\s*;') (",
+              "        'Result\s*:=\s*LMC_OWNER_REBASE_REQUIRED\s*;\s*RETURN\s*;') ("
+            )
+          )
+          foreach ($pair in $rebaseReplacements) {
+            $hits = @()
+            for ($i = 0; $i -lt $v.Count; $i++) {
+              if ($v[$i] -ceq $pair[0]) { $hits += $i }
+            }
+            if ($hits.Count -ne 1) {
+              throw "Verifier rebase contract expected once, found $($hits.Count): $($pair[0])"
+            }
+            $v[$hits[0]] = $pair[1]
+          }
+
+          $assertStarts = @()
+          for ($i = 0; $i -lt $v.Count; $i++) {
+            if ($v[$i].Trim() -ceq 'Assert-Match $repeatReturnBody (') {
+              $assertStarts += $i
+            }
+          }
+          if ($assertStarts.Count -ne 1) {
+            throw "repeatReturn assertion start expected once, found $($assertStarts.Count)."
+          }
+          $assertStart = $assertStarts[0]
+          $assertEnd = -1
+          for ($i = $assertStart; $i -lt [Math]::Min($v.Count, $assertStart + 30); $i++) {
+            if ($v[$i] -like '*Reserve positive result does not return the immutable retained tuple immediately.*') {
+              $assertEnd = $i
+              break
+            }
+          }
+          if ($assertEnd -lt $assertStart) { throw 'repeatReturn assertion end not found.' }
+
+          $replacementAssertion = @(
+            '    Assert-Match $repeatReturnBody (',
+            "        '(?is)\A\s*' +",
+            "        'if\s+repeatRootPresent\s+then\s*' +",
+            "        'repeatPreemptCopyResult\s*:=\s*CopyAxisOwnershipPreemption\(\s*' +",
+            "        'PreemptedAdmissionToken:=repeatPreemptedToken\s*,\s*' +",
+            "        'PreemptedOwnerGeneration:=repeatPreemptedGeneration\s*,\s*' +",
+            "        'pDest:=#repeatPreemptProbe\[0\]\s*,\s*DestSize:=144\s*\)\s*;\s*' +",
+            "        'if\s+repeatPreemptCopyResult\s*<>\s*-4\s+then\s*' +",
+            "        'OwnershipState\[24\]\s*:=\s*1\s*;\s*' +",
+            "        'Result\s*:=\s*-3\s*;\s*RETURN\s*;\s*end_if\s*;\s*end_if\s*;\s*' +",
+            "        'pEffectiveAxisMask\^\s*:=\s*repeatAxisMask\s*;\s*' +",
+            "        'pAdmissionToken\^\s*:=\s*repeatAdmissionToken\s*;\s*' +",
+            "        'pOwnerGeneration\^\s*:=\s*repeatOwnerGeneration\s*;\s*' +",
+            "        'if\s+CommandId\s*=\s*0x7D23\s+then\s*.*?end_if\s*;\s*' +",
+            "        'Result\s*:=\s*repeatMode\s*;\s*RETURN\s*;\s*\z') (",
+            '        "$blocker Reserve positive result does not return the immutable retained tuple immediately.")',
+            '    Assert-Match $repeatReturnBody (',
+            "        '(?is)if\s+CommandId\s*=\s*0x7D23\s+then\s*' +",
+            "        'if\s+CallerSessionEpoch\s*<>\s*0\s+then\s*' +",
+            "        'pEffectiveAxisMask\^\s*:=\s*pEffectiveAxisMask\^\s+OR\s+0x01000000\s*;\s*end_if\s*;\s*' +",
+            "        'if\s+RequestSequence\s*<>\s*0\s+then\s*' +",
+            "        'pEffectiveAxisMask\^\s*:=\s*pEffectiveAxisMask\^\s+OR\s+0x02000000\s*;\s*end_if\s*;\s*' +",
+            "        'if\s+repeatAdmissionToken\s*<>\s*0\s+then\s*' +",
+            "        'pEffectiveAxisMask\^\s*:=\s*pEffectiveAxisMask\^\s+OR\s+0x04000000\s*;\s*end_if\s*;\s*' +",
+            "        'if\s+repeatOwnerGeneration\s*<>\s*0\s+then\s*' +",
+            "        'pEffectiveAxisMask\^\s*:=\s*pEffectiveAxisMask\^\s+OR\s+0x08000000\s*;\s*end_if\s*;\s*' +",
+            "        'if\s+repeatAxisMask\s*<>\s*0\s+then\s*' +",
+            "        'pEffectiveAxisMask\^\s*:=\s*pEffectiveAxisMask\^\s+OR\s+0x10000000\s*;\s*end_if\s*;\s*' +",
+            "        'end_if\s*;') (",
+            '        "$blocker Reserve 0x7D23 repeat diagnostic projection drifted.")'
+          )
+          $before = if ($assertStart -gt 0) { @($v[0..($assertStart - 1)]) } else { @() }
+          $after = if ($assertEnd + 1 -lt $v.Count) { @($v[($assertEnd + 1)..($v.Count - 1)]) } else { @() }
+          $v = [Collections.Generic.List[string]]@($before + $replacementAssertion + $after)
+          Set-Content -LiteralPath $verifier -Value $v -Encoding utf8
+
+          $testProject = 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/LasalMotionControlLib.Tests.csproj'
+          $p = [Collections.Generic.List[string]](Get-Content -LiteralPath $testProject)
+          if (-not (($p -join "`n") -match 'MaintenanceActionRecoveryJournal\.cs')) {
+            $anchor = -1
+            for ($i = 0; $i -lt $p.Count; $i++) {
+              if ($p[$i] -match 'RecoveryRecordRetirementLedger\.cs') {
+                $anchor = $i
+                break
+              }
+            }
+            if ($anchor -lt 0) { throw 'RecoveryRecordRetirementLedger compile anchor not found.' }
+            $p.Insert($anchor, '    <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\MaintenanceActionRecoveryJournal.cs">')
+            $p.Insert($anchor + 1, '      <Link>MaintenanceActionRecoveryJournal.cs</Link>')
+            $p.Insert($anchor + 2, '    </Compile>')
+            Set-Content -LiteralPath $testProject -Value $p -Encoding utf8
+          }
+
+      - name: Commit aligned test contracts
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          $paths = @(
+            'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalAxisRebaseBarrier.Fixture.ps1',
+            'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1',
+            'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/LasalMotionControlLib.Tests.csproj'
+          )
+          git add -- $paths
+          git diff --cached --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git commit -m 'test: align retained rebase barrier contracts'
+          git push origin HEAD:dev
+
+      - name: Axis rebase verifier self-test
+        shell: pwsh
+        run: |
+          & 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalAxisRebaseBarrier.Fixture.ps1' -RunSelfTest -RepositoryRoot $PWD
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: API Release tests
+        shell: pwsh
+        run: |
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
+          $msbuild = @(& $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe') | Select-Object -First 1
+          if ([string]::IsNullOrWhiteSpace($msbuild)) { throw 'MSBuild.exe not found.' }
+          & $msbuild 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/LasalMotionControlLib.Tests.csproj' /t:RunTests /p:Configuration=Release /nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: WPF Debug build
+        shell: pwsh
+        run: |
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
+          $msbuild = @(& $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe') | Select-Object -First 1
+          if ([string]::IsNullOrWhiteSpace($msbuild)) { throw 'MSBuild.exe not found.' }
+          & $msbuild 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.sln' /t:Build /p:Configuration=Debug /nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Working tree check
+        shell: pwsh
+        run: |
+          git diff --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not [string]::IsNullOrWhiteSpace((git status --porcelain))) {
+            throw 'Working tree is not clean after committed test alignment.'
+          }
