@@ -16,7 +16,7 @@ jobs:
           ref: dev
           fetch-depth: 0
 
-      - name: Compute Reserve fingerprints
+      - name: Compute Reserve lexical fingerprint
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
@@ -25,53 +25,10 @@ jobs:
           $m=[regex]::Match($text,'(?is)FUNCTION\s+GLOBAL\s+LMCControlCommandService::ReserveAxisOwnership\b.*?END_FUNCTION')
           if(-not $m.Success){throw 'ReserveAxisOwnership not found'}
           $scan=$m.Value
-
-          $persistentMutationPattern = (
-            '(?is)(?:' +
-            '\bOwnership[A-Za-z0-9_]*State\s*\[[^\]]+\]\s*' +
-            '(?:\$[A-Za-z_][A-Za-z0-9_]*\s*)?' +
-            '(?::|\+|-|\*|/|and|or|xor)\s*=\s*[^;]+;' +
-            '|' +
-            '\b_memset\s*\(\s*dest\s*:=\s*#Ownership[A-Za-z0-9_]*State\s*\[.*?\)\s*;' +
-            '|' +
-            '\b_memcpy\s*\(\s*ptr1\s*:=\s*#Ownership[A-Za-z0-9_]*State\s*\[.*?\)\s*;' +
-            '|' +
-            '\bp(?:EffectiveAxisMask|AdmissionToken|OwnerGeneration)\s*\^\s*:=\s*[^;]+;' +
-            ')')
-          $mut=[regex]::Matches($scan,$persistentMutationPattern)
-          $norm=@(foreach($x in $mut){[regex]::Replace($x.Value,'\s+','').ToLowerInvariant()})
-          $joined=[string]::Join('|',$norm)
+          $lexicalTokens=@([regex]::Matches($scan,'(?i)0x[0-9a-f]+|[A-Za-z_][A-Za-z0-9_]*|\d+|:=|<>|<=|>=|\+=|-=|\*=|/=|[^\s]')|ForEach-Object{$_.Value.ToLowerInvariant()})
+          $inventory=[string]::Join('|',$lexicalTokens)
           $sha=[Security.Cryptography.SHA256]::Create()
-          try{$mutHash=([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($joined)))).Replace('-','')}finally{$sha.Dispose()}
-          Write-Host "MUT_COUNT=$($norm.Count)"
-          Write-Host "MUT_LENGTH=$($joined.Length)"
-          Write-Host "MUT_SHA256=$mutHash"
-
-          $resultSequence=[string]::Join('|',@([regex]::Matches($scan,'(?is)\bResult\s*:=\s*(?<Value>[^;]+)\s*;')|ForEach-Object{[regex]::Replace($_.Groups['Value'].Value,'\s+','').ToLowerInvariant()}))
-          Write-Host "RESULT_SEQUENCE=$resultSequence"
-
-          $flow=@([regex]::Matches($scan,'(?is)\bResult\s*:=\s*[^;]+\s*;|\bRETURN\s*;')|ForEach-Object{[regex]::Replace($_.Value,'\s+','').ToLowerInvariant()})
-          $flowJoined=[string]::Join('|',$flow)
-          $sha=[Security.Cryptography.SHA256]::Create()
-          try{$flowHash=([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($flowJoined)))).Replace('-','')}finally{$sha.Dispose()}
-          Write-Host "FLOW_COUNT=$($flow.Count)"
-          Write-Host "FLOW_LENGTH=$($flowJoined.Length)"
-          Write-Host "FLOW_SHA256=$flowHash"
-          Write-Host "FLOW=$flowJoined"
-
-          $semantic=[regex]::Replace($scan,'\s+','').ToLowerInvariant()
-          $sha=[Security.Cryptography.SHA256]::Create()
-          try{$semanticHash=([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($semantic)))).Replace('-','')}finally{$sha.Dispose()}
-          Write-Host "SEM_LENGTH=$($semantic.Length)"
-          Write-Host "SEM_SHA256=$semanticHash"
-
-      - name: Print current compact verifier tail
-        shell: pwsh
-        run: |
-          $path='LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
-          $lines=Get-Content -LiteralPath $path
-          $m=Select-String -LiteralPath $path -SimpleMatch 'repeat proof or mutation-free output publication drifted' | Select-Object -First 1
-          if($null -eq $m){throw 'target verifier block not found'}
-          $start=[Math]::Max(1,$m.LineNumber-15)
-          $end=[Math]::Min($lines.Count,$m.LineNumber+260)
-          for($n=$start;$n -le $end;$n++){Write-Host (("{0,6}: {1}" -f $n,$lines[$n-1]))}
+          try{$hash=([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($inventory)))).Replace('-','')}finally{$sha.Dispose()}
+          Write-Host "LEX_COUNT=$($lexicalTokens.Count)"
+          Write-Host "LEX_LENGTH=$($inventory.Length)"
+          Write-Host "LEX_SHA256=$hash"
