@@ -52,10 +52,10 @@ namespace LasalMotionControlLib
     /// </summary>
     public static class LMCErrorCatalog
     {
-        public const uint CurrentCatalogVersion = 2;
+        public const uint CurrentCatalogVersion = 3;
 
         public const string AdapterSourceVersion =
-            "Elmo_Master TCPMotionInterface local errors v2";
+            "Elmo_Master TCPMotionInterface local errors v3";
 
         public const string DiagnosticsSourceVersion =
             "Elmo_Master diagnostics schema v1";
@@ -184,6 +184,14 @@ namespace LasalMotionControlLib
                 "AxisOwnershipConflict",
                 "The requested axes are reserved by another active or retained operation.",
                 "Read the current operation outcome, wait for its ownership to retire, then retry once.",
+                AdapterSourceVersion);
+            Add(
+                entries,
+                LMCErrorDomain.AdapterCommand,
+                -15,
+                "AxisRebaseRequired",
+                "The selected axis has a retained current-position rebase barrier, so Power On or motion admission is blocked.",
+                "Keep the axis Power Off and Standstill, execute exact LMC Home (current-position-zero) to terminal success and retire it, then retry Power On once.",
                 AdapterSourceVersion);
 
             return entries;
@@ -353,6 +361,9 @@ namespace LasalMotionControlLib
             AddAdmin(entries, LMCAdminDetailCode.SetOperationModeFeatureDisabled,
                 "The loaded PLC runtime has SetOperationMode disabled at its feature gate.",
                 "Verify the exact generated PLC artifact and loaded image feature activation before submitting a new Start request.");
+            AddAdmin(entries, LMCAdminDetailCode.AxisRebaseRequired,
+                "The selected axis has a retained current-position rebase barrier.",
+                "Execute exact LMC Home while Power Off/Standstill, prove terminal success and retire it, then retry the blocked mutation.");
             AddAdmin(entries, LMCAdminDetailCode.SetOperationModeExecutionFailed,
                 "The accepted SetOperationMode operation failed during the bounded 0x6061/0x6060/0x6061 lifecycle.",
                 "Inspect the retained evidence flags, observed mode, status word, and quarantine reason before recovery.");

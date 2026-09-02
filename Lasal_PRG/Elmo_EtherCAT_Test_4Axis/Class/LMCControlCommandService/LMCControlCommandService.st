@@ -601,6 +601,7 @@ END_FUNCTION
 #define LMC_OWNER_SAFETY_DRAIN_PENDING -10
 #define LMC_OWNER_SAFETY_REPEAT_NOT_APPLICABLE -11
 #define LMC_OWNER_REBASE_PERSIST_RETRY -4
+#define LMC_OWNER_REBASE_REQUIRED -15
 #define LMC_AXIS_REBASE_BARRIER_ENABLED TRUE
 #define LMC_AXIS_REBASE_STATE_MAGIC 0x52425300
 #define LMC_AXIS_REBASE_STATE_MAGIC_MASK 0xFFFFFF00
@@ -2966,7 +2967,7 @@ FUNCTION GLOBAL LMCControlCommandService::ReserveAxisOwnership
 			(CommandId = 0x2024) | (CommandId = 0x2049);
 		if ((effectiveAxisMask and rebaseAxisMask) <> 0) &
 		   (rebaseAdmissionAllowed = FALSE) then
-			Result := -2;
+			Result := LMC_OWNER_REBASE_REQUIRED;
 			RETURN;
 		end_if;
 	end_if;

@@ -123,7 +123,7 @@ ownership quarantine으로 승격하지 않는다.
 
 형식이 잘못된 요청은 기존 parser 오류를 유지해야 한다. barrier는 정상 형식의 금지된 mutation에만
 기존 command-specific ownership-conflict/fail-closed response를 반환하고 owner/native/SDO call을
-0회로 유지한다. adapter ABI가 적용되는 경로는 symbolic `-9 AxisOwnershipConflict`를 사용하고
+0회로 유지한다. adapter ABI가 적용되는 일반 ownership 충돌은 symbolic `-9 AxisOwnershipConflict`를 사용한다. retained current-position rebase barrier 차단은 별도 `-15 AxisRebaseRequired`를 반환하며,
 Admin 경로는 기존 Admin envelope/error detail 형식을 유지한다. 상세 공통 ownership 계약은
 [axis ownership overlay IDE handoff](./LMC_AXIS_OWNERSHIP_OVERLAY_IDENTITY_RESTORE_IDE_HANDOFF_2026-08-04.md#10-tw19-retained-current-position-zero-barrier)를 따른다.
 

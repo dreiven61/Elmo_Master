@@ -93,6 +93,21 @@ download, PLC runtime, packet, physical-axis, or production PASS.
 
 ## Operator procedure after this change
 
+> `LMC Home (0x7D13)` is not Servo On. It is the current-position-zero command that clears the retained rebase barrier for the selected axis. A fresh/retained `AxisRebaseRequiredState` may therefore reject WPF `Power On (0x2023)` even when direct LASAL PowerOn works. The adapter reports this as `ErrorId=-15 (AxisRebaseRequired)` instead of generic ownership conflict.
+
+Required test order when the selected physical axis still has the rebase bit set:
+
+```text
+PowerOff + Standstill
+-> exact LMC Home 0x7D13
+-> terminal success + exact retire
+-> Power On 0x2023
+-> stable PowerOn proof
+-> HomeDS402 Method 37 test
+```
+
+Do not clear the retained word manually and do not bypass the barrier in PowerOn.
+
 1. In LASAL IDE, rebuild/link the tracked project and confirm 0 errors.
 2. Download that exact image to the PLC and capture its Build/BootId/MapRevision.
 3. Close the previously running WPF process and start a build containing this change.

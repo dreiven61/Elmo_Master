@@ -335,6 +335,7 @@ END_FUNCTION
 #define LMC_OWNER_ADMISSION_SAFETY 2
 #define LMC_OWNER_ADMISSION_LIFECYCLE 4
 #define LMC_OWNER_ADAPTER_ERROR_CONFLICT -9
+#define LMC_OWNER_ADAPTER_ERROR_REBASE_REQUIRED -15
 #define LMC_OWNER_SAFETY_DRAIN_PENDING -10
 #define LMC_ADMIN_SET_POSITION_CLOSE_WITHOUT_RESPONSE -12
 #define LMC_ADMIN_SET_POSITION_PENDING -13
@@ -2731,7 +2732,9 @@ case CommandID of
       Sendbuf[12]$UINT := 1;
       Sendbuf[14]$INT := -31000;
       Sendbuf[16]$UDINT := RequestBuf[12]$UDINT;
-      if diagnosticsAdmissionResult = -2 then
+      if diagnosticsAdmissionResult = LMC_OWNER_ADAPTER_ERROR_REBASE_REQUIRED then
+        Sendbuf[20]$UDINT := 65;
+      elsif diagnosticsAdmissionResult = -2 then
         Sendbuf[20]$UDINT := 41;
       else
         Sendbuf[20]$UDINT := 42;
@@ -3228,7 +3231,11 @@ case CommandID of
             Sendbuf[2]$UINT := 8;
             Sendbuf[8]$UDINT := TO_UDINT(AxisRef);
             Sendbuf[12]$UINT := 1;
-            Sendbuf[14]$INT := LMC_OWNER_ADAPTER_ERROR_CONFLICT;
+            if controlAdmissionResult = LMC_OWNER_ADAPTER_ERROR_REBASE_REQUIRED then
+              Sendbuf[14]$INT := LMC_OWNER_ADAPTER_ERROR_REBASE_REQUIRED;
+            else
+              Sendbuf[14]$INT := LMC_OWNER_ADAPTER_ERROR_CONFLICT;
+            end_if;
             controlResponseSize := 16;
           end_if;
           controlInvokeService := FALSE;

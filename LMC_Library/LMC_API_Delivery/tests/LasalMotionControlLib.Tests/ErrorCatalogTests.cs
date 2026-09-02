@@ -82,6 +82,18 @@ namespace LasalMotionControlLib.Tests
                 "AxisOwnershipConflict",
                 LMCErrorCatalog.AdapterSourceVersion);
 
+            AssertEx.True(
+                LMCErrorCatalog.TryDescribe(
+                    LMCErrorDomain.AdapterCommand,
+                    -15,
+                    out description));
+            AssertDescription(
+                description,
+                LMCErrorDomain.AdapterCommand,
+                -15,
+                "AxisRebaseRequired",
+                LMCErrorCatalog.AdapterSourceVersion);
+
             AssertEx.False(
                 LMCErrorCatalog.TryDescribe(
                     LMCErrorDomain.AdapterCommand,
@@ -187,7 +199,7 @@ namespace LasalMotionControlLib.Tests
             AssertEx.False(
                 LMCErrorCatalog.TryDescribe(
                     LMCErrorDomain.AdminDetail,
-                    65,
+                    66,
                     out unknown));
             AssertEx.Equal<LMCErrorDescription>(null, unknown);
         }
