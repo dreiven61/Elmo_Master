@@ -1,0 +1,55 @@
+name: One-shot fix ownership latch define
+
+on:
+  push:
+    branches:
+      - dev
+    paths:
+      - '.github/workflows/oneshot-fix-owner-latch-define.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Add missing file-local define
+        shell: pwsh
+        run: |
+          $path = 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
+          $text = [System.IO.File]::ReadAllText($path)
+          if ($text -match '(?m)^#define LMC_OWNER_STARTUP_LATCH_PHYSICAL\s+') {
+              throw 'LMC_OWNER_STARTUP_LATCH_PHYSICAL is already defined.'
+          }
+          $pattern = '(?m)^(#define LMC_OWNER_STARTUP_SNAPSHOT_MAGIC 0x4C4D4353)\r?$'
+          $matches = [regex]::Matches($text, $pattern)
+          if ($matches.Count -ne 1) {
+              throw "Expected exactly one startup snapshot define, found $($matches.Count)."
+          }
+          $replacement = '$1' + [Environment]::NewLine + '#define LMC_OWNER_STARTUP_LATCH_PHYSICAL 0x00000001'
+          $text = [regex]::Replace($text, $pattern, $replacement, 1)
+          [System.IO.File]::WriteAllText($path, $text, [System.Text.UTF8Encoding]::new($false))
+
+          $defined = (Select-String -Path $path -Pattern '^#define LMC_OWNER_STARTUP_LATCH_PHYSICAL 0x00000001$').Count
+          $used = (Select-String -Path $path -Pattern 'LMC_OWNER_STARTUP_LATCH_PHYSICAL').Count
+          if ($defined -ne 1 -or $used -lt 2) {
+              throw "Define/use verification failed: defined=$defined used=$used"
+          }
+
+      - name: Commit source fix and remove workflow
+        shell: bash
+        run: |
+          rm -f .github/workflows/oneshot-fix-owner-latch-define.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --exit-code && exit 1 || true
+          git commit -m "fix: define physical startup latch in ownership service"
+          git push origin HEAD:dev
