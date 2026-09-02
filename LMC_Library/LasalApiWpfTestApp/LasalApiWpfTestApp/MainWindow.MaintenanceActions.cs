@@ -81,6 +81,14 @@ namespace LasalMotionControlApiExample
 
         private void InitializeMaintenanceActionUi()
         {
+            ComboDs402HomeMethod.ItemsSource = new[]
+            {
+                LMCAxisDs402HomeParameters
+                    .CurrentPositionZeroHomingMethod
+            };
+            ComboDs402HomeMethod.SelectedItem =
+                LMCAxisDs402HomeParameters
+                    .CurrentPositionZeroHomingMethod;
             ComboEncoderMaintenanceKind.ItemsSource = new[]
             {
                 LMCEncoderMaintenanceKind.Tw19MultiturnPositionReset,
@@ -104,6 +112,7 @@ namespace LasalMotionControlApiExample
                         ? MaintenanceActionRecoveryJournal.OpenDefault()
                         : MaintenanceActionRecoveryJournal.Open(
                             maintenanceActionRecoveryJournalDirectoryPath);
+                TryFinalizeCommittedMaintenanceActionRetirementAtStartup();
                 if (maintenanceActionRecoveryJournal.HasActiveRecord)
                 {
                     var active = maintenanceActionRecoveryJournal
@@ -282,6 +291,7 @@ namespace LasalMotionControlApiExample
             ButtonReadHomeStatus.IsEnabled = connected && idle && axisReady;
             TextLmcHomeTimeout.IsEnabled = homeInputEnabled;
             TextDs402HomeTimeout.IsEnabled = homeInputEnabled;
+            ComboDs402HomeMethod.IsEnabled = homeInputEnabled;
             CheckHomeOneShotConfirmed.IsEnabled = homeInputEnabled;
             ButtonLmcHome.IsEnabled = axisReady
                 && liveCommandAllowed
@@ -297,6 +307,31 @@ namespace LasalMotionControlApiExample
                 && diagnosticsIdentityReady
                 && ds402Capability
                 && CheckHomeOneShotConfirmed.IsChecked == true;
+            if (!connected)
+            {
+                TextDs402HomeAvailability.Text = TranslateUiText(
+                    "DS402 Home unavailable: connect to the PLC first.");
+            }
+            else if (adminCapabilities == null)
+            {
+                TextDs402HomeAvailability.Text = TranslateUiText(
+                    "DS402 Home unavailable: refresh Home capabilities.");
+            }
+            else if (!ds402Capability)
+            {
+                TextDs402HomeAvailability.Text = TranslateUiText(
+                    "DS402 Home unavailable: the connected PLC does not advertise Admin HomeDS402 capability bit 6. Rebuild/download an activated H37 image, reconnect, and refresh capabilities.");
+            }
+            else if (CheckHomeOneShotConfirmed.IsChecked != true)
+            {
+                TextDs402HomeAvailability.Text = TranslateUiText(
+                    "DS402 Home available for qualified Method 37. Select the physical axis and complete the one-shot confirmation.");
+            }
+            else
+            {
+                TextDs402HomeAvailability.Text = TranslateUiText(
+                    "DS402 Home Method 37 is armed when all other live admission checks pass.");
+            }
 
             CheckMaintenanceRecoveryPhysicallyVerified.IsEnabled =
                 connected && idle && manualRecoveryResolutionAllowed;
@@ -2191,7 +2226,22 @@ namespace LasalMotionControlApiExample
 
         internal LMCAxisDs402HomeParameters ReadDs402HomeParameters()
         {
+            if (!(ComboDs402HomeMethod.SelectedItem is int))
+            {
+                throw new InvalidOperationException(
+                    "A qualified DS402 homing method is required.");
+            }
+
+            var homingMethod = (int)ComboDs402HomeMethod.SelectedItem;
             return new LMCAxisDs402HomeParameters(
+                homingMethod,
+                LMCAxisDs402HomeParameters
+                    .CurrentPositionZeroHomeOffset,
+                0,
+                0,
+                0,
+                0,
+                LMCDs402HomeBufferMode.Aborting,
                 ParseMaintenanceUInt(
                     TextDs402HomeTimeout.Text,
                     "DS402 Home timeout"));

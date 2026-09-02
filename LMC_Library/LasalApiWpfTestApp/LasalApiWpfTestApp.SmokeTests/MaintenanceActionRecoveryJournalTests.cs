@@ -37,6 +37,77 @@ namespace LasalMotionControlApiExample
             tests.Add(
                 "Wpf.MaintenanceJournal.ConfirmedRejectionResolves",
                 ConfirmedRejectionResolvesWithoutRecoveryQuarantine);
+            tests.Add(
+                "Wpf.MaintenanceJournal.OperatorRetirementExactEvidence",
+                OperatorRetirementRequiresCommittedExactEvidence);
+        }
+
+        private static void OperatorRetirementRequiresCommittedExactEvidence()
+        {
+            WithTemporaryDirectory(delegate(string directory)
+            {
+                using (var journal = MaintenanceActionRecoveryJournal.Open(
+                    Path.Combine(directory, "journal")))
+                using (var ledger = RecoveryRecordRetirementLedger.Open(
+                    Path.Combine(directory, "ledger")))
+                {
+                    var armed = Arm(
+                        journal,
+                        MaintenanceActionKind.Ds402Home,
+                        0x10203040U,
+                        "Schema=1;Method=37;HomeOffset=0;Velocity=0;Acceleration=0;DistanceLimit=0;TorqueLimit=0;BufferMode=Aborting;TimeoutMs=1000");
+                    var active = journal.PromoteToRecoveryRequired(
+                        armed,
+                        armed.TransportCorrelationId,
+                        FixedUtc().AddSeconds(1));
+                    var evidence = journal.CaptureActiveRetirementEvidence();
+                    AssertEx.Equal(
+                        RecoveryRecordOwner.MaintenanceAction,
+                        evidence.Owner);
+                    AssertEx.Equal(
+                        "MaintenanceAction/Ds402Home",
+                        evidence.Operation);
+                    AssertEx.Equal(
+                        active.ObservedDiagnosticsBuild,
+                        evidence.DiagnosticsBuild);
+                    AssertEx.Throws<InvalidOperationException>(() =>
+                        journal.ResolveOperatorRetirement(
+                            evidence,
+                            null,
+                            FixedUtc().AddSeconds(2)));
+
+                    var decision = ledger.CommitOperatorRetirement(
+                        evidence,
+                        evidence.EndpointIp,
+                        evidence.EndpointPort,
+                        evidence.DiagnosticsBuild,
+                        checked(evidence.DiagnosticsBootId + 1),
+                        evidence.MapRevision,
+                        "TEST\\operator",
+                        "Operator confirmed the old DS402 Home outcome remains unknown.",
+                        FixedUtc().AddSeconds(2));
+                    var resolved = journal.ResolveOperatorRetirement(
+                        evidence,
+                        decision,
+                        FixedUtc().AddSeconds(3));
+                    AssertEx.Equal(
+                        MaintenanceActionRecoveryState.Resolved,
+                        resolved.State);
+                    AssertEx.False(journal.HasActiveRecord);
+                    AssertEx.SequenceEqual(
+                        evidence.GetOriginalBytes(),
+                        decision.SourceEvidence.GetOriginalBytes());
+                }
+
+                using (var reopened = MaintenanceActionRecoveryJournal.Open(
+                    Path.Combine(directory, "journal")))
+                {
+                    AssertEx.False(reopened.HasActiveRecord);
+                    AssertEx.Equal(
+                        MaintenanceActionRecoveryState.Resolved,
+                        reopened.CurrentRecord.State);
+                }
+            });
         }
 
         private static void DefaultPathIsVersioned()

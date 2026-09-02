@@ -727,6 +727,11 @@ namespace LasalApiWpfTestApp.SmokeTests
                 null,
                 window =>
                 {
+                    AssertEx.Equal(1, window.ComboDs402HomeMethod.Items.Count);
+                    AssertEx.Equal(
+                        LMCAxisDs402HomeParameters
+                            .CurrentPositionZeroHomingMethod,
+                        (int)window.ComboDs402HomeMethod.SelectedItem);
                     var parameters = window.ReadDs402HomeParameters();
                     AssertEx.Equal(
                         LMCAxisDs402HomeParameters

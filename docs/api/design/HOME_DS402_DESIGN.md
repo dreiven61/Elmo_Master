@@ -90,9 +90,10 @@ offset을 변경하지 않는다.
 | Admin response | HomeDS402 feature bit 6 |
 
 PR #40 current-dev qualification에서 all-OFF/all-ON 및 mixed-state negative contract를
-**43 checks PASS**로 고정했다. current Admin capability mask는 `0x0000613F`이며 HomeDS402 bit 6은
-계속 OFF다. 이 verifier PASS는 activation 허가가 아니라 activation changeset 원자성 계약의
-source/static 증거다.
+고정했다. 2026-09-02 corrected verifier는 **46 checks PASS**다. HomeDS402 capability는
+Admin mask `0x00000757`의 bit 6이며 current source에서 ON이다. Diagnostics operational mask
+`0x0000613F`의 bit 6은 RecorderDoubleBank이므로 Home capability가 아니다. 이 verifier PASS는
+source/static 원자성 증거이며 PLC image나 hardware activation 증거가 아니다.
 
 ordinary ownership은 Home 전용이 아니므로 Stop, PowerOff, Reset, SetPosition, encoder maintenance와
 Group preemption 회귀도 같은 gate에 포함한다.
@@ -163,8 +164,8 @@ Indeterminate/Quarantined로 보존하고 original Start를 재전송하지 않�
 - [ ] `H37-05` activation candidate SourceOnly/method-size PASS — method-size/source gate PASS, fresh generated artifact ratchet closure 미완료
 - [ ] `H37-06` C78 Rebuild/Link, method direct-open와 Network smoke PASS
 - [ ] `H37-07` Axis1 normal/timeout/fault/disconnect/response-loss matrix PASS
-- [ ] `H37-08` Axis2~4 동일 matrix PASS
-- [ ] `H37-09` 5개 gate와 global capability bit 6 paired activation
+- [ ] `H37-08` Axis2 matrix + Axis3/4 deterministic nonphysical rejection PASS
+- [ ] `H37-09` 5개 gate와 Admin capability bit 6 paired runtime qualification — source candidate는 atomic ON
 - [x] `H37-10` WPF recovery journal/startup no-replay recovery qualification
 
 ## 8. 2026-08-27 current-dev qualification checkpoint
@@ -211,11 +212,11 @@ full SourceOnly은 source/static gate를 통과한 뒤 다음 exact generated-ar
 3. generated `Classes.lcb`/project/network artifact identity를 review한다.
 4. H37-05 SourceOnly artifact ratchet을 정당한 evidence로 닫는다.
 5. H37-06 direct-open/Network smoke 후 H37-07 Axis1 hardware matrix로 이동한다.
-6. H37-07/08이 끝나기 전 H37-09 activation을 열지 않는다.
+6. H37-07/08이 끝나기 전 source ON을 runtime/production Active로 판정하지 않는다.
 
 ## 10. release 경계
 
-축 1 성공만으로 축 2~4를 승인하지 않는다. method37 성공을 switch-search Home 또는
+축 1 성공만으로 축 2를 승인하지 않으며 Axis3/4는 nonphysical rejection으로 검증한다. method37 성공을 switch-search Home 또는
 HomeDS402Ex 증거로 사용하지 않는다. PLC warm state/outcome이 cold-power durable하다고
 주장하지 않으며, BootId가 바뀐 unresolved record는 자동 replay 없이 operator recovery로
 남긴다.

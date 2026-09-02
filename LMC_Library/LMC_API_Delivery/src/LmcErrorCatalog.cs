@@ -538,6 +538,14 @@ namespace LasalMotionControlLib
                 LMCDiagnosticsDetailCode.EncoderMaintenanceSemanticVerificationFailed,
                 "The encoder maintenance write completed but its required semantic verification did not pass.",
                 "Keep the outcome retained and inspect the supported drive evidence before any further maintenance action.");
+            AddDiagnostic(entries,
+                LMCDiagnosticsDetailCode.EncoderMaintenanceOwnershipAdmissionUnavailable,
+                "The encoder maintenance operation cannot acquire the required axis ownership admission.",
+                "Verify that the ownership service is ready for the configured physical drive and that no conflicting owner is active.");
+            AddDiagnostic(entries,
+                LMCDiagnosticsDetailCode.EncoderMaintenancePhysicalDriveUnavailable,
+                "The selected encoder maintenance target is not a configured physical drive.",
+                "Select a drive present in the current physical-drive mask; simulation-only axes cannot execute encoder maintenance.");
 
             return entries;
         }

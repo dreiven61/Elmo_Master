@@ -12,6 +12,21 @@
 
 문서 충돌 시 current `dev` source와 본 문서를 우선한다.
 
+## 2026-09-02 operator activation override
+
+사용자가 실제 UI에서 DS402 Home을 수행할 수 없음을 확인하고 구현/활성화를 요청했다.
+이 문서 아래의 `activation OFF` 계획은 다음 current source 사실로 대체한다.
+
+- Method 37 selector/UI availability guidance 구현
+- HomeDS402 five-value source activation atomic ON
+- Admin capability `0x00000757` bit 6 ON
+- Admin PhysicalAxisCount 2
+- Axis3/4 Start fail-fast 추가
+- current PLC image와 실행 중 WPF는 변경 전 상태이므로 fresh build/link/download/restart 필요
+- LASAL/PLC/hardware/production 판정은 계속 NO-GO
+
+상세 결과는 `HOME_DS402_H37_OPERATOR_ACTIVATION_IMPLEMENTATION_20260902.md`를 참조한다.
+
 ---
 
 ## 1. latest source changes incorporated
@@ -167,7 +182,7 @@ HomeDS402/SetPosition 신규 구현을 계속하기 전에 current tree `5666497
 - physical mask `0x03` 일치
 - SimulationSetup Axis1/2 default physical, Axis3..9 simulation
 - `SimulationSetup1.Simul_Axis_N -> _LMCAxisN.SimulateMode` 1:1 wiring
-- HomeDS402 activation OFF
+- HomeDS402 activation atomic all-OFF or all-ON; current source is all-ON
 - SetPosition activation OFF
 
 TOPO-C0는 feature activation이 아니다. topology baseline freeze다.
@@ -176,7 +191,7 @@ TOPO-C0는 feature activation이 아니다. topology baseline freeze다.
 
 ## 4. HomeDS402 current status after topology change
 
-상태: **Dormant / core lifecycle implemented / current-topology rebaseline required**
+상태: **Method 37 source/UI candidate ON / fresh image and runtime qualification required**
 
 기존 method37 lifecycle은 다시 작성하지 않는다.
 
@@ -196,10 +211,10 @@ TOPO-C0는 feature activation이 아니다. topology baseline freeze다.
 TOPO-C0 current topology freeze
 -> H37-C0R current-dev regression re-run on 5666497+
 -> H37-C1 fresh C78/generated artifact closure
--> H37-C2 activation-candidate OFF-state qualification
+-> H37-C2 activation-candidate source/UI qualification
 -> H37-C3 Axis1 physical hardware matrix
 -> H37-C4 Axis2 physical expansion + Axis3/4 non-physical rejection matrix
--> H37-C5 atomic activation
+-> H37-C5 atomic activation runtime qualification
 ```
 
 ### H37-C4 scope correction
@@ -215,13 +230,15 @@ current requirement:
 
 향후 Elmo3/4가 다시 물리 topology에 편입되면 mask와 hardware matrix를 별도 changeset으로 재확장한다.
 
-### activation remains OFF
+### source activation candidate is atomic ON
 
-- TCP ordinary ownership OFF
-- Control ordinary ownership OFF
-- Diagnostics `LMC_DIAG_DS402_HOME_ENABLED = FALSE`
-- InputLatch `LMC_DS402_HOME_STARTUP_SWEEP_ENABLED = FALSE`
-- Admin HomeDS402 bit6 OFF
+- TCP ordinary ownership ON
+- Control ordinary ownership ON
+- Diagnostics `LMC_DIAG_DS402_HOME_ENABLED = TRUE`
+- InputLatch `LMC_DS402_HOME_STARTUP_SWEEP_ENABLED = TRUE`
+- Admin HomeDS402 bit6 ON (`0x00000757`)
+- Diagnostics operational mask `0x0000613F` unchanged; its bit6 is RecorderDoubleBank
+- fresh LASAL build/download and runtime/hardware evidence pending
 
 ---
 

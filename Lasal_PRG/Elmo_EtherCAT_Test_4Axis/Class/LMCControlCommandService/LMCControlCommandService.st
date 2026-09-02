@@ -596,7 +596,7 @@ END_FUNCTION
 #define LMC_SET_POSITION_EVIDENCE_AXIS_MASK 0x00000002
 #define LMC_SET_POSITION_EVIDENCE_READY_MASK 0x800003FF
 #define LMC_SET_POSITION_EVIDENCE_REJECT_MASK 0x80000003
-#define LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED FALSE
+#define LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED TRUE
 #define LMC_OWNER_ADAPTER_ERROR_CONFLICT -9
 #define LMC_OWNER_SAFETY_DRAIN_PENDING -10
 #define LMC_OWNER_SAFETY_REPEAT_NOT_APPLICABLE -11
@@ -9816,11 +9816,11 @@ FUNCTION LMCControlCommandService::HandleAdminCommands
 			end_if;
 			// Qualification integration: advertise the SetOperationMode
 			// Start/Outcome/Retire triad. Keep this branch out of production
-			// until the Axis1..4 physical mode matrix is closed.
-			(pResponseFrame + 24)^$UDINT := 0x00000717;
+			// until the current physical-axis mode matrix is closed.
+			(pResponseFrame + 24)^$UDINT := 0x00000757;
 			(pResponseFrame + 28)^$UDINT := 0x0000003F;
 			(pResponseFrame + 32)^$UDINT := 0x00000007;
-			(pResponseFrame + 36)^$UINT := 4;
+			(pResponseFrame + 36)^$UINT := 2;
 			(pResponseFrame + 38)^$UINT := 1;
 			(pResponseFrame + 40)^$UINT := 0x0100;
 			(pResponseFrame + 42)^$UINT := 3;

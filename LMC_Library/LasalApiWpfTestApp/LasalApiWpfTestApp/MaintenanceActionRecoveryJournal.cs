@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
@@ -637,6 +638,110 @@ namespace LasalMotionControlApiExample
                 MaintenanceActionRecoveryState.Resolved,
                 transportCorrelationId,
                 updatedUtc);
+        }
+
+        internal RecoveryJournalSourceEvidence
+            CaptureActiveRetirementEvidence()
+        {
+            lock (sync)
+            {
+                ThrowIfDisposed();
+                if (currentRecord == null || !currentRecord.IsActive)
+                {
+                    throw new InvalidOperationException(
+                        "No active Home/encoder-maintenance recovery record exists for operator retirement.");
+                }
+
+                var originalBytes = File.ReadAllBytes(journalFilePath);
+                int formatVersion;
+                var diskRecord = DeserializeRecord(
+                    originalBytes,
+                    out formatVersion);
+                var serializedCurrent = SerializeRecord(currentRecord);
+                if (formatVersion != FormatVersion
+                    || diskRecord == null
+                    || !currentRecord.ExactEquals(diskRecord)
+                    || !RecoveryJournalSourceEvidence.ConstantTimeEquals(
+                        serializedCurrent,
+                        originalBytes))
+                {
+                    throw new InvalidDataException(
+                        "Home/encoder-maintenance recovery memory state does not match the exact durable source bytes.");
+                }
+
+                return new RecoveryJournalSourceEvidence(
+                    RecoveryRecordOwner.MaintenanceAction,
+                    diskRecord.Identity,
+                    (int)diskRecord.State,
+                    diskRecord.CreatedUtc,
+                    diskRecord.UpdatedUtc,
+                    diskRecord.EndpointIp,
+                    diskRecord.EndpointPort,
+                    diskRecord.ObservedDiagnosticsBuild,
+                    diskRecord.ObservedDiagnosticsBootId,
+                    diskRecord.ObservedMapRevision,
+                    "Axis",
+                    diskRecord.AxisName,
+                    diskRecord.AxisReference,
+                    "MaintenanceAction/" + diskRecord.Action,
+                    "Action=" + ((int)diskRecord.Action).ToString(
+                        CultureInfo.InvariantCulture)
+                        + ";Intent="
+                        + diskRecord.ClientIntentId0.ToString("X8")
+                        + diskRecord.ClientIntentId1.ToString("X8")
+                        + diskRecord.ClientIntentId2.ToString("X8")
+                        + diskRecord.ClientIntentId3.ToString("X8")
+                        + ";Correlation="
+                        + diskRecord.TransportCorrelationId.ToString(
+                            CultureInfo.InvariantCulture)
+                        + ";Parameters="
+                        + diskRecord.ActionParameters,
+                    originalBytes);
+            }
+        }
+
+        internal MaintenanceActionRecoveryRecord ResolveOperatorRetirement(
+            RecoveryJournalSourceEvidence expectedEvidence,
+            RecoveryRecordRetirementDecision committedDecision,
+            DateTime updatedUtc)
+        {
+            if (expectedEvidence == null)
+            {
+                throw new ArgumentNullException("expectedEvidence");
+            }
+            if (committedDecision == null
+                || !committedDecision.IsDurablyCommitted)
+            {
+                throw new InvalidOperationException(
+                    "Home/encoder-maintenance operator retirement requires a durably committed ledger decision.");
+            }
+            if (!committedDecision.MatchesSourceEvidence(expectedEvidence))
+            {
+                throw new InvalidOperationException(
+                    "The committed retirement decision does not match the expected Home/encoder-maintenance source evidence.");
+            }
+
+            lock (sync)
+            {
+                ThrowIfDisposed();
+                var currentEvidence = CaptureActiveRetirementEvidence();
+                if (!expectedEvidence.ExactSourceEquals(currentEvidence)
+                    || !committedDecision.MatchesSourceEvidence(
+                        currentEvidence))
+                {
+                    throw new InvalidOperationException(
+                        "Home/encoder-maintenance recovery changed after operator confirmation; retirement was not applied.");
+                }
+
+                var resolved = currentRecord.TransitionTo(
+                    MaintenanceActionRecoveryState.Resolved,
+                    0,
+                    updatedUtc);
+                PersistRecord(resolved);
+                currentRecord = resolved;
+                recoveredAtStartup = false;
+                return resolved.Copy();
+            }
         }
 
         private MaintenanceActionRecoveryRecord TransitionExpected(

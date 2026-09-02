@@ -482,6 +482,11 @@ var raw = checked((int)Math.Round(
   reconnect/restart의 read-only `WaitForPowerStateAsync(true)`는 `0x2028`만 보내며 Power On을
   replay하지 않는다. 순수 read-only 결과는 ACK/continuation이 없고
   `ReusedAcceptedAcknowledgement=false`다.
+- Power On의 음수 ACK는 status poll을 시작하지 않고 즉시 종료한다. WPF는 이때 ACK의
+  `HeaderStatus`, `CommandStatus`, `ErrorId`, payload 길이와 알려진 adapter error의 의미/조치까지
+  표시한다. `ErrorId=-2`는 LASAL axis client 미연결/네트워크 생성물 불일치, `-9`는 다른
+  operation의 axis ownership 점유, `-3`은 요청 shape 불일치로 해석하며, 이 값은 실제 PLC
+  ACK를 확인한 뒤에만 결론으로 사용한다.
 - Axis Power Off는 방향을 포함한 공용 durable v2 journal을 `0x2023(false)` 전에 arm한다.
   SDK accepted observer는 ACK+continuation publication 뒤 첫 `0x2028` 전에 journal을
   `AcceptedAwaitingProof`로 갱신한다. accepted/RecoveryRequired Off의 reconnect/restart는 exact
@@ -919,7 +924,7 @@ application/SDK 계약이다. 실제 PLC scheduler, EtherCAT 반응, 물리 정�
   endpoint mismatch, capability read 실패, zero identity, journal 불능은 이 완화 대상이 아니고
   기존처럼 fail-closed 및 connection close를 유지한다.
 - recovery-identity quarantine에서 현재 endpoint의 active Axis Power, Axis Stop/Reset, Motion,
-  Group Profile Lock, Group Power, Group Reset record 중 current identity와 다른 stale subset에만
+  Group Profile Lock, Group Power, Group Reset, SetOperationMode, Home/Encoder Maintenance record 중 current identity와 다른 stale subset에만
   운영자 retirement를 허용한다. 물리 상태 확인 checkbox와 경고 확인창 전후로
   Capabilities를 두 번 읽고 connection/session/endpoint/identity, 증가한 observation sequence와
   full active exact source-byte evidence vector를 다시 비교한다. current identity record는
@@ -927,8 +932,9 @@ application/SDK 계약이다. 실제 PLC scheduler, EtherCAT 반응, 물리 정�
   exact recovery/manual 대상으로 보존한다. journal/ledger fault 또는 occupied operation
   slot은 commit 전에 fail-closed한다.
 - 기존 endpoint-bound journal의 identity/retirement는 BootId/MapRevision 기준을 유지한다. nonzero
-  `DiagnosticsBuild`를 저장하는 Group Reset record는 Build/BootId/MapRevision 세 필드를 모두
-  비교하며 Build-only mismatch도 stale retirement 대상이지만 exact current Build는 retire할 수 없다.
+  `DiagnosticsBuild`를 저장하는 Group Reset, SetOperationMode, Home/Encoder Maintenance record는
+  Build/BootId/MapRevision 세 필드를 모두 비교하며 Build-only mismatch도 stale retirement 대상이지만
+  exact current Build는 retire할 수 없다.
 - `RecoveryRecordRetirementLedger`는 각 원 journal 전체 바이트, source SHA-256, 운영자와 current
   PLC identity를 `%LOCALAPPDATA%\Elmo\LasalMotionControlApiExample\RecoveryRecordRetirementLedger\v1`
   아래 immutable entry로 보존한다. entry publish는 flushed temp의 same-directory
@@ -944,6 +950,10 @@ application/SDK 계약이다. 실제 PLC scheduler, EtherCAT 반응, 물리 정�
   뒤 full-byte CAS로 resolve한다. metadata 없는 SDO, Digital Output과 다른 diagnostics state는
   폐기하지 않는다. 성공 시 connection close, restart-required, app exit 순서로 같은-process 제어 재입장을
   차단한다.
+- `MaintenanceActionRecoveryJournal`도 `RecoveryRecordOwner.MaintenanceAction`으로 immutable retirement
+  ledger에 참여한다. DS402 Home 및 Encoder Maintenance의 stale identity는 active 목록에 표시되고,
+  exact original bytes commit 뒤에만 local record를 `Resolved`로 바꾼다. ledger commit 직후 crash가
+  발생하면 startup exact-byte CAS가 idempotent하게 마무리한다.
 - quarantine은 known ticket과 submit-outcome unknown evidence를 여러 개 보존할 수 있다.
   모두 같은 slave여야 자동 recovery proof가 가능하다. stable BootId/MapRevision 아래 서로
   다른 두 ticket을 사용하되 GeneralInline capability면 `0x6061:0 Int8/1`, legacy

@@ -497,8 +497,10 @@
                                         TextWrapping="Wrap" />
                                     <WrapPanel>
                                         <StackPanel Width="230">
-                                            <TextBlock Style="{StaticResource FieldLabel}" Text="Fixed semantic" />
-                                            <TextBlock Text="Method=37; HomeOffset=0; no motion" />
+                                            <TextBlock Style="{StaticResource FieldLabel}" Text="Homing method (qualified)" />
+                                            <ComboBox
+                                                x:Name="ComboDs402HomeMethod"
+                                                SelectionChanged="MaintenanceInput_Changed" />
                                         </StackPanel>
                                         <StackPanel Width="135">
                                             <TextBlock Style="{StaticResource FieldLabel}" Text="Timeout (ms)" />
@@ -521,6 +523,11 @@
                                         <Button x:Name="ButtonLmcHome" Click="ButtonLmcHome_Click" Content="Execute LMC Home Once" />
                                         <Button x:Name="ButtonDs402Home" Click="ButtonDs402Home_Click" Content="Execute DS402 Home Once" />
                                     </WrapPanel>
+                                    <TextBlock
+                                        x:Name="TextDs402HomeAvailability"
+                                        Margin="0,4,0,0"
+                                        Foreground="#8A4A00"
+                                        TextWrapping="Wrap" />
                                     <TextBlock
                                         x:Name="TextHomeResult"
                                         Margin="0,4,0,0"

@@ -59,6 +59,16 @@ function Get-OperationalCapabilityMask {
     return [Convert]::ToUInt32($maskMatch.Groups[1].Value.Substring(2), 16)
 }
 
+function Get-AdminCapabilityMask {
+    param([string]$ControlText)
+
+    $maskMatch = [regex]::Match(
+        $ControlText,
+        '\(pResponseFrame\s*\+\s*24\)\^\$UDINT\s*:=\s*(0x[0-9A-Fa-f]+)\s*;')
+    Assert-True $maskMatch.Success 'Admin capability mask assignment exists'
+    return [Convert]::ToUInt32($maskMatch.Groups[1].Value.Substring(2), 16)
+}
+
 function Test-AtomicVector {
     param([bool[]]$Values)
 
@@ -80,12 +90,15 @@ $tcpOrdinary = Get-BooleanDefine $tcp 'LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED' 'TCP
 $controlOrdinary = Get-BooleanDefine $control 'LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED' 'LMCControlCommandService'
 $homeRuntime = Get-BooleanDefine $diagnostics 'LMC_DIAG_DS402_HOME_ENABLED' 'LMCDiagnosticsService'
 $startupSweep = Get-BooleanDefine $latch 'LMC_DS402_HOME_STARTUP_SWEEP_ENABLED' 'LMCEcatInputLatch'
-$capabilityMask = Get-OperationalCapabilityMask $diagnostics
-$homeCapability = ($capabilityMask -band 0x00000040) -ne 0
+$diagnosticCapabilityMask = Get-OperationalCapabilityMask $diagnostics
+$adminCapabilityMask = Get-AdminCapabilityMask $control
+$homeCapability = ($adminCapabilityMask -band 0x00000040) -ne 0
 
-$nonHomeMask = $capabilityMask -band (-bnot [uint32]0x00000040)
-Assert-True ($nonHomeMask -eq [uint32]0x0000613F) 'non-Home capability baseline is 0x0000613F'
-Assert-True (($capabilityMask -eq [uint32]0x0000613F) -or ($capabilityMask -eq [uint32]0x0000617F)) 'operational capability mask is exact OFF/ON candidate'
+$nonHomeAdminMask = $adminCapabilityMask -band (-bnot [uint32]0x00000040)
+Assert-True ($nonHomeAdminMask -eq [uint32]0x00000717) 'non-Home Admin capability baseline is 0x00000717'
+Assert-True (($adminCapabilityMask -eq [uint32]0x00000717) -or ($adminCapabilityMask -eq [uint32]0x00000757)) 'Admin capability mask is exact HomeDS402 OFF/ON candidate'
+Assert-True ($diagnosticCapabilityMask -eq [uint32]0x0000613F) 'Diagnostics capability mask remains 0x0000613F; its bit 6 is RecorderDoubleBank, not HomeDS402'
+Assert-True ([regex]::IsMatch($control, '\(pResponseFrame\s*\+\s*36\)\^\$UINT\s*:=\s*2\s*;')) 'Admin PhysicalAxisCount matches the two-drive topology'
 
 $current = @(
     $tcpOrdinary,
@@ -117,4 +130,4 @@ for ($vector = 0; $vector -lt 32; $vector++) {
 Assert-True ($accepted -eq 2) 'truth table accepts exactly all-OFF and all-ON'
 Assert-True ($rejected -eq 30) 'truth table rejects all 30 mixed activation states'
 
-Write-Host ("H37 activation verifier PASS: {0} checks; capability mask 0x{1:X8}" -f $script:CheckCount, $capabilityMask)
+Write-Host ("H37 activation verifier PASS: {0} checks; Admin capability mask 0x{1:X8}" -f $script:CheckCount, $adminCapabilityMask)

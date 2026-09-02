@@ -3,7 +3,7 @@
 - 대상: No.19 `MMC_HomeDS402Cmd`
 - 기준 branch: `dev`
 - source baseline: `dev@90a86a795773d5f8eca211368aac3f0d64944a32` (`dev : SDO Write Func Complete`)
-- current 상태: `Dormant`, core lifecycle/source/WPF recovery 구현 완료, activation OFF
+- current 상태: method37 source/UI activation implemented, fresh LASAL build/download and hardware qualification pending
 - tracker: issue #32
 - command: `0x7D15 Start`, `0x7D16 ReadOutcome`, `0x7D17 Retire`
 - 의미: DS402 method 37, 현재 위치를 0으로 확정하는 non-search Home
@@ -15,8 +15,9 @@
 가장 중요한 결론은 다음과 같다.
 
 > HomeDS402는 신규 state machine을 구현하는 작업이 아니다. 현재 source의 method37 lifecycle을
-> 다시 작성하지 말고, current source/artifact를 닫고 실제 PLC/hardware에서 검증한 뒤 5개 gate를
-> 원자적으로 활성화하는 작업이다.
+> 다시 작성하지 않는다. 2026-09-02 사용자 요청으로 5개 source gate를 원자적으로 활성화하고
+> WPF에서 Method 37을 명시적으로 선택할 수 있게 했다. 실제 PLC/hardware Active 판정은 여전히
+> fresh build/link/download와 동일 이미지 검증 뒤에만 가능하다.
 
 ---
 
@@ -124,7 +125,17 @@ Admission / OwnerReserve
 
 모든 mixed state는 verifier에서 실패해야 한다.
 
-Hardware gate가 닫히기 전에는 source가 준비됐다는 이유로 위 값을 켜지 않는다.
+### 2026-09-02 activation correction
+
+- 실제 HomeDS402 capability는 `LMCControlCommandService.st` Admin 응답의 bit 6이다.
+- ON mask는 `0x00000757`, Home bit를 제외한 baseline은 `0x00000717`이다.
+- `LMCDiagnosticsService.st`의 operational capability mask `0x0000613F`는 유지한다.
+  이 mask의 bit 6은 `RecorderDoubleBank`이며 HomeDS402 capability가 아니다.
+- 기존 verifier가 Diagnostics bit 6을 Home capability로 해석하던 오류를 수정했다.
+- current source는 명시적 사용자 요청에 따라 `1/1/1/1/1`이다. 이 변경은 source candidate
+  활성화이며 PLC download, runtime, packet, physical qualification을 뜻하지 않는다.
+- WPF method selector는 현재 검증된 Method 37 한 항목만 제공한다. switch/index 이동형
+  method 1..34는 `HomeDS402Ex` profile 승인 전에는 제공하지 않는다.
 
 ---
 
@@ -191,11 +202,12 @@ issue #32의 blocker를 닫는다.
 - fresh generated artifacts
 - reviewed identity
 - full SourceOnly PASS
-- activation values 여전히 all-OFF
+- activation values는 exact candidate 정책에 따라 atomic all-OFF 또는 all-ON이며 mixed state가 아님
 
 ## H37-C2 — activation candidate source preparation
 
-C1 완료 후에도 즉시 gate를 켜지 않는다. 먼저 **activation candidate patch를 OFF 상태로 준비**한다.
+원래 계획은 C1 완료 뒤 activation candidate를 OFF 상태로 준비하는 것이었다.
+2026-09-02 사용자 요청으로 source/UI candidate를 atomic all-ON으로 먼저 구현했다.
 
 확인 항목:
 
@@ -205,7 +217,8 @@ C1 완료 후에도 즉시 gate를 켜지 않는다. 먼저 **activation candida
 - 5-value mixed-state negative test 유지
 - activation revert가 한 commit으로 가능한지 확인
 
-이 단계에서 제품 source gate는 OFF 유지한다.
+PLC image 및 hardware release는 완료되지 않았다. 따라서 source가 ON이어도 runtime/production
+Active로 판정하지 않는다.
 
 ## H37-C3 — same-image PLC/hardware Axis1 qualification
 
@@ -271,9 +284,10 @@ Axis1 결과를 복사해 승인하지 않는다.
 
 를 반복한다.
 
-## H37-C5 — atomic activation
+## H37-C5 — atomic activation qualification
 
-C0~C4가 모두 PASS한 뒤에만 5개 gate를 한 commit에서 ON한다.
+5개 source gate는 사용자 요청으로 먼저 한 changeset에서 ON했다. C0~C4가 모두 PASS하기
+전에는 이를 runtime/production Active로 판정하지 않는다.
 
 Activation commit acceptance:
 
@@ -327,11 +341,11 @@ HomeDS402를 `Active`로 올리려면 다음이 모두 필요하다.
 - [x] H37-03 exact lifecycle PC contract
 - [x] H37-04 ownership/preemption
 - [x] H37-10 WPF durable no-replay recovery
-- [ ] H37-C0 current-dev regression rebaseline
+- [x] H37-C0 current-dev regression rebaseline
 - [ ] H37-C1 fresh C78/generated artifact + SourceOnly closure
-- [ ] H37-C2 activation candidate OFF-state qualification
+- [x] H37-C2 activation candidate source/UI qualification
 - [ ] H37-C3 Axis1 normal/failure hardware matrix
 - [ ] H37-C4 Axis2..4 expansion
-- [ ] H37-C5 5-value atomic activation
+- [ ] H37-C5 5-value atomic activation runtime qualification
 
 `HomeDS402Ex`의 switch/index search evidence를 이 완료조건으로 대체하지 않는다.

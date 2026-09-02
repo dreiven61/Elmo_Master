@@ -16,6 +16,8 @@
 3. `HOME_DS402_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md` — HomeDS402 frozen lifecycle + completion handoff
 4. `SET_POSITION_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md` — SetPosition durable runtime handoff
 5. `SET_POSITION_CURRENT_SOURCE_INVENTORY_20260902.md` — SP-C0 current source inventory PASS evidence
+6. `TOPOLOGY_STATIC_QUALIFICATION_RESULT_20260902.md` — TOPO-C0 source/network/generated-table static tranche PASS evidence
+7. `HOME_DS402_H37_OPERATOR_ACTIVATION_IMPLEMENTATION_20260902.md` — Method 37 UI/source activation implementation and operator procedure
 
 기존 상세 문서는 frozen wire/state-machine 또는 historical evidence로 계속 참조한다.
 
@@ -117,7 +119,7 @@ HomeDS402 구현을 계속하기 전에 `TOPO-C0`를 먼저 닫는다.
 
 대상: No.19 `MMC_HomeDS402Cmd`
 
-상태: **Dormant / core lifecycle implemented / topology rebaseline required**
+상태: **Method 37 source/UI activation implemented / fresh PLC image and hardware qualification required**
 
 HomeDS402는 state machine 신규 구현 대상이 아니다. 기존 method37 lifecycle을 유지한다.
 
@@ -128,22 +130,30 @@ latest topology 변경이 `LMCEcatInputLatch`, `LMCControlCommandService`, `LMCD
 TOPO-C0
 -> H37-C0R current-dev regression on latest tree
 -> H37-C1 fresh C78/generated artifact
--> H37-C2 activation candidate OFF-state qualification
+-> H37-C2 activation candidate source/UI qualification
 -> H37-C3 Axis1 hardware normal/failure matrix
 -> H37-C4 Axis2 hardware + Axis3/4 nonphysical rejection matrix
--> H37-C5 five-value atomic activation
+-> H37-C5 five-value atomic activation runtime qualification
 ```
 
 과거 `Axis2..4 hardware expansion` 문구는 current topology에서 그대로 적용하지 않는다.
 physical HomeDS402 hardware qualification 대상은 Axis1/2다.
 
-현재 activation values는 모두 OFF 유지한다.
+현재 tracked source의 activation values는 모두 ON이다.
 
 - TCP ordinary ownership
 - Control ordinary ownership
 - Diagnostics HomeDS402 gate
 - InputLatch startup sweep gate
 - Admin capability bit 6
+
+Admin HomeDS402 capability는 `0x00000757`의 bit 6이다. Diagnostics capability
+`0x0000613F`의 bit 6은 RecorderDoubleBank이므로 Home 판정에 사용하지 않는다.
+현재 실행 중 PLC/WPF가 이 변경 이전 image/process이면 capability를 새로 읽어도 사용할 수 없다.
+fresh LASAL build/link/download와 WPF 재시작이 필요하다.
+
+WPF는 현재 검증된 Method 37만 선택할 수 있다. 이는 축 이동 없이 현재 actual position을
+0으로 정의하는 방식이다. switch/index를 찾는 이동형 homing은 `HomeDS402Ex`이며 아직 미구현/비활성이다.
 
 상세 frozen lifecycle:
 
@@ -164,7 +174,7 @@ current topology override:
 SP-C0 current source inventory는 완료됐다.
 
 - validating commit: `08e85d456ad118abaec8405fe9ab1c1ec3baa974`
-- verifier: 37 checks PASS
+- verifier: 39 checks PASS on the current shared-ownership state
 - WPF AxisSetPositionJournal: 11/11 PASS
 - evidence: `SET_POSITION_CURRENT_SOURCE_INVENTORY_20260902.md`
 
@@ -205,7 +215,7 @@ HomeDS402Ex는 별도 P2다.
 - issue #35: fresh C78/generated artifact + SourceOnly
 - 이후 parameter SDO + RT physical homing runtime
 
-current P0/P1이 닫히기 전 activation은 OFF 유지한다.
+current P0/P1이 닫히기 전 HomeDS402Ex activation은 OFF 유지한다.
 
 ---
 
@@ -217,7 +227,8 @@ current P0/P1이 닫히기 전 activation은 OFF 유지한다.
 - simulation PASS를 hardware PASS로 승격하지 않음
 - mutation wire/native boundary 이후 original mutation replay 0
 - terminal proof 전에 shared owner release 금지
-- capability/gate는 hardware qualification 전에 활성화하지 않음
+- capability/gate source candidate와 runtime/production Active 판정을 구분함
+- hardware qualification 전 source gate를 켠 예외는 exact build/download/runtime 증거 전까지 NO-GO 유지
 - generated LASAL ABI/artifact/hash를 추측하지 않음
 - source PASS / LASAL compile / C78 artifact / PLC boot / hardware PASS를 분리 기록
 - topology 변경과 feature activation을 같은 changeset에 섞지 않음

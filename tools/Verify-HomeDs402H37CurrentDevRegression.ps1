@@ -46,7 +46,9 @@ function Invoke-Verifier {
     Write-Host "PASS nested verifier $RelativePath"
 }
 
-# Re-run the frozen H37 software/source contracts on the current dev tree.
+# Freeze the current two-physical-drive topology before re-running the frozen
+# H37 software/source contracts on the current dev tree.
+Invoke-Verifier 'tools/Verify-CurrentPhysicalTopology.ps1'
 Invoke-Verifier 'tools/Verify-HomeDs402H37Activation.ps1'
 Invoke-Verifier 'tools/Verify-HomeDs402H37Ownership.ps1'
 Invoke-Verifier 'tools/Verify-HomeDs402H37MethodSize.ps1'
@@ -71,9 +73,11 @@ Assert-Match $homeSourceBlock '(?s)sdoIsWrite\s*:=\s*TRUE\s*;\s*sdoIndex\s*:=\s*
 Assert-Match $homeSourceBlock '(?s)sdoIsWrite\s*:=\s*TRUE\s*;\s*sdoIndex\s*:=\s*0x6060\s*;.*?sdoData\s*:=\s*6\s*;' 'H37 still enters DS402 Homing mode 6'
 Assert-Match $homeSourceBlock '(?s)sdoIsWrite\s*:=\s*TRUE\s*;\s*sdoIndex\s*:=\s*0x6060\s*;.*?sdoData\s*:=\s*8\s*;' 'H37 still restores CSP mode 8'
 Assert-NoMatch $homeSourceBlock 'GetSdoWritePolicyDetail|LMC_DIAG_D5_SDO_WRITE_GLOBAL_ENABLED' 'H37 dedicated lifecycle is not routed through Generic D5 SDO Write admission'
+Assert-Match $diagnostics '(?s)HandleAxisDs402HomeStart\b.*?axisMask\s+and\s+LMC_DIAG_CONFIGURED_PHYSICAL_DRIVE_MASK\)\s*=\s*0\)\s+then\s+detailCode\s*:=\s*4\s*;' 'H37 Start rejects Axis3/4 through the configured physical-drive mask'
+Assert-Match $diagnostics '(?s)journalEligible\s*:=.*?axisMask\s+and\s+LMC_DIAG_CONFIGURED_PHYSICAL_DRIVE_MASK\)\s*<>\s*0' 'H37 durable journal cannot arm for a nonphysical target'
 
-# H37 remains dormant until the artifact/hardware gates are closed.
-Assert-Match $diagnostics '(?m)^\s*#define\s+LMC_DIAG_DS402_HOME_ENABLED\s+FALSE\s*$' 'HomeDS402 runtime activation remains OFF during H37-C0'
+# The nested activation verifier proves the full five-value state is atomic.
+Assert-Match $diagnostics '(?m)^\s*#define\s+LMC_DIAG_DS402_HOME_ENABLED\s+(TRUE|FALSE)\s*$' 'HomeDS402 runtime activation has one explicit Boolean state'
 
 # WPF availability must remain tied to Admin HomeDS402 capability bit 6 rather than
 # Generic SDO Write availability or Same-Value qualification state.

@@ -26,6 +26,12 @@ namespace LasalApiWpfTestApp.SmokeTests
                 "Wpf.RecoveryRetirement.SetOperationModeCommittedDecisionFinalizesAtStartup",
                 SetOperationModeCommittedDecisionFinalizesAtStartup);
             tests.Add(
+                "Wpf.RecoveryRetirement.Ds402HomeStaleArchivesAndRetires",
+                Ds402HomeStaleArchivesAndRetires);
+            tests.Add(
+                "Wpf.RecoveryRetirement.MaintenanceActionCommittedDecisionFinalizesAtStartup",
+                MaintenanceActionCommittedDecisionFinalizesAtStartup);
+            tests.Add(
                 "Wpf.RecoveryRetirement.MismatchedRecordsArchiveResolveDisconnectAndRequireRestart",
                 MismatchedRecordsArchiveResolveDisconnectAndRequireRestart);
             tests.Add(
@@ -162,6 +168,239 @@ namespace LasalApiWpfTestApp.SmokeTests
                     WaitUntil(() => !window.IsLoaded, "Restarted window did not finish closing.");
                     window = null;
                 }
+            }
+            finally
+            {
+                CloseWindowBestEffort(window);
+                DeleteRetirementTemporaryDirectory(root);
+            }
+        }
+
+        private static void Ds402HomeStaleArchivesAndRetires()
+        {
+            var capabilities = LMCDiagnosticCapability.EtherCATTopology;
+            var steps = CreateConnectAndTopologySteps(capabilities);
+            steps.Add(CapabilitiesStep(11, capabilities));
+            steps.Add(CapabilitiesStep(12, capabilities));
+            steps.Add(CapabilitiesStep(13, capabilities));
+            steps.Add(CloseStep());
+            var root = CreateRetirementTemporaryDirectory();
+            MainWindow window = null;
+            try
+            {
+                using (var server = new FakeRpcServer(steps.ToArray()))
+                {
+                    var journalPath = Path.Combine(
+                        root,
+                        "MaintenanceActionRecovery");
+                    byte[] originalBytes;
+                    using (var journal =
+                        MaintenanceActionRecoveryJournal.Open(journalPath))
+                    {
+                        var createdUtc = DateTime.UtcNow.AddMinutes(-1);
+                        var armed = journal.ArmBeforeDispatch(
+                            MaintenanceActionKind.Ds402Home,
+                            "127.0.0.1",
+                            server.Port,
+                            1,
+                            checked(DiagnosticsBootId - 1),
+                            DiagnosticMapRevision,
+                            "_LMCAxis1",
+                            1,
+                            1,
+                            2,
+                            3,
+                            4,
+                            77,
+                            "Schema=1;Method=37;HomeOffset=0;Velocity=0;Acceleration=0;DistanceLimit=0;TorqueLimit=0;BufferMode=Aborting;TimeoutMs=1000",
+                            createdUtc);
+                        journal.PromoteToRecoveryRequired(
+                            armed,
+                            77,
+                            createdUtc.AddSeconds(1));
+                        originalBytes = journal
+                            .CaptureActiveRetirementEvidence()
+                            .GetOriginalBytes();
+                    }
+
+                    window = CreateWindow(root, server.Port);
+                    ConnectIntoRetirementQuarantineWithDiagnostics(
+                        window,
+                        server,
+                        "DS402 Home stale retirement");
+                    window.ExpanderSafetyAndRecoveryDetails.IsExpanded = true;
+                    window.UpdateLayout();
+                    PumpDispatcherOnce();
+
+                    AssertEx.Contains(
+                        "RETIRE STALE | MaintenanceAction",
+                        window.TextRecoveryIdentityRetirementSnapshot.Text);
+                    AssertEx.Contains(
+                        "MaintenanceAction/Ds402Home",
+                        window.TextRecoveryIdentityRetirementSnapshot.Text);
+                    AssertEx.True(
+                        window.CheckConfirmStaleRecoveryRetirement.IsEnabled);
+                    AssertEx.False(
+                        window.ButtonArchiveAndRetireStaleRecovery.IsEnabled);
+
+                    var exitCalled = false;
+                    window.RecoveryRecordRetirementConfirmationOverride =
+                        (message, caption) =>
+                        {
+                            AssertEx.Contains(
+                                "MaintenanceAction/Ds402Home",
+                                message);
+                            AssertEx.Contains("UNKNOWN", message);
+                            return MessageBoxResult.Yes;
+                        };
+                    window.RecoveryRecordRetirementExitOverride = () =>
+                    {
+                        exitCalled = true;
+                    };
+
+                    window.CheckConfirmStaleRecoveryRetirement.IsChecked = true;
+                    PumpDispatcherOnce();
+                    AssertEx.True(
+                        window.ButtonArchiveAndRetireStaleRecovery.IsEnabled);
+                    Click(window.ButtonArchiveAndRetireStaleRecovery);
+                    WaitUntil(
+                        () => exitCalled
+                            || string.Equals(
+                                window.TextOperationState.Text,
+                                "Archive and Retire Stale Recovery failed",
+                                StringComparison.Ordinal),
+                        "DS402 Home stale retirement did not request restart.");
+                    AssertEx.True(exitCalled, window.TextExecutionLog.Text);
+                    WaitForRetirementOperationToSettle(window);
+
+                    var journalInWindow =
+                        (MaintenanceActionRecoveryJournal)GetPrivateField(
+                            window,
+                            "maintenanceActionRecoveryJournal");
+                    AssertEx.False(journalInWindow.HasActiveRecord);
+                    AssertEx.Equal(
+                        MaintenanceActionRecoveryState.Resolved,
+                        journalInWindow.CurrentRecord.State);
+                    var ledger =
+                        (RecoveryRecordRetirementLedger)GetPrivateField(
+                            window,
+                            "recoveryRecordRetirementLedger");
+                    AssertEx.Equal(1, ledger.CommittedDecisions.Count);
+                    var decision = ledger.CommittedDecisions.Single();
+                    AssertEx.Equal(
+                        RecoveryRecordOwner.MaintenanceAction,
+                        decision.SourceEvidence.Owner);
+                    AssertEx.SequenceEqual(
+                        originalBytes,
+                        decision.SourceEvidence.GetOriginalBytes());
+                    AssertNoMotionMutationRequests(
+                        server.ReceivedRequests,
+                        "DS402 Home stale retirement sent a motion or mutation RPC.");
+
+                    window.Close();
+                    WaitUntil(
+                        () => !window.IsLoaded,
+                        "DS402 Home retirement window did not close.");
+                    window = null;
+                    server.Verify();
+                }
+
+                using (var reopened = MaintenanceActionRecoveryJournal.Open(
+                    Path.Combine(root, "MaintenanceActionRecovery")))
+                {
+                    AssertEx.False(reopened.HasActiveRecord);
+                    AssertEx.Equal(
+                        MaintenanceActionRecoveryState.Resolved,
+                        reopened.CurrentRecord.State);
+                }
+            }
+            finally
+            {
+                CloseWindowBestEffort(window);
+                DeleteRetirementTemporaryDirectory(root);
+            }
+        }
+
+        private static void
+            MaintenanceActionCommittedDecisionFinalizesAtStartup()
+        {
+            var root = CreateRetirementTemporaryDirectory();
+            MainWindow window = null;
+            try
+            {
+                var journalPath = Path.Combine(
+                    root,
+                    "MaintenanceActionRecovery");
+                using (var journal =
+                    MaintenanceActionRecoveryJournal.Open(journalPath))
+                using (var ledger = RecoveryRecordRetirementLedger.Open(
+                    Path.Combine(root, "RecoveryRecordRetirementLedger")))
+                {
+                    var createdUtc = DateTime.UtcNow.AddMinutes(-1);
+                    var armed = journal.ArmBeforeDispatch(
+                        MaintenanceActionKind.Ds402Home,
+                        "127.0.0.1",
+                        4000,
+                        1,
+                        checked(DiagnosticsBootId - 1),
+                        DiagnosticMapRevision,
+                        "_LMCAxis1",
+                        1,
+                        1,
+                        2,
+                        3,
+                        4,
+                        77,
+                        "Schema=1;Method=37;HomeOffset=0;Velocity=0;Acceleration=0;DistanceLimit=0;TorqueLimit=0;BufferMode=Aborting;TimeoutMs=1000",
+                        createdUtc);
+                    journal.PromoteToRecoveryRequired(
+                        armed,
+                        77,
+                        createdUtc.AddSeconds(1));
+                    var evidence = journal.CaptureActiveRetirementEvidence();
+                    ledger.CommitOperatorRetirement(
+                        evidence,
+                        evidence.EndpointIp,
+                        evidence.EndpointPort,
+                        evidence.DiagnosticsBuild,
+                        checked(evidence.DiagnosticsBootId + 1),
+                        evidence.MapRevision,
+                        RetirementTestOperator,
+                        RetirementTestReason,
+                        DateTime.UtcNow);
+                    AssertEx.True(journal.HasActiveRecord);
+                }
+
+                window = new MainWindow(root)
+                {
+                    ShowActivated = false,
+                    ShowInTaskbar = false,
+                    WindowStartupLocation = WindowStartupLocation.Manual,
+                    Left = -10000,
+                    Top = -10000
+                };
+                window.Show();
+                WaitUntil(
+                    () => window.IsLoaded,
+                    "Maintenance action startup-finalization window did not load.");
+
+                var journalInWindow =
+                    (MaintenanceActionRecoveryJournal)GetPrivateField(
+                        window,
+                        "maintenanceActionRecoveryJournal");
+                AssertEx.False(journalInWindow.HasActiveRecord);
+                AssertEx.Equal(
+                    MaintenanceActionRecoveryState.Resolved,
+                    journalInWindow.CurrentRecord.State);
+                AssertEx.Contains(
+                    "crash-finalization applied exact-byte CAS",
+                    window.TextExecutionLog.Text);
+
+                window.Close();
+                WaitUntil(
+                    () => !window.IsLoaded,
+                    "Maintenance action startup-finalization window did not close.");
+                window = null;
             }
             finally
             {

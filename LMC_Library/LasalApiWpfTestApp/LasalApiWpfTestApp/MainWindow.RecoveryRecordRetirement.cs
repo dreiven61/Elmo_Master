@@ -296,6 +296,33 @@ namespace LasalMotionControlApiExample
         }
 
         private bool
+            TryFinalizeCommittedMaintenanceActionRetirementAtStartup()
+        {
+            if (RecoveryRecordRetirementLedgerUnavailable
+                || maintenanceActionRecoveryJournal == null
+                || !maintenanceActionRecoveryJournal.HasActiveRecord)
+            {
+                return false;
+            }
+
+            var evidence = maintenanceActionRecoveryJournal
+                .CaptureActiveRetirementEvidence();
+            var decision = recoveryRecordRetirementLedger
+                .FindPendingDecision(evidence);
+            if (decision == null)
+            {
+                return false;
+            }
+
+            maintenanceActionRecoveryJournal.ResolveOperatorRetirement(
+                evidence,
+                decision,
+                MonotonicRetirementUtcNow(evidence.UpdatedUtc));
+            LogCommittedRetirementFinalizedAtStartup(evidence, decision);
+            return true;
+        }
+
+        private bool
             TryFinalizeCommittedDiagnosticsMutationRetirementAtStartup()
         {
             if (RecoveryRecordRetirementLedgerUnavailable
@@ -666,6 +693,22 @@ namespace LasalMotionControlApiExample
                     + " requires a nonzero DiagnosticsBuild.");
             }
 
+            if (maintenanceActionRecoveryJournal != null
+                && maintenanceActionRecoveryJournal.HasActiveRecord
+                && string.Equals(
+                    maintenanceActionRecoveryJournal.CurrentRecord.EndpointIp,
+                    RequiredConnectedRemoteIp(),
+                    StringComparison.Ordinal)
+                && maintenanceActionRecoveryJournal.CurrentRecord.EndpointPort
+                    == RequiredConnectedRemotePort()
+                && capabilities.DiagnosticsBuild == 0)
+            {
+                throw new InvalidOperationException(
+                    "Stale Home/encoder-maintenance recovery retirement "
+                    + phase
+                    + " requires a nonzero DiagnosticsBuild.");
+            }
+
             return capabilities;
         }
 
@@ -722,6 +765,11 @@ namespace LasalMotionControlApiExample
             if (axisSetOperationModeRecoveryJournal.HasActiveRecord)
             {
                 evidence.Add(axisSetOperationModeRecoveryJournal
+                    .CaptureActiveRetirementEvidence());
+            }
+            if (maintenanceActionRecoveryJournal.HasActiveRecord)
+            {
+                evidence.Add(maintenanceActionRecoveryJournal
                     .CaptureActiveRetirementEvidence());
             }
             if (HasRetirableLegacyDiagnosticsMutationRecord)
@@ -794,7 +842,8 @@ namespace LasalMotionControlApiExample
                     || GroupResetRecoveryJournalUnavailable
                     || AxisQualificationRecoveryJournalUnavailable
                     || DiagnosticsMutationJournalUnavailable
-                    || AxisSetOperationModeRecoveryJournalUnavailable;
+                    || AxisSetOperationModeRecoveryJournalUnavailable
+                    || MaintenanceActionRecoveryJournalUnavailable;
             }
         }
 
@@ -929,6 +978,13 @@ namespace LasalMotionControlApiExample
 
                 case RecoveryRecordOwner.AxisSetOperationMode:
                     axisSetOperationModeRecoveryJournal.ResolveOperatorRetirement(
+                        evidence,
+                        decision,
+                        updatedUtc);
+                    break;
+
+                case RecoveryRecordOwner.MaintenanceAction:
+                    maintenanceActionRecoveryJournal.ResolveOperatorRetirement(
                         evidence,
                         decision,
                         updatedUtc);
@@ -1465,6 +1521,24 @@ namespace LasalMotionControlApiExample
                                 .ToString()));
                 }
             }
+            if (maintenanceActionRecoveryJournal != null)
+            {
+                var record = maintenanceActionRecoveryJournal.CurrentRecord;
+                if (record != null && record.IsActive)
+                {
+                    values.Add(new RecoveryRetirementMetadata(
+                        RecoveryRecordOwner.MaintenanceAction,
+                        record.Identity,
+                        record.EndpointIp,
+                        record.EndpointPort,
+                        record.ObservedDiagnosticsBuild,
+                        record.ObservedDiagnosticsBootId,
+                        record.ObservedMapRevision,
+                        record.AxisName,
+                        record.AxisReference,
+                        "MaintenanceAction/" + record.Action));
+                }
+            }
             if (CanListLegacyDiagnosticsMutationForRetirement())
             {
                 var record = diagnosticsMutationJournal.CurrentRecord;
@@ -1498,6 +1572,12 @@ namespace LasalMotionControlApiExample
             if (DiagnosticsMutationJournalUnavailable)
             {
                 return GetDiagnosticsMutationJournalUnavailableGuidance();
+            }
+            if (MaintenanceActionRecoveryJournalUnavailable)
+            {
+                return string.IsNullOrEmpty(maintenanceActionRecoveryJournalError)
+                    ? "The Home/encoder-maintenance recovery journal is unavailable."
+                    : maintenanceActionRecoveryJournalError;
             }
             if (!string.IsNullOrEmpty(
                     recoveryRecordRetirementLedgerRuntimeError))

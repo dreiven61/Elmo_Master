@@ -1568,6 +1568,17 @@ namespace LasalMotionControlApiExample
             values["Fixed semantic"] = "고정 의미";
             values["Method=37; HomeOffset=0; no motion"] =
                 "Method=37; HomeOffset=0; 실제 이동 없음";
+            values["Homing method (qualified)"] = "Homing Method (검증됨)";
+            values["DS402 Home unavailable: connect to the PLC first."] =
+                "DS402 Home 사용 불가: 먼저 PLC에 연결하십시오.";
+            values["DS402 Home unavailable: refresh Home capabilities."] =
+                "DS402 Home 사용 불가: Home capability를 새로 고치십시오.";
+            values["DS402 Home unavailable: the connected PLC does not advertise Admin HomeDS402 capability bit 6. Rebuild/download an activated H37 image, reconnect, and refresh capabilities."] =
+                "DS402 Home 사용 불가: 연결된 PLC가 Admin HomeDS402 capability bit 6을 광고하지 않습니다. H37 활성 이미지를 Rebuild/Download하고 다시 연결한 뒤 capability를 새로 고치십시오.";
+            values["DS402 Home available for qualified Method 37. Select the physical axis and complete the one-shot confirmation."] =
+                "검증된 Method 37 DS402 Home을 사용할 수 있습니다. 실제 축을 선택하고 1회 실행 확인을 완료하십시오.";
+            values["DS402 Home Method 37 is armed when all other live admission checks pass."] =
+                "다른 실시간 허용 조건도 모두 통과하면 DS402 Home Method 37 실행 준비가 완료됩니다.";
             values[
                 "I verified the exact stationary axis, its current actual position, raw units, and the coordinate-zero effect. Send the selected Home route once only and never replay it after an uncertain result."] =
                 "정확히 정지한 축, 현재 actual position, raw unit과 좌표 0 설정 효과를 확인했습니다. 선택한 Home 방식을 한 번만 전송하고 결과가 미확정이면 재전송하지 않습니다.";

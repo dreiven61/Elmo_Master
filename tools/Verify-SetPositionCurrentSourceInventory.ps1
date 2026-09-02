@@ -68,11 +68,27 @@ Assert-Match ($control + "`n" + $tcp) '0x7D14' 'SetPosition ReadOutcome command 
 Assert-Match ($control + "`n" + $tcp) '0x7D1A' 'SetPosition Retire command 0x7D1A is routed'
 
 # Freeze the production fail-closed boundary before the durable backend / RT executor exist.
+# Ordinary ownership is shared infrastructure and may be enabled by HomeDS402.
+# SetPosition must remain unavailable through its own Store/max-jump/capability
+# controls even when both shared ordinary-ownership definitions are ON.
 Assert-Match $combinedLasal '(?m)^\s*#define\s+LMC_ADMIN_SET_POSITION_STORE_CONFIGURED\s+FALSE\s*$' 'SetPosition durable Store configured gate remains OFF'
+$ordinaryEnabledCount = [regex]::Matches(
+    $control + "`n" + $tcp,
+    '(?m)^\s*#define\s+LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED\s+(?:TRUE|FALSE)\s*$').Count
+Assert-True ($ordinaryEnabledCount -eq 2) 'Control and TCP keep exactly two explicit shared ordinary ownership definitions'
+$ordinaryOnCount = [regex]::Matches(
+    $control + "`n" + $tcp,
+    '(?m)^\s*#define\s+LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED\s+TRUE\s*$').Count
 $ordinaryOffCount = [regex]::Matches(
     $control + "`n" + $tcp,
     '(?m)^\s*#define\s+LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED\s+FALSE\s*$').Count
-Assert-True ($ordinaryOffCount -ge 2) 'Control and TCP ordinary ownership activation gates remain OFF'
+Assert-True (($ordinaryOnCount -eq 2) -or ($ordinaryOffCount -eq 2)) 'Control and TCP shared ordinary ownership definitions are atomic'
+if ($ordinaryOnCount -eq 2) {
+    Write-Host 'INFO Shared ordinary ownership is ON for HomeDS402; this is not SetPosition activation.'
+} else {
+    Write-Host 'INFO Shared ordinary ownership is OFF.'
+}
+Assert-Match $control '(?s)\(pResponseFrame\s*\+\s*24\)\^\$UDINT\s*:=\s*0x00000757\s*;' 'Admin capability mask excludes dormant SetPosition while advertising qualified HomeDS402'
 for ($axis = 1; $axis -le 4; $axis++) {
     $maxJumpPattern = (
         "(?im)^\s*#define\s+LMC_ADMIN_SET_POSITION_MAX_JUMP_AXIS_?{0}\s+0(?:\$[A-Z][A-Z0-9_]*)?\s*$" -f $axis)

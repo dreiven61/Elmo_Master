@@ -12,6 +12,11 @@
 이 문서는 2026-09-02 이후 남은 기능 구현의 current master다.
 latest topology change 이후의 exact override는 `CURRENT_IMPLEMENTATION_HANDOFF_20260902.md`를 우선한다.
 
+2026-09-02 사용자 요청으로 HomeDS402 Method 37 source/UI candidate는 atomic ON으로
+구현됐다. 아래의 `activation OFF` 및 OFF-state preparation 문구는 원래 단계 계획이며,
+current PLC image가 활성화됐다는 뜻으로 사용하지 않는다. fresh LASAL build/link/download와
+Axis1/2 runtime/hardware qualification 전 production posture는 계속 NO-GO다.
+
 current detailed references:
 
 - `CURRENT_IMPLEMENTATION_HANDOFF_20260902.md`
@@ -34,7 +39,7 @@ current detailed references:
 | 완료 | SetOperationMode | Active | release regression 유지 |
 | 완료 | Generic SDO Write | 구현 완료 | current 2-drive physical matrix / release evidence |
 | P0-A | Topology / SimulationSetup | 구현 반영 | cold boot + ownership + nonphysical-target regression freeze |
-| P0-B | HomeDS402 | Dormant | latest-tree rebaseline -> C78 -> Axis1/2 hardware -> activation |
+| P0-B | HomeDS402 | source/UI candidate ON | fresh C78 -> Axis1/2 hardware -> runtime qualification |
 | P1 | SetPosition | Dormant / SP-C0 complete | SP-C1 prerequisites -> durable backend -> RT exactly-once -> recovery -> activation |
 | P2 | HomeDS402Ex | Dormant | profile/artifact prerequisite 뒤 physical runtime |
 | P3 | 기타 dormant/missing | Dormant/Missing | DigitalIO/DO/PI/Double/Extended SDO 등 |
@@ -115,7 +120,7 @@ PASS 조건:
 - `LMCEcatInputLatch`, `LMCControlCommandService`, `LMCDiagnosticsService` physical mask = `0x03`
 - absent physical Drive3/4가 startup physical proof를 막지 않음
 - file-local macro compile error 없음
-- feature activation 상태는 변경하지 않음
+- HomeDS402 source candidate activation은 atomic ON, SetPosition activation은 OFF
 
 권장 verifier 추가:
 
@@ -126,7 +131,7 @@ PASS 조건:
 - SimulationSetup Axis1..9 object/channel/wiring
 - Axis1/2 physical vs Axis3..9 simulation defaults
 - three runtime mask constants = `0x03`
-- HomeDS402 gates OFF
+- HomeDS402 gates atomic all-OFF/all-ON; current source all-ON
 - SetPosition gates OFF
 
 ---
@@ -144,10 +149,10 @@ revised execution order:
 TOPO-C0
 -> H37-C0R current-dev regression re-run
 -> H37-C1 fresh C78/generated artifact + SourceOnly
--> H37-C2 activation candidate OFF-state qualification
+-> H37-C2 activation candidate source/UI qualification
 -> H37-C3 Axis1 hardware normal/failure
 -> H37-C4 Axis2 hardware + Axis3/4 nonphysical rejection
--> H37-C5 five-value atomic activation
+-> H37-C5 five-value atomic activation runtime qualification
 ```
 
 ### H37-C0R
@@ -185,13 +190,15 @@ current physical topology에서 hardware matrix는 Axis1/2다.
 
 Elmo3/4가 향후 복구되면 physical mask와 H37 hardware matrix를 별도 changeset으로 재확장한다.
 
-### H37 activation remains OFF
+### H37 source activation candidate is ON
 
-- TCP ordinary ownership OFF
-- Control ordinary ownership OFF
-- Diagnostics `LMC_DIAG_DS402_HOME_ENABLED = FALSE`
-- InputLatch `LMC_DS402_HOME_STARTUP_SWEEP_ENABLED = FALSE`
-- Admin bit6 OFF
+- TCP ordinary ownership ON
+- Control ordinary ownership ON
+- Diagnostics `LMC_DIAG_DS402_HOME_ENABLED = TRUE`
+- InputLatch `LMC_DS402_HOME_STARTUP_SWEEP_ENABLED = TRUE`
+- Admin bit6 ON (`0x00000757`)
+- Diagnostics operational mask `0x0000613F` remains unchanged
+- current PLC image/runtime/hardware activation remains unqualified
 
 ---
 

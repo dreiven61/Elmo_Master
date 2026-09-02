@@ -530,7 +530,7 @@ END_FUNCTION
 #define LMC_DIAG_D5_SDO_WRITE_UI24_AXIS4_ENABLED FALSE
 // Implementation remains dormant until RT mailbox, setpoint alignment and
 // no-jump CSP return have been proven on every enabled physical axis.
-#define LMC_DIAG_DS402_HOME_ENABLED FALSE
+#define LMC_DIAG_DS402_HOME_ENABLED TRUE
 // HomeDS402Ex parser/outcome scaffold is private until HOMEEX-07/08 runtime work.
 #define LMC_DIAG_DS402_HOME_EX_ENABLED FALSE
 #define LMC_DIAG_HOMEEX_RECORD_STRIDE 40
@@ -5522,7 +5522,10 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeStart
 	if preflightOnly then
 		// Publish the request intent before TCP may create a common reservation.
 		// Stage 87 is the final publication word and can only resolve to rollback.
-		if (Reference < 1) | (Reference > 4) |
+		if ((Reference >= 1) & (Reference <= 4)) &
+			((axisMask and LMC_DIAG_CONFIGURED_PHYSICAL_DRIVE_MASK) = 0) then
+			detailCode := 4;
+		elsif (Reference < 1) | (Reference > 4) |
 			(schemaVersion <> 1) | (requestFlags <> 0) | (requestId = 0) |
 			((intent0 = 0) & (intent1 = 0) & (intent2 = 0) & (intent3 = 0)) |
 			(homingMethod <> 37) | (homePosition <> 0) |
@@ -5631,7 +5634,10 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeStart
 			 Ds402HomeState[115]$UDINT);
 	end_if;
 
-	if (Reference < 1) | (Reference > 4) |
+	if ((Reference >= 1) & (Reference <= 4)) &
+		((axisMask and LMC_DIAG_CONFIGURED_PHYSICAL_DRIVE_MASK) = 0) then
+		detailCode := 4;
+	elsif (Reference < 1) | (Reference > 4) |
 		(schemaVersion <> 1) | (requestFlags <> 0) | (requestId = 0) |
 		((intent0 = 0) & (intent1 = 0) & (intent2 = 0) & (intent3 = 0)) |
 		(homingMethod <> 37) | (homePosition <> 0) |
@@ -5673,6 +5679,7 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeStart
 	// journal. Stage 88 can only roll back; stage 89 may commit.
 	journalEligible :=
 		(Reference >= 1) & (Reference <= 4) &
+		((axisMask and LMC_DIAG_CONFIGURED_PHYSICAL_DRIVE_MASK) <> 0) &
 		(schemaVersion = 1) & (requestFlags = 0) & (requestId <> 0) &
 		((intent0 <> 0) | (intent1 <> 0) | (intent2 <> 0) | (intent3 <> 0)) &
 		(homingMethod = 37) & (homePosition = 0) &

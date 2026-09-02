@@ -7715,8 +7715,42 @@ namespace LasalMotionControlApiExample
                 + evidence.PowerOnAccepted
                 + ", AckPresent="
                 + (evidence.PowerOnAcknowledgement != null)
-                + Environment.NewLine
-                + "Status polls="
+                + Environment.NewLine;
+
+            var acknowledgement = evidence.PowerOnAcknowledgement;
+            if (acknowledgement != null)
+            {
+                TextAxisResult.Text += "PowerOn ACK: HeaderStatus="
+                    + acknowledgement.HeaderStatus
+                    + ", CommandStatus="
+                    + acknowledgement.CommandStatus
+                    + ", ErrorId="
+                    + acknowledgement.ErrorId
+                    + ", PayloadLength="
+                    + acknowledgement.PayloadLength
+                    + ", FrameValid="
+                    + acknowledgement.IsFrameValid
+                    + Environment.NewLine;
+
+                LMCErrorDescription errorDescription;
+                if (acknowledgement.ErrorId != 0
+                    && LMCErrorCatalog.TryDescribe(
+                        LMCErrorDomain.AdapterCommand,
+                        acknowledgement.ErrorId,
+                        out errorDescription))
+                {
+                    TextAxisResult.Text += "PowerOn ACK meaning: "
+                        + errorDescription.Symbol
+                        + " - "
+                        + errorDescription.Description
+                        + Environment.NewLine
+                        + "PowerOn ACK action: "
+                        + errorDescription.Resolution
+                        + Environment.NewLine;
+                }
+            }
+
+            TextAxisResult.Text += "Status polls="
                 + evidence.StatusPollCount
                 + ", Stable PowerOn="
                 + evidence.StablePowerOnSampleCount

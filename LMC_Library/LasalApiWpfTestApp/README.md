@@ -1131,7 +1131,7 @@ Axis1 source gate와 fresh LASAL IDE Rebuild/Link는 반영됐지만 PLC downloa
     stale record를 현재 PLC 상태로 판정하거나 자동 replay/resolve/replace하지 않으며, quarantine
     연결을 닫아도 durable record의 state와 identity는 그대로 보존한다.
     현재 endpoint는 같지만 active Axis Power, Axis Stop/Reset, Motion, Group Profile Lock,
-    Group Power 또는 Group Reset record의 identity가 현재 PLC와 다른 경우에만
+    Group Power, Group Reset, SetOperationMode 또는 Home/Encoder Maintenance record의 identity가 현재 PLC와 다른 경우에만
     `Archive and Retire Stale Recovery` 절차를 사용할 수 있다. 운영자가 장비와 드라이브의 물리
     상태를 독립 확인했다는 checkbox와 경고 확인창을 모두 승인해야 한다. 확인 전후에 read-only
     Capabilities를 다시 읽어 동일 connection/session/endpoint와 nonzero BootId/MapRevision,
@@ -1141,9 +1141,10 @@ Axis1 source gate와 fresh LASAL IDE Rebuild/Link는 반영됐지만 PLC downloa
     status-only recovery를 먼저 완료하고, 다른 endpoint record는 `KEEP OTHER ENDPOINT`로
     보존한다. journal/ledger fault 또는 실행 중 operation이 있으면 아무 record도
     폐기하지 않는다.
-    기존 endpoint-bound record는 BootId/MapRevision을 비교하고, nonzero `DiagnosticsBuild`를 저장하는 Group
-    Reset record는 Build/BootId/MapRevision을 모두 비교하므로 Build-only mismatch도 retire할 수
-    있다. Group Reset record가 있을 때는 confirmation 전후 current Build도 nonzero/exact여야 한다.
+    기존 endpoint-bound record는 BootId/MapRevision을 비교한다. nonzero `DiagnosticsBuild`를 저장하는 Group
+    Reset, SetOperationMode, Home/Encoder Maintenance record는 Build/BootId/MapRevision을 모두 비교하므로
+    Build-only mismatch도 retire할 수 있다. 해당 record가 있을 때는 confirmation 전후 current Build도
+    nonzero/exact여야 한다.
     승인된 stale record는 원 journal 전체 바이트와 SHA-256, 운영자/현재 PLC identity를 먼저
     `%LOCALAPPDATA%\Elmo\LasalMotionControlApiExample\RecoveryRecordRetirementLedger\v1`에
     immutable entry로 저장한다. current format 3 entry는 source/current DiagnosticsBuild와 endpoint
@@ -1155,6 +1156,10 @@ Axis1 source gate와 fresh LASAL IDE Rebuild/Link는 반영됐지만 PLC downloa
     바이트를 바꾸지 않고 ledger에 별도 `OperatorClassifiedLegacyEndpoint` 증거로 먼저 commit된다.
     metadata 없는 SDO, Digital Output과 다른 diagnostics state는 이 절차의 폐기 대상이 아니다.
     성공하면 quarantine connection을 닫고 앱을 종료하며 같은 process의 reconnect를 금지한다.
+    2026-09-02 수정 전에는 `MaintenanceActionRecoveryJournal`이 공통 retirement 대상 목록,
+    exact-byte evidence capture, resolve dispatch와 startup crash-finalization에 등록되지 않아
+    DS402 Home/Encoder Maintenance identity mismatch가 `Active durable recovery records: none`으로
+    표시되고 영구 차단됐다. 현재는 `RecoveryRecordOwner.MaintenanceAction`으로 전체 경로에 포함한다.
     새 앱에서 reconnect해야 Motion/Power admission을 다시 평가할 수 있다. Axis 1 SDO Write
     source/PC gate와 변경 LASAL 프로젝트의 Rebuild/Link·exact-method
     Implementation-tab/header smoke는 PASS했다.
