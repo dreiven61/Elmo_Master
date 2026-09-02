@@ -64,6 +64,28 @@ jobs:
           }
           Set-Content -LiteralPath $verifier -Value $v -Encoding utf8
 
+          # Current dev links RecoveryRecordRetirementLedger.cs into the API test
+          # project, but the HomeDS402 activation commit made that ledger depend on
+          # MaintenanceActionRecoveryState without linking its defining source.
+          # Close that existing compile gap so the full API suite can run.
+          $testProject = 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/LasalMotionControlLib.Tests.csproj'
+          $projectText = Get-Content -Raw -LiteralPath $testProject
+          if ($projectText -notmatch 'MaintenanceActionRecoveryJournal\.cs') {
+            $anchor = @'
+    <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\RecoveryRecordRetirementLedger.cs">
+      <Link>RecoveryRecordRetirementLedger.cs</Link>
+    </Compile>
+'@
+            $insert = @'
+    <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\MaintenanceActionRecoveryJournal.cs">
+      <Link>MaintenanceActionRecoveryJournal.cs</Link>
+    </Compile>
+'@ + $anchor
+            if (-not $projectText.Contains($anchor)) { throw 'API test project recovery-ledger anchor not found.' }
+            $projectText = $projectText.Replace($anchor, $insert)
+            Set-Content -LiteralPath $testProject -Value $projectText -NoNewline -Encoding utf8
+          }
+
       - name: Verify targeted source invariants
         shell: pwsh
         run: |
@@ -71,6 +93,7 @@ jobs:
           $tcp = Get-Content -Raw 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st'
           $fixture = Get-Content -Raw 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalAxisRebaseBarrier.Fixture.ps1'
           $verifier = Get-Content -Raw 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
+          $project = Get-Content -Raw 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/LasalMotionControlLib.Tests.csproj'
           if ($control -notmatch '#define\s+LMC_OWNER_REBASE_REQUIRED\s+-15') { throw 'Missing control -15 define.' }
           if ($control -notmatch 'rebaseAdmissionAllowed\s*=\s*FALSE\)\s+then\s*Result\s*:=\s*LMC_OWNER_REBASE_REQUIRED') { throw 'Reserve rebase result not dedicated.' }
           if ($tcp -notmatch 'LMC_OWNER_ADAPTER_ERROR_REBASE_REQUIRED\s+-15') { throw 'Missing TCP -15 define.' }
@@ -78,6 +101,7 @@ jobs:
           if ($tcp -notmatch 'Sendbuf\[20\]\$UDINT\s*:=\s*65') { throw 'Admin detail 65 propagation missing.' }
           if ($fixture -notmatch 'rebaseAdmissionAllowed.*LMC_OWNER_REBASE_REQUIRED') { throw 'Rebase negative fixture not updated.' }
           if ($verifier -notmatch 'LMC_OWNER_REBASE_REQUIRED') { throw 'Primary rebase verifier not updated.' }
+          if ($project -notmatch 'MaintenanceActionRecoveryJournal\.cs') { throw 'API test maintenance recovery compile link missing.' }
 
       - name: Axis rebase verifier self-test
         shell: pwsh
