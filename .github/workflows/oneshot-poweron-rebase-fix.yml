@@ -1,0 +1,68 @@
+name: One-shot PowerOn rebase fix
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/oneshot-poweron-rebase-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-validate:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Apply retained rebase diagnostic fix
+        shell: pwsh
+        run: |
+          Set-Variable -Name 1 -Value '${1}'
+          ./tools/Apply-PowerOnRebaseDiagnosticFix.ps1 -RepositoryRoot $PWD
+
+      - name: Verify targeted source invariants
+        shell: pwsh
+        run: |
+          $control = Get-Content -Raw 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
+          $tcp = Get-Content -Raw 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st'
+          if ($control -notmatch '#define\s+LMC_OWNER_REBASE_REQUIRED\s+-15') { throw 'Missing control -15 define.' }
+          if ($control -notmatch 'rebaseAdmissionAllowed\s*=\s*FALSE\)\s+then\s*Result\s*:=\s*LMC_OWNER_REBASE_REQUIRED') { throw 'Reserve rebase result not dedicated.' }
+          if ($tcp -notmatch 'LMC_OWNER_ADAPTER_ERROR_REBASE_REQUIRED\s+-15') { throw 'Missing TCP -15 define.' }
+          if ($tcp -notmatch 'Sendbuf\[14\]\$INT\s*:=\s*LMC_OWNER_ADAPTER_ERROR_REBASE_REQUIRED') { throw 'Axis command -15 propagation missing.' }
+          if ($tcp -notmatch 'Sendbuf\[20\]\$UDINT\s*:=\s*65') { throw 'Admin detail 65 propagation missing.' }
+
+      - name: API Release tests
+        shell: pwsh
+        run: |
+          $msbuild = (Get-Command msbuild.exe -ErrorAction Stop).Source
+          & $msbuild 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/LasalMotionControlLib.Tests.csproj' /t:RunTests /p:Configuration=Release /nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: WPF Debug build
+        shell: pwsh
+        run: |
+          $msbuild = (Get-Command msbuild.exe -ErrorAction Stop).Source
+          & $msbuild 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.sln' /t:Build /p:Configuration=Debug /nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Diff check
+        shell: pwsh
+        run: |
+          git diff --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Commit validated fix and remove one-shot tooling
+        shell: pwsh
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm -f '.github/workflows/oneshot-poweron-rebase-fix.yml' 'tools/Apply-PowerOnRebaseDiagnosticFix.ps1'
+          git add -A
+          git commit -m 'fix: expose retained rebase barrier on PowerOn'
+          git push origin HEAD:dev
