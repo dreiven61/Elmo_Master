@@ -57,22 +57,17 @@ jobs:
           }
           Set-Content -LiteralPath $verifier -Value $v -Encoding utf8
 
-      - name: Print exact self-test call flow
+      - name: Print ordinary safety repeat verifier function
         shell: pwsh
         run: |
           $path = 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
           $lines = Get-Content -LiteralPath $path
-          $patterns = @('ordinaryRepeatSource =', 'ordinaryModeRepeatMissing =', 'ordinary safety-repeat self-test', 'Assert-SourceVerifierRejects', 'Assert-SourceOnly', 'CommonOverride $ordinaryRepeatSource')
-          foreach ($pattern in $patterns) {
-            Write-Host "===== $pattern ====="
-            $matches = Select-String -LiteralPath $path -SimpleMatch $pattern
-            foreach ($m in $matches) {
-              $start = [Math]::Max(1, $m.LineNumber - 80)
-              $end = [Math]::Min($lines.Count, $m.LineNumber + 180)
-              Write-Host "LINES $start..$end (match $($m.LineNumber))"
-              for ($n = $start; $n -le $end; $n++) {
-                Write-Host (("{0,6}: {1}" -f $n, $lines[$n-1]))
-              }
-              Write-Host '-----'
-            }
+          $m = Select-String -LiteralPath $path -SimpleMatch 'function Assert-LasalOrdinarySafetyRepeatContract' | Select-Object -First 1
+          if ($null -eq $m) { throw 'Verifier function not found.' }
+          $start = $m.LineNumber
+          $next = Select-String -LiteralPath $path -Pattern '^function\s+' | Where-Object { $_.LineNumber -gt $start } | Select-Object -First 1
+          $end = if ($null -eq $next) { [Math]::Min($lines.Count, $start + 900) } else { $next.LineNumber - 1 }
+          Write-Host "FUNCTION LINES $start..$end"
+          for ($n = $start; $n -le $end; $n++) {
+            Write-Host (("{0,6}: {1}" -f $n, $lines[$n-1]))
           }
