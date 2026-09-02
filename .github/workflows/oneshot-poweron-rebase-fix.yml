@@ -34,40 +34,22 @@ jobs:
           Set-Content -LiteralPath $helper -Value $helperLines -Encoding utf8
           ./tools/Apply-PowerOnRebaseDiagnosticFix.ps1 -RepositoryRoot $PWD
 
-          $fixture = 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalAxisRebaseBarrier.Fixture.ps1'
-          $f = [Collections.Generic.List[string]](Get-Content -LiteralPath $fixture)
-          for ($i = 0; $i -lt $f.Count; $i++) {
-            if (($f[$i] -match 'rebaseAdmissionAllowed') -and ($f[$i] -match '\)-2''\)')) {
-              $f[$i] = $f[$i].Replace(")-2')", ")LMC_OWNER_REBASE_REQUIRED')")
-            }
-          }
-          Set-Content -LiteralPath $fixture -Value $f -Encoding utf8
-
-          $verifier = 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
-          $v = [Collections.Generic.List[string]](Get-Content -LiteralPath $verifier)
-          $oldNew = @(
-            @("        'Result\s*:=\s*-2\s*;\s*RETURN\s*;\s*end_if\s*;\s*end_if\s*;') (", "        'Result\s*:=\s*LMC_OWNER_REBASE_REQUIRED\s*;\s*RETURN\s*;\s*end_if\s*;\s*end_if\s*;') ("),
-            @("                '(\)\s+then\s*Result\s*:=\s*-2)')", "                '(\)\s+then\s*Result\s*:=\s*LMC_OWNER_REBASE_REQUIRED)')"),
-            @("        'Result\s*:=\s*-2\s*;\s*RETURN\s*;') (", "        'Result\s*:=\s*LMC_OWNER_REBASE_REQUIRED\s*;\s*RETURN\s*;') (")
-          )
-          foreach ($pair in $oldNew) {
-            for ($i = 0; $i -lt $v.Count; $i++) {
-              if ($v[$i] -ceq $pair[0]) { $v[$i] = $pair[1] }
-            }
-          }
-          Set-Content -LiteralPath $verifier -Value $v -Encoding utf8
-
-      - name: Print ordinary safety repeat verifier function
+      - name: Print patched Reserve repeat-return and rebase blocks
         shell: pwsh
         run: |
-          $path = 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
+          $path = 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
           $lines = Get-Content -LiteralPath $path
-          $m = Select-String -LiteralPath $path -SimpleMatch 'function Assert-LasalOrdinarySafetyRepeatContract' | Select-Object -First 1
-          if ($null -eq $m) { throw 'Verifier function not found.' }
-          $start = $m.LineNumber
-          $next = Select-String -LiteralPath $path -Pattern '^function\s+' | Where-Object { $_.LineNumber -gt $start } | Select-Object -First 1
-          $end = if ($null -eq $next) { [Math]::Min($lines.Count, $start + 900) } else { $next.LineNumber - 1 }
-          Write-Host "FUNCTION LINES $start..$end"
-          for ($n = $start; $n -le $end; $n++) {
-            Write-Host (("{0,6}: {1}" -f $n, $lines[$n-1]))
+          $patterns = @('if repeatMode > 0 then', 'rebaseAdmissionAllowed', 'LMC_OWNER_REBASE_REQUIRED')
+          foreach ($pattern in $patterns) {
+            Write-Host "===== $pattern ====="
+            $matches = Select-String -LiteralPath $path -SimpleMatch $pattern
+            foreach ($m in $matches) {
+              $start = [Math]::Max(1, $m.LineNumber - 55)
+              $end = [Math]::Min($lines.Count, $m.LineNumber + 85)
+              Write-Host "LINES $start..$end (match $($m.LineNumber))"
+              for ($n = $start; $n -le $end; $n++) {
+                Write-Host (("{0,6}: {1}" -f $n, $lines[$n-1]))
+              }
+              Write-Host '-----'
+            }
           }
