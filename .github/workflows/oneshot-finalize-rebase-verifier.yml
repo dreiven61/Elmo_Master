@@ -1,0 +1,233 @@
+name: One-shot finalize rebase verifier
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/oneshot-finalize-rebase-verifier.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  finalize-and-validate:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Align compact Reserve verifier exactly
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $path = 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
+          $v = [Collections.Generic.List[string]](Get-Content -LiteralPath $path)
+
+          function Replace-ExactLine {
+            param([string]$Old,[string]$New,[string]$Name)
+            $hits = @()
+            for($i=0;$i -lt $v.Count;$i++){ if($v[$i] -ceq $Old){ $hits += $i } }
+            if($hits.Count -ne 1){ throw "$Name expected one exact line, found $($hits.Count)." }
+            $v[$hits[0]] = $New
+          }
+
+          function Replace-BlockEndingWith {
+            param([string]$EndNeedle,[string[]]$Replacement,[string]$Name)
+            $endHits=@()
+            for($i=0;$i -lt $v.Count;$i++){ if($v[$i] -like "*$EndNeedle*"){ $endHits += $i } }
+            if($endHits.Count -ne 1){ throw "$Name end expected once, found $($endHits.Count)." }
+            $end=$endHits[0]
+            $start=-1
+            for($i=$end;$i -ge [Math]::Max(0,$end-40);$i--){
+              if($v[$i].Trim() -ceq 'Assert-Match $scan ('){ $start=$i; break }
+            }
+            if($start -lt 0){ throw "$Name start not found." }
+            $before=if($start -gt 0){@($v[0..($start-1)])}else{@()}
+            $after=if($end+1 -lt $v.Count){@($v[($end+1)..($v.Count-1)])}else{@()}
+            $script:v=[Collections.Generic.List[string]]@($before+$Replacement+$after)
+          }
+
+          $repeatAssertion = @(
+            '    Assert-Match $scan (',
+            "        '(?is)if\\s+repeatMode\\s*>\\s*0\\s+then.*?' +",
+            "        'if\\s+repeatPreemptCopyResult\\s*<>\\s*-4\\s+then\\s*' +",
+            "        'OwnershipState\\[24\\]\\s*:=\\s*1\\s*;\\s*' +",
+            "        'Result\\s*:=\\s*-3\\s*;\\s*RETURN\\s*;\\s*end_if\\s*;.*?' +",
+            "        'pEffectiveAxisMask\\^\\s*:=\\s*repeatAxisMask\\s*;\\s*' +",
+            "        'pAdmissionToken\\^\\s*:=\\s*repeatAdmissionToken\\s*;\\s*' +",
+            "        'pOwnerGeneration\\^\\s*:=\\s*repeatOwnerGeneration\\s*;\\s*' +",
+            "        'if\\s+CommandId\\s*=\\s*0x7D23\\s+then\\s*' +",
+            "        'if\\s+CallerSessionEpoch\\s*<>\\s*0\\s+then\\s*' +",
+            "        'pEffectiveAxisMask\\^\\s*:=\\s*pEffectiveAxisMask\\^\\s+OR\\s+0x01000000\\s*;\\s*end_if\\s*;\\s*' +",
+            "        'if\\s+RequestSequence\\s*<>\\s*0\\s+then\\s*' +",
+            "        'pEffectiveAxisMask\\^\\s*:=\\s*pEffectiveAxisMask\\^\\s+OR\\s+0x02000000\\s*;\\s*end_if\\s*;\\s*' +",
+            "        'if\\s+repeatAdmissionToken\\s*<>\\s*0\\s+then\\s*' +",
+            "        'pEffectiveAxisMask\\^\\s*:=\\s*pEffectiveAxisMask\\^\\s+OR\\s+0x04000000\\s*;\\s*end_if\\s*;\\s*' +",
+            "        'if\\s+repeatOwnerGeneration\\s*<>\\s*0\\s+then\\s*' +",
+            "        'pEffectiveAxisMask\\^\\s*:=\\s*pEffectiveAxisMask\\^\\s+OR\\s+0x08000000\\s*;\\s*end_if\\s*;\\s*' +",
+            "        'if\\s+repeatAxisMask\\s*<>\\s*0\\s+then\\s*' +",
+            "        'pEffectiveAxisMask\\^\\s*:=\\s*pEffectiveAxisMask\\^\\s+OR\\s+0x10000000\\s*;\\s*end_if\\s*;\\s*' +",
+            "        'end_if\\s*;\\s*Result\\s*:=\\s*repeatMode\\s*;\\s*RETURN\\s*;\\s*end_if\\s*;') (",
+            '        "$blocker repeat proof or mutation-free output publication drifted.")'
+          )
+          Replace-BlockEndingWith 'repeat proof or mutation-free output publication drifted.' $repeatAssertion 'Repeat assertion'
+
+          Replace-ExactLine '    if (($persistentMutations.Count -ne 110) -or' '    if (($persistentMutations.Count -ne 120) -or' 'Mutation count'
+          Replace-ExactLine '        ($joinedMutations.Length -ne 7306) -or' '        ($joinedMutations.Length -ne 7846) -or' 'Mutation length'
+          Replace-ExactLine "            'BBBDA2CFB2BD1763D08D26EC7AF10E0CC18D0A57DEF34A91461B1ABA56869361')) {" "            '4F72064EA5ADD31426336B89748DE5FE9797239669B85B3B7DCAD82DFBD5B13E')) {" 'Mutation hash'
+          Replace-ExactLine '            "$($persistentMutations.Count)/110, " +' '            "$($persistentMutations.Count)/120, " +' 'Mutation count message'
+          Replace-ExactLine '            "$($joinedMutations.Length)/7306, $mutationSha256).")' '            "$($joinedMutations.Length)/7846, $mutationSha256).")' 'Mutation length message'
+
+          $markerStart=-1
+          for($i=0;$i -lt $v.Count;$i++){ if($v[$i].Trim() -ceq '$mutationMarkers = [ordered]@{'){ $markerStart=$i; break } }
+          if($markerStart -lt 0){ throw 'Mutation marker block start not found.' }
+          $markerEnd=-1
+          for($i=$markerStart+1;$i -lt [Math]::Min($v.Count,$markerStart+80);$i++){ if($v[$i].Trim() -ceq '}'){ $markerEnd=$i; break } }
+          if($markerEnd -lt 0){ throw 'Mutation marker block end not found.' }
+          $markers=@(
+            '    $mutationMarkers = [ordered]@{',
+            "        0 = 'peffectiveaxismask^:=0;'",
+            "        1 = 'padmissiontoken^:=0;'",
+            "        2 = 'pownergeneration^:=0;'",
+            "        12 = 'peffectiveaxismask^:=repeataxismask;'",
+            "        14 = 'pownergeneration^:=repeatownergeneration;'",
+            "        15 = 'peffectiveaxismask^:=peffectiveaxismask^or0x01000000;'",
+            "        16 = 'peffectiveaxismask^:=peffectiveaxismask^or0x02000000;'",
+            "        17 = 'peffectiveaxismask^:=peffectiveaxismask^or0x04000000;'",
+            "        18 = 'peffectiveaxismask^:=peffectiveaxismask^or0x08000000;'",
+            "        19 = 'peffectiveaxismask^:=peffectiveaxismask^or0x10000000;'",
+            "        20 = 'ownershipleaseidentitystate[lmc_owner_lease_identity_header_base]:=0;'",
+            "        26 = ('ownershipleaseidentitystate[' +",
+            "              'lmc_owner_lease_identity_header_base]$udint:=' +",
+            "              'lmc_owner_lease_identity_magic;')",
+            "        27 = ('ownershippreemptedidentitystate[' +",
+            "              'lmc_owner_preempt_header_base]:=0;')",
+            "        43 = ('ownershippreemptedidentitystate[' +",
+            "              'lmc_owner_preempt_header_base]$udint:=' +",
+            "              'lmc_owner_preempt_identity_magic;')",
+            "        44 = 'ownershipstate[1]$udint:=nexttoken;'",
+            "        45 = 'ownershipstate[2]$udint:=nextgeneration;'",
+            "        46 = 'ownershipidentitystate[identityheaderbase]:=0;'",
+            "        47 = ('ownershipidentitystate[' +",
+            "              'lmc_owner_identity_group_header_base]:=0;')",
+            "        79 = ('ownershipstate[recordbase+35]$udint:=' +",
+            "              'lmc_owner_axis_record_magic+to_udint(axisindex);')",
+            "        92 = ('ownershipidentitystate[identityheaderbase]$udint:=' +",
+            "              'lmc_owner_identity_axis_magic+to_udint(axisindex);')",
+            "        102 = ('ownershipidentitystate[identityheaderbase]$udint:=' +",
+            "               'lmc_owner_identity_group_magic;')",
+            "        103 = 'ownershipstate[7]$udint:=nexttoken;'",
+            "        111 = 'ownershipstate[15]$udint:=effectiveaxismask;'",
+            "        112 = 'peffectiveaxismask^:=effectiveaxismask;'",
+            "        114 = 'pownergeneration^:=nextgeneration;'",
+            "        115 = 'peffectiveaxismask^:=peffectiveaxismask^or0x01000000;'",
+            "        116 = 'peffectiveaxismask^:=peffectiveaxismask^or0x02000000;'",
+            "        117 = 'peffectiveaxismask^:=peffectiveaxismask^or0x04000000;'",
+            "        118 = 'peffectiveaxismask^:=peffectiveaxismask^or0x08000000;'",
+            "        119 = 'peffectiveaxismask^:=peffectiveaxismask^or0x10000000;'",
+            '    }'
+          )
+          $before=if($markerStart -gt 0){@($v[0..($markerStart-1)])}else{@()}
+          $after=if($markerEnd+1 -lt $v.Count){@($v[($markerEnd+1)..($v.Count-1)])}else{@()}
+          $v=[Collections.Generic.List[string]]@($before+$markers+$after)
+
+          Replace-ExactLine '    $firstCapturePosition = $persistentMutations[15].Index' '    $firstCapturePosition = $persistentMutations[20].Index' 'First capture index'
+          Replace-ExactLine "        'pOwnerGeneration^ := repeatOwnerGeneration;')" "        'Result := repeatMode;')" 'Repeat exit position'
+
+          $resultStart=-1
+          for($i=0;$i -lt $v.Count;$i++){ if($v[$i].Trim() -ceq '$expectedResultSequence = ('){ $resultStart=$i; break } }
+          if($resultStart -lt 0){ throw 'Expected result sequence start not found.' }
+          $resultIf=-1
+          for($i=$resultStart+1;$i -lt [Math]::Min($v.Count,$resultStart+20);$i++){ if($v[$i].Trim() -ceq 'if ($resultSequence -cne $expectedResultSequence) {'){ $resultIf=$i; break } }
+          if($resultIf -lt 0){ throw 'Expected result sequence end not found.' }
+          $resultReplacement=@(
+            "    `$expectedResultSequence = '-1|-3|-2|-3|-3|-2|-3|-3|lmc_owner_rebase_required|-3|-3|-3|-3|-3|-3|-3|-2|-2|-2|-3|-3|-3|-3|-3|-3|-3|-3|-2|-3|-3|-2|-3|-3|-2|-3|-3|-2|-3|-3|-3|-3|-3|-3|-3|-3|-2|-3|-2|-3|-2|-3|-3|-3|-3|-3|repeatmode|0'"
+          )
+          $before=if($resultStart -gt 0){@($v[0..($resultStart-1)])}else{@()}
+          $after=@($v[$resultIf..($v.Count-1)])
+          $v=[Collections.Generic.List[string]]@($before+$resultReplacement+$after)
+
+          Replace-ExactLine '        ($controlFlowInventory.Length -ne 1274) -or' '        ($controlFlowInventory.Length -ne 1297) -or' 'Control flow length'
+          Replace-ExactLine "            '2034600098F29E2A61578697990FCFDE642E91DB0564D210A5D0FA1FE3732C4A')) {" "            'D0C71F694ED58D35CCD9C7C28DD48D8A2C725D2689A4D0EC7A2BE9004FD9BE89')) {" 'Control flow hash'
+          Replace-ExactLine '            "$($controlFlowInventory.Length)/1274, $controlFlowSha256).")' '            "$($controlFlowInventory.Length)/1297, $controlFlowSha256).")' 'Control flow length message'
+
+          $freshAssertion=@(
+            '    Assert-Match $scan (',
+            "        '(?is)case\\s+ResourceKind\\s+of\\s*' +",
+            "        'LMC_OWNER_RESOURCE_LMC_HOME_ENGINE\\s*:.*?' +",
+            "        'OwnershipState\\[7\\]\\$UDINT\\s*:=\\s*nextToken\\s*;.*?' +",
+            "        'LMC_OWNER_RESOURCE_DS402_HOME_ENGINE\\s*:.*?' +",
+            "        'OwnershipState\\[10\\]\\$UDINT\\s*:=\\s*nextToken\\s*;.*?' +",
+            "        'LMC_OWNER_RESOURCE_DIAGNOSTICS_SDO_ENGINE\\s*:.*?' +",
+            "        'OwnershipState\\[13\\]\\$UDINT\\s*:=\\s*nextToken\\s*;.*?' +",
+            "        'end_case\\s*;\\s*pEffectiveAxisMask\\^\\s*:=\\s*effectiveAxisMask\\s*;\\s*' +",
+            "        'pAdmissionToken\\^\\s*:=\\s*nextToken\\s*;\\s*' +",
+            "        'pOwnerGeneration\\^\\s*:=\\s*nextGeneration\\s*;\\s*' +",
+            "        'if\\s+CommandId\\s*=\\s*0x7D23\\s+then\\s*' +",
+            "        'if\\s+CallerSessionEpoch\\s*<>\\s*0\\s+then\\s*' +",
+            "        'pEffectiveAxisMask\\^\\s*:=\\s*pEffectiveAxisMask\\^\\s+OR\\s+0x01000000\\s*;\\s*end_if\\s*;\\s*' +",
+            "        'if\\s+RequestSequence\\s*<>\\s*0\\s+then\\s*' +",
+            "        'pEffectiveAxisMask\\^\\s*:=\\s*pEffectiveAxisMask\\^\\s+OR\\s+0x02000000\\s*;\\s*end_if\\s*;\\s*' +",
+            "        'if\\s+nextToken\\s*<>\\s*0\\s+then\\s*' +",
+            "        'pEffectiveAxisMask\\^\\s*:=\\s*pEffectiveAxisMask\\^\\s+OR\\s+0x04000000\\s*;\\s*end_if\\s*;\\s*' +",
+            "        'if\\s+nextGeneration\\s*<>\\s*0\\s+then\\s*' +",
+            "        'pEffectiveAxisMask\\^\\s*:=\\s*pEffectiveAxisMask\\^\\s+OR\\s+0x08000000\\s*;\\s*end_if\\s*;\\s*' +",
+            "        'if\\s+effectiveAxisMask\\s*<>\\s*0\\s+then\\s*' +",
+            "        'pEffectiveAxisMask\\^\\s*:=\\s*pEffectiveAxisMask\\^\\s+OR\\s+0x10000000\\s*;\\s*end_if\\s*;\\s*' +",
+            "        'end_if\\s*;\\s*Result\\s*:=\\s*0\\s*;\\s*END_FUNCTION\\s*$') (",
+            '        "$blocker singleton and final output publication order drifted.")'
+          )
+          Replace-BlockEndingWith 'singleton and final output publication order drifted.' $freshAssertion 'Fresh publication assertion'
+
+          Replace-ExactLine '    if (($semanticTokens.Length -ne 62026) -or' '    if (($semanticTokens.Length -ne 63784) -or' 'Semantic length'
+          Replace-ExactLine "            '047F9C6F409867DEC796147EEFC028E2B1C1482AD7F25D5362683A9327354E8A')) {" "            '309B69AAC29FA98CFF62291D156BFA9C9A958A2FB0937EA3A244373E9526FF38')) {" 'Semantic hash'
+          Replace-ExactLine '            "$($semanticTokens.Length)/62026, $semanticSha256).")' '            "$($semanticTokens.Length)/63784, $semanticSha256).")' 'Semantic message'
+
+          Replace-ExactLine '    if (($lexicalTokens.Count -ne 12015) -or' '    if (($lexicalTokens.Count -ne 12368) -or' 'Lexical count'
+          Replace-ExactLine '        ($lexicalInventory.Length -ne 74040) -or' '        ($lexicalInventory.Length -ne 76151) -or' 'Lexical length'
+          Replace-ExactLine "            'F1F1C9AA83A139E00B19408461594F190E4AA67956E08DC413B9DC7B943B9563')) {" "            'E46C66F9E46A0D1C83BD3BEAF402F987EB1F30970B5BF3CB6D35CBF96A957925')) {" 'Lexical hash'
+          Replace-ExactLine '            "$($lexicalTokens.Count)/12015, " +' '            "$($lexicalTokens.Count)/12368, " +' 'Lexical count message'
+          Replace-ExactLine '            "$($lexicalInventory.Length)/74040, $lexicalSha256).")' '            "$($lexicalInventory.Length)/76151, $lexicalSha256).")' 'Lexical length message'
+
+          Set-Content -LiteralPath $path -Value $v -Encoding utf8
+
+      - name: Commit verifier contract
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
+          git diff --cached --check
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          git commit -m 'test: finalize retained rebase Reserve verifier'
+          git push origin HEAD:dev
+
+      - name: API Release tests
+        shell: pwsh
+        run: |
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
+          $msbuild = @(& $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe') | Select-Object -First 1
+          if([string]::IsNullOrWhiteSpace($msbuild)){throw 'MSBuild.exe not found.'}
+          & $msbuild 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/LasalMotionControlLib.Tests.csproj' /t:RunTests /p:Configuration=Release /nologo
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+
+      - name: WPF Debug build
+        shell: pwsh
+        run: |
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
+          $msbuild = @(& $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe') | Select-Object -First 1
+          if([string]::IsNullOrWhiteSpace($msbuild)){throw 'MSBuild.exe not found.'}
+          & $msbuild 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.sln' /t:Build /p:Configuration=Debug /nologo
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+
+      - name: Clean working tree
+        shell: pwsh
+        run: |
+          git diff --check
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          if(-not [string]::IsNullOrWhiteSpace((git status --porcelain))){throw 'Working tree is not clean.'}
