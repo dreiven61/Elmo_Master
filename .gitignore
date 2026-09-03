@@ -90,6 +90,7 @@ EtherCAT Controller(Master)*.xlsx
 /Lasal_PRG/Elmo_EtherCAT_Test_4Axis_Edit/
 /Lasal_PRG/Elmo_EtherCAT_Test_4Axis - 복사본/
 /Lasal_PRG/Welcon_EtherCAT_Test_2Axis
+/Lasal_PRG/Elmo_EtherCAT_Test_2Axis/
 
 # Additional LASAL IDE output that is not project source or topology
 Lasal_PRG/**/TempPreview/
