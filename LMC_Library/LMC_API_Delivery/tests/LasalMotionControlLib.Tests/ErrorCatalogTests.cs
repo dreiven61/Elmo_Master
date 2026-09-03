@@ -26,6 +26,24 @@ namespace LasalMotionControlLib.Tests
             tests.Add(
                 "ErrorCatalog.InvalidDomain.FailClosed",
                 InvalidDomainFailClosed);
+            tests.Add(
+                "ErrorCatalog.PowerRecovery.DoesNotPrescribeHomeOrReplay",
+                PowerRecoveryDoesNotPrescribeHomeOrReplay);
+        }
+
+        private static void PowerRecoveryDoesNotPrescribeHomeOrReplay()
+        {
+            LMCErrorDescription conflict;
+            LMCErrorDescription rebase;
+            AssertEx.True(LMCErrorCatalog.TryDescribe(
+                LMCErrorDomain.AdapterCommand, -9, out conflict));
+            AssertEx.True(LMCErrorCatalog.TryDescribe(
+                LMCErrorDomain.AdapterCommand, -15, out rebase));
+            AssertEx.True(conflict.Description.Contains("quarantined"));
+            AssertEx.True(rebase.Description.Contains("does not require Home"));
+            AssertEx.True(conflict.Resolution.Contains("do not replay Power On"));
+            AssertEx.False(conflict.Resolution.Contains("retry once"));
+            AssertEx.False(rebase.Resolution.Contains("then retry Power On"));
         }
 
         private static void AdapterKnownAndUnknown()

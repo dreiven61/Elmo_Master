@@ -1,5 +1,14 @@
 # Elmo Master 현재 아키텍처 및 릴리스 상태 재분석
 
+- 2026-09-03 scoped source update: 단축 Power On의 Home/rebase 선행조건을 제거하고,
+  안정적인 Power Off + Standstill 후 drive alarm만으로 ownership이 영구 격리되던
+  종료 분류를 수정했다. 기존 격리 강제 해제/자동 재전송은 없다.
+  후속 BootId 137 시험에서 새 Power On을 safety-repeat helper가 오분류하여
+  RESERVED로 남기는 별도 결함을 확인하고 first-dispatch 경로를 추가 수정했다.
+  [수정 및 재검증 범위](LASAL_SERVO_POWER_LIFECYCLE_FIX_2026-09-03.md)를 따른다.
+  앞선 버전의 사용자 IDE build/download는 성공했지만 Servo On은 실패했다.
+  이번 추가 수정의 IDE build/download 및 PLC/실축 검증은 아직 수행하지 않았다.
+
 - 감사일: 2026-07-16
 - **2026-08-20 13:06 artifact override:** 마지막 IDE Rebuild/Download가
   `Class/Classes.lcb`를 `8,610,206` bytes / SHA-256

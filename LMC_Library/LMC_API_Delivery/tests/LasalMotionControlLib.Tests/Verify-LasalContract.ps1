@@ -14325,6 +14325,28 @@ function Assert-LasalOrdinarySafetyRepeatContract {
         'Result\s*:=\s*LMC_OWNER_SAFETY_REPEAT_NOT_APPLICABLE\s*;\s*' +
         'RETURN\s*;\s*end_if\s*;') (
         "$blocker exact first RESERVED dispatch must fall through via sentinel -11.")
+    Assert-Match $helper (
+        '(?is)firstDispatchAdmissionMode\s*:=\s*LMC_OWNER_ADMISSION_SAFETY\s*;.*?' +
+        'firstDispatchShapeValid\s*:=\s*' +
+        '\(\(pRequestFrame\s*\+\s*8\)\^\$UDINT\s*=\s*1\)\s*&\s*' +
+        '\(\(pRequestFrame\s*\+\s*12\)\^\s*=\s*1\)\s*&\s*' +
+        '\(\(pRequestFrame\s*\+\s*13\)\^\s*=\s*1\)\s*&\s*' +
+        '\(\(pRequestFrame\s*\+\s*14\)\^\s*=\s*0\)\s*&\s*' +
+        '\(\(pRequestFrame\s*\+\s*15\)\^\s*=\s*1\)\s*;\s*' +
+        'if\s+firstDispatchShapeValid\s+then\s*' +
+        'firstDispatchAdmissionMode\s*:=\s*LMC_OWNER_ADMISSION_ORDINARY\s*;') (
+        "$blocker fresh PowerOn needs its exact shape and ordinary admission mode.")
+    Assert-Match $helper (
+        '(?is)firstDispatchShapeValid\s*:=\s*firstDispatchShapeValid\s*\|\s*repeatShapeValid\s*;.*?' +
+        'repeatValid\s*:=\s*firstDispatchShapeValid\s*&.*?' +
+        'AdmissionMode\s*:=\s*firstDispatchAdmissionMode\s*,.*?' +
+        'RequiredPhase\s*:=\s*LMC_OWNER_PHASE_RESERVED\s*,') (
+        "$blocker fresh PowerOn must reach exact RESERVED identity validation.")
+    Assert-Match $helper (
+        '(?is)if\s+repeatFresh\s+then\s*' +
+        'Result\s*:=\s*LMC_OWNER_SAFETY_REPEAT_NOT_APPLICABLE\s*;\s*RETURN\s*;\s*end_if\s*;\s*' +
+        'repeatValid\s*:=\s*repeatValid\s*&\s*repeatShapeValid\s*;') (
+        "$blocker PowerOn must never enter safety repeat coalescing or escalation.")
     if ($helper -match
         '(?i)\b(?:Reserve|Commit|Rollback)AxisOwnership\s*\(') {
         throw "$blocker repeat helper must not reserve, commit, or roll back ownership."
@@ -15874,7 +15896,6 @@ function Assert-LasalAxisRebaseBarrierContract {
     }
     $helperGuard = $helper.Substring(0, $repeatCase.Index)
     foreach ($pattern in @(
-            '0x2023\s*:\s*if\s*\(RequestFrameSize\s*=\s*16\).*?\(pRequestFrame\s*\+\s*12\)\^\s*=\s*1',
             '0x209F\s*,\s*0x20A0\s*:\s*if\s*\(RequestFrameSize\s*=\s*40\)',
             '0x20A2\s*:\s*if\s*\(RequestFrameSize\s*=\s*32\)',
             '0x2047\s*,\s*0x204A\s*:.*?\(pRequestFrame\s*\+\s*8\)\^\s*=\s*1',
@@ -15884,7 +15905,7 @@ function Assert-LasalAxisRebaseBarrierContract {
             "$blocker guarded mutation shape is missing: $pattern")
     }
     foreach ($allowedCommand in @(
-            '0x2022', '0x2024', '0x2048', '0x2049', '0x204B', '0x2085',
+            '0x2022', '0x2023', '0x2024', '0x2048', '0x2049', '0x204B', '0x2085',
             '0x20E7', '0x7D13', '0x7D18', '0x7D19',
             '0x7E53', '0x7E54', '0x7E55')) {
         if ($helperGuard -match ('(?<![A-Fa-f0-9])' + $allowedCommand + '(?![A-Fa-f0-9])')) {
@@ -15949,7 +15970,11 @@ function Assert-LasalAxisRebaseBarrierContract {
         '(?is)rebaseReadResult\s*:=\s*ReadAxisRebaseRequiredMask\(\)\s*;\s*' +
         'rebaseAxisMask\s*:=\s*TO_UDINT\(rebaseReadResult\)\s*;.*?' +
         'rebaseAdmissionAllowed\s*:=\s*' +
-        '\(AdmissionMode\s*=\s*LMC_OWNER_ADMISSION_SAFETY\).*?' +
+        '\(AdmissionMode\s*=\s*LMC_OWNER_ADMISSION_SAFETY\)\s*\|\s*' +
+        '\(\(CommandId\s*=\s*LMC_OWNER_COMMAND_AXIS_POWER\)\s*&\s*' +
+        '\(OwnerKind\s*=\s*LMC_OWNER_KIND_DIRECT\)\s*&\s*' +
+        '\(ResourceKind\s*=\s*LMC_OWNER_RESOURCE_AXIS\)\s*&\s*' +
+        '\(AdmissionMode\s*=\s*LMC_OWNER_ADMISSION_ORDINARY\)\)\s*\|.*?' +
         '\(CommandId\s*=\s*0x7D13\).*?' +
         '\(CommandId\s*=\s*0x7E53\).*?' +
         '\(CommandId\s*=\s*0x2024\)\s*\|\s*' +
@@ -43372,6 +43397,8 @@ if ($DiagnosticsMethodSplitVerifierSelfTestOnly) {
 
 $axisRebaseBarrierNegativeFixtureCount =
     Invoke-LasalAxisRebaseBarrierVerifierSelfTest
+& (Join-Path $PSScriptRoot 'Verify-LasalServoPowerLifecycle.ps1') `
+    -RepositoryRoot $RepositoryRoot
 if ($AxisRebaseBarrierVerifierSelfTestOnly) {
     Write-Host (
         'PASS LASAL.AxisRebaseBarrierVerifier.SelfTest (' +

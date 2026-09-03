@@ -52,10 +52,10 @@ namespace LasalMotionControlLib
     /// </summary>
     public static class LMCErrorCatalog
     {
-        public const uint CurrentCatalogVersion = 3;
+        public const uint CurrentCatalogVersion = 4;
 
         public const string AdapterSourceVersion =
-            "Elmo_Master TCPMotionInterface local errors v3";
+            "Elmo_Master TCPMotionInterface local errors v4";
 
         public const string DiagnosticsSourceVersion =
             "Elmo_Master diagnostics schema v1";
@@ -182,16 +182,16 @@ namespace LasalMotionControlLib
                 LMCErrorDomain.AdapterCommand,
                 -9,
                 "AxisOwnershipConflict",
-                "The requested axes are reserved by another active or retained operation.",
-                "Read the current operation outcome, wait for its ownership to retire, then retry once.",
+                "Axis admission was rejected: an active or retained owner, incomplete initialization, or quarantined ownership may be blocking it.",
+                "Inspect ownership state and the last operation outcome. Waiting alone does not clear quarantine; do not replay Power On or force-clear ownership flags.",
                 AdapterSourceVersion);
             Add(
                 entries,
                 LMCErrorDomain.AdapterCommand,
                 -15,
                 "AxisRebaseRequired",
-                "The selected axis has a retained current-position rebase barrier, so Power On or motion admission is blocked.",
-                "Keep the axis Power Off and Standstill, execute exact LMC Home (current-position-zero) to terminal success and retire it, then retry Power On once.",
+                "The selected axis has a retained coordinate rebase barrier. Coordinate-dependent commands remain blocked; single-axis Power On does not require Home completion in the corrected PLC implementation.",
+                "Check the deployed PLC version if Power On returns this code. For coordinate recovery, use the approved referencing procedure; do not zero the current position merely to enable the servo.",
                 AdapterSourceVersion);
 
             return entries;

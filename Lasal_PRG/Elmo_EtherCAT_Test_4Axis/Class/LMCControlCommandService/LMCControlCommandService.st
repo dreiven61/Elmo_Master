@@ -886,6 +886,8 @@ FUNCTION LMCControlCommandService::HandleAxisOwnershipSafetyRepeat
 		responseError : DINT;
 		repeatEligible : BOOL;
 		repeatShapeValid : BOOL;
+		firstDispatchShapeValid : BOOL;
+		firstDispatchAdmissionMode : UINT;
 		repeatFound : BOOL;
 		repeatValid : BOOL;
 		repeatFresh : BOOL;
@@ -927,6 +929,8 @@ FUNCTION LMCControlCommandService::HandleAxisOwnershipSafetyRepeat
 	end_if;
 	repeatEligible := FALSE;
 	repeatShapeValid := FALSE;
+	firstDispatchShapeValid := FALSE;
+	firstDispatchAdmissionMode := LMC_OWNER_ADMISSION_SAFETY;
 	referenceAxisMask := 0;
 	case Reference of
 		1: referenceAxisMask := 0x00000001;
@@ -948,19 +952,8 @@ FUNCTION LMCControlCommandService::HandleAxisOwnershipSafetyRepeat
 		rebaseMutation := FALSE;
 		rebaseShapeValid := FALSE;
 		case CommandId of
-			0x2023:
-				if (RequestFrameSize = 16) &
-				   (referenceAxisMask <> 0) &
-				   (referenceAxisMask <= LMC_AXIS_REBASE_STATE_AXIS_MASK) then
-					rebaseShapeValid :=
-						((pRequestFrame + 8)^$UDINT = 1) &
-						((pRequestFrame + 12)^ = 1) &
-						((pRequestFrame + 13)^ = 1) &
-						((pRequestFrame + 14)^ = 0) &
-						((pRequestFrame + 15)^ = 1);
-					rebaseMutation := rebaseShapeValid;
-					rebaseTargetMask := referenceAxisMask;
-				end_if;
+			// Axis Power does not establish a coordinate reference. Its exact
+			// shape and ownership are still checked by the normal dispatcher.
 			0x209F, 0x20A0:
 				if (RequestFrameSize = 40) &
 				   (referenceAxisMask <> 0) &
@@ -1102,6 +1095,17 @@ FUNCTION LMCControlCommandService::HandleAxisOwnershipSafetyRepeat
 					((pRequestFrame + 13)^ = 1) &
 					((pRequestFrame + 14)^ = 0) &
 					((pRequestFrame + 15)^ = 1);
+				// PowerOn shares the command id, but is not a safety repeat.
+				// Only its exact fresh RESERVED identity may fall through.
+				firstDispatchShapeValid :=
+					((pRequestFrame + 8)^$UDINT = 1) &
+					((pRequestFrame + 12)^ = 1) &
+					((pRequestFrame + 13)^ = 1) &
+					((pRequestFrame + 14)^ = 0) &
+					((pRequestFrame + 15)^ = 1);
+				if firstDispatchShapeValid then
+					firstDispatchAdmissionMode := LMC_OWNER_ADMISSION_ORDINARY;
+				end_if;
 			end_if;
 		LMC_OWNER_COMMAND_GROUP_DISABLE:
 			repeatEligible := TRUE;
@@ -1131,11 +1135,12 @@ FUNCTION LMCControlCommandService::HandleAxisOwnershipSafetyRepeat
 		RETURN;
 	end_if;
 
-	// From this point a supplied safety lineage is consumed here. It must
-	// never fall through into the fresh reservation commit/rollback path.
+	// Only a validated first dispatch may return to the normal lifecycle.
+	// All other supplied lineages are consumed here without native replay.
+	firstDispatchShapeValid := firstDispatchShapeValid | repeatShapeValid;
 	Result := -1;
 	repeatFound := FALSE;
-	repeatValid := repeatShapeValid &
+	repeatValid := firstDispatchShapeValid &
 		(OwnershipState[0]$UDINT = LMC_OWNER_TABLE_MAGIC) &
 		(OwnershipState[3]$UDINT <> 0) & (OwnershipState[24] = 0);
 	leaderRecordBase := -1;
@@ -1191,7 +1196,7 @@ FUNCTION LMCControlCommandService::HandleAxisOwnershipSafetyRepeat
 			ExpectedAxisMask:=oldAxisMask,
 			OwnerKind:=oldOwnerKind$UINT,
 			ResourceKind:=LMC_OWNER_RESOURCE_AXIS,
-			AdmissionMode:=LMC_OWNER_ADMISSION_SAFETY,
+			AdmissionMode:=firstDispatchAdmissionMode,
 			CallerSessionEpoch:=CallerSessionEpoch,
 			RequestSequence:=RequestSequence,
 			AdmissionToken:=AdmissionToken,
@@ -1205,6 +1210,8 @@ FUNCTION LMCControlCommandService::HandleAxisOwnershipSafetyRepeat
 		Result := LMC_OWNER_SAFETY_REPEAT_NOT_APPLICABLE;
 		RETURN;
 	end_if;
+	// A PowerOn that is not an exact first dispatch cannot coalesce/escalate.
+	repeatValid := repeatValid & repeatShapeValid;
 	if repeatValid & (oldState = LMC_OWNER_STATE_RESERVED) then
 		repeatValid := FALSE;
 	end_if;
@@ -2955,6 +2962,10 @@ FUNCTION GLOBAL LMCControlCommandService::ReserveAxisOwnership
 		rebaseAxisMask := TO_UDINT(rebaseReadResult);
 		rebaseAdmissionAllowed :=
 			(AdmissionMode = LMC_OWNER_ADMISSION_SAFETY) |
+			((CommandId = LMC_OWNER_COMMAND_AXIS_POWER) &
+			 (OwnerKind = LMC_OWNER_KIND_DIRECT) &
+			 (ResourceKind = LMC_OWNER_RESOURCE_AXIS) &
+			 (AdmissionMode = LMC_OWNER_ADMISSION_ORDINARY)) |
 			((CommandId = 0x7D13) &
 			 (OwnerKind = LMC_OWNER_KIND_LMC_HOME) &
 			 (ResourceKind = LMC_OWNER_RESOURCE_LMC_HOME_ENGINE)) |
@@ -7617,7 +7628,9 @@ FUNCTION GLOBAL LMCControlCommandService::ProcessAxisOwnership
 									0x2023:
 										if admissionMode =
 										   LMC_OWNER_ADMISSION_SAFETY then
-											terminalCandidate := allPowerOff;
+											// Power Off completes at a proven stopped, disabled
+											// state. A drive alarm need not be reset to power off.
+											terminalCandidate := allPowerOff & allStandstill;
 										else
 											terminalCandidate := allPowerOn &
 												allErrorClear;
@@ -7682,10 +7695,19 @@ FUNCTION GLOBAL LMCControlCommandService::ProcessAxisOwnership
 								end_case;
 							end_if;
 						end_if;
-						if terminalCandidate &
-						   ((allErrorClear = FALSE) | (groupError <> 0)) then
-							safeFailure := TRUE;
-						end_if;
+						// EmergStop may be set by normal deactivation, not only faults.
+						// A completed single-axis Power Off is not a failed Power On.
+						// Keep drive alarms in read status, not a permanent owner lease.
+						// FORCE_QUARANTINE and all identity checks remain authoritative.
+            if terminalCandidate &
+               ((allErrorClear = FALSE) | (groupError <> 0)) &
+               ((ownerKind <> LMC_OWNER_KIND_DIRECT) |
+                (commandId <> LMC_OWNER_COMMAND_AXIS_POWER) |
+                (admissionMode <> LMC_OWNER_ADMISSION_SAFETY) |
+                (allPowerOff = FALSE) |
+                (allStandstill = FALSE)) then
+                safeFailure := TRUE;
+            end_if;
 
 						if terminalCandidate then
 							if OwnershipObserverState[observerBase + 6] <= 0 then

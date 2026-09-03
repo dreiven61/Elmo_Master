@@ -1,4 +1,19 @@
 LMC DINT packet map
+2026-09-03 scoped Power semantics update (wire bytes unchanged):
+- Single-axis 0x2023 Power On is admitted before Home/coordinate rebase completion.
+  Exact payload/owner checks, quarantine and drive interlocks remain enforced.
+  Power On neither homes the axis nor clears the retained coordinate barrier.
+- Fresh Power On must pass RESERVED identity validation in ORDINARY mode before
+  normal dispatch. It is not a Power Off safety repeat. The shared 0x2023 id must
+  not strand an admitted Power On reservation by rejecting it in the repeat helper.
+- Single-axis Power Off ownership completes only after stable PowerOff AND
+  Standstill evidence. A remaining drive alarm alone does not retain its owner.
+  Uncertain/preempted/timeout records remain fail-closed. No automatic replay or
+  existing quarantine reset was added. Other motion/group policies are unchanged.
+- -9 may also denote initialization/integrity/quarantine admission rejection;
+  it must not be interpreted as a promise that waiting or retrying will recover.
+  See ../../../docs/architecture/LASAL_SERVO_POWER_LIFECYCLE_FIX_2026-09-03.md.
+
 Current status 2026-08-20:
 - This file is the canonical project-local wire layout. Public usage is documented
   in ../../../docs/api/API_MANUAL.md. Implementation progress, test counts and

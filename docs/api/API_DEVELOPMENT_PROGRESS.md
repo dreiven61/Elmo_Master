@@ -1,5 +1,15 @@
 # LASAL Motion Control API 개발 진척도
 
+2026-09-03 제한 범위 갱신: `dev@ceb14b3` 작업 트리에 단축 Servo Power 수정 반영.
+Home/rebase 전 Power On 허용과 완료된 Power Off의 alarm-only 소유권 잔류 방지에 이어,
+BootId 137 Watch로 확인된 **safety-repeat helper의 새 Power On 오분류 및 RESERVED 잔류**를
+추가 수정했다. 현재 소스 조건식 133/133, safety-repeat negative fixture 31/31,
+rebase negative fixture 39/39 PASS. SDK 1201/1201, WPF 398/398은 앞선 수정의 PC 결과다.
+앞선 버전은 사용자 IDE build/download 후에도 Servo On 실패; 이번 추가 수정의
+IDE/PLC/실축 검증은 아직 미수행이며 production NO-GO는 유지한다.
+전체 정적 검증의 기존 실패와 적용 조건은
+[수정 기록](../architecture/LASAL_SERVO_POWER_LIFECYCLE_FIX_2026-09-03.md)에 구분한다.
+
 - 문서 버전: 1.4-current
 - 기준일: 2026-09-01
 - API: `LasalMotionControlLib 0.9.1-preview`

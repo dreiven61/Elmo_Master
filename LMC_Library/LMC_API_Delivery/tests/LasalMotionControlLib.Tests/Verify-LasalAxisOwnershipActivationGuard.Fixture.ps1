@@ -1598,6 +1598,22 @@ $repeatHandleOversized = Replace-OwnershipFixtureFirst `
     -Name 'RepeatHandleOversized'
 
 $safetyRepeatNegativeFixtures = @(
+    New-SafetyRepeatFixture -Name 'FreshPowerOnRejectedAsSafety' -Control (
+        $safetyRepeatControl.Replace(
+            'AdmissionMode:=firstDispatchAdmissionMode,',
+            'AdmissionMode:=LMC_OWNER_ADMISSION_SAFETY,'))
+    New-SafetyRepeatFixture -Name 'FreshPowerOnShapeNotRouted' -Control (
+        $safetyRepeatControl.Replace(
+            'repeatValid := firstDispatchShapeValid &',
+            'repeatValid := repeatShapeValid &'))
+    New-SafetyRepeatFixture -Name 'FreshPowerOnWrongMode' -Control (
+        $safetyRepeatControl.Replace(
+            'firstDispatchAdmissionMode := LMC_OWNER_ADMISSION_ORDINARY;',
+            'firstDispatchAdmissionMode := LMC_OWNER_ADMISSION_SAFETY;'))
+    New-SafetyRepeatFixture -Name 'PowerOnSafetyCoalescingAllowed' -Control (
+        $safetyRepeatControl.Replace(
+            'repeatValid := repeatValid & repeatShapeValid;',
+            'repeatValid := repeatValid;'))
     New-SafetyRepeatFixture -Name 'RepeatSentinelDrift' -Control (
         $safetyRepeatControl.Replace(
             '#define LMC_OWNER_SAFETY_REPEAT_NOT_APPLICABLE -11',
