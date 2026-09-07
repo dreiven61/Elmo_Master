@@ -193,6 +193,28 @@ LMCControlCommandService : CLASS
 	
 	FUNCTION GLOBAL ProcessAxisOwnership;
 	
+	FUNCTION ResolveConnectedGroupAxisMask
+		VAR_OUTPUT
+			Result 	: UDINT;
+		END_VAR;
+
+	FUNCTION AreResolvedGroupAxesPowered
+		VAR_INPUT
+			GroupAxisMask 	: UDINT;
+		END_VAR
+		VAR_OUTPUT
+			Result 	: BOOL;
+		END_VAR;
+
+	FUNCTION SetResolvedGroupAxesPower
+		VAR_INPUT
+			GroupAxisMask 	: UDINT;
+			Enable 	: BOOL;
+		END_VAR
+		VAR_OUTPUT
+			Result 	: DINT;
+		END_VAR;
+
 	FUNCTION HandleRegistryCommands
 		VAR_INPUT
 			CommandId 	: UINT;
@@ -1709,6 +1731,171 @@ FUNCTION LMCControlCommandService::HandleAxisOwnershipSafetyRepeat
 		Result := nativeResponseSize;
 	else
 		Result := -1;
+	end_if;
+
+END_FUNCTION
+
+
+FUNCTION LMCControlCommandService::ResolveConnectedGroupAxisMask
+	VAR_OUTPUT
+		Result 	: UDINT;
+	END_VAR
+	VAR
+		groupSnapshot : ARRAY [0..303] OF USINT;
+		copyResult : DINT;
+		cycleCounter : UDINT;
+	END_VAR
+
+	Result := 0;
+	if IsClientConnected(#InputLatch) = 0 then
+		RETURN;
+	end_if;
+	copyResult := InputLatch.CopySnapshot(
+		pDest:=#groupSnapshot[0], DestSize:=304);
+	if copyResult <> 0 then
+		RETURN;
+	end_if;
+	cycleCounter := groupSnapshot[0]$UDINT;
+	if (cycleCounter = 0) |
+	   (groupSnapshot[12]$UDINT <> 8) |
+	   (groupSnapshot[16]$UDINT <> 0) then
+		RETURN;
+	end_if;
+
+	if (IsClientConnected(#LMCAxis1) = 1) &
+	   (groupSnapshot[64]$DINT <> 0) &
+	   (groupSnapshot[68]$UDINT = 8) &
+	   (groupSnapshot[76]$UDINT = 0) &
+	   (groupSnapshot[92]$UDINT = cycleCounter) then
+		Result := Result or 0x00000001;
+	end_if;
+	if (IsClientConnected(#LMCAxis2) = 1) &
+	   (groupSnapshot[100]$DINT <> 0) &
+	   (groupSnapshot[104]$UDINT = 8) &
+	   (groupSnapshot[112]$UDINT = 0) &
+	   (groupSnapshot[128]$UDINT = cycleCounter) then
+		Result := Result or 0x00000002;
+	end_if;
+	if (IsClientConnected(#LMCAxis3) = 1) &
+	   (groupSnapshot[136]$DINT <> 0) &
+	   (groupSnapshot[140]$UDINT = 8) &
+	   (groupSnapshot[148]$UDINT = 0) &
+	   (groupSnapshot[164]$UDINT = cycleCounter) then
+		Result := Result or 0x00000004;
+	end_if;
+	if (IsClientConnected(#LMCAxis4) = 1) &
+	   (groupSnapshot[172]$DINT <> 0) &
+	   (groupSnapshot[176]$UDINT = 8) &
+	   (groupSnapshot[184]$UDINT = 0) &
+	   (groupSnapshot[200]$UDINT = cycleCounter) then
+		Result := Result or 0x00000008;
+	end_if;
+
+END_FUNCTION
+
+
+FUNCTION LMCControlCommandService::AreResolvedGroupAxesPowered
+	VAR_INPUT
+		GroupAxisMask 	: UDINT;
+	END_VAR
+	VAR_OUTPUT
+		Result 	: BOOL;
+	END_VAR
+
+	Result := FALSE;
+	if (GroupAxisMask = 0) | (GroupAxisMask > LMC_OWNER_PROFILE_AXIS_MASK) then
+		RETURN;
+	end_if;
+	Result := TRUE;
+	if (GroupAxisMask and 0x00000001) <> 0 then
+		if (IsClientConnected(#LMCAxis1) = 0) |
+		   ((LMCAxis1.ReadAxisStatus()$UDINT and 0x00000001) = 0) then
+			Result := FALSE;
+		end_if;
+	end_if;
+	if (GroupAxisMask and 0x00000002) <> 0 then
+		if (IsClientConnected(#LMCAxis2) = 0) |
+		   ((LMCAxis2.ReadAxisStatus()$UDINT and 0x00000001) = 0) then
+			Result := FALSE;
+		end_if;
+	end_if;
+	if (GroupAxisMask and 0x00000004) <> 0 then
+		if (IsClientConnected(#LMCAxis3) = 0) |
+		   ((LMCAxis3.ReadAxisStatus()$UDINT and 0x00000001) = 0) then
+			Result := FALSE;
+		end_if;
+	end_if;
+	if (GroupAxisMask and 0x00000008) <> 0 then
+		if (IsClientConnected(#LMCAxis4) = 0) |
+		   ((LMCAxis4.ReadAxisStatus()$UDINT and 0x00000001) = 0) then
+			Result := FALSE;
+		end_if;
+	end_if;
+
+END_FUNCTION
+
+
+FUNCTION LMCControlCommandService::SetResolvedGroupAxesPower
+	VAR_INPUT
+		GroupAxisMask 	: UDINT;
+		Enable 	: BOOL;
+	END_VAR
+	VAR_OUTPUT
+		Result 	: DINT;
+	END_VAR
+	VAR
+		axisResult : DINT;
+	END_VAR
+
+	Result := 0;
+	if (GroupAxisMask = 0) | (GroupAxisMask > LMC_OWNER_PROFILE_AXIS_MASK) then
+		Result := -3;
+		RETURN;
+	end_if;
+
+	if (GroupAxisMask and 0x00000001) <> 0 then
+		axisResult := -2;
+		if IsClientConnected(#LMCAxis1) = 1 then
+			if Enable then
+				axisResult := LMCAxis1.PowerOn(Mode:=LMCAXIS_MOVE_SHORTEST_WAY);
+			else
+				axisResult := LMCAxis1.PowerOff(Mode:=LMCAXIS_SMOOTH_STOPP);
+			end_if;
+		end_if;
+		if (Result = 0) & (axisResult <> 0) then Result := axisResult; end_if;
+	end_if;
+	if (GroupAxisMask and 0x00000002) <> 0 then
+		axisResult := -2;
+		if IsClientConnected(#LMCAxis2) = 1 then
+			if Enable then
+				axisResult := LMCAxis2.PowerOn(Mode:=LMCAXIS_MOVE_SHORTEST_WAY);
+			else
+				axisResult := LMCAxis2.PowerOff(Mode:=LMCAXIS_SMOOTH_STOPP);
+			end_if;
+		end_if;
+		if (Result = 0) & (axisResult <> 0) then Result := axisResult; end_if;
+	end_if;
+	if (GroupAxisMask and 0x00000004) <> 0 then
+		axisResult := -2;
+		if IsClientConnected(#LMCAxis3) = 1 then
+			if Enable then
+				axisResult := LMCAxis3.PowerOn(Mode:=LMCAXIS_MOVE_SHORTEST_WAY);
+			else
+				axisResult := LMCAxis3.PowerOff(Mode:=LMCAXIS_SMOOTH_STOPP);
+			end_if;
+		end_if;
+		if (Result = 0) & (axisResult <> 0) then Result := axisResult; end_if;
+	end_if;
+	if (GroupAxisMask and 0x00000008) <> 0 then
+		axisResult := -2;
+		if IsClientConnected(#LMCAxis4) = 1 then
+			if Enable then
+				axisResult := LMCAxis4.PowerOn(Mode:=LMCAXIS_MOVE_SHORTEST_WAY);
+			else
+				axisResult := LMCAxis4.PowerOff(Mode:=LMCAXIS_SMOOTH_STOPP);
+			end_if;
+		end_if;
+		if (Result = 0) & (axisResult <> 0) then Result := axisResult; end_if;
 	end_if;
 
 END_FUNCTION
@@ -7600,7 +7787,12 @@ FUNCTION GLOBAL LMCControlCommandService::ProcessAxisOwnership
 						groupError := 0;
 						if ownerKind = LMC_OWNER_KIND_GROUP then
 							if IsClientConnected(#LMCRobot) then
-								groupPowerState := LMCRobot.RobotIsOn();
+								if AreResolvedGroupAxesPowered(
+								   GroupAxisMask:=ResolveConnectedGroupAxisMask()) then
+									groupPowerState := 1;
+								else
+									groupPowerState := 0;
+								end_if;
 								groupLockState := LMCRobot.ReadProfileParameter(
 									ParNo:=_LMCPROF_LockState);
 								groupFinished := LMCRobot.ProfileInPosition(
@@ -9051,6 +9243,12 @@ FUNCTION LMCControlCommandService::HandleGroupCommands
 		groupReadPos : _LMCPROF_POS;
 		axisCommandStatus : UINT;
 		axisCommandErrorId : INT;
+		groupAxisMask : UDINT;
+		groupMemberCount : UDINT;
+		groupAxis1Enable : DINT;
+		groupAxis2Enable : DINT;
+		groupAxis3Enable : DINT;
+		groupAxis4Enable : DINT;
 	END_VAR
 
 	ResponseSize := -1;
@@ -9063,157 +9261,71 @@ FUNCTION LMCControlCommandService::HandleGroupCommands
 
 		0x20D2:
 			objectRegistryReady := FALSE;
+			groupAxisMask := 0;
+			groupMemberCount := 0;
 			if RequestFrameSize = 9 then
 				objectRegistryReady :=
 					((pRequestFrame + 8)^$USINT = 1) &
 					(Reference = 0x0100) &
-					(IsClientConnected(#LMCAxis1) = 1) &
-					(IsClientConnected(#LMCAxis2) = 1) &
-					(IsClientConnected(#LMCAxis3) = 1) &
-					(IsClientConnected(#LMCAxis4) = 1) &
-					(IsClientConnected(#LMCAxis5) = 1) &
-					(IsClientConnected(#LMCAxis6) = 1) &
-					(IsClientConnected(#LMCAxis7) = 1) &
-					(IsClientConnected(#LMCAxis8) = 1) &
-					(IsClientConnected(#LMCAxis9) = 1) &
 					(IsClientConnected(#LMCRobot) = 1);
 			end_if;
-			if objectRegistryReady = TRUE then
-				if ResponseCapacity < 1358 then
-					RETURN;
-				end_if;
+			if objectRegistryReady then
+				groupAxisMask := ResolveConnectedGroupAxisMask();
+				if groupAxisMask = 0 then objectRegistryReady := FALSE; end_if;
+			end_if;
+			if objectRegistryReady then
+				if ResponseCapacity < 1358 then RETURN; end_if;
 				_memset(dest:=pResponseFrame, usByte:=0, cntr:=1358);
 
-				_memset(dest:=#objectName[0], usByte:=0,
-					cntr:=sizeof(objectName));
-				objectNameLength := _GetObjName(
-					pThis:=LMCAxis1.pCmd, pName:=#objectName[0]);
-				if (objectNameLength = 0) | (objectNameLength > 79) then
-					objectRegistryReady := FALSE;
+				if (groupAxisMask and 0x00000001) <> 0 then
+					_memset(dest:=#objectName[0], usByte:=0, cntr:=sizeof(objectName));
+					objectNameLength := _GetObjName(pThis:=LMCAxis1.pCmd, pName:=#objectName[0]);
+					if (objectNameLength = 0) | (objectNameLength > 79) then objectRegistryReady := FALSE; end_if;
+					(pResponseFrame + 8 + (groupMemberCount * 2))^$UINT := 1;
+					(pResponseFrame + 40 + (groupMemberCount * 2))^$UINT := 0;
+					_memcpy(ptr1:=pResponseFrame + 76 + (groupMemberCount * 80), ptr2:=#objectName[0], cntr:=80);
+					groupMemberCount += 1;
 				end_if;
-				_memcpy(ptr1:=pResponseFrame + 76, ptr2:=#objectName[0],
-					cntr:=80);
-
-				_memset(dest:=#objectName[0], usByte:=0,
-					cntr:=sizeof(objectName));
-				objectNameLength := _GetObjName(
-					pThis:=LMCAxis2.pCmd, pName:=#objectName[0]);
-				if (objectNameLength = 0) | (objectNameLength > 79) then
-					objectRegistryReady := FALSE;
+				if (groupAxisMask and 0x00000002) <> 0 then
+					_memset(dest:=#objectName[0], usByte:=0, cntr:=sizeof(objectName));
+					objectNameLength := _GetObjName(pThis:=LMCAxis2.pCmd, pName:=#objectName[0]);
+					if (objectNameLength = 0) | (objectNameLength > 79) then objectRegistryReady := FALSE; end_if;
+					(pResponseFrame + 8 + (groupMemberCount * 2))^$UINT := 2;
+					(pResponseFrame + 40 + (groupMemberCount * 2))^$UINT := 1;
+					_memcpy(ptr1:=pResponseFrame + 76 + (groupMemberCount * 80), ptr2:=#objectName[0], cntr:=80);
+					groupMemberCount += 1;
 				end_if;
-				_memcpy(ptr1:=pResponseFrame + 156, ptr2:=#objectName[0],
-					cntr:=80);
-
-				_memset(dest:=#objectName[0], usByte:=0,
-					cntr:=sizeof(objectName));
-				objectNameLength := _GetObjName(
-					pThis:=LMCAxis3.pCmd, pName:=#objectName[0]);
-				if (objectNameLength = 0) | (objectNameLength > 79) then
-					objectRegistryReady := FALSE;
+				if (groupAxisMask and 0x00000004) <> 0 then
+					_memset(dest:=#objectName[0], usByte:=0, cntr:=sizeof(objectName));
+					objectNameLength := _GetObjName(pThis:=LMCAxis3.pCmd, pName:=#objectName[0]);
+					if (objectNameLength = 0) | (objectNameLength > 79) then objectRegistryReady := FALSE; end_if;
+					(pResponseFrame + 8 + (groupMemberCount * 2))^$UINT := 3;
+					(pResponseFrame + 40 + (groupMemberCount * 2))^$UINT := 2;
+					_memcpy(ptr1:=pResponseFrame + 76 + (groupMemberCount * 80), ptr2:=#objectName[0], cntr:=80);
+					groupMemberCount += 1;
 				end_if;
-				_memcpy(ptr1:=pResponseFrame + 236, ptr2:=#objectName[0],
-					cntr:=80);
-
-				_memset(dest:=#objectName[0], usByte:=0,
-					cntr:=sizeof(objectName));
-				objectNameLength := _GetObjName(
-					pThis:=LMCAxis4.pCmd, pName:=#objectName[0]);
-				if (objectNameLength = 0) | (objectNameLength > 79) then
-					objectRegistryReady := FALSE;
-				end_if;
-				_memcpy(ptr1:=pResponseFrame + 316, ptr2:=#objectName[0],
-					cntr:=80);
-
-				_memset(dest:=#objectName[0], usByte:=0,
-					cntr:=sizeof(objectName));
-				objectNameLength := _GetObjName(
-					pThis:=LMCAxis5.pCmd, pName:=#objectName[0]);
-				if (objectNameLength = 0) | (objectNameLength > 79) then
-					objectRegistryReady := FALSE;
-				end_if;
-				_memcpy(ptr1:=pResponseFrame + 396, ptr2:=#objectName[0],
-					cntr:=80);
-
-				_memset(dest:=#objectName[0], usByte:=0,
-					cntr:=sizeof(objectName));
-				objectNameLength := _GetObjName(
-					pThis:=LMCAxis6.pCmd, pName:=#objectName[0]);
-				if (objectNameLength = 0) | (objectNameLength > 79) then
-					objectRegistryReady := FALSE;
-				end_if;
-				_memcpy(ptr1:=pResponseFrame + 476, ptr2:=#objectName[0],
-					cntr:=80);
-
-				_memset(dest:=#objectName[0], usByte:=0,
-					cntr:=sizeof(objectName));
-				objectNameLength := _GetObjName(
-					pThis:=LMCAxis7.pCmd, pName:=#objectName[0]);
-				if (objectNameLength = 0) | (objectNameLength > 79) then
-					objectRegistryReady := FALSE;
-				end_if;
-				_memcpy(ptr1:=pResponseFrame + 556, ptr2:=#objectName[0],
-					cntr:=80);
-
-				_memset(dest:=#objectName[0], usByte:=0,
-					cntr:=sizeof(objectName));
-				objectNameLength := _GetObjName(
-					pThis:=LMCAxis8.pCmd, pName:=#objectName[0]);
-				if (objectNameLength = 0) | (objectNameLength > 79) then
-					objectRegistryReady := FALSE;
-				end_if;
-				_memcpy(ptr1:=pResponseFrame + 636, ptr2:=#objectName[0],
-					cntr:=80);
-
-				_memset(dest:=#objectName[0], usByte:=0,
-					cntr:=sizeof(objectName));
-				objectNameLength := _GetObjName(
-					pThis:=LMCAxis9.pCmd, pName:=#objectName[0]);
-				if (objectNameLength = 0) | (objectNameLength > 79) then
-					objectRegistryReady := FALSE;
-				end_if;
-				_memcpy(ptr1:=pResponseFrame + 716, ptr2:=#objectName[0],
-					cntr:=80);
-
-				_memset(dest:=#objectName[0], usByte:=0,
-					cntr:=sizeof(objectName));
-				objectNameLength := _GetObjName(
-					pThis:=LMCRobot.pCmd, pName:=#objectName[0]);
-				if (objectNameLength = 0) | (objectNameLength > 79) then
-					objectRegistryReady := FALSE;
+				if (groupAxisMask and 0x00000008) <> 0 then
+					_memset(dest:=#objectName[0], usByte:=0, cntr:=sizeof(objectName));
+					objectNameLength := _GetObjName(pThis:=LMCAxis4.pCmd, pName:=#objectName[0]);
+					if (objectNameLength = 0) | (objectNameLength > 79) then objectRegistryReady := FALSE; end_if;
+					(pResponseFrame + 8 + (groupMemberCount * 2))^$UINT := 4;
+					(pResponseFrame + 40 + (groupMemberCount * 2))^$UINT := 3;
+					_memcpy(ptr1:=pResponseFrame + 76 + (groupMemberCount * 80), ptr2:=#objectName[0], cntr:=80);
+					groupMemberCount += 1;
 				end_if;
 			end_if;
 
-			if objectRegistryReady = TRUE then
+			if objectRegistryReady & (groupMemberCount > 0) then
 				pResponseFrame^$UINT := 0;
 				(pResponseFrame + 2)^$UINT := 1350;
 				(pResponseFrame + 4)^$UDINT := 0;
-				(pResponseFrame + 8)^$UINT := 1;
-				(pResponseFrame + 10)^$UINT := 2;
-				(pResponseFrame + 12)^$UINT := 3;
-				(pResponseFrame + 14)^$UINT := 4;
-				(pResponseFrame + 16)^$UINT := 5;
-				(pResponseFrame + 18)^$UINT := 6;
-				(pResponseFrame + 20)^$UINT := 7;
-				(pResponseFrame + 22)^$UINT := 8;
-				(pResponseFrame + 24)^$UINT := 9;
-				(pResponseFrame + 40)^$UINT := 0;
-				(pResponseFrame + 42)^$UINT := 1;
-				(pResponseFrame + 44)^$UINT := 2;
-				(pResponseFrame + 46)^$UINT := 3;
-				(pResponseFrame + 48)^$UINT := 4;
-				(pResponseFrame + 50)^$UINT := 5;
-				(pResponseFrame + 52)^$UINT := 6;
-				(pResponseFrame + 54)^$UINT := 7;
-				(pResponseFrame + 56)^$UINT := 8;
 				(pResponseFrame + 72)^$UINT := 0;
 				(pResponseFrame + 74)^$INT := 0;
-				(pResponseFrame + 1356)^$USINT := 9;
+				(pResponseFrame + 1356)^$USINT := groupMemberCount$USINT;
 				(pResponseFrame + 1357)^$USINT := 0;
 				ResponseSize := 1358;
 			else
-				if ResponseCapacity < 12 then
-					RETURN;
-				end_if;
+				if ResponseCapacity < 12 then RETURN; end_if;
 				_memset(dest:=pResponseFrame, usByte:=0, cntr:=12);
 				pResponseFrame^$UINT := 1;
 				(pResponseFrame + 2)^$UINT := 4;
@@ -9226,30 +9338,28 @@ FUNCTION LMCControlCommandService::HandleGroupCommands
 		0x2047:
 			groupCommandInputValid := FALSE;
 			if RequestFrameSize = 9 then
-				groupCommandInputValid :=
-					((pRequestFrame + 8)^$USINT = 1) &
-					(Reference = 0x0100);
+				groupCommandInputValid := ((pRequestFrame + 8)^$USINT = 1) & (Reference = 0x0100);
 			end_if;
 			if groupCommandInputValid = TRUE then
-				if ResponseCapacity < 16 then
-					RETURN;
-				end_if;
+				if ResponseCapacity < 16 then RETURN; end_if;
 				groupReadErrorId := -2;
-				if (IsClientConnected(#LMCRobot) = 1) &
-				   (IsClientConnected(#LMCAxis1) = 1) &
-				   (IsClientConnected(#LMCAxis2) = 1) &
-				   (IsClientConnected(#LMCAxis3) = 1) &
-				   (IsClientConnected(#LMCAxis4) = 1) then
+				groupAxisMask := ResolveConnectedGroupAxisMask();
+				if (IsClientConnected(#LMCRobot) = 1) & (groupAxisMask <> 0) then
 					groupReadErrorId := -6;
-					powerIsOn := LMCRobot.RobotIsOn();
-					if (GroupKinematicReady = TRUE) & (powerIsOn <> 0) then
+					if AreResolvedGroupAxesPowered(GroupAxisMask:=groupAxisMask) then
+						groupAxis1Enable := 0; groupAxis2Enable := 0;
+						groupAxis3Enable := 0; groupAxis4Enable := 0;
+						if (groupAxisMask and 0x1) <> 0 then groupAxis1Enable := 1; end_if;
+						if (groupAxisMask and 0x2) <> 0 then groupAxis2Enable := 1; end_if;
+						if (groupAxisMask and 0x4) <> 0 then groupAxis3Enable := 1; end_if;
+						if (groupAxisMask and 0x8) <> 0 then groupAxis4Enable := 1; end_if;
 						OwnershipState[26] := TO_DINT(CommandId);
 						OwnershipState[27] := TO_DINT(Reference);
 						OwnershipState[25] := 1;
 						groupReadRetCode := LMCRobot.LockProfile(
-							Axis1:=1, Axis2:=1, Axis3:=1, Axis4:=1,
-							Axis5:=0, Axis6:=0, Axis7:=0, Axis8:=0,
-							Axis9:=0);
+							Axis1:=groupAxis1Enable, Axis2:=groupAxis2Enable,
+							Axis3:=groupAxis3Enable, Axis4:=groupAxis4Enable,
+							Axis5:=0, Axis6:=0, Axis7:=0, Axis8:=0, Axis9:=0);
 						if groupReadRetCode = _LMCPROF_NoError then
 							groupReadErrorId := 0;
 						elsif groupReadRetCode$UDINT <= 32767 then
@@ -9263,28 +9373,19 @@ FUNCTION LMCControlCommandService::HandleGroupCommands
 				(pResponseFrame + 4)^$UDINT := 0;
 				(pResponseFrame + 8)^$UDINT := TO_UDINT(Reference);
 				if groupReadErrorId = 0 then
-					(pResponseFrame + 12)^$UINT := 0;
-					(pResponseFrame + 14)^$INT := 0;
-				elsif (groupReadErrorId >= -32768) &
-				      (groupReadErrorId <= 32767) then
-					(pResponseFrame + 12)^$UINT := 1;
-					(pResponseFrame + 14)^$INT := groupReadErrorId$INT;
+					(pResponseFrame + 12)^$UINT := 0; (pResponseFrame + 14)^$INT := 0;
+				elsif (groupReadErrorId >= -32768) & (groupReadErrorId <= 32767) then
+					(pResponseFrame + 12)^$UINT := 1; (pResponseFrame + 14)^$INT := groupReadErrorId$INT;
 				else
-					(pResponseFrame + 12)^$UINT := 1;
-					(pResponseFrame + 14)^$INT := -6;
+					(pResponseFrame + 12)^$UINT := 1; (pResponseFrame + 14)^$INT := -6;
 				end_if;
 				ResponseSize := 16;
 			else
-				if ResponseCapacity < 12 then
-					RETURN;
-				end_if;
+				if ResponseCapacity < 12 then RETURN; end_if;
 				_memset(dest:=pResponseFrame, usByte:=0, cntr:=12);
-				pResponseFrame^$UINT := 1;
-				(pResponseFrame + 2)^$UINT := 4;
-				(pResponseFrame + 4)^$UDINT := 0;
-				(pResponseFrame + 8)^$UINT := 1;
-				(pResponseFrame + 10)^$INT := -3;
-				ResponseSize := 12;
+				pResponseFrame^$UINT := 1; (pResponseFrame + 2)^$UINT := 4;
+				(pResponseFrame + 4)^$UDINT := 0; (pResponseFrame + 8)^$UINT := 1;
+				(pResponseFrame + 10)^$INT := -3; ResponseSize := 12;
 			end_if;
 
 		0x2048:
@@ -9380,101 +9481,69 @@ FUNCTION LMCControlCommandService::HandleGroupCommands
 		0x204A:
 			groupCommandInputValid := FALSE;
 			if RequestFrameSize = 9 then
-				groupCommandInputValid :=
-					((pRequestFrame + 8)^$USINT = 1) &
-					(Reference = 0x0100);
+				groupCommandInputValid := ((pRequestFrame + 8)^$USINT = 1) & (Reference = 0x0100);
 			end_if;
 			if groupCommandInputValid = TRUE then
-				if ResponseCapacity < 16 then
-					RETURN;
-				end_if;
+				if ResponseCapacity < 16 then RETURN; end_if;
 				groupReadErrorId := -2;
-				if (IsClientConnected(#LMCRobot) = 1) &
-				   (IsClientConnected(#LMCAxis1) = 1) &
-				   (IsClientConnected(#LMCAxis2) = 1) &
-				   (IsClientConnected(#LMCAxis3) = 1) &
-				   (IsClientConnected(#LMCAxis4) = 1) then
+				groupAxisMask := ResolveConnectedGroupAxisMask();
+				if groupAxisMask <> 0 then
 					OwnershipState[26] := TO_DINT(CommandId);
 					OwnershipState[27] := TO_DINT(Reference);
 					OwnershipState[25] := 1;
-					groupReadErrorId := LMCRobot.RobotOn(Mode:=_ACTIVE);
+					groupReadErrorId := SetResolvedGroupAxesPower(GroupAxisMask:=groupAxisMask, Enable:=TRUE);
 				end_if;
 				_memset(dest:=pResponseFrame, usByte:=0, cntr:=16);
-				pResponseFrame^$UINT := 0;
-				(pResponseFrame + 2)^$UINT := 8;
-				(pResponseFrame + 4)^$UDINT := 0;
-				(pResponseFrame + 8)^$UDINT := TO_UDINT(Reference);
+				pResponseFrame^$UINT := 0; (pResponseFrame + 2)^$UINT := 8;
+				(pResponseFrame + 4)^$UDINT := 0; (pResponseFrame + 8)^$UDINT := TO_UDINT(Reference);
 				if groupReadErrorId = 0 then
-					(pResponseFrame + 12)^$UINT := 0;
-					(pResponseFrame + 14)^$INT := 0;
-				elsif (groupReadErrorId >= -32768) &
-				      (groupReadErrorId <= 32767) then
-					(pResponseFrame + 12)^$UINT := 1;
-					(pResponseFrame + 14)^$INT := groupReadErrorId$INT;
+					(pResponseFrame + 12)^$UINT := 0; (pResponseFrame + 14)^$INT := 0;
+				elsif (groupReadErrorId >= -32768) & (groupReadErrorId <= 32767) then
+					(pResponseFrame + 12)^$UINT := 1; (pResponseFrame + 14)^$INT := groupReadErrorId$INT;
 				else
-					(pResponseFrame + 12)^$UINT := 1;
-					(pResponseFrame + 14)^$INT := -6;
+					(pResponseFrame + 12)^$UINT := 1; (pResponseFrame + 14)^$INT := -6;
 				end_if;
 				ResponseSize := 16;
 			else
-				if ResponseCapacity < 12 then
-					RETURN;
-				end_if;
+				if ResponseCapacity < 12 then RETURN; end_if;
 				_memset(dest:=pResponseFrame, usByte:=0, cntr:=12);
-				pResponseFrame^$UINT := 1;
-				(pResponseFrame + 2)^$UINT := 4;
-				(pResponseFrame + 4)^$UDINT := 0;
-				(pResponseFrame + 8)^$UINT := 1;
-				(pResponseFrame + 10)^$INT := -3;
-				ResponseSize := 12;
+				pResponseFrame^$UINT := 1; (pResponseFrame + 2)^$UINT := 4;
+				(pResponseFrame + 4)^$UDINT := 0; (pResponseFrame + 8)^$UINT := 1;
+				(pResponseFrame + 10)^$INT := -3; ResponseSize := 12;
 			end_if;
 
 		0x204B:
 			groupCommandInputValid := FALSE;
 			if RequestFrameSize = 9 then
-				groupCommandInputValid :=
-					((pRequestFrame + 8)^$USINT = 1) &
-					(Reference = 0x0100);
+				groupCommandInputValid := ((pRequestFrame + 8)^$USINT = 1) & (Reference = 0x0100);
 			end_if;
 			if groupCommandInputValid = TRUE then
-				if ResponseCapacity < 16 then
-					RETURN;
-				end_if;
+				if ResponseCapacity < 16 then RETURN; end_if;
 				groupReadErrorId := -2;
-				if IsClientConnected(#LMCRobot) = 1 then
+				groupAxisMask := ResolveConnectedGroupAxisMask();
+				if groupAxisMask <> 0 then
 					OwnershipState[26] := TO_DINT(CommandId);
 					OwnershipState[27] := TO_DINT(Reference);
 					OwnershipState[25] := 1;
-					groupReadErrorId := LMCRobot.RobotOff();
+					groupReadErrorId := SetResolvedGroupAxesPower(GroupAxisMask:=groupAxisMask, Enable:=FALSE);
 				end_if;
 				_memset(dest:=pResponseFrame, usByte:=0, cntr:=16);
-				pResponseFrame^$UINT := 0;
-				(pResponseFrame + 2)^$UINT := 8;
-				(pResponseFrame + 4)^$UDINT := 0;
-				(pResponseFrame + 8)^$UDINT := TO_UDINT(Reference);
+				pResponseFrame^$UINT := 0; (pResponseFrame + 2)^$UINT := 8;
+				(pResponseFrame + 4)^$UDINT := 0; (pResponseFrame + 8)^$UDINT := TO_UDINT(Reference);
 				if groupReadErrorId = 0 then
-					(pResponseFrame + 12)^$UINT := 0;
-					(pResponseFrame + 14)^$INT := 0;
-				elsif (groupReadErrorId >= -32768) &
-				      (groupReadErrorId <= 32767) then
-					(pResponseFrame + 12)^$UINT := 1;
-					(pResponseFrame + 14)^$INT := groupReadErrorId$INT;
+					(pResponseFrame + 12)^$UINT := 0; (pResponseFrame + 14)^$INT := 0;
+				elsif (groupReadErrorId >= -32768) & (groupReadErrorId <= 32767) then
+					(pResponseFrame + 12)^$UINT := 1; (pResponseFrame + 14)^$INT := groupReadErrorId$INT;
 				else
-					(pResponseFrame + 12)^$UINT := 1;
-					(pResponseFrame + 14)^$INT := -6;
+					(pResponseFrame + 12)^$UINT := 1; (pResponseFrame + 14)^$INT := -6;
 				end_if;
 				ResponseSize := 16;
 			else
-				if ResponseCapacity < 12 then
-					RETURN;
-				end_if;
+				if ResponseCapacity < 12 then RETURN; end_if;
 				_memset(dest:=pResponseFrame, usByte:=0, cntr:=12);
-				pResponseFrame^$UINT := 1;
-				(pResponseFrame + 2)^$UINT := 4;
-				(pResponseFrame + 4)^$UDINT := 0;
-				(pResponseFrame + 8)^$UINT := 1;
-				(pResponseFrame + 10)^$INT := -3;
-				ResponseSize := 12;
+				pResponseFrame^$UINT := 1; (pResponseFrame + 2)^$UINT := 4;
+				(pResponseFrame + 4)^$UDINT := 0; (pResponseFrame + 8)^$UINT := 1;
+				(pResponseFrame + 10)^$INT := -3; ResponseSize := 12;
 			end_if;
 
 		0x2085:
@@ -10414,7 +10483,11 @@ FUNCTION LMCControlCommandService::HandleAdminCommands
 				   (IsClientConnected(#LMCAxis2) = 1) &
 				   (IsClientConnected(#LMCAxis3) = 1) &
 				   (IsClientConnected(#LMCAxis4) = 1) then
-					powerIsOn := LMCRobot.RobotIsOn();
+					if AreResolvedGroupAxesPowered(GroupAxisMask:=ResolveConnectedGroupAxisMask()) then
+				powerIsOn := 1;
+			else
+				powerIsOn := 0;
+			end_if;
 					profileLockState := LMCRobot.ReadProfileParameter(
 						ParNo:=_LMCPROF_LockState);
 					if (GroupKinematicReady = TRUE) &
@@ -10574,7 +10647,11 @@ FUNCTION LMCControlCommandService::MoveLinearAbsEx
 		   (IsClientConnected(#LMCAxis3) = 1) &
 		   (IsClientConnected(#LMCAxis4) = 1) then
 			groupReadErrorId := -6;
-			powerIsOn := LMCRobot.RobotIsOn();
+			if AreResolvedGroupAxesPowered(GroupAxisMask:=ResolveConnectedGroupAxisMask()) then
+				powerIsOn := 1;
+			else
+				powerIsOn := 0;
+			end_if;
 			profileLockState := LMCRobot.ReadProfileParameter(
 				ParNo:=_LMCPROF_LockState);
 			if profileLockState <> 0 then
@@ -10652,7 +10729,11 @@ FUNCTION LMCControlCommandService::GroupReadStatus
 	groupReadState := 0x40000000;
 	groupReadInPosition := LMCRobot.ProfileInPosition(
 		Mode:=_LMCPROF_ProfileFinished);
-	powerIsOn := LMCRobot.RobotIsOn();
+	if AreResolvedGroupAxesPowered(GroupAxisMask:=ResolveConnectedGroupAxisMask()) then
+				powerIsOn := 1;
+			else
+				powerIsOn := 0;
+			end_if;
 	profileLockState := LMCRobot.ReadProfileParameter(
 		ParNo:=_LMCPROF_LockState);
 	if profileLockState <> 0 then
