@@ -58,6 +58,9 @@ $latchPath = 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCEcatInputLatch/LMCEcat
 $controlPath = 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
 $diagnosticsPath = 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
 $tcpPath = 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st'
+$etherCatEniPath = 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/Eni.xml'
+$etherCatNetworkPath = 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/EtherCAT_Network/EtherCAT_Network.lcn'
+$etherCatNetworkTablePath = 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/EtherCAT_Network/ONE_EtherCAT_Network_Table.st'
 
 $simulation = Read-SourceText $simulationPath
 $network = Read-SourceText $networkPath
@@ -66,6 +69,9 @@ $latch = Read-SourceText $latchPath
 $control = Read-SourceText $controlPath
 $diagnostics = Read-SourceText $diagnosticsPath
 $tcp = Read-SourceText $tcpPath
+$etherCatEni = Read-SourceText $etherCatEniPath
+$etherCatNetwork = Read-SourceText $etherCatNetworkPath
+$etherCatNetworkTable = Read-SourceText $etherCatNetworkTablePath
 
 # The three runtime layers must use the same two-physical-drive contract.
 $latchMask = Get-HexDefine $latch 'LMC_CONFIGURED_PHYSICAL_DRIVE_MASK'
@@ -89,6 +95,64 @@ for ($axis = 1; $axis -le 4; $axis++) {
 
 Assert-Match $diagnostics '(?s)TO_UDINT\(1\)\s+shl\s+TO_UDINT\(driveReference\s*-\s*1\).*?LMC_DIAG_CONFIGURED_PHYSICAL_DRIVE_MASK\)\s*=\s*0\s+then\s+detailCode\s*:=\s*LMC_DIAG_ENCODER_DETAIL_PHYSICAL_DRIVE_UNAVAILABLE\s*;' 'Encoder Maintenance rejects nonphysical targets through the configured mask'
 Assert-Match $diagnostics '(?m)^\s*#define\s+LMC_DIAG_ENCODER_DETAIL_PHYSICAL_DRIVE_UNAVAILABLE\s+44\s*$' 'Encoder Maintenance nonphysical detail code remains 44'
+
+# The generated EtherCAT image and Diagnostics static inventory must expose
+# the same two active drives. Deactivated project objects are not inventory.
+try {
+    [xml]$etherCatEniXml = $etherCatEni
+    [xml]$etherCatNetworkXml = $etherCatNetwork
+} catch {
+    throw "FAIL TOPO-C0 static contract: EtherCAT XML is invalid: $($_.Exception.Message)"
+}
+$expectedEtherCatSlaves = @(
+    @{ EniName = 'Slave 01 (Elmo Drive )'; PhysAddr = '1001'; AutoIncAddr = '0'; ObjectName = 'Elmo_11'; ClassName = 'Elmo_1'; SlaveIndex = '0' },
+    @{ EniName = 'Slave 02 (Elmo Drive )'; PhysAddr = '1002'; AutoIncAddr = '-1'; ObjectName = 'Elmo_21'; ClassName = 'Elmo_2'; SlaveIndex = '1' }
+)
+$eniSlaves = @($etherCatEniXml.EtherCATConfig.Config.Slave)
+Assert-True ($eniSlaves.Count -eq 2) 'ENI contains exactly two configured slaves'
+for ($index = 0; $index -lt $expectedEtherCatSlaves.Count; $index++) {
+    $expected = $expectedEtherCatSlaves[$index]
+    $actual = $eniSlaves[$index]
+    Assert-True ([string]$actual.Info.Name -ceq $expected.EniName) "ENI slave $index name matches the current Elmo drive"
+    Assert-True ([string]$actual.Info.PhysAddr -ceq $expected.PhysAddr) "ENI slave $index physical address matches"
+    Assert-True ([string]$actual.Info.AutoIncAddr -ceq $expected.AutoIncAddr) "ENI slave $index auto-increment address matches"
+    Assert-True ([string]$actual.Info.VendorId -ceq '154') "ENI slave $index vendor ID is Elmo 154"
+    Assert-True ([string]$actual.Info.ProductCode -ceq '198948') "ENI slave $index product code is 198948"
+    Assert-True ([string]$actual.Info.RevisionNo -ceq '66592') "ENI slave $index revision is 66592"
+}
+
+$activeSlaveObjects = @($etherCatNetworkXml.SelectNodes(
+    "/Network/Components/Object[Channels/Client[@Name='SlaveIndex' and @Value!='DEACTIVATED_LSL']]"))
+Assert-True ($activeSlaveObjects.Count -eq 2) 'EtherCAT network contains exactly two active top-level slave objects'
+foreach ($expected in $expectedEtherCatSlaves) {
+    $matches = @($activeSlaveObjects | Where-Object {
+            $_.Name -ceq $expected.ObjectName -and
+            $_.Class -ceq $expected.ClassName -and
+            [string]$_.Channels.Client.Where({ $_.Name -ceq 'SlaveIndex' }).Value -ceq $expected.SlaveIndex
+        })
+    Assert-True ($matches.Count -eq 1) "$($expected.ObjectName) owns active SlaveIndex $($expected.SlaveIndex)"
+}
+foreach ($inactiveName in @('Elmo_31', 'Elmo_41', 'GL_9086_11')) {
+    $inactive = @($etherCatNetworkXml.SelectNodes(
+        "/Network/Components/Object[@Name='$inactiveName']/Channels/Client[@Name='SlaveIndex' and @Value='DEACTIVATED_LSL']"))
+    Assert-True ($inactive.Count -eq 1) "$inactiveName remains deactivated in the EtherCAT network"
+}
+
+Assert-Match $etherCatNetworkTable '(?m)^TO_UDINT\(1\), "SlaveIndex", TO_UDINT\(0\),//\|EtherCAT_Network\.Elmo_11\.SlaveIndex;' 'generated EtherCAT table maps Elmo_11 to SlaveIndex 0'
+Assert-Match $etherCatNetworkTable '(?m)^TO_UDINT\(2\), "SlaveIndex", TO_UDINT\(1\),//\|EtherCAT_Network\.Elmo_21\.SlaveIndex;' 'generated EtherCAT table maps Elmo_21 to SlaveIndex 1'
+foreach ($inactiveContract in @(
+        @{ ObjectId = 3; Name = 'Elmo_31' },
+        @{ ObjectId = 4; Name = 'Elmo_41' },
+        @{ ObjectId = 22; Name = 'GL_9086_11' })) {
+    Assert-Match $etherCatNetworkTable ('(?m)^TO_UDINT\({0}\), "SlaveIndex", TO_UDINT\(DEACTIVATED_LSL\),//\|EtherCAT_Network\.{1}\.SlaveIndex;' -f $inactiveContract.ObjectId, $inactiveContract.Name) "generated EtherCAT table keeps $($inactiveContract.Name) deactivated"
+}
+
+Assert-Match $diagnostics '(?m)^\s*#define\s+LMC_DIAG_TOPOLOGY_REVISION\s+0x96FC461C\s*$' 'Diagnostics topology revision is the canonical two-drive CRC'
+Assert-Match $diagnostics '(?s)CatalogIndex = 0x0200.*?pEntry \+ 4\)\^\$UINT := 2.*?pEntry \+ 10\)\^\$UINT := 2.*?pEntry \+ 12\)\^\$UINT := 0.*?pEntry \+ 14\)\^\$UINT := 2' 'Diagnostics topology info reports 2 slaves, 0 slots, and 2 physical axes'
+Assert-Match $diagnostics '(?s)pTopologyEntry\^\$UDINT := 0xEC000101 \+ TO_UDINT\(pdoIndex\).*?\+ 10\)\^\$UINT := pdoIndex.*?\+ 16\)\^\$UINT := pdoIndex \+ 1.*?\+ 18\)\^\$UINT := pdoIndex \+ 1.*?Elmo_11.*?49 \+ pdoIndex' 'Diagnostics topology serializes Elmo_11 and Elmo_21 at master indices 0 and 1'
+Assert-Match $diagnostics '(?s)0x7E12:.*?startIndex >= 2' 'Diagnostics topology chunk rejects indices beyond the two-drive inventory'
+Assert-Match $diagnostics '(?s)case requestedNodeId of\s*0xEC000101: healthOffset := 64;\s*0xEC000102: healthOffset := 100;\s*else detailCode:=27;' 'Diagnostics node-health lookup exposes only Axis1 and Axis2'
+Assert-True (-not [regex]::IsMatch($diagnostics, '(?s)0x7E22:.*?0x0001000[12]:')) 'Diagnostics digital-I/O read exposes no removed CREVIS references'
 
 # SimulationSetup owns nine retained settings and forwards them one-to-one.
 for ($axis = 1; $axis -le 9; $axis++) {

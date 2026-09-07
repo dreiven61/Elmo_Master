@@ -259,20 +259,21 @@ LASAL source static contract만 실행:
   /t:RunLasalContract /p:Configuration=Release /nologo
 ```
 
-Topology/I/O 검사의 current project 기본값은 `IntegratedReadOwnerDormant`다. 명시적으로
-같은 checkpoint를 재검증하려면 다음과 같이 실행한다.
+2026-09-07 two-drive override 이후 Topology/I/O 검사의 current project 기본값은
+`StaticTopologyOnly`다. 명시적으로 같은 checkpoint를 재검증하려면 다음과 같이 실행한다.
 
 ```powershell
 & 'C:\Program Files (x86)\Microsoft Visual Studio\2019\Professional\MSBuild\Current\Bin\MSBuild.exe' `
   'LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\LasalMotionControlLib.Tests.csproj' `
   /t:RunLasalContract /p:Configuration=Release `
-  /p:LasalTopologyIoCheckpoint=IntegratedReadOwnerDormant /nologo
+  /p:LasalTopologyIoCheckpoint=StaticTopologyOnly /nologo
 ```
 
-full `RunLasalNetworkContract`에도 같은 property를 넘긴다. 이 checkpoint는 정확한 3개
-client/network owner, 464-byte coherent snapshot, `0x7E13/0x7E22` route/handler와 최신
-`Classes.lcb`/`Networks.lcb` 저장 증거를 요구한다. 동시에 capability bits 15~17은 OFF,
-`0x7E23` route/owner는 부재하도록 강제한다. `AllowStaleLasalBinaryMetadata` 우회는 허용하지
+full `RunLasalNetworkContract`에도 같은 property를 넘긴다. 이 checkpoint는 current ENI와
+network/generated table의 Elmo slave 0/1, Diagnostics two-entry CRC `0x96FC461C`, static
+`0x7E11/0x7E12`, capability bits 15~17 OFF를 고정한다. 이전
+`IntegratedReadOwnerDormant` checkpoint는 CREVIS input/output node가 존재하던 historical
+계약이며 current two-drive release gate로 사용하지 않는다. `AllowStaleLasalBinaryMetadata` 우회는 허용하지
 않는다. `StaticTopologyOnly`와 `IdeStructureReady`는 구현 단계 경계 검증용으로 남아 있지만,
 외부 read-owner implementation이 들어간 current source에서는 의도적으로 실패한다.
 

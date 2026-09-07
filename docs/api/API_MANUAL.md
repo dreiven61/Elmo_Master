@@ -1877,10 +1877,12 @@ LMCEtherCATTopologyChunk chunk = diagnostics.GetEtherCATTopologyChunk(...);
 LMCEtherCATTopology topology = diagnostics.GetEtherCATTopology();
 ```
 
-Async overload도 제공한다. `GetEtherCATTopology()`는 Info 뒤 7개 chunk를 조합하고 CRC를
-검증한다. current static inventory는 TopologyRevision `0x15867EEC`, 7 entry(Slave 5 + Slot
-Module 2)다. 이것은 프로젝트에 설정된 schema이며 실제 runtime node health, 물리 배선 순서,
-dynamic I/O 값 또는 drive-ready 상태를 증명하지 않는다.
+Async overload도 제공한다. `GetEtherCATTopology()`는 Info 뒤 2개 chunk를 조합하고 CRC를
+검증한다. current source static inventory는 TopologyRevision `0x96FC461C`, 2 entry
+(`Elmo_11`, `Elmo_21`), slave/slot/physical count `2/0/2`다. master slave index는 0/1이고
+SDO/physical axis reference는 1/2다. 이것은 프로젝트에 설정된 schema이며 실제 runtime node
+health, 물리 배선 순서 또는 drive-ready 상태를 증명하지 않는다. 이 source 변경 후 새 LASAL
+build/download와 live readback은 아직 필요하다.
 
 다음 public contract가 존재한다. current LASAL source는 read-owner 두 command를 구현했지만
 capability를 광고하지 않으므로 정상 public/WPF 경로에서는 preflight에서 차단된다. output write는
@@ -1889,7 +1891,7 @@ handler와 allowlist가 모두 없다.
 | API | Command | 현재 상태 |
 |---|---:|---|
 | `ReadEtherCATNodeHealth[Async]` | `0x7E13` | LASAL handler/464-byte snapshot 구현, capability OFF, runtime proof 없음 |
-| `ReadDigitalIO[Async]` | `0x7E22` | LASAL handler/CREVIS input-output shadow 구현, capability OFF, runtime proof 없음 |
+| `ReadDigitalIO[Async]` | `0x7E22` | capability OFF; current two-drive topology에는 public digital-I/O reference가 없어 `IOReferenceNotFound`로 거부 |
 | `SubmitDigitalOutputWrite[Async]` | `0x7E23` | capability OFF, RT owner/handler/allowlist 없음 |
 
 `GetApprovedDigitalOutputWriteReferences()`는 현재 빈 목록이다. request DTO를 생성할 수 있다는

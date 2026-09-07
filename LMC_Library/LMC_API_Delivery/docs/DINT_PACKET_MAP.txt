@@ -132,7 +132,7 @@ P16 FeatureBits U32 base = 0x00000007 (axis/group parameter read and group relat
     the complete 0x7D15/16/17 implementation.
 P20 AxisParameterMask U32 = 0x0000003F
 P24 GroupParameterMask U32 = 0x00000007
-P28 PhysicalAxisCount U16 = 4
+P28 PhysicalAxisCount U16 = 2
 P30 MaxAxisParameterCount U16 = 1
 P32 MainGroupReference U16 = 0x0100
 P34 MaxGroupParameterCount U16 = 3
@@ -603,7 +603,7 @@ Success response outer payload is exactly 68 bytes (76 bytes including header):
      0x0000613F. Bit 13 requires bit 8 and MaxSdoDataBytes=4. Bit 9 SDOWrite is
      set only when the global gate and at least one per-axis target gate are
      enabled; the current source enables only Axis 1. Bit 14
-     EtherCATTopology is active for the fixed seven-node 0x7E11/0x7E12 source.
+     EtherCATTopology is active for the fixed two-drive 0x7E11/0x7E12 source.
      Bits 15 EtherCATNodeHealth and 16 DigitalIORead remain zero while the
      implemented read owner is dormant and awaits current PLC qualification.
      Bit 17 DigitalIOWrite remains zero because 0x7E23 has no PLC route/handler.
@@ -796,10 +796,12 @@ their capability bits remain off. Digital-output Write is not implemented:
   rejection, response-loss OutcomeUncertain, and the accepted-session race.
 
 The SDK validates capability dependencies before sending these commands. The
-current LASAL source routes and handles 0x7E11/0x7E12 with a fixed seven-node
-topology, TopologyRevision=0x15867EEC, and MaxEntriesPerChunk=1. It also routes
-and handles 0x7E13/0x7E22 through LMCEcatInputLatch's coherent 464-byte snapshot;
-the CREVIS coupler, input slot, and output slot clients are wired. Only bit 14 is
+current LASAL source routes and handles 0x7E11/0x7E12 with a fixed two-drive
+topology, TopologyRevision=0x96FC461C, Total/Slave/Slot/Physical=2/2/0/2, and
+MaxEntriesPerChunk=1. Entries are Elmo_11 and Elmo_21 with master indices 0/1
+and SDO/physical-axis references 1/2. It also routes 0x7E13/0x7E22 through
+LMCEcatInputLatch's coherent snapshot, but only Axis1/2 node IDs are accepted and
+no public digital-I/O reference exists in the current topology. Only bit 14 is
 advertised: bits 15 and 16 remain zero until current PLC read-only qualification.
 The digital-output SDK allowlist is currently empty, and no 0x7E23 PLC route,
 handler, or RT output owner exists, so bit 17 remains zero. Source/static/IDE

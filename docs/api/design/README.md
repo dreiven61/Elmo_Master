@@ -1,23 +1,25 @@
 # 최우선 API 개발 설계
 
-- 기준일: 2026-09-02
+- 기준일: 2026-09-07
 - current integration / qualification source: `dev`
-- current source baseline: `dev@5666497c9baef01ee84e534b7041cf0bbb96baf5` (`dev : add SimulationSetup`)
+- current source baseline: `dev@4821797d9279770ba4e3ff396eae4dbb73d421d1`
+- current working-tree delta: two-drive Diagnostics topology inventory (`0x96FC461C`)
 - current API progress: `../API_DEVELOPMENT_PROGRESS.md`
 - current API manual: `../API_MANUAL.md`
 - production release posture: **NO-GO**
 
 ## current implementation master
 
-**2026-09-02 최신 topology 변경 이후 신규 구현은 다음 문서를 정본으로 사용한다.**
+**2026-09-07 Servo Power 수정과 testbed EtherCAT 변경 이후 신규 구현은 다음 문서를 정본으로 사용한다.**
 
-1. `CURRENT_IMPLEMENTATION_HANDOFF_20260902.md` — 2 physical drives + SimulationSetup 이후 current source truth / 다음 작업
+1. `CURRENT_IMPLEMENTATION_HANDOFF_20260907.md` — current HEAD 판정, 즉시 재검증 순서, 다음 코드 구현 시작점
 2. `REMAINING_IMPLEMENTATION_DESIGN_20260902.md` — 남은 기능 구현 순서/의존성 master
-3. `HOME_DS402_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md` — HomeDS402 frozen lifecycle + completion handoff
-4. `SET_POSITION_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md` — SetPosition durable runtime handoff
-5. `SET_POSITION_CURRENT_SOURCE_INVENTORY_20260902.md` — SP-C0 current source inventory PASS evidence
-6. `TOPOLOGY_STATIC_QUALIFICATION_RESULT_20260902.md` — TOPO-C0 source/network/generated-table static tranche PASS evidence
-7. `HOME_DS402_H37_OPERATOR_ACTIVATION_IMPLEMENTATION_20260902.md` — Method 37 UI/source activation implementation and operator procedure
+3. `CURRENT_IMPLEMENTATION_HANDOFF_20260902.md` — 2 physical drives + SimulationSetup 도입 당시 historical handoff
+4. `HOME_DS402_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md` — HomeDS402 frozen lifecycle + completion handoff
+5. `SET_POSITION_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md` — SetPosition durable runtime handoff
+6. `SET_POSITION_CURRENT_SOURCE_INVENTORY_20260902.md` — SP-C0 current source inventory evidence
+7. `TOPOLOGY_STATIC_QUALIFICATION_RESULT_20260902.md` — TOPO-C0 source/network/generated-table static tranche evidence
+8. `HOME_DS402_H37_OPERATOR_ACTIVATION_IMPLEMENTATION_20260902.md` — Method 37 UI/source activation과 당시 operator procedure
 
 기존 상세 문서는 frozen wire/state-machine 또는 historical evidence로 계속 참조한다.
 
@@ -28,7 +30,7 @@
 - `SDO_WRITE_DETAILED_DESIGN_20260901.md`
 - `SDO_WRITE_DIRECT_MANUAL_ENABLEMENT_20260901.md`
 
-문서가 충돌하면 current `dev` source와 `CURRENT_IMPLEMENTATION_HANDOFF_20260902.md`를 우선한다.
+문서가 충돌하면 current `dev` source와 `CURRENT_IMPLEMENTATION_HANDOFF_20260907.md`를 우선한다.
 
 ---
 
@@ -48,6 +50,9 @@ latest source changes:
 - `b746252c...` — 2-drive startup/encoder-maintenance admission 대응
 - `570fddd5...` — ownership service의 file-local `LMC_OWNER_STARTUP_LATCH_PHYSICAL` define 보완
 - `5666497c...` — `SimulationSetup` class + Motion Network wiring 추가
+- `1852bd2e...` — Axis Power On/Off ownership lifecycle와 safety-repeat 오분류 수정
+- `c6bda1e3...` — Elmo slave index 0/1, GL_9086 deactivated testbed EtherCAT 갱신
+- 2026-09-07 working tree — stale 7-node Diagnostics inventory를 Elmo 2-node로 정합화
 
 `SimulationSetup`은 Axis1..9의 retentive 설정을 first scan에서 `_LMCAxisN.SimulateMode`에 즉시 전달한다.
 Motion Network current configured value는 Axis1/2 = non-simulation, Axis3..9 = simulation이다.
@@ -56,7 +61,7 @@ Motion Network current configured value는 Axis1/2 = non-simulation, Axis3..9 = 
 
 상세 current override:
 
-`CURRENT_IMPLEMENTATION_HANDOFF_20260902.md`
+`CURRENT_IMPLEMENTATION_HANDOFF_20260907.md`
 
 ---
 
@@ -98,7 +103,7 @@ Motion Network current configured value는 Axis1/2 = non-simulation, Axis3..9 = 
 
 ## 3. P0-A — current topology freeze / regression
 
-HomeDS402 구현을 계속하기 전에 `TOPO-C0`를 먼저 닫는다.
+HomeDS402 구현을 계속하기 전에 current testbed image 기준 `P0-0 / TOPO-C0`를 다시 닫는다.
 
 필수 확인:
 
@@ -110,8 +115,14 @@ HomeDS402 구현을 계속하기 전에 `TOPO-C0`를 먼저 닫는다.
 - Axis3/4 EtherCAT absence가 ownership startup을 막지 않음
 - Encoder Maintenance Axis1/2 정상 admission
 - Encoder Maintenance Axis3/4 physical request 명시적 unavailable
+- EtherCAT generated table의 Elmo slave index 0/1과 실제 장비 순서 일치
+- GL_9086 deactivated 상태가 Drive1/2 startup readiness를 막지 않음
+- Servo Power 수정 포함 exact image의 Power On/Off physical lifecycle
+- static topology가 `2/2/0/2`, CRC `0x96FC461C`로 응답하고 removed CREVIS/Axis3/4를 노출하지 않음
 
-이 단계는 activation이 아니라 topology baseline freeze다.
+source/static 기준은 `tools/Verify-CurrentPhysicalTopology.ps1` `184/184`와 PC regression
+`1201/1201`로 닫혔다. 이 단계는 activation이 아니라 topology baseline freeze이며, current working-tree
+변경 후 LASAL Rebuild/Download와 live readback은 아직 필요하다.
 
 ---
 
@@ -150,7 +161,8 @@ physical HomeDS402 hardware qualification 대상은 Axis1/2다.
 Admin HomeDS402 capability는 `0x00000757`의 bit 6이다. Diagnostics capability
 `0x0000613F`의 bit 6은 RecorderDoubleBank이므로 Home 판정에 사용하지 않는다.
 현재 실행 중 PLC/WPF가 이 변경 이전 image/process이면 capability를 새로 읽어도 사용할 수 없다.
-fresh LASAL build/link/download와 WPF 재시작이 필요하다.
+fresh LASAL build/link/download와 WPF 재시작이 필요하다. 특히 BootId 137 실패 시험은
+최종 safety-repeat helper 수정 전 evidence이므로 current success로 재사용하지 않는다.
 
 WPF는 현재 검증된 Method 37만 선택할 수 있다. 이는 축 이동 없이 현재 actual position을
 0으로 정의하는 방식이다. switch/index를 찾는 이동형 homing은 `HomeDS402Ex`이며 아직 미구현/비활성이다.
@@ -161,7 +173,7 @@ WPF는 현재 검증된 Method 37만 선택할 수 있다. 이는 축 이동 없
 
 current topology override:
 
-`CURRENT_IMPLEMENTATION_HANDOFF_20260902.md`
+`CURRENT_IMPLEMENTATION_HANDOFF_20260907.md`
 
 ---
 
@@ -238,10 +250,11 @@ current P0/P1이 닫히기 전 HomeDS402Ex activation은 OFF 유지한다.
 
 ## 8. current 문서 우선순위
 
-1. `CURRENT_IMPLEMENTATION_HANDOFF_20260902.md`
-2. `REMAINING_IMPLEMENTATION_DESIGN_20260902.md`
-3. `HOME_DS402_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md`
-4. `SET_POSITION_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md`
-5. `SET_POSITION_CURRENT_SOURCE_INVENTORY_20260902.md`
-6. `../API_DEVELOPMENT_PROGRESS.md`
-7. historical detailed design/evidence
+1. `CURRENT_IMPLEMENTATION_HANDOFF_20260907.md`
+2. current `dev` source와 current verifier 결과
+3. `REMAINING_IMPLEMENTATION_DESIGN_20260902.md`
+4. `HOME_DS402_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md`
+5. `SET_POSITION_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md`
+6. `SET_POSITION_CURRENT_SOURCE_INVENTORY_20260902.md`
+7. `../API_DEVELOPMENT_PROGRESS.md`
+8. historical detailed design/evidence

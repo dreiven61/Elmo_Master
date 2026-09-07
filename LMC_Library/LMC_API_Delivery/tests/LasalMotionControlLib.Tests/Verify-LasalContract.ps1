@@ -19,7 +19,7 @@ param(
         'IntegratedReadOwnerDormant',
         'IntegratedReadOwner',
         'IntegratedOutputOwnerDormant')]
-    [string]$TopologyIoCheckpoint = 'IntegratedReadOwnerDormant',
+    [string]$TopologyIoCheckpoint = 'StaticTopologyOnly',
 
     [ValidateRange(0, 4)]
     [int]$ExpectedSdoWriteAxis = 0,
@@ -42864,15 +42864,12 @@ function Assert-ConfiguredEtherCATTopologyContract {
     )
 
     $expectedSlaves = @(
-        @{ Name = 'GL_9086_11'; Class = 'GL_9086_1'; EniName = 'Slave 01 (GL-9086,Crevis)'; PhysAddr = 1001; AutoIncAddr = 0; VendorId = 669; ProductCode = 1196200070; RevisionNo = 65536 },
-        @{ Name = 'Elmo_11'; Class = 'Elmo_1'; EniName = 'Slave 02 (Elmo Drive )'; PhysAddr = 1002; AutoIncAddr = -1; VendorId = 154; ProductCode = 198948; RevisionNo = 66592 },
-        @{ Name = 'Elmo_21'; Class = 'Elmo_2'; EniName = 'Slave 03 (Elmo Drive )'; PhysAddr = 1003; AutoIncAddr = -2; VendorId = 154; ProductCode = 198948; RevisionNo = 66592 },
-        @{ Name = 'Elmo_31'; Class = 'Elmo_3'; EniName = 'Slave 04 (Elmo Drive )'; PhysAddr = 1004; AutoIncAddr = -3; VendorId = 154; ProductCode = 198948; RevisionNo = 66592 },
-        @{ Name = 'Elmo_41'; Class = 'Elmo_4'; EniName = 'Slave 05 (Elmo Drive )'; PhysAddr = 1005; AutoIncAddr = -4; VendorId = 154; ProductCode = 198948; RevisionNo = 66592 }
+        @{ Name = 'Elmo_11'; Class = 'Elmo_1'; EniName = 'Slave 01 (Elmo Drive )'; PhysAddr = 1001; AutoIncAddr = 0; VendorId = 154; ProductCode = 198948; RevisionNo = 66592 },
+        @{ Name = 'Elmo_21'; Class = 'Elmo_2'; EniName = 'Slave 02 (Elmo Drive )'; PhysAddr = 1002; AutoIncAddr = -1; VendorId = 154; ProductCode = 198948; RevisionNo = 66592 }
     )
     $eniSlaves = @($EniXml.EtherCATConfig.Config.Slave)
     if ($eniSlaves.Count -ne $expectedSlaves.Count) {
-        throw "$Owner ENI configured slave count is $($eniSlaves.Count), expected exactly 5."
+        throw "$Owner ENI configured slave count is $($eniSlaves.Count), expected exactly 2."
     }
     for ($index = 0; $index -lt $expectedSlaves.Count; $index++) {
         $actual = $eniSlaves[$index]
@@ -42897,44 +42894,10 @@ function Assert-ConfiguredEtherCATTopologyContract {
         }
     }
 
-    $coupler = $eniSlaves[0]
-    foreach ($direction in @('Send', 'Recv')) {
-        if ([string]$coupler.ProcessData.$direction.BitStart -cne '696' -or
-            [string]$coupler.ProcessData.$direction.BitLength -cne '32') {
-            throw "$Owner ENI CREVIS $direction process image must be bit 696/32."
-        }
-    }
-    foreach ($pdoContract in @(
-            @{ Direction = 'TxPdo'; Sm = '3'; PdoIndex = '#x1A00'; EntryIndex = '#x6000' },
-            @{ Direction = 'RxPdo'; Sm = '2'; PdoIndex = '#x1601'; EntryIndex = '#x7010' })) {
-        $selectedPdos = @($coupler.ProcessData.($pdoContract.Direction) |
-            Where-Object { [string]$_.Sm -ceq $pdoContract.Sm })
-        if ($selectedPdos.Count -ne 1 -or
-            [string]$selectedPdos[0].Index -cne $pdoContract.PdoIndex) {
-            throw ("$Owner ENI CREVIS $($pdoContract.Direction) selected PDO " +
-                "must be $($pdoContract.PdoIndex) on SM$($pdoContract.Sm).")
-        }
-        $entries = @($selectedPdos[0].Entry)
-        if ($entries.Count -ne 4) {
-            throw "$Owner ENI CREVIS $($pdoContract.Direction) must contain exactly four entries."
-        }
-        for ($entryIndex = 0; $entryIndex -lt 4; $entryIndex++) {
-            $entry = $entries[$entryIndex]
-            $expectedSubIndex = '#x' + ($entryIndex + 1)
-            if ([string]$entry.Index -cne $pdoContract.EntryIndex -or
-                [string]$entry.SubIndex -cne $expectedSubIndex -or
-                [string]$entry.BitLen -cne '8' -or
-                [string]$entry.DataType -cne 'USINT') {
-                throw ("$Owner ENI CREVIS $($pdoContract.Direction) entry " +
-                    "$entryIndex must be $($pdoContract.EntryIndex):$expectedSubIndex USINT/8-bit.")
-            }
-        }
-    }
-
     $networkSlaveObjects = @($NetworkXml.SelectNodes(
-        '/Network/Components/Object[Channels/Client[@Name="SlaveIndex"]]'))
-    if ($networkSlaveObjects.Count -ne 5) {
-        throw "$Owner EtherCAT_Network must expose exactly five configured SlaveIndex objects."
+        "/Network/Components/Object[Channels/Client[@Name='SlaveIndex' and @Value!='DEACTIVATED_LSL']]"))
+    if ($networkSlaveObjects.Count -ne 2) {
+        throw "$Owner EtherCAT_Network must expose exactly two active SlaveIndex objects."
     }
     for ($index = 0; $index -lt $expectedSlaves.Count; $index++) {
         $expected = $expectedSlaves[$index]
@@ -42947,52 +42910,35 @@ function Assert-ConfiguredEtherCATTopologyContract {
             throw "$Owner EtherCAT_Network SlaveIndex $index must map exactly to $($expected.Name)/$($expected.Class)."
         }
     }
-    foreach ($slot in @(
-            @{ Name = 'GL_9086_1_Slot001'; DeviceType = 'GL_9086_1_Slot00_GT-12FA'; Slot = '0' },
-            @{ Name = 'GL_9086_1_Slot011'; DeviceType = 'GL_9086_1_Slot01_GT-22BA'; Slot = '1' })) {
-        $slotObjects = @($NetworkXml.SelectNodes(
-            "/Network/Components/Object[@Name='$($slot.Name)' and AdditionalData/Entry[@Name='DeviceType' and @Value='$($slot.DeviceType)']]"))
-        if ($slotObjects.Count -ne 1) {
-            throw "$Owner EtherCAT_Network $($slot.Name) DeviceType must be $($slot.DeviceType)."
-        }
-        $slotChannels = @($slotObjects[0].SelectNodes(
-            "./Channels/Client[@Name='Slot' and @Value='$($slot.Slot)']"))
-        if ($slotChannels.Count -ne 1) {
-            throw "$Owner EtherCAT_Network $($slot.Name).Slot must be $($slot.Slot)."
-        }
-        $slotConnections = @($NetworkXml.SelectNodes(
-            "/Network/Connections/Connection[@Source='$($slot.Name).ECATSlotIn']"))
-        if ($slotConnections.Count -ne 1 -or
-            [string]$slotConnections[0].Destination -cne
-                'GL_9086_11.EthercatSlotOut_1') {
-            throw "$Owner EtherCAT_Network $($slot.Name) must connect exactly once to GL_9086_11.EthercatSlotOut_1."
+    foreach ($inactiveName in @('Elmo_31', 'Elmo_41', 'GL_9086_11')) {
+        $inactiveObjects = @($NetworkXml.SelectNodes(
+            "/Network/Components/Object[@Name='$inactiveName']/Channels/Client[@Name='SlaveIndex' and @Value='DEACTIVATED_LSL']"))
+        if ($inactiveObjects.Count -ne 1) {
+            throw "$Owner EtherCAT_Network $inactiveName must remain deactivated."
         }
     }
 
-    Assert-Match $DiagnosticsServiceText '#define LMC_DIAG_TOPOLOGY_REVISION\s+0x15867EEC' "$Owner serializer revision is not the canonical seven-entry CRC."
-    Assert-Match $DiagnosticsServiceText '(?s)CatalogIndex = 0x0200.*?pEntry \+ 4\)\^\$UINT := 7.*?pEntry \+ 10\)\^\$UINT := 5.*?pEntry \+ 12\)\^\$UINT := 2.*?pEntry \+ 14\)\^\$UINT := 4' "$Owner serializer topology counts do not match ENI/network 5+2/4-axis contract."
-    Assert-Match $DiagnosticsServiceText '(?s)pdoIndex = 0 then.*?\+ 10\)\^\$UINT := 0.*?\+ 24\)\^\$UDINT := 669.*?\+ 28\)\^\$UDINT := 1196200070.*?\+ 32\)\^\$UDINT := 65536.*?GL_9086_11' "$Owner serializer CREVIS slave entry does not match ENI/network index 0."
-    Assert-Match $DiagnosticsServiceText '(?s)pdoIndex <= 4 then.*?\+ 10\)\^\$UINT := pdoIndex.*?\+ 24\)\^\$UDINT := 154.*?\+ 28\)\^\$UDINT := 198948.*?\+ 32\)\^\$UDINT := 66592.*?Elmo_11.*?48 \+ pdoIndex' "$Owner serializer Elmo entries do not match ENI/network indices 1..4."
-    Assert-Match $DiagnosticsServiceText '(?s)pdoIndex = 5 then.*?1196692218.*?GL_9086_1_Slot001.*?else.*?1196696250.*?GL_9086_1_Slot011' "$Owner serializer slot entries do not match network GT-12FA/GT-22BA order."
+    Assert-Match $DiagnosticsServiceText '#define LMC_DIAG_TOPOLOGY_REVISION\s+0x96FC461C' "$Owner serializer revision is not the canonical two-entry CRC."
+    Assert-Match $DiagnosticsServiceText '(?s)CatalogIndex = 0x0200.*?pEntry \+ 4\)\^\$UINT := 2.*?pEntry \+ 10\)\^\$UINT := 2.*?pEntry \+ 12\)\^\$UINT := 0.*?pEntry \+ 14\)\^\$UINT := 2' "$Owner serializer topology counts do not match the two-drive contract."
+    Assert-Match $DiagnosticsServiceText '(?s)pTopologyEntry\^\$UDINT := 0xEC000101 \+ TO_UDINT\(pdoIndex\).*?\+ 10\)\^\$UINT := pdoIndex.*?\+ 16\)\^\$UINT := pdoIndex \+ 1.*?\+ 18\)\^\$UINT := pdoIndex \+ 1.*?\+ 24\)\^\$UDINT := 154.*?\+ 28\)\^\$UDINT := 198948.*?\+ 32\)\^\$UDINT := 66592.*?Elmo_11.*?49 \+ pdoIndex' "$Owner serializer Elmo entries do not match ENI/network indices 0..1."
+    if ([regex]::IsMatch(
+            $DiagnosticsServiceText,
+            '(?s)CatalogIndex = 0x0200.*?GL_9086_11')) {
+        throw "$Owner serializer still exposes the deactivated CREVIS node."
+    }
 
     if (-not [string]::IsNullOrWhiteSpace($GeneratedTableText)) {
-        foreach ($classIndex in 1..4) {
+        foreach ($classIndex in 1..2) {
             Assert-Match $GeneratedTableText ("#define ELMO_{0}_ETHERCATSLAVE_PRODUCT_CODE\s+198948" -f $classIndex) "$Owner generated table Elmo_$classIndex product code is stale."
             Assert-Match $GeneratedTableText ("#define ELMO_{0}_ETHERCATSLAVE_VENDOR_ID\s+154" -f $classIndex) "$Owner generated table Elmo_$classIndex vendor ID is stale."
-            Assert-Match $GeneratedTableText ('(?m)^TO_UDINT\({0}\), "SlaveIndex", TO_UDINT\({0}\),//\|EtherCAT_Network\.Elmo_{0}1\.SlaveIndex;' -f $classIndex) "$Owner generated table Elmo_$classIndex SlaveIndex is stale."
+            $slaveIndex = $classIndex - 1
+            Assert-Match $GeneratedTableText ('(?m)^TO_UDINT\({0}\), "SlaveIndex", TO_UDINT\({1}\),//\|EtherCAT_Network\.Elmo_{0}1\.SlaveIndex;' -f $classIndex, $slaveIndex) "$Owner generated table Elmo_$classIndex SlaveIndex is stale."
         }
-        Assert-Match $GeneratedTableText '#define GL_9086_1_ETHERCATSLAVE_PRODUCT_CODE\s+1196200070' "$Owner generated table CREVIS product code is stale."
-        Assert-Match $GeneratedTableText '#define GL_9086_1_ETHERCATSLAVE_VENDOR_ID\s+669' "$Owner generated table CREVIS vendor ID is stale."
-        Assert-Match $GeneratedTableText '(?m)^TO_UDINT\(22\), "SlaveIndex", TO_UDINT\(0\),//\|EtherCAT_Network\.GL_9086_11\.SlaveIndex;' "$Owner generated table CREVIS SlaveIndex is stale."
-        foreach ($slotContract in @(
-                @{ Prefix = 'GL_9086_1_SLOT00'; Product = '1196692218'; Direction = 'INPUTS'; PdoIndex = '6000' },
-                @{ Prefix = 'GL_9086_1_SLOT01'; Product = '1196696250'; Direction = 'OUTPUTS'; PdoIndex = '7010' })) {
-            Assert-Match $GeneratedTableText ("#define $($slotContract.Prefix)_ETHERCATSLAVE_PRODUCT_CODE\s+$($slotContract.Product)") "$Owner generated table $($slotContract.Prefix) product code is stale."
-            Assert-Match $GeneratedTableText ("#define $($slotContract.Prefix)_ETHERCATSLAVE_VENDOR_ID\s+669") "$Owner generated table $($slotContract.Prefix) vendor ID is stale."
-            foreach ($byteIndex in 0..3) {
-                Assert-Match $GeneratedTableText ("#define $($slotContract.Prefix)_$($slotContract.Direction)_BYTE${byteIndex}_INDEX\s+16#$($slotContract.PdoIndex)") "$Owner generated table $($slotContract.Prefix) byte $byteIndex PDO index is stale."
-                Assert-Match $GeneratedTableText ("#define $($slotContract.Prefix)_$($slotContract.Direction)_BYTE${byteIndex}_SUBINDEX\s+" + ($byteIndex + 1)) "$Owner generated table $($slotContract.Prefix) byte $byteIndex PDO subindex is stale."
-            }
+        foreach ($inactiveContract in @(
+                @{ ObjectId = 3; Name = 'Elmo_31' },
+                @{ ObjectId = 4; Name = 'Elmo_41' },
+                @{ ObjectId = 22; Name = 'GL_9086_11' })) {
+            Assert-Match $GeneratedTableText ('(?m)^TO_UDINT\({0}\), "SlaveIndex", TO_UDINT\(DEACTIVATED_LSL\),//\|EtherCAT_Network\.{1}\.SlaveIndex;' -f $inactiveContract.ObjectId, $inactiveContract.Name) "$Owner generated table $($inactiveContract.Name) must remain deactivated."
         }
     }
 
@@ -43891,53 +43837,42 @@ Assert-ConfiguredEtherCATTopologyNegativeFixture $orderFixture $etherCatNetworkX
 
 [xml]$identityFixture = $eniXml.OuterXml
 $identityFixture.SelectSingleNode(
-    '/EtherCATConfig/Config/Slave[1]/Info/ProductCode').InnerText = '198948'
+    '/EtherCATConfig/Config/Slave[1]/Info/ProductCode').InnerText = '198949'
 Assert-ConfiguredEtherCATTopologyNegativeFixture $identityFixture $etherCatNetworkXml $diagnosticsService 'changed slave identity'
 
-[xml]$pdoFixture = $eniXml.OuterXml
-$pdoFixture.SelectSingleNode(
-    '/EtherCATConfig/Config/Slave[1]/ProcessData/TxPdo[1]/Entry[1]/SubIndex').InnerText = '#x2'
-Assert-ConfiguredEtherCATTopologyNegativeFixture $pdoFixture $etherCatNetworkXml $diagnosticsService 'changed CREVIS PDO mapping'
+[xml]$addressFixture = $eniXml.OuterXml
+$addressFixture.SelectSingleNode(
+    '/EtherCATConfig/Config/Slave[1]/Info/AutoIncAddr').InnerText = '-1'
+Assert-ConfiguredEtherCATTopologyNegativeFixture $addressFixture $etherCatNetworkXml $diagnosticsService 'changed slave address'
 
 [xml]$networkSlaveIndexFixture = $etherCatNetworkXml.OuterXml
 $null = $networkSlaveIndexFixture.SelectSingleNode(
-    "/Network/Components/Object[@Name='GL_9086_11']/Channels/Client[@Name='SlaveIndex']").SetAttribute(
-        'Value',
-        '4')
-Assert-ConfiguredEtherCATTopologyNegativeFixture $eniXml $networkSlaveIndexFixture $diagnosticsService 'changed network SlaveIndex'
-
-[xml]$networkSlotFixture = $etherCatNetworkXml.OuterXml
-$null = $networkSlotFixture.SelectSingleNode(
-    "/Network/Components/Object[@Name='GL_9086_1_Slot001']/Channels/Client[@Name='Slot']").SetAttribute(
+    "/Network/Components/Object[@Name='Elmo_11']/Channels/Client[@Name='SlaveIndex']").SetAttribute(
         'Value',
         '1')
-Assert-ConfiguredEtherCATTopologyNegativeFixture $eniXml $networkSlotFixture $diagnosticsService 'changed network slot index'
+Assert-ConfiguredEtherCATTopologyNegativeFixture $eniXml $networkSlaveIndexFixture $diagnosticsService 'changed network SlaveIndex'
 
-[xml]$networkSlotConnectionFixture = $etherCatNetworkXml.OuterXml
-$networkSlotConnections = $networkSlotConnectionFixture.SelectSingleNode(
-    '/Network/Connections')
-$extraSlotConnection = $networkSlotConnectionFixture.CreateElement('Connection')
-$extraSlotConnection.SetAttribute(
-    'Source',
-    'GL_9086_1_Slot001.ECATSlotIn')
-$extraSlotConnection.SetAttribute('Destination', 'Elmo_11.ClassState')
-$null = $networkSlotConnections.AppendChild($extraSlotConnection)
-Assert-ConfiguredEtherCATTopologyNegativeFixture $eniXml $networkSlotConnectionFixture $diagnosticsService 'changed network slot connection'
+[xml]$networkActivationFixture = $etherCatNetworkXml.OuterXml
+$null = $networkActivationFixture.SelectSingleNode(
+    "/Network/Components/Object[@Name='GL_9086_11']/Channels/Client[@Name='SlaveIndex']").SetAttribute(
+        'Value',
+        '2')
+Assert-ConfiguredEtherCATTopologyNegativeFixture $eniXml $networkActivationFixture $diagnosticsService 'reactivated removed CREVIS slave'
 
 $serializerRevisionFixture = $diagnosticsService.Replace(
-    '#define LMC_DIAG_TOPOLOGY_REVISION    0x15867EEC',
-    '#define LMC_DIAG_TOPOLOGY_REVISION    0x15867EED')
+    '#define LMC_DIAG_TOPOLOGY_REVISION    0x96FC461C',
+    '#define LMC_DIAG_TOPOLOGY_REVISION    0x96FC461D')
 Assert-ConfiguredEtherCATTopologyNegativeFixture $eniXml $etherCatNetworkXml $serializerRevisionFixture 'changed serializer revision'
 
 $serializerCountFixture = $diagnosticsService.Replace(
-    '(pEntry + 4)^$UINT := 7;',
-    '(pEntry + 4)^$UINT := 8;')
+    '(pEntry + 4)^$UINT := 2;',
+    '(pEntry + 4)^$UINT := 3;')
 Assert-ConfiguredEtherCATTopologyNegativeFixture $eniXml $etherCatNetworkXml $serializerCountFixture 'changed serializer topology count'
 
 if (-not $SourceOnly) {
     $generatedTableFixture = $etherCatNetworkTable.Replace(
-        '#define GL_9086_1_ETHERCATSLAVE_PRODUCT_CODE 1196200070',
-        '#define GL_9086_1_ETHERCATSLAVE_PRODUCT_CODE 1196200071')
+        '#define ELMO_1_ETHERCATSLAVE_PRODUCT_CODE 198948',
+        '#define ELMO_1_ETHERCATSLAVE_PRODUCT_CODE 198949')
     Assert-ConfiguredEtherCATTopologyNegativeFixture `
         $eniXml `
         $etherCatNetworkXml `
@@ -51965,16 +51900,14 @@ if ([regex]::Matches($diagnosticsService, '<Client Name="SdoAxis[1-4]" Required=
     throw 'LMCDiagnosticsService does not declare exactly four required LMCSdoExecutor clients.'
 }
 Assert-Match $diagnosticsService '#define LMC_DIAG_MAP_REVISION\s+0x957F101E' 'LMCDiagnosticsService MapRevision is not the canonical D1 catalog CRC.'
-Assert-Match $diagnosticsService '#define LMC_DIAG_TOPOLOGY_REVISION\s+0x15867EEC' 'LMCDiagnosticsService TopologyRevision is not the canonical seven-node CRC.'
+Assert-Match $diagnosticsService '#define LMC_DIAG_TOPOLOGY_REVISION\s+0x96FC461C' 'LMCDiagnosticsService TopologyRevision is not the canonical two-drive CRC.'
 Assert-Match $diagnosticsService 'Server Name="DiagnosticsBootCounter".*Initialize="true".*DefValue="0".*Retentive="File"' 'LMCDiagnosticsService retained DiagnosticsBootCounter metadata is missing.'
 Assert-Match $diagnosticsService '(?s)FUNCTION GLOBAL LMCDiagnosticsService::GetDiagnosticsBootId.*?DiagnosticsBootCounter\.Read\(\).*?nextBootId = 0xFFFFFFFF.*?DiagnosticsBootCounter\.Write\(input:=nextBootId\).*?DiagnosticsBootCounter\.Read\(\) = nextBootId.*?BootIdFault := TRUE.*?END_FUNCTION' 'LMCDiagnosticsService retained BootId generation or write verification is incomplete.'
 Assert-Match $diagnosticsService '(?s)FUNCTION LMCDiagnosticsService::BuildCatalogEntry.*?CatalogIndex >= 24.*?pEntry \+ 76.*?:= 0' 'LMCDiagnosticsService fixed 80-byte catalog entry builder is incomplete.'
-Assert-Match $diagnosticsService '(?s)CatalogIndex = 0x0200.*?_memset\(dest:=pEntry,\s*usByte:=0,\s*cntr:=28\).*?pEntry\^\$UDINT := LMC_DIAG_TOPOLOGY_REVISION.*?pEntry \+ 4\)\^\$UINT := 7.*?pEntry \+ 6\)\^\$UINT := 96.*?pEntry \+ 8\)\^\$UINT := 1.*?pEntry \+ 10\)\^\$UINT := 5.*?pEntry \+ 12\)\^\$UINT := 2.*?pEntry \+ 14\)\^\$UINT := 4.*?pEntry \+ 16\)\^\$UDINT := 0x0000000F.*?pEntry \+ 20\)\^\$UDINT := 1' 'LMCDiagnosticsService topology info serializer is not the fixed seven-node v1 contract.'
-Assert-Match $diagnosticsService '(?s)CatalogIndex >= 0x8000.*?physicalAxis := \(CatalogIndex shr 8\) and 0x007F.*?topologyCount := CatalogIndex and 0x00FF.*?pEntry \+ 16\)\^\$UDINT := LMC_DIAG_TOPOLOGY_REVISION.*?pEntry \+ 20\)\^\$UINT := physicalAxis.*?pEntry \+ 22\)\^\$UINT := topologyCount.*?pEntry \+ 24\)\^\$UINT := 7.*?pEntry \+ 26\)\^\$UINT := 96.*?pEntry \+ 2\)\^\$UINT := 2.*?pTopologyEntry := pEntry \+ 28' 'LMCDiagnosticsService topology chunk header or LastChunk construction is incomplete.'
-Assert-Match $diagnosticsService '(?s)topologyCount := CatalogIndex and 0x00FF.*?topologyCount = 0.*?physicalAxis >= 7.*?physicalAxis \+ topologyCount\) > 7.*?RETURN;' 'LMCDiagnosticsService private topology serializer does not reject zero or out-of-range aggregate requests.'
-Assert-Match $diagnosticsService '(?s)pdoIndex = 0 then.*?pTopologyEntry\^\$UDINT := 0xEC000001.*?pTopologyEntry \+ 10\)\^\$UINT := 0.*?pTopologyEntry \+ 14\)\^\$UINT := 0x0041.*?pTopologyEntry \+ 20\)\^\$UINT := 0xFFFF.*?pTopologyEntry \+ 24\)\^\$UDINT := 669.*?pTopologyEntry \+ 28\)\^\$UDINT := 1196200070.*?pTopologyEntry \+ 32\)\^\$UDINT := 65536.*?GL_9086_11' 'LMCDiagnosticsService CREVIS coupler topology entry is incomplete.'
-Assert-Match $diagnosticsService '(?s)pdoIndex <= 4 then.*?pTopologyEntry\^\$UDINT := 0xEC000100 \+ TO_UDINT\(pdoIndex\).*?pTopologyEntry \+ 10\)\^\$UINT := pdoIndex.*?pTopologyEntry \+ 14\)\^\$UINT := 0x0027.*?pTopologyEntry \+ 16\)\^\$UINT := pdoIndex.*?pTopologyEntry \+ 18\)\^\$UINT := pdoIndex.*?pTopologyEntry \+ 20\)\^\$UINT := 0xFFFF.*?pTopologyEntry \+ 24\)\^\$UDINT := 154.*?pTopologyEntry \+ 28\)\^\$UDINT := 198948.*?pTopologyEntry \+ 32\)\^\$UDINT := 66592.*?Elmo_11.*?pTopologyEntry \+ 49\)\^\$USINT := TO_USINT\(48 \+ pdoIndex\)' 'LMCDiagnosticsService four-drive topology entry generator is incomplete.'
-Assert-Match $diagnosticsService '(?s)pTopologyEntry\^\$UDINT := 0xEC00FFFC \+ TO_UDINT\(pdoIndex\).*?pTopologyEntry \+ 4\)\^\$UDINT := 0xEC000001.*?pTopologyEntry \+ 10\)\^\$UINT := 0xFFFF.*?pTopologyEntry \+ 20\)\^\$UINT := pdoIndex - 5.*?pTopologyEntry \+ 92\)\^\$UDINT := 0x0000FFFC \+ TO_UDINT\(pdoIndex\).*?pdoIndex = 5 then.*?0x0088.*?1196692218.*?pTopologyEntry \+ 40\)\^\$UINT := 4.*?GL_9086_1_Slot001.*?0x0090.*?1196696250.*?pTopologyEntry \+ 42\)\^\$UINT := 4.*?GL_9086_1_Slot011.*?pTopologyEntry \+= 96' 'LMCDiagnosticsService CREVIS slot topology entries are incomplete.'
+Assert-Match $diagnosticsService '(?s)CatalogIndex = 0x0200.*?_memset\(dest:=pEntry,\s*usByte:=0,\s*cntr:=28\).*?pEntry\^\$UDINT := LMC_DIAG_TOPOLOGY_REVISION.*?pEntry \+ 4\)\^\$UINT := 2.*?pEntry \+ 6\)\^\$UINT := 96.*?pEntry \+ 8\)\^\$UINT := 1.*?pEntry \+ 10\)\^\$UINT := 2.*?pEntry \+ 12\)\^\$UINT := 0.*?pEntry \+ 14\)\^\$UINT := 2.*?pEntry \+ 16\)\^\$UDINT := 0x0000000F.*?pEntry \+ 20\)\^\$UDINT := 1' 'LMCDiagnosticsService topology info serializer is not the fixed two-drive v1 contract.'
+Assert-Match $diagnosticsService '(?s)CatalogIndex >= 0x8000.*?physicalAxis := \(CatalogIndex shr 8\) and 0x007F.*?topologyCount := CatalogIndex and 0x00FF.*?pEntry \+ 16\)\^\$UDINT := LMC_DIAG_TOPOLOGY_REVISION.*?pEntry \+ 20\)\^\$UINT := physicalAxis.*?pEntry \+ 22\)\^\$UINT := topologyCount.*?pEntry \+ 24\)\^\$UINT := 2.*?pEntry \+ 26\)\^\$UINT := 96.*?pEntry \+ 2\)\^\$UINT := 2.*?pTopologyEntry := pEntry \+ 28' 'LMCDiagnosticsService two-drive topology chunk header or LastChunk construction is incomplete.'
+Assert-Match $diagnosticsService '(?s)topologyCount := CatalogIndex and 0x00FF.*?topologyCount = 0.*?physicalAxis >= 2.*?physicalAxis \+ topologyCount\) > 2.*?RETURN;' 'LMCDiagnosticsService private topology serializer does not reject zero or out-of-range two-drive requests.'
+Assert-Match $diagnosticsService '(?s)pTopologyEntry\^\$UDINT := 0xEC000101 \+ TO_UDINT\(pdoIndex\).*?pTopologyEntry \+ 10\)\^\$UINT := pdoIndex.*?pTopologyEntry \+ 14\)\^\$UINT := 0x0027.*?pTopologyEntry \+ 16\)\^\$UINT := pdoIndex \+ 1.*?pTopologyEntry \+ 18\)\^\$UINT := pdoIndex \+ 1.*?pTopologyEntry \+ 20\)\^\$UINT := 0xFFFF.*?pTopologyEntry \+ 24\)\^\$UDINT := 154.*?pTopologyEntry \+ 28\)\^\$UDINT := 198948.*?pTopologyEntry \+ 32\)\^\$UDINT := 66592.*?Elmo_11.*?pTopologyEntry \+ 49\)\^\$USINT := TO_USINT\(49 \+ pdoIndex\)' 'LMCDiagnosticsService two-drive topology entry generator is incomplete.'
 if ($topologyIoReadIntegrated) {
     Assert-Match $diagnosticsService (
         '(?s)FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest.*?' +
@@ -52306,7 +52239,7 @@ if ($diagnosticsServiceRouted) {
             'local failure as the exact 16-byte diagnostics error envelope.')
     }
 
-    Assert-Match $topologyIoHandlerBlock '(?s)0x7E11:\s*if RequestSize <> 8 then detailCode:=12;.*?ResponseCapacity < 44 then detailCode:=20;.*?CatalogIndex:=0x0200.*?ResponseSize:=44;.*?0x7E12:\s*if RequestSize = 16 then.*?expectedMapRevision.*?LMC_DIAG_TOPOLOGY_REVISION then detailCode:=26;.*?maxEntries <> 1.*?startIndex >= 7.*?ResponseCapacity < 124.*?CatalogIndex:=0x8000 or\s*\(startIndex shl 8\) or 1.*?ResponseSize:=124;' 'LMCDiagnosticsService 0x7E11/0x7E12 exact request, one-entry chunk, and response bounds are incomplete.'
+    Assert-Match $topologyIoHandlerBlock '(?s)0x7E11:\s*if RequestSize <> 8 then detailCode:=12;.*?ResponseCapacity < 44 then detailCode:=20;.*?CatalogIndex:=0x0200.*?ResponseSize:=44;.*?0x7E12:\s*if RequestSize = 16 then.*?expectedMapRevision.*?LMC_DIAG_TOPOLOGY_REVISION then detailCode:=26;.*?maxEntries <> 1.*?startIndex >= 2.*?ResponseCapacity < 124.*?CatalogIndex:=0x8000 or\s*\(startIndex shl 8\) or 1.*?ResponseSize:=124;' 'LMCDiagnosticsService 0x7E11/0x7E12 exact request, one-entry chunk, and two-drive response bounds are incomplete.'
 
     if ($topologyIoReadIntegrated) {
         $nodeHealthCaseBlock = [regex]::Match(

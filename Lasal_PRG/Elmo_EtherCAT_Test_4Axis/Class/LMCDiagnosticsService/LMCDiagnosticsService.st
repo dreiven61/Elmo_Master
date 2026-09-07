@@ -515,7 +515,7 @@ END_FUNCTION
 
 #define LMC_DIAG_SCHEMA_VERSION       1
 #define LMC_DIAG_MAP_REVISION         0x957F101E
-#define LMC_DIAG_TOPOLOGY_REVISION    0x15867EEC
+#define LMC_DIAG_TOPOLOGY_REVISION    0x96FC461C
 #define LMC_DIAG_ERROR_ID             -32000
 #define LMC_DIAG_D1_ENABLED           TRUE
 #define LMC_DIAG_D2_ENABLED           TRUE
@@ -834,34 +834,34 @@ FUNCTION LMCDiagnosticsService::BuildCatalogEntry
 	if CatalogIndex = 0x0200 then
 		_memset(dest:=pEntry, usByte:=0, cntr:=28);
 		pEntry^$UDINT := LMC_DIAG_TOPOLOGY_REVISION;
-		(pEntry + 4)^$UINT := 7;
+		(pEntry + 4)^$UINT := 2;
 		(pEntry + 6)^$UINT := 96;
 		(pEntry + 8)^$UINT := 1;
-		(pEntry + 10)^$UINT := 5;
-		(pEntry + 12)^$UINT := 2;
-		(pEntry + 14)^$UINT := 4;
+		(pEntry + 10)^$UINT := 2;
+		(pEntry + 12)^$UINT := 0;
+		(pEntry + 14)^$UINT := 2;
 		(pEntry + 16)^$UDINT := 0x0000000F;
 		(pEntry + 20)^$UDINT := 1;
 		Result := 0;
 		RETURN;
 	end_if;
-	// Reuse this private serializer for the seven fixed topology records. The
+	// Reuse this private serializer for the two fixed drive records. The
 	// 0x0100 discriminator keeps the existing D1 catalog index ABI unchanged.
-	if ((CatalogIndex >= 0x0100) & (CatalogIndex <= 0x0106)) |
+	if ((CatalogIndex >= 0x0100) & (CatalogIndex <= 0x0101)) |
 		(CatalogIndex >= 0x8000) then
 		if CatalogIndex >= 0x8000 then
 			physicalAxis := (CatalogIndex shr 8) and 0x007F;
 			topologyCount := CatalogIndex and 0x00FF;
-			if (topologyCount = 0) | (physicalAxis >= 7) |
-				((physicalAxis + topologyCount) > 7) then
+			if (topologyCount = 0) | (physicalAxis >= 2) |
+				((physicalAxis + topologyCount) > 2) then
 				RETURN;
 			end_if;
 			(pEntry + 16)^$UDINT := LMC_DIAG_TOPOLOGY_REVISION;
 			(pEntry + 20)^$UINT := physicalAxis;
 			(pEntry + 22)^$UINT := topologyCount;
-			(pEntry + 24)^$UINT := 7;
+			(pEntry + 24)^$UINT := 2;
 			(pEntry + 26)^$UINT := 96;
-			if (physicalAxis + topologyCount) = 7 then
+			if (physicalAxis + topologyCount) = 2 then
 				(pEntry + 2)^$UINT := 2;
 			end_if;
 			pTopologyEntry := pEntry + 28;
@@ -875,49 +875,18 @@ FUNCTION LMCDiagnosticsService::BuildCatalogEntry
 			pdoIndex := physicalAxis + signalCode;
 			_memset(dest:=pTopologyEntry, usByte:=0, cntr:=96);
 			(pTopologyEntry + 8)^$UINT := pdoIndex;
-			if pdoIndex = 0 then
-				pTopologyEntry^$UDINT := 0xEC000001;
-				(pTopologyEntry + 10)^$UINT := 0;
-				(pTopologyEntry + 12)^$USINT := 1;
-				(pTopologyEntry + 14)^$UINT := 0x0041;
-				(pTopologyEntry + 20)^$UINT := 0xFFFF;
-				(pTopologyEntry + 24)^$UDINT := 669;
-				(pTopologyEntry + 28)^$UDINT := 1196200070;
-				(pTopologyEntry + 32)^$UDINT := 65536;
-				_strcpy(dest:=pTopologyEntry + 44, src:="GL_9086_11");
-			elsif pdoIndex <= 4 then
-				pTopologyEntry^$UDINT := 0xEC000100 + TO_UDINT(pdoIndex);
-				(pTopologyEntry + 10)^$UINT := pdoIndex;
-				(pTopologyEntry + 12)^$USINT := 1;
-				(pTopologyEntry + 14)^$UINT := 0x0027;
-				(pTopologyEntry + 16)^$UINT := pdoIndex;
-				(pTopologyEntry + 18)^$UINT := pdoIndex;
-				(pTopologyEntry + 20)^$UINT := 0xFFFF;
-				(pTopologyEntry + 24)^$UDINT := 154;
-				(pTopologyEntry + 28)^$UDINT := 198948;
-				(pTopologyEntry + 32)^$UDINT := 66592;
-				_strcpy(dest:=pTopologyEntry + 44, src:="Elmo_11");
-				(pTopologyEntry + 49)^$USINT := TO_USINT(48 + pdoIndex);
-			else
-				pTopologyEntry^$UDINT := 0xEC00FFFC + TO_UDINT(pdoIndex);
-				(pTopologyEntry + 4)^$UDINT := 0xEC000001;
-				(pTopologyEntry + 10)^$UINT := 0xFFFF;
-				(pTopologyEntry + 12)^$USINT := 2;
-				(pTopologyEntry + 20)^$UINT := pdoIndex - 5;
-				(pTopologyEntry + 24)^$UDINT := 669;
-				(pTopologyEntry + 92)^$UDINT := 0x0000FFFC + TO_UDINT(pdoIndex);
-				if pdoIndex = 5 then
-					(pTopologyEntry + 14)^$UINT := 0x0088;
-					(pTopologyEntry + 28)^$UDINT := 1196692218;
-					(pTopologyEntry + 40)^$UINT := 4;
-					_strcpy(dest:=pTopologyEntry + 44, src:="GL_9086_1_Slot001");
-				else
-					(pTopologyEntry + 14)^$UINT := 0x0090;
-					(pTopologyEntry + 28)^$UDINT := 1196696250;
-					(pTopologyEntry + 42)^$UINT := 4;
-					_strcpy(dest:=pTopologyEntry + 44, src:="GL_9086_1_Slot011");
-				end_if;
-			end_if;
+			pTopologyEntry^$UDINT := 0xEC000101 + TO_UDINT(pdoIndex);
+			(pTopologyEntry + 10)^$UINT := pdoIndex;
+			(pTopologyEntry + 12)^$USINT := 1;
+			(pTopologyEntry + 14)^$UINT := 0x0027;
+			(pTopologyEntry + 16)^$UINT := pdoIndex + 1;
+			(pTopologyEntry + 18)^$UINT := pdoIndex + 1;
+			(pTopologyEntry + 20)^$UINT := 0xFFFF;
+			(pTopologyEntry + 24)^$UDINT := 154;
+			(pTopologyEntry + 28)^$UDINT := 198948;
+			(pTopologyEntry + 32)^$UDINT := 66592;
+			_strcpy(dest:=pTopologyEntry + 44, src:="Elmo_11");
+			(pTopologyEntry + 49)^$USINT := TO_USINT(49 + pdoIndex);
 			pTopologyEntry += 96;
 		end_for;
 		Result := 0;
@@ -2573,16 +2542,9 @@ FUNCTION LMCDiagnosticsService::HandleEtherCATTopologyIoRequest
 		nodeDataValid : BOOL;
 		nodeHealthFlags : UINT;
 		wireOnline : USINT;
-		requestIOReference : UDINT;
 		requestDirection : USINT;
 		requestBitWidth : USINT;
 		requestReserved : UINT;
-		ioNodeId : UDINT;
-		ioValueLow : UDINT;
-		ioValidMaskLow : UDINT;
-		ioStatus : UINT;
-		ioCycle : UDINT;
-		ioOutputRevision : UDINT;
 		snapshot : ARRAY [0..463] OF USINT;
 	END_VAR
 
@@ -2608,7 +2570,7 @@ FUNCTION LMCDiagnosticsService::HandleEtherCATTopologyIoRequest
 				startIndex := (pRequest + 12)^$UINT;
 				maxEntries := (pRequest + 14)^$UINT;
 				if expectedMapRevision <> LMC_DIAG_TOPOLOGY_REVISION then detailCode:=26;
-				elsif (maxEntries <> 1) | (startIndex >= 7) then detailCode:=12;
+				elsif (maxEntries <> 1) | (startIndex >= 2) then detailCode:=12;
 				elsif ResponseCapacity < 124 then detailCode:=20;
 				elsif BuildCatalogEntry(pEntry:=pResponse, CatalogIndex:=0x8000 or
 					(startIndex shl 8) or 1) <> 0 then detailCode:=24;
@@ -2638,13 +2600,8 @@ FUNCTION LMCDiagnosticsService::HandleEtherCATTopologyIoRequest
 			end_if;
 			if detailCode = 0 then
 				case requestedNodeId of
-					0xEC000001: healthOffset := 304;
 					0xEC000101: healthOffset := 64;
 					0xEC000102: healthOffset := 100;
-					0xEC000103: healthOffset := 136;
-					0xEC000104: healthOffset := 172;
-					0xEC010001: healthOffset := 340;
-					0xEC010002: healthOffset := 376;
 				else detailCode:=27;
 				end_case;
 			end_if;
@@ -2669,11 +2626,6 @@ FUNCTION LMCDiagnosticsService::HandleEtherCATTopologyIoRequest
 					(nodeClassState <> 0xFFFFFFFF) &
 					(nodeEtherCATState <> 0);
 				nodeParentIdentityMatched := TRUE;
-				if (requestedNodeId = 0xEC010001) |
-					(requestedNodeId = 0xEC010002) then
-					nodeParentIdentityMatched :=
-						snapshot[320]$UDINT = _ClassOk$UDINT;
-				end_if;
 				nodeIdentityMatched := nodeDetected &
 					nodeParentIdentityMatched &
 					(nodeClassState = _ClassOk$UDINT) &
@@ -2704,7 +2656,7 @@ FUNCTION LMCDiagnosticsService::HandleEtherCATTopologyIoRequest
 				end_if;
 				if nodeDataValid &
 					(requestedNodeId >= 0xEC000101) &
-					(requestedNodeId <= 0xEC000104) then
+					(requestedNodeId <= 0xEC000102) then
 					nodeHealthFlags := nodeHealthFlags or 0x0020;
 				else
 					nodeDS402Status := 0;
@@ -2739,7 +2691,6 @@ FUNCTION LMCDiagnosticsService::HandleEtherCATTopologyIoRequest
 			end_if;
 			if detailCode = 0 then
 				expectedMapRevision := (pRequest + 8)^$UDINT;
-				requestIOReference := (pRequest + 12)^$UDINT;
 				requestDirection := (pRequest + 16)^$USINT;
 				requestBitWidth := (pRequest + 17)^$USINT;
 				requestReserved := (pRequest + 18)^$UINT;
@@ -2758,64 +2709,9 @@ FUNCTION LMCDiagnosticsService::HandleEtherCATTopologyIoRequest
 				(requestBitWidth > 64)) then
 				detailCode:=12;
 			end_if;
-			if (detailCode = 0) &
-				(inputLatchConnected = FALSE) then
-				detailCode:=11;
-			end_if;
 			if detailCode = 0 then
-				case requestIOReference of
-					0x00010001:
-						if (requestDirection <> 1) |
-							(requestBitWidth <> 32) then
-							detailCode:=28;
-						else
-							ioNodeId := 0xEC010001;
-						end_if;
-					0x00010002:
-						if (requestDirection <> 2) |
-							(requestBitWidth <> 32) then
-							detailCode:=28;
-						else
-							ioNodeId := 0xEC010002;
-						end_if;
-				else detailCode:=28;
-				end_case;
-			end_if;
-			if detailCode = 0 then
-				copyResult := InputLatch.CopyTopologyIoSnapshot(
-					pDest:=#snapshot[0], DestSize:=464);
-				if copyResult <> 0 then
-					detailCode:=31;
-				end_if;
-			end_if;
-			if detailCode = 0 then
-				case requestIOReference of
-					0x00010001:
-						ioValueLow := snapshot[412]$UDINT;
-						ioValidMaskLow := snapshot[420]$UDINT;
-						ioStatus := snapshot[428]$UINT;
-						ioCycle := snapshot[432]$UDINT;
-						ioOutputRevision := 0;
-					0x00010002:
-						ioValueLow := snapshot[436]$UDINT;
-						ioValidMaskLow := snapshot[444]$UDINT;
-						ioStatus := snapshot[452]$UINT;
-						ioCycle := snapshot[456]$UDINT;
-						ioOutputRevision := snapshot[460]$UDINT;
-				end_case;
-				(pResponse + 16)^$UDINT := LMC_DIAG_TOPOLOGY_REVISION;
-				(pResponse + 20)^$UDINT := requestIOReference;
-				(pResponse + 24)^$UDINT := ioNodeId;
-				(pResponse + 28)^$USINT := requestDirection;
-				(pResponse + 29)^$USINT := requestBitWidth;
-				(pResponse + 30)^$UINT := ioStatus;
-				(pResponse + 32)^$UDINT := ioValueLow;
-				(pResponse + 36)^$UDINT := 0;
-				(pResponse + 40)^$UDINT := ioValidMaskLow;
-				(pResponse + 44)^$UDINT := 0;
-				(pResponse + 48)^$UDINT := ioCycle;
-				(pResponse + 52)^$UDINT := ioOutputRevision;
-				ResponseSize:=56;
+				// No digital I/O node exists in the current two-drive topology.
+				detailCode:=28;
 			end_if;
 
 	else

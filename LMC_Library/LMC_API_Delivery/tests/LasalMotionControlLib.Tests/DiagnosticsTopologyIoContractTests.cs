@@ -14,8 +14,8 @@ namespace LasalMotionControlLib.Tests
     {
         private const uint RequestId = 0x11223344u;
         private const uint TopologyRevision = 0xA1B2C3D4u;
-        private const uint LasalTopologyRevision = 0x15867EECu;
-        private const ushort LasalTopologyNodeCount = 7;
+        private const uint LasalTopologyRevision = 0x96FC461Cu;
+        private const ushort LasalTopologyNodeCount = 2;
         private const uint NodeId = 0x00000101u;
         private const uint IOReference = 0x00000501u;
         private const uint DiagnosticsBootId = 0x10203040u;
@@ -29,8 +29,8 @@ namespace LasalMotionControlLib.Tests
                 "Response.EtherCATTopology.GoldenFields",
                 TopologyGoldenFields);
             tests.Add(
-                "Response.EtherCATTopology.LasalSevenNodeGolden",
-                LasalSevenNodeTopologyGolden);
+                "Response.EtherCATTopology.LasalCurrentTwoNodeGolden",
+                LasalCurrentTwoNodeTopologyGolden);
             tests.Add(
                 "Response.EtherCATTopology.MalformedRejected",
                 TopologyMalformedRejected);
@@ -80,8 +80,8 @@ namespace LasalMotionControlLib.Tests
                 "Rpc.DiagnosticsTopologyIo.PinnedSnapshotPreWireGuards",
                 PinnedSnapshotPreWireGuards);
             tests.Add(
-                "Rpc.DiagnosticsTopologyIo.LasalSevenNodeDownload",
-                LasalSevenNodeTopologyDownload);
+                "Rpc.DiagnosticsTopologyIo.LasalCurrentTwoNodeDownload",
+                LasalCurrentTwoNodeTopologyDownload);
             tests.Add(
                 "Rpc.DigitalOutputWrite.EmptyAllowlistPreWire",
                 DigitalOutputWriteEmptyAllowlistPreWire);
@@ -229,7 +229,7 @@ namespace LasalMotionControlLib.Tests
                     chunk.Entries) != 0);
         }
 
-        private static void LasalSevenNodeTopologyGolden()
+        private static void LasalCurrentTwoNodeTopologyGolden()
         {
             var expectedEntries = LasalTopologyEntries();
             var canonical = LasalTopologyCanonicalBytes(expectedEntries);
@@ -246,9 +246,9 @@ namespace LasalMotionControlLib.Tests
             AssertEx.Equal(LasalTopologyNodeCount, info.TotalNodeCount);
             AssertEx.Equal((ushort)96, info.EntryStride);
             AssertEx.Equal((ushort)1, info.MaxEntriesPerChunk);
-            AssertEx.Equal((ushort)5, info.ConfiguredSlaveCount);
-            AssertEx.Equal((ushort)2, info.SlotModuleCount);
-            AssertEx.Equal((ushort)4, info.PhysicalAxisCount);
+            AssertEx.Equal((ushort)2, info.ConfiguredSlaveCount);
+            AssertEx.Equal((ushort)0, info.SlotModuleCount);
+            AssertEx.Equal((ushort)2, info.PhysicalAxisCount);
             AssertEx.Equal(0x0000000Fu, info.TopologyFlagsValue);
             AssertEx.Equal(1u, info.CrcKindValue);
 
@@ -289,10 +289,10 @@ namespace LasalMotionControlLib.Tests
                     parsedEntries));
         }
 
-        private static void LasalSevenNodeTopologyDownload()
+        private static void LasalCurrentTwoNodeTopologyDownload()
         {
-            RunLasalSevenNodeTopologyDownload(false);
-            RunLasalSevenNodeTopologyDownload(true);
+            RunLasalCurrentTwoNodeTopologyDownload(false);
+            RunLasalCurrentTwoNodeTopologyDownload(true);
         }
 
         private static void TopologyMalformedRejected()
@@ -2194,7 +2194,7 @@ namespace LasalMotionControlLib.Tests
             }
         }
 
-        private static void RunLasalSevenNodeTopologyDownload(bool useAsync)
+        private static void RunLasalCurrentTwoNodeTopologyDownload(bool useAsync)
         {
             var expectedEntries = LasalTopologyEntries();
             var canonical = LasalTopologyCanonicalBytes(expectedEntries);
@@ -2395,43 +2395,19 @@ namespace LasalMotionControlLib.Tests
 
         private static LMCEtherCATTopologyEntry[] LasalTopologyEntries()
         {
-            var entries = new List<LMCEtherCATTopologyEntry>
-            {
-                new LMCEtherCATTopologyEntry(
-                    0xEC000001u,
-                    0,
-                    0,
-                    0,
-                    LMCEtherCATTopologyNodeKind.EtherCATSlave,
-                    LMCEtherCATTopologyNodeFlags.HasMasterSlaveIndex
-                        | LMCEtherCATTopologyNodeFlags.IoCoupler,
-                    0,
-                    0,
-                    ushort.MaxValue,
-                    669,
-                    1196200070,
-                    65536,
-                    0,
-                    0,
-                    0,
-                    "GL_9086_11",
-                    0)
-            };
-
+            var entries = new List<LMCEtherCATTopologyEntry>();
             var driveNames = new[]
             {
                 "Elmo_11",
-                "Elmo_21",
-                "Elmo_31",
-                "Elmo_41"
+                "Elmo_21"
             };
             for (ushort axis = 1; axis <= driveNames.Length; axis++)
             {
                 entries.Add(new LMCEtherCATTopologyEntry(
                     checked(0xEC000100u + axis),
                     0,
-                    axis,
-                    axis,
+                    checked((ushort)(axis - 1)),
+                    checked((ushort)(axis - 1)),
                     LMCEtherCATTopologyNodeKind.EtherCATSlave,
                     LMCEtherCATTopologyNodeFlags.HasMasterSlaveIndex
                         | LMCEtherCATTopologyNodeFlags.SupportsSdo
@@ -2449,45 +2425,6 @@ namespace LasalMotionControlLib.Tests
                     driveNames[axis - 1],
                     0));
             }
-
-            entries.Add(new LMCEtherCATTopologyEntry(
-                0xEC010001u,
-                0xEC000001u,
-                5,
-                ushort.MaxValue,
-                LMCEtherCATTopologyNodeKind.SlotModule,
-                LMCEtherCATTopologyNodeFlags.HasInputs
-                    | LMCEtherCATTopologyNodeFlags.HasDigitalIO,
-                0,
-                0,
-                0,
-                669,
-                1196692218,
-                0,
-                0,
-                4,
-                0,
-                "GL_9086_1_Slot001",
-                0x00010001u));
-            entries.Add(new LMCEtherCATTopologyEntry(
-                0xEC010002u,
-                0xEC000001u,
-                6,
-                ushort.MaxValue,
-                LMCEtherCATTopologyNodeKind.SlotModule,
-                LMCEtherCATTopologyNodeFlags.HasOutputs
-                    | LMCEtherCATTopologyNodeFlags.HasDigitalIO,
-                0,
-                0,
-                1,
-                669,
-                1196696250,
-                0,
-                0,
-                0,
-                4,
-                "GL_9086_1_Slot011",
-                0x00010002u));
 
             return entries.ToArray();
         }
@@ -2649,9 +2586,9 @@ namespace LasalMotionControlLib.Tests
             TestFrame.WriteUInt16(payload, 20, LasalTopologyNodeCount);
             TestFrame.WriteUInt16(payload, 22, 96);
             TestFrame.WriteUInt16(payload, 24, 1);
-            TestFrame.WriteUInt16(payload, 26, 5);
-            TestFrame.WriteUInt16(payload, 28, 2);
-            TestFrame.WriteUInt16(payload, 30, 4);
+            TestFrame.WriteUInt16(payload, 26, 2);
+            TestFrame.WriteUInt16(payload, 28, 0);
+            TestFrame.WriteUInt16(payload, 30, 2);
             TestFrame.WriteUInt32(payload, 32, 0x0000000Fu);
             TestFrame.WriteUInt32(payload, 36, 1);
             return payload;

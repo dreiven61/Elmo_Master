@@ -1,20 +1,26 @@
 # LASAL Motion Control API 개발 진척도
 
-2026-09-03 제한 범위 갱신: `dev@ceb14b3` 작업 트리에 단축 Servo Power 수정 반영.
-Home/rebase 전 Power On 허용과 완료된 Power Off의 alarm-only 소유권 잔류 방지에 이어,
-BootId 137 Watch로 확인된 **safety-repeat helper의 새 Power On 오분류 및 RESERVED 잔류**를
-추가 수정했다. 현재 소스 조건식 133/133, safety-repeat negative fixture 31/31,
-rebase negative fixture 39/39 PASS. SDK 1201/1201, WPF 398/398은 앞선 수정의 PC 결과다.
-앞선 버전은 사용자 IDE build/download 후에도 Servo On 실패; 이번 추가 수정의
-IDE/PLC/실축 검증은 아직 미수행이며 production NO-GO는 유지한다.
-전체 정적 검증의 기존 실패와 적용 조건은
+2026-09-07 current override: `dev@4821797`은 `1852bd2` Servo Power lifecycle 수정과
+`c6bda1e` testbed EtherCAT 갱신을 포함한다. current source에서 Servo Power
+`133/133`, rebase `39/39`, safety-repeat `31/31`, topology `184/184`, HomeDS402
+top-level `18/18`, SetPosition SP-C0 `39/39` static 검증이 통과했다. PC Release build와
+protocol/fake-RPC regression도 `1201/1201 PASS`다.
+
+read-only BootId 5 probe에서 Admin `PhysicalAxisCount=2`와 Diagnostics의 이전 7-node/CREVIS
+inventory가 충돌하는 것을 확인했고, current working tree에서 topology를 Elmo 2-node,
+revision `0x96FC461C`로 수정했다. 이 수정 뒤 exact C78 build/link/download, 새 PLC identity,
+actual Elmo slave 0/1, Servo On/Off 및 HomeDS402 실축 검증은 확인되지 않았다. BootId 137 시험도
+최종 safety-repeat helper 수정 전 실패 evidence다. 따라서 current 판정은 **SOURCE/STATIC PASS / PLC-HARDWARE INCONCLUSIVE /
+production NO-GO**다. 다음 재개 순서는
+[2026-09-07 current handoff](design/CURRENT_IMPLEMENTATION_HANDOFF_20260907.md)를 우선한다.
+Servo Power 원인과 안전 경계는
 [수정 기록](../architecture/LASAL_SERVO_POWER_LIFECYCLE_FIX_2026-09-03.md)에 구분한다.
 
-- 문서 버전: 1.4-current
-- 기준일: 2026-09-01
+- 문서 버전: 1.5-current
+- 기준일: 2026-09-07
 - API: `LasalMotionControlLib 0.9.1-preview`
 - current integration branch: `dev`
-- current source baseline: `dev@0afbc2a79dff1b63f908b1bde3bd2502843045ff` (`dev : SetOpMode Complete`)
+- current source baseline: `dev@4821797d9279770ba4e3ff396eae4dbb73d421d1`
 - 릴리스 판정: **production NO-GO**
 
 이 문서는 API 구현률, latest current qualification, 제한과 다음 작업의 current 정본이다.
@@ -53,8 +59,9 @@ history 문서에 남기고 이 문서에는 current 판정만 유지한다.
   source-active다.
 - SetPosition은 SDK/wire/route/P1 async lifecycle이 있으나 execution/native exactly-once와 durable
   backend가 미완료라 `Dormant`다.
-- HomeDS402는 method 37 source/runtime에 더해 H37-02/03/04/10 hardware-independent qualification이
-  current `dev`에 통합됐다. fresh C78/generated artifact, PLC/hardware와 activation은 미완료다.
+- HomeDS402는 method 37 source/runtime과 source/UI activation five gates가 current `dev`에서 ON이다.
+  current static qualification은 PASS지만 `c6bda1e` testbed image의 fresh C78, PLC/hardware completion은
+  미확정이다.
 - SetOperationMode는 `dev@0afbc2a79dff1b63f908b1bde3bd2502843045ff`에서 구현 완료로 닫혔다. PP/PV/IP/CSP, exact requested-mode ACK, one-shot `0x6060`, read-only `0x6061` settling, bounded owner publish, durable no-replay outcome/retire와 WPF terminal 처리까지 current Active 계약이다.
 - Generic SDO는 R03~R05와 SWR-01~04 software 구현이 통합됐다. image/session transport proof,
   ordinary baseline/pre-write guard, journal v4 evidence, identity-pinned one-shot submit 및 PLC 1/2/4-byte
@@ -64,6 +71,9 @@ history 문서에 남기고 이 문서에는 current 판정만 유지한다.
 - SetOperationMode 기능 구현은 완료됐지만 repository qualification hygiene는 별도 관리한다. current SetOperationMode static run은 기능/안전 contract 93개가 PASS하고 LASAL metadata Client 순서와 generated declaration 순서 불일치 1건에서 멈췄다. current WPF workflow failure는 hosted runner의 MSBuild 탐색 단계에서 발생해 test body가 실행되지 않은 CI 환경 문제다.
 - generated LASAL artifact identity와 repository-wide SourceOnly ratchet은 HomeDS402/HomeDS402Ex 등 남은 기능의 release qualification에서 계속 명시적으로 검토하며 자동 갱신하지 않는다.
 - production 판정은 계속 **NO-GO**다.
+- Static Topology는 current source에서 Elmo slave 2개만 노출한다. total/slave/slot/physical은
+  `2/2/0/2`, canonical CRC는 `0x96FC461C`다. Dynamic Node Health와 Digital I/O capability는
+  계속 OFF이며, current topology에는 public digital I/O reference가 없다.
 
 ## 3. 요구사항 커버리지
 
@@ -90,7 +100,7 @@ history 문서에 남기고 이 문서에는 current 판정만 유지한다.
 | Admin read | `0x7D00/7D10/7D20/7D22` | Active | capability + allowlisted semantic key |
 | LMC Home | `0x7D13/7D18/7D19` | Active/Limited | Admin bit 4 ON; no-motion CurrentPositionZero |
 | SetPosition | `0x7D12/7D14/7D1A` | Dormant | volatile store, runtime/native execution fail-closed |
-| DS402 Home | `0x7D15/7D16/7D17` | Dormant | H37 software/source qualification current-dev PASS, five activation gates + bit 6 OFF, fresh C78/hardware 미완료 |
+| DS402 Home | `0x7D15/7D16/7D17` | Limited | Method 37 source/UI five gates + Admin bit 6 ON, current static PASS; latest testbed C78/PLC/hardware completion 미확정 |
 | HomeDS402Ex | `0x7D1B/7D1C/7D1D` | Dormant | full identity/retained store/profile preparation/source-static 존재; physical runtime no-op, bit 11 OFF |
 | SetOperationMode | `0x7D23/7D24/7D25` | Active | 구현 완료: PP/PV/IP/CSP, exact requested-mode ACK, one-shot write/read-only verify, durable no-replay outcome/retire |
 | Diagnostics capability | `0x7E00` | Active | 매 connection fresh BootId/MapRevision/mask 필요 |
@@ -137,11 +147,11 @@ Evidence:
 첫 attempt는 four verifier PASS 후 hosted Windows runner MSBuild discovery에서만 중단됐고, 동일 head의
 failed job rerun이 전체 green이었다. product/source workaround는 추가하지 않았다.
 
-full SourceOnly은 source/static contract를 통과한 뒤 exact known generated-artifact boundary에서 멈춘다.
+아래 SourceOnly blocker와 OFF 판정은 당시 qualified head의 historical evidence다.
 
 `LASAL.UdpCallbackContract blocker: SetPosition-augmented Classes.lcb physical identity drifted.`
 
-따라서 current 판정:
+당시 판정:
 
 - H37-01/02/03/04/10: 완료
 - H37-05: method-size/source portion PASS, generated artifact closure 미완료
@@ -149,7 +159,8 @@ full SourceOnly은 source/static contract를 통과한 뒤 exact known generated
 - H37-07/08: hardware matrix 미완료
 - H37-09: activation 미완료
 
-HomeDS402 capability bit 6과 five activation values는 계속 OFF다.
+이후 current source에서 HomeDS402 capability bit 6과 five activation values는 모두 ON으로 변경됐다.
+2026-09-07 current static 검증은 통과했지만 latest testbed C78/PLC/hardware completion은 미확정이다.
 
 ## 6. SetOperationMode 완료 checkpoint
 
@@ -234,34 +245,37 @@ current hard gates:
 
 ## 9. current 개발 우선순위
 
-SetOperationMode 구현 완료 후 우선순위는 다음으로 재정렬한다.
+2026-09-07 이후 우선순위는 신규 코드와 qualification을 분리한다.
 
-1. **Generic SDO 완료 — issue #46의 잔여 범위**
-   - SWR-01~04 software implementation은 완료
-   - fresh C78 Rebuild/Link와 PLC download
-   - Axis1 safe non-semantic 1/2/4-byte Write + exact readback
-   - Manual Server / programmatic dual-entry BUSY arbitration과 race/no-wire 검증
-   - timeout/disconnect/readback-mismatch durable no-replay recovery
-   - Axis2..4 확대
-2. **HomeDS402 — issue #32**
-   - current exact `dev` C78/generated artifact review와 SourceOnly ratchet closure
-   - same-image PLC/hardware 정상/fault/timeout matrix
-   - activation은 독립 release gate 통과 전까지 OFF 유지
-3. **HomeDS402Ex — issue #28 + #35**
-   - 축1..4 wiring/polarity/method/scale profile 승인
-   - fresh C78/generated artifact + SourceOnly closure
-   - 이후에만 physical parameter program/restore와 homing runtime 진행
-4. **SetPosition — issue #44**
+1. **P0-0 current image / EtherCAT baseline closure**
+   - two-drive Diagnostics inventory source fix 반영 image로 C78 Rebuild/Link
+   - generated artifact와 PLC download identity 기록
+   - live topology `0x96FC461C`, count `2/2/0/2` 확인
+   - Elmo slave index 0/1, Axis1/2 startup, GL_9086 deactivated 영향 확인
+   - physical mask `0x03`, Axis3/4 nonphysical fail-fast 유지
+2. **P0-1 Servo Power physical qualification**
+   - 최종 safety-repeat helper 수정이 포함된 image에서 Axis1/2 Power On/Off
+   - ACK, stable state, physical drive readiness, owner release를 분리 확인
+   - `ErrorId=-9`와 `RESERVED` 잔류가 재발하지 않는지 확인
+3. **P0-2 HomeDS402 Method 37 completion**
+   - 동일 image에서 Axis1/2 terminal과 actual-position zero 효과 확인
+   - Axis3/4 deterministic nonphysical rejection
+   - timeout/disconnect/response-loss에서 original Home Start replay 0
+4. **P0-3 Generic SDO physical completion**
+   - Axis1/2 safe target 1/2/4-byte Write + exact readback
+   - dual-entry BUSY/race와 durable no-replay recovery
+5. **P1 SetPosition — SP-C1 prerequisite 후 SP-C2 구현**
    - vendor `CheckSum.CRC32` golden fixture 확보
    - LASAL IDE-generated `_FileSys` ABI 확보
-   - 두 외부 prerequisite 없이는 durable A/B backend를 추측 구현하지 않음
-5. **후순위 dormant/missing surface**
-   - PI Write, Recorder Double, Dynamic node/DI, Extended SDO result activation 검토
-   - `0x7E23` Digital Output Write LASAL route/owner/allowlist 구현
-6. **Repository/release hygiene**
-   - hosted Windows MSBuild discovery workflow 정리
-   - LASAL metadata/generated declaration order 및 generated artifact ratchet 정합화
-   - 기능별 source SHA / artifact / PLC image / WPF binary evidence set 정리
+   - 두 prerequisite가 닫힌 뒤 fixed dual-file A/B durable backend부터 구현
+6. **P2 HomeDS402Ex와 후순위 surface**
+   - wiring/polarity/method/scale profile 승인 후 physical homing runtime
+   - PI Write, Recorder Double, Dynamic node/DI, Extended SDO result, Digital Output Write 순차 검토
+7. **Repository/release hygiene**
+   - 기능별 source SHA / artifact / PLC image / WPF binary evidence set 유지
+
+상세 실행 순서와 판정 경계는
+[CURRENT_IMPLEMENTATION_HANDOFF_20260907.md](design/CURRENT_IMPLEMENTATION_HANDOFF_20260907.md)를 따른다.
 
 ## 10. branch / qualification 상태
 

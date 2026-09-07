@@ -1,5 +1,10 @@
 # TOPO-C0 Static Qualification Result — 2026-09-02
 
+> 2026-09-07 supersession: the testbed now has Elmo slaves at indices 0/1 and
+> GL/Elmo3/Elmo4 deactivated. Diagnostics static inventory was aligned to two
+> Elmo entries with revision `0x96FC461C`. The current verifier result is
+> `184/184 PASS`; the original result below remains historical evidence.
+
 - source branch: `dev`
 - inspected source HEAD: `b4e43a56f0980d329fbb8e0a80ce924ebc0a0855`
 - scope: current source, editable Motion Network XML, generated Motion Network table, and dormant activation contracts

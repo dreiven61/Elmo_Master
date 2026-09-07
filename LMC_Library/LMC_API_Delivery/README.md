@@ -174,6 +174,9 @@ EtherCAT Health/Catalog/PI Read, Bulk Snapshot, Recorder v1, D4 single-bank
   exception/timeout에 seed, iteration, family와 전체 hex를 출력한다. Release 고정 시드
   `0x7E4C7E4D` 100,000회는 accepted 1,511, exact `InvalidDataException` reject 98,489로
   PASS했다. 이 도구는 파일/네트워크/PLC I/O를 하지 않는다.
+- 2026-09-07 two-drive current default는 `StaticTopologyOnly`다. ENI/network의 Elmo
+  slave index 0/1과 Diagnostics static topology `2/2/0/2`, CRC `0x96FC461C`를 검사하며,
+  Dynamic Node/I/O capability는 OFF이고 public digital-I/O reference는 없다.
 - LASAL `IntegratedReadOwnerDormant` SourceOnly/full static contract의 historical
   `GateDVisualLayout` checkpoint coverage는 PASS다. Current `ad4af91` PS5.1 exact targets는
   verifier compatibility 경계를 통과했지만 current `Classes.lcb` sanctioned Gate D identity

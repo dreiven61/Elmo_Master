@@ -78,14 +78,14 @@ record Resolved after operator confirmation.
 
 ## Static and PC verification
 
-- topology verifier: 154 checks PASS; HomeDS402 source activation atomic ON
+- topology verifier: 184 checks PASS; ENI/network/generated/static inventory are two-drive aligned
 - H37 activation verifier: 46 checks PASS; Admin mask `0x00000757`
 - H37 ownership verifier: 21 checks PASS
 - H37 method-size verifier: 10 checks PASS
 - H37 WPF durable recovery verifier: 36 checks PASS
 - H37 current-dev top-level verifier: 18 checks PASS
 - SetPosition current-source inventory: 39 checks PASS
-- API Release tests: 1200/1200 PASS
+- API Release tests: 1201/1201 PASS
 - WPF Release smoke: 398/398 PASS
 
 These are source/static and PC test results. They are not LASAL compile, PLC
@@ -93,27 +93,35 @@ download, PLC runtime, packet, physical-axis, or production PASS.
 
 ## Operator procedure after this change
 
-> `LMC Home (0x7D13)` is not Servo On. It is the current-position-zero command that clears the retained rebase barrier for the selected axis. A fresh/retained `AxisRebaseRequiredState` may therefore reject WPF `Power On (0x2023)` even when direct LASAL PowerOn works. The adapter reports this as `ErrorId=-15 (AxisRebaseRequired)` instead of generic ownership conflict.
+> 2026-09-07 override: this procedure is superseded by
+> `CURRENT_IMPLEMENTATION_HANDOFF_20260907.md`. A read-only BootId 5 probe found that the
+> downloaded PLC still returned the former 7-node Diagnostics topology while Admin returned
+> `PhysicalAxisCount=2`. The current working tree fixes the static topology to Elmo_11/Elmo_21,
+> revision `0x96FC461C`, but that fix still requires a new C78 build/download. `1852bd2` permits an exact direct ordinary
+> `Power On (0x2023)` despite a retained rebase bit. BootId 137 then exposed a separate
+> safety-repeat classification bug that returned `ErrorId=-9` and left the Axis1 owner
+> `RESERVED`; that source bug is fixed, but current testbed PLC/hardware success remains unverified.
 
-Required test order when the selected physical axis still has the rebase bit set:
+Current required test order:
 
 ```text
 PowerOff + Standstill
--> exact LMC Home 0x7D13
--> terminal success + exact retire
 -> Power On 0x2023
 -> stable PowerOn proof
 -> HomeDS402 Method 37 test
 ```
 
-Do not clear the retained word manually and do not bypass the barrier in PowerOn.
+`LMC Home (0x7D13)` is not Servo On. It is a separate current-position-zero operation and is
+not a prerequisite used to work around Power On. Do not clear retained ownership/rebase words manually.
 
 1. In LASAL IDE, rebuild/link the tracked project and confirm 0 errors.
 2. Download that exact image to the PLC and capture its Build/BootId/MapRevision.
 3. Close the previously running WPF process and start a build containing this change.
-4. Connect, refresh Home capability, and confirm:
+4. Connect, refresh Home capability and static topology, and confirm:
    - Admin HomeDS402 capability is available
    - PhysicalAxisCount is 2
+   - TopologyRevision is `0x96FC461C`
+   - topology total/slave/slot/physical counts are `2/2/0/2`
    - target is Axis1 for the first run
 5. Confirm the physical axis is PowerOff, Standstill, and position-stable.
 6. Select Method 37, keep Home offset 0, enter the timeout, and check the one-shot

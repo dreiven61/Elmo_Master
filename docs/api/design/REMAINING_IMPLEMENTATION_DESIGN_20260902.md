@@ -1,16 +1,28 @@
 # 남은 API 구현 통합 설계 — 2026-09-02
 
 - 기준 branch: `dev`
-- current source baseline: `dev@5666497c9baef01ee84e534b7041cf0bbb96baf5` (`dev : add SimulationSetup`)
+- current source baseline override: `dev@4821797d9279770ba4e3ff396eae4dbb73d421d1`
 - Generic SDO Write: **FEATURE IMPLEMENTATION COMPLETE**
 - SetOperationMode: **IMPLEMENTATION COMPLETE / Active**
-- current P0-A: **2-drive topology + SimulationSetup regression freeze**
-- current P0-B: **HomeDS402 completion / activation**
+- current P0-A: **testbed EtherCAT image + Servo Power + topology regression freeze**
+- current P0-B: **HomeDS402 Method 37 physical completion**
 - current P1: **SetPosition durable runtime implementation**
 - production posture: **NO-GO**
 
 이 문서는 2026-09-02 이후 남은 기능 구현의 current master다.
-latest topology change 이후의 exact override는 `CURRENT_IMPLEMENTATION_HANDOFF_20260902.md`를 우선한다.
+2026-09-07 current HEAD와 실행 순서의 exact override는
+`CURRENT_IMPLEMENTATION_HANDOFF_20260907.md`를 우선한다.
+
+2026-09-07 override:
+
+- Servo Power safety-repeat 오분류/`RESERVED` 잔류 수정은 source에 반영됨
+- testbed EtherCAT은 Elmo slave index 0/1, GL_9086 deactivated로 변경됨
+- read-only PLC probe에서 Admin 2축과 stale Diagnostics 7-node topology 불일치를 확인함
+- current working tree는 Diagnostics inventory를 Elmo 2축, CRC `0x96FC461C`로 수정함
+- topology `184/184`, PC `1201/1201`, HomeDS402/SetPosition/Servo Power current static verifier는 PASS
+- topology 수정 후 exact C78/PLC/실축 검증은 미확정
+- 즉시 순서는 P0-A 내부에서 new build/download -> live topology -> Servo Power -> HomeDS402를 닫는 것
+- 다음 신규 코드 tranche는 SP-C1 prerequisite 확보 후 SetPosition SP-C2 durable A/B backend
 
 2026-09-02 사용자 요청으로 HomeDS402 Method 37 source/UI candidate는 atomic ON으로
 구현됐다. 아래의 `activation OFF` 및 OFF-state preparation 문구는 원래 단계 계획이며,
@@ -19,6 +31,7 @@ Axis1/2 runtime/hardware qualification 전 production posture는 계속 NO-GO다
 
 current detailed references:
 
+- `CURRENT_IMPLEMENTATION_HANDOFF_20260907.md`
 - `CURRENT_IMPLEMENTATION_HANDOFF_20260902.md`
 - `HOME_DS402_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md`
 - `SET_POSITION_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md`
@@ -38,7 +51,7 @@ current detailed references:
 |---:|---|---|---|
 | 완료 | SetOperationMode | Active | release regression 유지 |
 | 완료 | Generic SDO Write | 구현 완료 | current 2-drive physical matrix / release evidence |
-| P0-A | Topology / SimulationSetup | 구현 반영 | cold boot + ownership + nonphysical-target regression freeze |
+| P0-A | EtherCAT / Servo Power / Topology | two-drive inventory source fix 반영 | 새 C78/image + topology `0x96FC461C` + slave 0/1 + Power On/Off + cold boot/nonphysical regression freeze |
 | P0-B | HomeDS402 | source/UI candidate ON | fresh C78 -> Axis1/2 hardware -> runtime qualification |
 | P1 | SetPosition | Dormant / SP-C0 complete | SP-C1 prerequisites -> durable backend -> RT exactly-once -> recovery -> activation |
 | P2 | HomeDS402Ex | Dormant | profile/artifact prerequisite 뒤 physical runtime |
@@ -57,6 +70,9 @@ logical axes             = Axis1..Axis9
 physical Elmo drives     = Axis1, Axis2
 physical mask            = 0x00000003
 simulation axes          = Axis3..Axis9
+static topology          = Elmo_11, Elmo_21
+topology revision        = 0x96FC461C
+slot / digital I/O node  = none
 ```
 
 latest source sequence:
@@ -65,6 +81,8 @@ latest source sequence:
 b746252c  two-drive encoder/ownership admission support
 570fddd5  ownership file-local physical-latch define fix
 5666497c  SimulationSetup + Motion Network wiring
+1852bd2e  Servo Power lifecycle and safety-repeat classification fix
+c6bda1e3  testbed EtherCAT Elmo slave 0/1 + GL_9086 deactivated
 ```
 
 `SimulationSetup` current behavior:
@@ -98,7 +116,7 @@ HomeDS402와 SetPosition 및 drive-level diagnostics는 다음을 지킨다.
 
 # 4. P0-A — TOPO-C0 current topology freeze
 
-HomeDS402/SetPosition 신규 tranche 전에 먼저 current `5666497+` tree를 고정한다.
+HomeDS402/SetPosition 신규 tranche 전에 current two-drive tree와 Diagnostics inventory를 함께 고정한다.
 
 실행/확인:
 
@@ -110,6 +128,7 @@ LASAL Compile/Rebuild 0 errors
 -> Encoder Maintenance Axis1/2 positive
 -> Encoder Maintenance Axis3/4 nonphysical negative
 -> topology/mask static verifier
+-> static topology 2/2/0/2 and CRC 0x96FC461C
 ```
 
 PASS 조건:
@@ -121,6 +140,8 @@ PASS 조건:
 - absent physical Drive3/4가 startup physical proof를 막지 않음
 - file-local macro compile error 없음
 - HomeDS402 source candidate activation은 atomic ON, SetPosition activation은 OFF
+- `0x7E11/0x7E12` inventory는 Elmo 2개만 반환하고 removed CREVIS/Axis3/4를 노출하지 않음
+- `0x7E22`는 current topology에 digital I/O node가 없으므로 reference-not-found로 fail closed
 
 권장 verifier 추가:
 
@@ -133,6 +154,8 @@ PASS 조건:
 - three runtime mask constants = `0x03`
 - HomeDS402 gates atomic all-OFF/all-ON; current source all-ON
 - SetPosition gates OFF
+- ENI slave count 2, network/generated table slave index 0/1
+- Diagnostics topology count `2/2/0/2`, revision `0x96FC461C`
 
 ---
 
