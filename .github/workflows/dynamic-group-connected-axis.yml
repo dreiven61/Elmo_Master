@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/dynamic-group-connected-axis.yml'
       - 'tools/apply_dynamic_group_connected_axis.py'
+      - 'tools/run_dynamic_group_connected_axis.py'
   workflow_dispatch:
 
 permissions:
@@ -24,7 +25,7 @@ jobs:
       - name: Apply dynamic group patch
         shell: powershell
         run: |
-          python '.\tools\apply_dynamic_group_connected_axis.py'
+          python '.\tools\run_dynamic_group_connected_axis.py'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           git diff --check
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
