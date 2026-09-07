@@ -39,7 +39,7 @@
 				<Server Name="StateWord"/>
 				<Server Name="VendorID"/>
 				<Client Name="NoSDOBuffer" Value="0"/>
-				<Client Name="SlaveIndex" Value="1"/>
+				<Client Name="SlaveIndex" Value="0"/>
 				<Client Name="toMaster"/>
 				<Client Name="UseDefaultEnableSequence" Value="1"/>
 			</Channels>
@@ -76,7 +76,7 @@
 								<Server Name="StateWord"/>
 								<Server Name="VendorID"/>
 								<Client Name="NoSDOBuffer" Value="0"/>
-								<Client Name="SlaveIndex" Value="1"/>
+								<Client Name="SlaveIndex" Value="0"/>
 								<Client Name="toMaster"/>
 								<Client Name="UseDefaultEnableSequence" Value="1"/>
 							</Channels>
@@ -103,7 +103,7 @@
 												<Client Name="NoSDOBuffer" Value="0"/>
 												<Client Name="NoSSCBuffer" Value="0"/>
 												<Client Name="Required" Value="1"/>
-												<Client Name="SlaveIndex" Value="1"/>
+												<Client Name="SlaveIndex" Value="0"/>
 												<Client Name="toMaster"/>
 												<Client Name="toStdLib"/>
 											</Channels>
@@ -277,7 +277,7 @@
 				<Server Name="StateWord"/>
 				<Server Name="VendorID"/>
 				<Client Name="NoSDOBuffer" Value="0"/>
-				<Client Name="SlaveIndex" Value="2"/>
+				<Client Name="SlaveIndex" Value="1"/>
 				<Client Name="toMaster"/>
 				<Client Name="UseDefaultEnableSequence" Value="1"/>
 			</Channels>
@@ -314,7 +314,7 @@
 								<Server Name="StateWord"/>
 								<Server Name="VendorID"/>
 								<Client Name="NoSDOBuffer" Value="0"/>
-								<Client Name="SlaveIndex" Value="2"/>
+								<Client Name="SlaveIndex" Value="1"/>
 								<Client Name="toMaster"/>
 								<Client Name="UseDefaultEnableSequence" Value="1"/>
 							</Channels>
@@ -341,7 +341,7 @@
 												<Client Name="NoSDOBuffer" Value="0"/>
 												<Client Name="NoSSCBuffer" Value="0"/>
 												<Client Name="Required" Value="1"/>
-												<Client Name="SlaveIndex" Value="2"/>
+												<Client Name="SlaveIndex" Value="1"/>
 												<Client Name="toMaster"/>
 												<Client Name="toStdLib"/>
 											</Channels>
@@ -1165,7 +1165,7 @@
 				<Client Name="NoAsyncBuffer" Value="0"/>
 				<Client Name="NoSDOBuffer" Value="0"/>
 				<Client Name="NoSSCBuffer" Value="0"/>
-				<Client Name="SlaveIndex" Value="0"/>
+				<Client Name="SlaveIndex" Value="DEACTIVATED_LSL"/>
 				<Client Name="toMaster"/>
 			</Channels>
 			<!-- List of Networks in this component -->
@@ -1192,7 +1192,7 @@
 								<Client Name="NoSDOBuffer" Value="0"/>
 								<Client Name="NoSSCBuffer" Value="0"/>
 								<Client Name="Required" Value="1"/>
-								<Client Name="SlaveIndex" Value="0"/>
+								<Client Name="SlaveIndex" Value="DEACTIVATED_LSL"/>
 								<Client Name="toMaster"/>
 							</Channels>
 							<!-- List of Networks in this component -->
@@ -1218,7 +1218,7 @@
 												<Client Name="NoSDOBuffer" Value="0"/>
 												<Client Name="NoSSCBuffer" Value="0"/>
 												<Client Name="Required" Value="1"/>
-												<Client Name="SlaveIndex" Value="0"/>
+												<Client Name="SlaveIndex" Value="DEACTIVATED_LSL"/>
 												<Client Name="toMaster"/>
 												<Client Name="toStdLib"/>
 											</Channels>

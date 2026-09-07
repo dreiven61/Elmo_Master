@@ -431,13 +431,13 @@ TO_UDINT(58), "DataBuffer", TO_UDINT(43), "m_udLength",
 98$UDINT,
 TO_UDINT(0), "divisor", TO_UDINT(4),//|EtherCAT_Network._base\EtherCAT_PLC1\_SyncMeasureECAT1.divisor;
 TO_UDINT(0), "PhaseRegDamping", TO_UDINT(0),//|EtherCAT_Network._base\EtherCAT_PLC1\_SyncMeasureECAT1.PhaseRegDamping;
-TO_UDINT(1), "SlaveIndex", TO_UDINT(1),//|EtherCAT_Network.Elmo_11.SlaveIndex;
+TO_UDINT(1), "SlaveIndex", TO_UDINT(0),//|EtherCAT_Network.Elmo_11.SlaveIndex;
 TO_UDINT(1), "Required", TO_UDINT(1),//|EtherCAT_Network.Elmo_11.Required;
 TO_UDINT(1), "NoSDOBuffer", TO_UDINT(0),//|EtherCAT_Network.Elmo_11.NoSDOBuffer;
 TO_UDINT(1), "NoAsyncBuffer", TO_UDINT(0),//|EtherCAT_Network.Elmo_11.NoAsyncBuffer;
 TO_UDINT(1), "NoSSCBuffer", TO_UDINT(0),//|EtherCAT_Network.Elmo_11.NoSSCBuffer;
 TO_UDINT(1), "UseDefaultEnableSequence", TO_UDINT(1),//|EtherCAT_Network.Elmo_11.UseDefaultEnableSequence;
-TO_UDINT(2), "SlaveIndex", TO_UDINT(2),//|EtherCAT_Network.Elmo_21.SlaveIndex;
+TO_UDINT(2), "SlaveIndex", TO_UDINT(1),//|EtherCAT_Network.Elmo_21.SlaveIndex;
 TO_UDINT(2), "Required", TO_UDINT(1),//|EtherCAT_Network.Elmo_21.Required;
 TO_UDINT(2), "NoSDOBuffer", TO_UDINT(0),//|EtherCAT_Network.Elmo_21.NoSDOBuffer;
 TO_UDINT(2), "NoAsyncBuffer", TO_UDINT(0),//|EtherCAT_Network.Elmo_21.NoAsyncBuffer;
@@ -476,7 +476,7 @@ TO_UDINT(11), "SynchronizationMode", TO_UDINT(0),//|EtherCAT_Network.EtherCAT_PL
 TO_UDINT(11), "PhaseRegDamping", TO_UDINT(0),//|EtherCAT_Network.EtherCAT_PLC1.PhaseRegDamping;
 TO_UDINT(11), "MissingFrameBehaviour", TO_UDINT(3),//|EtherCAT_Network.EtherCAT_PLC1.MissingFrameBehaviour;
 TO_UDINT(12), "SplitterPlace", TO_UDINT(0),//|EtherCAT_Network._base\GL_9086_11\EtherCATSlot_Hub_Base1.SplitterPlace;
-TO_UDINT(22), "SlaveIndex", TO_UDINT(0),//|EtherCAT_Network.GL_9086_11.SlaveIndex;
+TO_UDINT(22), "SlaveIndex", TO_UDINT(DEACTIVATED_LSL),//|EtherCAT_Network.GL_9086_11.SlaveIndex;
 TO_UDINT(22), "Required", TO_UDINT(1),//|EtherCAT_Network.GL_9086_11.Required;
 TO_UDINT(22), "NoSDOBuffer", TO_UDINT(0),//|EtherCAT_Network.GL_9086_11.NoSDOBuffer;
 TO_UDINT(22), "NoAsyncBuffer", TO_UDINT(0),//|EtherCAT_Network.GL_9086_11.NoAsyncBuffer;
