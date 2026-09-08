@@ -1,0 +1,33 @@
+name: Diagnose Group ownership contract
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/diagnose-group-ownership-contract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+      - name: Print ownership contract assertion context
+        shell: pwsh
+        run: |
+          $path = 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1'
+          $lines = Get-Content -LiteralPath $path
+          $hits = Select-String -LiteralPath $path -Pattern 'ordinary mutation tuple drifted|service classifier|Robot ordinary mutation|LMC_OWNER_ROBOT_AXIS_MASK' -SimpleMatch:$false
+          foreach ($hit in $hits) {
+            $start = [Math]::Max(1, $hit.LineNumber - 35)
+            $end = [Math]::Min($lines.Count, $hit.LineNumber + 35)
+            Write-Host "===== context $start..$end around line $($hit.LineNumber) ====="
+            for ($i = $start; $i -le $end; $i++) {
+              Write-Host ('{0,6}: {1}' -f $i, $lines[$i - 1])
+            }
+          }
