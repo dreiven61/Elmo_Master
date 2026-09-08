@@ -528,7 +528,7 @@ FUNCTION GLOBAL TAB ONE_Motion_Network
 -1$UINT, 0$UINT, 
 0$UINT, 0$UINT,
 
-34$UDINT,
+35$UDINT,
 TO_UDINT(1047453148), "_AxisBase", 1$UINT, 58$UINT, 0$UINT,
 TO_UDINT(3162349954), "_LMCABSEncoder", 1$UINT, 0$UINT, 9$UINT,
 TO_UDINT(1422175863), "_LMCAxis", 1$UINT, 120$UINT, 9$UINT,
@@ -558,6 +558,7 @@ TO_UDINT(4210476436), "_LMCRobotLog", 1$UINT, 42$UINT, 1$UINT,
 TO_UDINT(3213872914), "_LMCSafety", 1$UINT, 21$UINT, 9$UINT,
 TO_UDINT(1286231841), "_LMCSplineBuffer", 1$UINT, 2$UINT, 1$UINT,
 TO_UDINT(2328372307), "_LMCTableBuffer", 1$UINT, 23$UINT, 1$UINT,
+TO_UDINT(114627909), "AbsEncoderSetup", 0$UINT, 0$UINT, 1$UINT,
 TO_UDINT(1198357413), "Controller", 1$UINT, 47$UINT, 0$UINT,
 TO_UDINT(3935910575), "LMCEcatInputLatch", 0$UINT, 0$UINT, 1$UINT,
 TO_UDINT(3890278202), "LMCRecorderStore", 0$UINT, 0$UINT, 1$UINT,
@@ -765,6 +766,8 @@ _NO_ATTR, TO_UDINT(669706412), "_LMCROBOTBASE1",
 
 1$UINT, TO_UDINT(1950102629), "_LMCROBOTBASE1\_BASE\_LMCTABLEBUFFER", 
 
+_NO_ATTR, TO_UDINT(2238484413), "ABSENCODERSETUP1", 
+
 
 _NO_ATTR, TO_UDINT(3311388916), "LMCECATINPUTLATCH1", 
 
@@ -948,57 +951,57 @@ TO_UDINT(159), "LMCMath_SO3", TO_UDINT(118),
 TO_UDINT(159), "_LMCRobotLog", TO_UDINT(160),
 TO_UDINT(159), "LMCBeltInternal", TO_UDINT(117),
 0$UDINT,
-181$UDINT,
-TO_UDINT(9), "LMCController", TO_UDINT(174), "Signal_Input",
-TO_UDINT(9), "LMCPreRtWorkTrigger", TO_UDINT(172), "ClassSvr",
+190$UDINT,
+TO_UDINT(9), "LMCController", TO_UDINT(175), "Signal_Input",
+TO_UDINT(9), "LMCPreRtWorkTrigger", TO_UDINT(173), "ClassSvr",
 TO_UDINT(9), "LMCMath", TO_UDINT(120), "ClassSvr",
 TO_UDINT(9), "LMCSafety", TO_UDINT(161), "ClassSvr",
 TO_UDINT(9), "LMCReference", TO_UDINT(18), "RefInput",
 TO_UDINT(9), "LMCAbsEncoder", TO_UDINT(0), "ClassSvr",
 TO_UDINT(9), "LMCPublisher", TO_UDINT(150), "ClassSvr",
-TO_UDINT(10), "LMCController", TO_UDINT(175), "Signal_Input",
+TO_UDINT(10), "LMCController", TO_UDINT(176), "Signal_Input",
 TO_UDINT(10), "LMCMath", TO_UDINT(121), "ClassSvr",
 TO_UDINT(10), "LMCSafety", TO_UDINT(162), "ClassSvr",
 TO_UDINT(10), "LMCReference", TO_UDINT(19), "RefInput",
 TO_UDINT(10), "LMCAbsEncoder", TO_UDINT(1), "ClassSvr",
 TO_UDINT(10), "LMCPublisher", TO_UDINT(151), "ClassSvr",
-TO_UDINT(11), "LMCController", TO_UDINT(176), "Signal_Input",
+TO_UDINT(11), "LMCController", TO_UDINT(177), "Signal_Input",
 TO_UDINT(11), "LMCMath", TO_UDINT(122), "ClassSvr",
 TO_UDINT(11), "LMCSafety", TO_UDINT(163), "ClassSvr",
 TO_UDINT(11), "LMCReference", TO_UDINT(20), "RefInput",
 TO_UDINT(11), "LMCAbsEncoder", TO_UDINT(2), "ClassSvr",
 TO_UDINT(11), "LMCPublisher", TO_UDINT(152), "ClassSvr",
-TO_UDINT(12), "LMCController", TO_UDINT(177), "Signal_Input",
+TO_UDINT(12), "LMCController", TO_UDINT(178), "Signal_Input",
 TO_UDINT(12), "LMCMath", TO_UDINT(123), "ClassSvr",
 TO_UDINT(12), "LMCSafety", TO_UDINT(164), "ClassSvr",
 TO_UDINT(12), "LMCReference", TO_UDINT(21), "RefInput",
 TO_UDINT(12), "LMCAbsEncoder", TO_UDINT(3), "ClassSvr",
 TO_UDINT(12), "LMCPublisher", TO_UDINT(153), "ClassSvr",
-TO_UDINT(13), "LMCController", TO_UDINT(178), "Signal_Input",
+TO_UDINT(13), "LMCController", TO_UDINT(179), "Signal_Input",
 TO_UDINT(13), "LMCMath", TO_UDINT(124), "ClassSvr",
 TO_UDINT(13), "LMCSafety", TO_UDINT(165), "ClassSvr",
 TO_UDINT(13), "LMCReference", TO_UDINT(22), "RefInput",
 TO_UDINT(13), "LMCAbsEncoder", TO_UDINT(4), "ClassSvr",
 TO_UDINT(13), "LMCPublisher", TO_UDINT(154), "ClassSvr",
-TO_UDINT(14), "LMCController", TO_UDINT(179), "Signal_Input",
+TO_UDINT(14), "LMCController", TO_UDINT(180), "Signal_Input",
 TO_UDINT(14), "LMCMath", TO_UDINT(125), "ClassSvr",
 TO_UDINT(14), "LMCSafety", TO_UDINT(166), "ClassSvr",
 TO_UDINT(14), "LMCReference", TO_UDINT(23), "RefInput",
 TO_UDINT(14), "LMCAbsEncoder", TO_UDINT(5), "ClassSvr",
 TO_UDINT(14), "LMCPublisher", TO_UDINT(155), "ClassSvr",
-TO_UDINT(15), "LMCController", TO_UDINT(180), "Signal_Input",
+TO_UDINT(15), "LMCController", TO_UDINT(181), "Signal_Input",
 TO_UDINT(15), "LMCMath", TO_UDINT(126), "ClassSvr",
 TO_UDINT(15), "LMCSafety", TO_UDINT(167), "ClassSvr",
 TO_UDINT(15), "LMCReference", TO_UDINT(24), "RefInput",
 TO_UDINT(15), "LMCAbsEncoder", TO_UDINT(6), "ClassSvr",
 TO_UDINT(15), "LMCPublisher", TO_UDINT(156), "ClassSvr",
-TO_UDINT(16), "LMCController", TO_UDINT(181), "Signal_Input",
+TO_UDINT(16), "LMCController", TO_UDINT(182), "Signal_Input",
 TO_UDINT(16), "LMCMath", TO_UDINT(127), "ClassSvr",
 TO_UDINT(16), "LMCSafety", TO_UDINT(168), "ClassSvr",
 TO_UDINT(16), "LMCReference", TO_UDINT(25), "RefInput",
 TO_UDINT(16), "LMCAbsEncoder", TO_UDINT(7), "ClassSvr",
 TO_UDINT(16), "LMCPublisher", TO_UDINT(157), "ClassSvr",
-TO_UDINT(17), "LMCController", TO_UDINT(182), "Signal_Input",
+TO_UDINT(17), "LMCController", TO_UDINT(183), "Signal_Input",
 TO_UDINT(17), "LMCMath", TO_UDINT(128), "ClassSvr",
 TO_UDINT(17), "LMCSafety", TO_UDINT(169), "ClassSvr",
 TO_UDINT(17), "LMCReference", TO_UDINT(26), "RefInput",
@@ -1116,33 +1119,42 @@ TO_UDINT(159), "LMCLog", TO_UDINT(132), "ClassSvr",
 TO_UDINT(159), "LMCTableBuffer", TO_UDINT(171), "TableSize",
 TO_UDINT(159), "LMCSplineBuffer", TO_UDINT(170), "ClassSvr",
 TO_UDINT(159), "LMCMathSO3", TO_UDINT(119), "Control",
-TO_UDINT(172), "RecorderStore", TO_UDINT(173), "ClassSvr",
-TO_UDINT(172), "LMCAxis1", TO_UDINT(9), "Control",
-TO_UDINT(172), "LMCAxis2", TO_UDINT(10), "Control",
-TO_UDINT(172), "LMCAxis3", TO_UDINT(11), "Control",
-TO_UDINT(172), "LMCAxis4", TO_UDINT(12), "Control",
-TO_UDINT(183), "Simul_Axis_1", TO_UDINT(9), "SimulateMode",
-TO_UDINT(183), "Simul_Axis_2", TO_UDINT(10), "SimulateMode",
-TO_UDINT(183), "Simul_Axis_3", TO_UDINT(11), "SimulateMode",
-TO_UDINT(183), "Simul_Axis_4", TO_UDINT(12), "SimulateMode",
-TO_UDINT(183), "Simul_Axis_5", TO_UDINT(13), "SimulateMode",
-TO_UDINT(183), "Simul_Axis_6", TO_UDINT(14), "SimulateMode",
-TO_UDINT(183), "Simul_Axis_7", TO_UDINT(15), "SimulateMode",
-TO_UDINT(183), "Simul_Axis_8", TO_UDINT(16), "SimulateMode",
-TO_UDINT(183), "Simul_Axis_9", TO_UDINT(17), "SimulateMode",
+TO_UDINT(172), "AbsEnc_Axis_1", TO_UDINT(0), "AbsEncoder",
+TO_UDINT(172), "AbsEnc_Axis_2", TO_UDINT(1), "AbsEncoder",
+TO_UDINT(172), "AbsEnc_Axis_3", TO_UDINT(2), "AbsEncoder",
+TO_UDINT(172), "AbsEnc_Axis_4", TO_UDINT(3), "AbsEncoder",
+TO_UDINT(172), "AbsEnc_Axis_5", TO_UDINT(4), "AbsEncoder",
+TO_UDINT(172), "AbsEnc_Axis_6", TO_UDINT(5), "AbsEncoder",
+TO_UDINT(172), "AbsEnc_Axis_7", TO_UDINT(6), "AbsEncoder",
+TO_UDINT(172), "AbsEnc_Axis_8", TO_UDINT(7), "AbsEncoder",
+TO_UDINT(172), "AbsEnc_Axis_9", TO_UDINT(8), "AbsEncoder",
+TO_UDINT(173), "RecorderStore", TO_UDINT(174), "ClassSvr",
+TO_UDINT(173), "LMCAxis1", TO_UDINT(9), "Control",
+TO_UDINT(173), "LMCAxis2", TO_UDINT(10), "Control",
+TO_UDINT(173), "LMCAxis3", TO_UDINT(11), "Control",
+TO_UDINT(173), "LMCAxis4", TO_UDINT(12), "Control",
+TO_UDINT(184), "Simul_Axis_1", TO_UDINT(9), "SimulateMode",
+TO_UDINT(184), "Simul_Axis_2", TO_UDINT(10), "SimulateMode",
+TO_UDINT(184), "Simul_Axis_3", TO_UDINT(11), "SimulateMode",
+TO_UDINT(184), "Simul_Axis_4", TO_UDINT(12), "SimulateMode",
+TO_UDINT(184), "Simul_Axis_5", TO_UDINT(13), "SimulateMode",
+TO_UDINT(184), "Simul_Axis_6", TO_UDINT(14), "SimulateMode",
+TO_UDINT(184), "Simul_Axis_7", TO_UDINT(15), "SimulateMode",
+TO_UDINT(184), "Simul_Axis_8", TO_UDINT(16), "SimulateMode",
+TO_UDINT(184), "Simul_Axis_9", TO_UDINT(17), "SimulateMode",
 
 //Initialization values
 0$UDINT,
-316$UDINT,
+318$UDINT,
 TO_UDINT(0), "AbsEncoder", TO_UDINT(1),//|Motion_Network._LMCAxis1\_LMCABSEncoder1.AbsEncoder;
 TO_UDINT(1), "AbsEncoder", TO_UDINT(1),//|Motion_Network._LMCAxis2\_LMCABSEncoder1.AbsEncoder;
 TO_UDINT(2), "AbsEncoder", TO_UDINT(0),//|Motion_Network._LMCAxis3\_LMCABSEncoder1.AbsEncoder;
 TO_UDINT(3), "AbsEncoder", TO_UDINT(0),//|Motion_Network._LMCAxis4\_LMCABSEncoder1.AbsEncoder;
-TO_UDINT(4), "AbsEncoder", TO_UDINT(1),//|Motion_Network._LMCAxis5\_LMCABSEncoder1.AbsEncoder;
-TO_UDINT(5), "AbsEncoder", TO_UDINT(1),//|Motion_Network._LMCAxis6\_LMCABSEncoder1.AbsEncoder;
-TO_UDINT(6), "AbsEncoder", TO_UDINT(1),//|Motion_Network._LMCAxis7\_LMCABSEncoder1.AbsEncoder;
-TO_UDINT(7), "AbsEncoder", TO_UDINT(1),//|Motion_Network._LMCAxis8\_LMCABSEncoder1.AbsEncoder;
-TO_UDINT(8), "AbsEncoder", TO_UDINT(1),//|Motion_Network._LMCAxis9\_LMCABSEncoder1.AbsEncoder;
+TO_UDINT(4), "AbsEncoder", TO_UDINT(0),//|Motion_Network._LMCAxis5\_LMCABSEncoder1.AbsEncoder;
+TO_UDINT(5), "AbsEncoder", TO_UDINT(0),//|Motion_Network._LMCAxis6\_LMCABSEncoder1.AbsEncoder;
+TO_UDINT(6), "AbsEncoder", TO_UDINT(0),//|Motion_Network._LMCAxis7\_LMCABSEncoder1.AbsEncoder;
+TO_UDINT(7), "AbsEncoder", TO_UDINT(0),//|Motion_Network._LMCAxis8\_LMCABSEncoder1.AbsEncoder;
+TO_UDINT(8), "AbsEncoder", TO_UDINT(0),//|Motion_Network._LMCAxis9\_LMCABSEncoder1.AbsEncoder;
 TO_UDINT(9), "SimulateMode", TO_UDINT(0),//|Motion_Network._LMCAxis1.SimulateMode;
 TO_UDINT(9), "ExUnits", TO_UDINT(8388608),//|Motion_Network._LMCAxis1.ExUnits;
 TO_UDINT(9), "IntUnits", TO_UDINT(1 mm),//|Motion_Network._LMCAxis1.IntUnits;
@@ -1225,7 +1237,7 @@ TO_UDINT(13), "SWMaxPos", TO_UDINT(10000 mm),//|Motion_Network._LMCAxis5.SWMaxPo
 TO_UDINT(13), "ErrorConfig", TO_UDINT(2#0000000001000000),//|Motion_Network._LMCAxis5.ErrorConfig;
 TO_UDINT(13), "AEmergency", TO_UDINT(0),//|Motion_Network._LMCAxis5.AEmergency;
 TO_UDINT(13), "JMax", TO_UDINT(75000 mm),//|Motion_Network._LMCAxis5.JMax;
-TO_UDINT(13), "AbsEncoder", TO_UDINT(1),//|Motion_Network._LMCAxis5.AbsEncoder;
+TO_UDINT(13), "AbsEncoder", TO_UDINT(0),//|Motion_Network._LMCAxis5.AbsEncoder;
 TO_UDINT(13), "Config", TO_UDINT(0),//|Motion_Network._LMCAxis5.Config;
 TO_UDINT(13), "ID", TO_UDINT(0),//|Motion_Network._LMCAxis5.ID;
 TO_UDINT(14), "SimulateMode", TO_UDINT(1),//|Motion_Network._LMCAxis6.SimulateMode;
@@ -1242,7 +1254,7 @@ TO_UDINT(14), "SWMaxPos", TO_UDINT(10000 mm),//|Motion_Network._LMCAxis6.SWMaxPo
 TO_UDINT(14), "ErrorConfig", TO_UDINT(2#0000000001000000),//|Motion_Network._LMCAxis6.ErrorConfig;
 TO_UDINT(14), "AEmergency", TO_UDINT(0),//|Motion_Network._LMCAxis6.AEmergency;
 TO_UDINT(14), "JMax", TO_UDINT(75000 mm),//|Motion_Network._LMCAxis6.JMax;
-TO_UDINT(14), "AbsEncoder", TO_UDINT(1),//|Motion_Network._LMCAxis6.AbsEncoder;
+TO_UDINT(14), "AbsEncoder", TO_UDINT(0),//|Motion_Network._LMCAxis6.AbsEncoder;
 TO_UDINT(14), "Config", TO_UDINT(0),//|Motion_Network._LMCAxis6.Config;
 TO_UDINT(14), "ID", TO_UDINT(0),//|Motion_Network._LMCAxis6.ID;
 TO_UDINT(15), "SimulateMode", TO_UDINT(1),//|Motion_Network._LMCAxis7.SimulateMode;
@@ -1259,7 +1271,7 @@ TO_UDINT(15), "SWMaxPos", TO_UDINT(10000 mm),//|Motion_Network._LMCAxis7.SWMaxPo
 TO_UDINT(15), "ErrorConfig", TO_UDINT(2#0000000001000000),//|Motion_Network._LMCAxis7.ErrorConfig;
 TO_UDINT(15), "AEmergency", TO_UDINT(0),//|Motion_Network._LMCAxis7.AEmergency;
 TO_UDINT(15), "JMax", TO_UDINT(75000 mm),//|Motion_Network._LMCAxis7.JMax;
-TO_UDINT(15), "AbsEncoder", TO_UDINT(1),//|Motion_Network._LMCAxis7.AbsEncoder;
+TO_UDINT(15), "AbsEncoder", TO_UDINT(0),//|Motion_Network._LMCAxis7.AbsEncoder;
 TO_UDINT(15), "Config", TO_UDINT(0),//|Motion_Network._LMCAxis7.Config;
 TO_UDINT(15), "ID", TO_UDINT(0),//|Motion_Network._LMCAxis7.ID;
 TO_UDINT(16), "SimulateMode", TO_UDINT(1),//|Motion_Network._LMCAxis8.SimulateMode;
@@ -1276,7 +1288,7 @@ TO_UDINT(16), "SWMaxPos", TO_UDINT(10000 mm),//|Motion_Network._LMCAxis8.SWMaxPo
 TO_UDINT(16), "ErrorConfig", TO_UDINT(2#0000000001000000),//|Motion_Network._LMCAxis8.ErrorConfig;
 TO_UDINT(16), "AEmergency", TO_UDINT(0),//|Motion_Network._LMCAxis8.AEmergency;
 TO_UDINT(16), "JMax", TO_UDINT(75000 mm),//|Motion_Network._LMCAxis8.JMax;
-TO_UDINT(16), "AbsEncoder", TO_UDINT(1),//|Motion_Network._LMCAxis8.AbsEncoder;
+TO_UDINT(16), "AbsEncoder", TO_UDINT(0),//|Motion_Network._LMCAxis8.AbsEncoder;
 TO_UDINT(16), "Config", TO_UDINT(0),//|Motion_Network._LMCAxis8.Config;
 TO_UDINT(16), "ID", TO_UDINT(0),//|Motion_Network._LMCAxis8.ID;
 TO_UDINT(17), "SimulateMode", TO_UDINT(1),//|Motion_Network._LMCAxis9.SimulateMode;
@@ -1293,7 +1305,7 @@ TO_UDINT(17), "SWMaxPos", TO_UDINT(10000 mm),//|Motion_Network._LMCAxis9.SWMaxPo
 TO_UDINT(17), "ErrorConfig", TO_UDINT(2#0000000001000000),//|Motion_Network._LMCAxis9.ErrorConfig;
 TO_UDINT(17), "AEmergency", TO_UDINT(0),//|Motion_Network._LMCAxis9.AEmergency;
 TO_UDINT(17), "JMax", TO_UDINT(75000 mm),//|Motion_Network._LMCAxis9.JMax;
-TO_UDINT(17), "AbsEncoder", TO_UDINT(1),//|Motion_Network._LMCAxis9.AbsEncoder;
+TO_UDINT(17), "AbsEncoder", TO_UDINT(0),//|Motion_Network._LMCAxis9.AbsEncoder;
 TO_UDINT(17), "Config", TO_UDINT(0),//|Motion_Network._LMCAxis9.Config;
 TO_UDINT(17), "ID", TO_UDINT(0),//|Motion_Network._LMCAxis9.ID;
 TO_UDINT(36), "TriangleMode", TO_UDINT(1),//|Motion_Network._LMCAxisVis1\_LMCAxis1\_LMCAxisVisInt1.TriangleMode;
@@ -1398,58 +1410,60 @@ TO_UDINT(159), "AMax", TO_UDINT(50000 mm),//|Motion_Network._LMCRobotBase1.AMax;
 TO_UDINT(159), "JMax", TO_UDINT(50000 mm),//|Motion_Network._LMCRobotBase1.JMax;
 TO_UDINT(170), "No", TO_UDINT(LMCSPLINEBUFF_MINBUFFS),//|Motion_Network._base\_LMCRobotBase1\_LMCSplineBuffer.No;
 TO_UDINT(171), "No", TO_UDINT(2),//|Motion_Network._base\_LMCRobotBase1\_LMCTableBuffer.No;
-TO_UDINT(174), "iHWErrors", TO_UDINT(0),//|Motion_Network.PosController1.iHWErrors;
-TO_UDINT(174), "vHWDelay", TO_UDINT(0),//|Motion_Network.PosController1.vHWDelay;
-TO_UDINT(174), "oActive", TO_UDINT(0),//|Motion_Network.PosController1.oActive;
-TO_UDINT(174), "cDragLimit", TO_UDINT(0),//|Motion_Network.PosController1.cDragLimit;
-TO_UDINT(174), "cDragCalcDelay", TO_UDINT(0),//|Motion_Network.PosController1.cDragCalcDelay;
-TO_UDINT(175), "iHWErrors", TO_UDINT(0),//|Motion_Network.PosController2.iHWErrors;
-TO_UDINT(175), "vHWDelay", TO_UDINT(0),//|Motion_Network.PosController2.vHWDelay;
-TO_UDINT(175), "oActive", TO_UDINT(0),//|Motion_Network.PosController2.oActive;
-TO_UDINT(175), "cDragLimit", TO_UDINT(0),//|Motion_Network.PosController2.cDragLimit;
-TO_UDINT(175), "cDragCalcDelay", TO_UDINT(0),//|Motion_Network.PosController2.cDragCalcDelay;
-TO_UDINT(176), "iHWErrors", TO_UDINT(0),//|Motion_Network.PosController3.iHWErrors;
-TO_UDINT(176), "vHWDelay", TO_UDINT(0),//|Motion_Network.PosController3.vHWDelay;
-TO_UDINT(176), "oActive", TO_UDINT(0),//|Motion_Network.PosController3.oActive;
-TO_UDINT(176), "cDragLimit", TO_UDINT(0),//|Motion_Network.PosController3.cDragLimit;
-TO_UDINT(176), "cDragCalcDelay", TO_UDINT(0),//|Motion_Network.PosController3.cDragCalcDelay;
-TO_UDINT(177), "iHWErrors", TO_UDINT(0),//|Motion_Network.PosController4.iHWErrors;
-TO_UDINT(177), "vHWDelay", TO_UDINT(0),//|Motion_Network.PosController4.vHWDelay;
-TO_UDINT(177), "oActive", TO_UDINT(0),//|Motion_Network.PosController4.oActive;
-TO_UDINT(177), "cDragLimit", TO_UDINT(0),//|Motion_Network.PosController4.cDragLimit;
-TO_UDINT(177), "cDragCalcDelay", TO_UDINT(0),//|Motion_Network.PosController4.cDragCalcDelay;
-TO_UDINT(178), "iHWErrors", TO_UDINT(0),//|Motion_Network.PosController5.iHWErrors;
-TO_UDINT(178), "vHWDelay", TO_UDINT(0),//|Motion_Network.PosController5.vHWDelay;
-TO_UDINT(178), "oActive", TO_UDINT(0),//|Motion_Network.PosController5.oActive;
-TO_UDINT(178), "cDragLimit", TO_UDINT(0),//|Motion_Network.PosController5.cDragLimit;
-TO_UDINT(178), "cDragCalcDelay", TO_UDINT(0),//|Motion_Network.PosController5.cDragCalcDelay;
-TO_UDINT(179), "iHWErrors", TO_UDINT(0),//|Motion_Network.PosController6.iHWErrors;
-TO_UDINT(179), "vHWDelay", TO_UDINT(0),//|Motion_Network.PosController6.vHWDelay;
-TO_UDINT(179), "oActive", TO_UDINT(0),//|Motion_Network.PosController6.oActive;
-TO_UDINT(179), "cDragLimit", TO_UDINT(0),//|Motion_Network.PosController6.cDragLimit;
-TO_UDINT(179), "cDragCalcDelay", TO_UDINT(0),//|Motion_Network.PosController6.cDragCalcDelay;
-TO_UDINT(180), "iHWErrors", TO_UDINT(0),//|Motion_Network.PosController7.iHWErrors;
-TO_UDINT(180), "vHWDelay", TO_UDINT(0),//|Motion_Network.PosController7.vHWDelay;
-TO_UDINT(180), "oActive", TO_UDINT(0),//|Motion_Network.PosController7.oActive;
-TO_UDINT(180), "cDragLimit", TO_UDINT(0),//|Motion_Network.PosController7.cDragLimit;
-TO_UDINT(180), "cDragCalcDelay", TO_UDINT(0),//|Motion_Network.PosController7.cDragCalcDelay;
-TO_UDINT(181), "iHWErrors", TO_UDINT(0),//|Motion_Network.PosController8.iHWErrors;
-TO_UDINT(181), "vHWDelay", TO_UDINT(0),//|Motion_Network.PosController8.vHWDelay;
-TO_UDINT(181), "oActive", TO_UDINT(0),//|Motion_Network.PosController8.oActive;
-TO_UDINT(181), "cDragLimit", TO_UDINT(0),//|Motion_Network.PosController8.cDragLimit;
-TO_UDINT(181), "cDragCalcDelay", TO_UDINT(0),//|Motion_Network.PosController8.cDragCalcDelay;
-TO_UDINT(182), "iHWErrors", TO_UDINT(0),//|Motion_Network.PosController9.iHWErrors;
-TO_UDINT(182), "vHWDelay", TO_UDINT(0),//|Motion_Network.PosController9.vHWDelay;
-TO_UDINT(182), "oActive", TO_UDINT(0),//|Motion_Network.PosController9.oActive;
-TO_UDINT(182), "cDragLimit", TO_UDINT(0),//|Motion_Network.PosController9.cDragLimit;
-TO_UDINT(182), "cDragCalcDelay", TO_UDINT(0),//|Motion_Network.PosController9.cDragCalcDelay;
-TO_UDINT(183), "Axis_3", TO_UDINT(1),//|Motion_Network.SimulationSetup1.Axis_3;
-TO_UDINT(183), "Axis_4", TO_UDINT(1),//|Motion_Network.SimulationSetup1.Axis_4;
-TO_UDINT(183), "Axis_5", TO_UDINT(1),//|Motion_Network.SimulationSetup1.Axis_5;
-TO_UDINT(183), "Axis_6", TO_UDINT(1),//|Motion_Network.SimulationSetup1.Axis_6;
-TO_UDINT(183), "Axis_7", TO_UDINT(1),//|Motion_Network.SimulationSetup1.Axis_7;
-TO_UDINT(183), "Axis_8", TO_UDINT(1),//|Motion_Network.SimulationSetup1.Axis_8;
-TO_UDINT(183), "Axis_9", TO_UDINT(1),//|Motion_Network.SimulationSetup1.Axis_9;
+TO_UDINT(172), "Axis_1", TO_UDINT(1),//|Motion_Network.AbsEncoderSetup1.Axis_1;
+TO_UDINT(172), "Axis_2", TO_UDINT(1),//|Motion_Network.AbsEncoderSetup1.Axis_2;
+TO_UDINT(175), "iHWErrors", TO_UDINT(0),//|Motion_Network.PosController1.iHWErrors;
+TO_UDINT(175), "vHWDelay", TO_UDINT(0),//|Motion_Network.PosController1.vHWDelay;
+TO_UDINT(175), "oActive", TO_UDINT(0),//|Motion_Network.PosController1.oActive;
+TO_UDINT(175), "cDragLimit", TO_UDINT(0),//|Motion_Network.PosController1.cDragLimit;
+TO_UDINT(175), "cDragCalcDelay", TO_UDINT(0),//|Motion_Network.PosController1.cDragCalcDelay;
+TO_UDINT(176), "iHWErrors", TO_UDINT(0),//|Motion_Network.PosController2.iHWErrors;
+TO_UDINT(176), "vHWDelay", TO_UDINT(0),//|Motion_Network.PosController2.vHWDelay;
+TO_UDINT(176), "oActive", TO_UDINT(0),//|Motion_Network.PosController2.oActive;
+TO_UDINT(176), "cDragLimit", TO_UDINT(0),//|Motion_Network.PosController2.cDragLimit;
+TO_UDINT(176), "cDragCalcDelay", TO_UDINT(0),//|Motion_Network.PosController2.cDragCalcDelay;
+TO_UDINT(177), "iHWErrors", TO_UDINT(0),//|Motion_Network.PosController3.iHWErrors;
+TO_UDINT(177), "vHWDelay", TO_UDINT(0),//|Motion_Network.PosController3.vHWDelay;
+TO_UDINT(177), "oActive", TO_UDINT(0),//|Motion_Network.PosController3.oActive;
+TO_UDINT(177), "cDragLimit", TO_UDINT(0),//|Motion_Network.PosController3.cDragLimit;
+TO_UDINT(177), "cDragCalcDelay", TO_UDINT(0),//|Motion_Network.PosController3.cDragCalcDelay;
+TO_UDINT(178), "iHWErrors", TO_UDINT(0),//|Motion_Network.PosController4.iHWErrors;
+TO_UDINT(178), "vHWDelay", TO_UDINT(0),//|Motion_Network.PosController4.vHWDelay;
+TO_UDINT(178), "oActive", TO_UDINT(0),//|Motion_Network.PosController4.oActive;
+TO_UDINT(178), "cDragLimit", TO_UDINT(0),//|Motion_Network.PosController4.cDragLimit;
+TO_UDINT(178), "cDragCalcDelay", TO_UDINT(0),//|Motion_Network.PosController4.cDragCalcDelay;
+TO_UDINT(179), "iHWErrors", TO_UDINT(0),//|Motion_Network.PosController5.iHWErrors;
+TO_UDINT(179), "vHWDelay", TO_UDINT(0),//|Motion_Network.PosController5.vHWDelay;
+TO_UDINT(179), "oActive", TO_UDINT(0),//|Motion_Network.PosController5.oActive;
+TO_UDINT(179), "cDragLimit", TO_UDINT(0),//|Motion_Network.PosController5.cDragLimit;
+TO_UDINT(179), "cDragCalcDelay", TO_UDINT(0),//|Motion_Network.PosController5.cDragCalcDelay;
+TO_UDINT(180), "iHWErrors", TO_UDINT(0),//|Motion_Network.PosController6.iHWErrors;
+TO_UDINT(180), "vHWDelay", TO_UDINT(0),//|Motion_Network.PosController6.vHWDelay;
+TO_UDINT(180), "oActive", TO_UDINT(0),//|Motion_Network.PosController6.oActive;
+TO_UDINT(180), "cDragLimit", TO_UDINT(0),//|Motion_Network.PosController6.cDragLimit;
+TO_UDINT(180), "cDragCalcDelay", TO_UDINT(0),//|Motion_Network.PosController6.cDragCalcDelay;
+TO_UDINT(181), "iHWErrors", TO_UDINT(0),//|Motion_Network.PosController7.iHWErrors;
+TO_UDINT(181), "vHWDelay", TO_UDINT(0),//|Motion_Network.PosController7.vHWDelay;
+TO_UDINT(181), "oActive", TO_UDINT(0),//|Motion_Network.PosController7.oActive;
+TO_UDINT(181), "cDragLimit", TO_UDINT(0),//|Motion_Network.PosController7.cDragLimit;
+TO_UDINT(181), "cDragCalcDelay", TO_UDINT(0),//|Motion_Network.PosController7.cDragCalcDelay;
+TO_UDINT(182), "iHWErrors", TO_UDINT(0),//|Motion_Network.PosController8.iHWErrors;
+TO_UDINT(182), "vHWDelay", TO_UDINT(0),//|Motion_Network.PosController8.vHWDelay;
+TO_UDINT(182), "oActive", TO_UDINT(0),//|Motion_Network.PosController8.oActive;
+TO_UDINT(182), "cDragLimit", TO_UDINT(0),//|Motion_Network.PosController8.cDragLimit;
+TO_UDINT(182), "cDragCalcDelay", TO_UDINT(0),//|Motion_Network.PosController8.cDragCalcDelay;
+TO_UDINT(183), "iHWErrors", TO_UDINT(0),//|Motion_Network.PosController9.iHWErrors;
+TO_UDINT(183), "vHWDelay", TO_UDINT(0),//|Motion_Network.PosController9.vHWDelay;
+TO_UDINT(183), "oActive", TO_UDINT(0),//|Motion_Network.PosController9.oActive;
+TO_UDINT(183), "cDragLimit", TO_UDINT(0),//|Motion_Network.PosController9.cDragLimit;
+TO_UDINT(183), "cDragCalcDelay", TO_UDINT(0),//|Motion_Network.PosController9.cDragCalcDelay;
+TO_UDINT(184), "Axis_3", TO_UDINT(1),//|Motion_Network.SimulationSetup1.Axis_3;
+TO_UDINT(184), "Axis_4", TO_UDINT(1),//|Motion_Network.SimulationSetup1.Axis_4;
+TO_UDINT(184), "Axis_5", TO_UDINT(1),//|Motion_Network.SimulationSetup1.Axis_5;
+TO_UDINT(184), "Axis_6", TO_UDINT(1),//|Motion_Network.SimulationSetup1.Axis_6;
+TO_UDINT(184), "Axis_7", TO_UDINT(1),//|Motion_Network.SimulationSetup1.Axis_7;
+TO_UDINT(184), "Axis_8", TO_UDINT(1),//|Motion_Network.SimulationSetup1.Axis_8;
+TO_UDINT(184), "Axis_9", TO_UDINT(1),//|Motion_Network.SimulationSetup1.Axis_9;
 
 //Symbolic initialization values
 0$UDINT,
@@ -1513,34 +1527,34 @@ TO_UDINT(11), "HWReady", C_TRY, TO_UDINT(1384421283), "Elmo_31","Online",
 TO_UDINT(11), "HWError", C_TRY, TO_UDINT(1384421283), "Elmo_31","AxError",
 TO_UDINT(12), "ActPosition", C_TRY, TO_UDINT(499450212), "Elmo_41","ActPos",
 TO_UDINT(12), "HWError", C_TRY, TO_UDINT(499450212), "Elmo_41","AxError",
-TO_UDINT(172), "EcatMaster", C_DIR, TO_UDINT(2283968053), "EtherCAT_PLC1","ClassState",
-TO_UDINT(172), "Drive1", C_DIR, TO_UDINT(1622340897), "Elmo_11","ClassState",
-TO_UDINT(172), "Drive2", C_DIR, TO_UDINT(1268754146), "Elmo_21","ClassState",
-TO_UDINT(172), "Drive3", C_DIR, TO_UDINT(1384421283), "Elmo_31","ClassState",
-TO_UDINT(172), "Drive4", C_DIR, TO_UDINT(499450212), "Elmo_41","ClassState",
-TO_UDINT(172), "Coupler", C_DIR, TO_UDINT(2797582533), "GL_9086_11","ClassState",
-TO_UDINT(172), "InputSlot", C_DIR, TO_UDINT(2495490262), "GL_9086_1_Slot001","ClassState",
-TO_UDINT(172), "OutputSlot", C_DIR, TO_UDINT(2376407447), "GL_9086_1_Slot011","ClassState",
-TO_UDINT(174), "iHWErrors", C_TRY, TO_UDINT(1622340897), "Elmo_11","AxError",
-TO_UDINT(174), "oActive", C_TRY, TO_UDINT(1622340897), "Elmo_11","AxEnable",
-TO_UDINT(174), "oOutputSignal", C_TRY, TO_UDINT(1622340897), "Elmo_11","SetPos",
-TO_UDINT(174), "DriveEnabled", C_TRY, TO_UDINT(1622340897), "Elmo_11","AxEnable",
-TO_UDINT(174), "HWErrorQuit", C_TRY, TO_UDINT(1622340897), "Elmo_11","AxErrorQuit",
-TO_UDINT(175), "iHWErrors", C_TRY, TO_UDINT(1268754146), "Elmo_21","AxError",
-TO_UDINT(175), "oActive", C_TRY, TO_UDINT(1268754146), "Elmo_21","AxEnable",
-TO_UDINT(175), "oOutputSignal", C_TRY, TO_UDINT(1268754146), "Elmo_21","SetPos",
-TO_UDINT(175), "DriveEnabled", C_TRY, TO_UDINT(1268754146), "Elmo_21","AxEnable",
-TO_UDINT(175), "HWErrorQuit", C_TRY, TO_UDINT(1268754146), "Elmo_21","AxErrorQuit",
-TO_UDINT(176), "iHWErrors", C_TRY, TO_UDINT(1384421283), "Elmo_31","AxError",
-TO_UDINT(176), "oActive", C_TRY, TO_UDINT(1384421283), "Elmo_31","AxEnable",
-TO_UDINT(176), "oOutputSignal", C_TRY, TO_UDINT(1384421283), "Elmo_31","SetPos",
-TO_UDINT(176), "DriveEnabled", C_TRY, TO_UDINT(1384421283), "Elmo_31","AxEnable",
-TO_UDINT(176), "HWErrorQuit", C_TRY, TO_UDINT(1384421283), "Elmo_31","AxErrorQuit",
-TO_UDINT(177), "iHWErrors", C_TRY, TO_UDINT(499450212), "Elmo_41","AxError",
-TO_UDINT(177), "oActive", C_TRY, TO_UDINT(499450212), "Elmo_41","AxEnable",
-TO_UDINT(177), "oOutputSignal", C_TRY, TO_UDINT(499450212), "Elmo_41","SetPos",
-TO_UDINT(177), "DriveEnabled", C_TRY, TO_UDINT(499450212), "Elmo_41","AxEnable",
-TO_UDINT(177), "HWErrorQuit", C_TRY, TO_UDINT(499450212), "Elmo_41","AxErrorQuit",
+TO_UDINT(173), "EcatMaster", C_DIR, TO_UDINT(2283968053), "EtherCAT_PLC1","ClassState",
+TO_UDINT(173), "Drive1", C_DIR, TO_UDINT(1622340897), "Elmo_11","ClassState",
+TO_UDINT(173), "Drive2", C_DIR, TO_UDINT(1268754146), "Elmo_21","ClassState",
+TO_UDINT(173), "Drive3", C_DIR, TO_UDINT(1384421283), "Elmo_31","ClassState",
+TO_UDINT(173), "Drive4", C_DIR, TO_UDINT(499450212), "Elmo_41","ClassState",
+TO_UDINT(173), "Coupler", C_DIR, TO_UDINT(2797582533), "GL_9086_11","ClassState",
+TO_UDINT(173), "InputSlot", C_DIR, TO_UDINT(2495490262), "GL_9086_1_Slot001","ClassState",
+TO_UDINT(173), "OutputSlot", C_DIR, TO_UDINT(2376407447), "GL_9086_1_Slot011","ClassState",
+TO_UDINT(175), "iHWErrors", C_TRY, TO_UDINT(1622340897), "Elmo_11","AxError",
+TO_UDINT(175), "oActive", C_TRY, TO_UDINT(1622340897), "Elmo_11","AxEnable",
+TO_UDINT(175), "oOutputSignal", C_TRY, TO_UDINT(1622340897), "Elmo_11","SetPos",
+TO_UDINT(175), "DriveEnabled", C_TRY, TO_UDINT(1622340897), "Elmo_11","AxEnable",
+TO_UDINT(175), "HWErrorQuit", C_TRY, TO_UDINT(1622340897), "Elmo_11","AxErrorQuit",
+TO_UDINT(176), "iHWErrors", C_TRY, TO_UDINT(1268754146), "Elmo_21","AxError",
+TO_UDINT(176), "oActive", C_TRY, TO_UDINT(1268754146), "Elmo_21","AxEnable",
+TO_UDINT(176), "oOutputSignal", C_TRY, TO_UDINT(1268754146), "Elmo_21","SetPos",
+TO_UDINT(176), "DriveEnabled", C_TRY, TO_UDINT(1268754146), "Elmo_21","AxEnable",
+TO_UDINT(176), "HWErrorQuit", C_TRY, TO_UDINT(1268754146), "Elmo_21","AxErrorQuit",
+TO_UDINT(177), "iHWErrors", C_TRY, TO_UDINT(1384421283), "Elmo_31","AxError",
+TO_UDINT(177), "oActive", C_TRY, TO_UDINT(1384421283), "Elmo_31","AxEnable",
+TO_UDINT(177), "oOutputSignal", C_TRY, TO_UDINT(1384421283), "Elmo_31","SetPos",
+TO_UDINT(177), "DriveEnabled", C_TRY, TO_UDINT(1384421283), "Elmo_31","AxEnable",
+TO_UDINT(177), "HWErrorQuit", C_TRY, TO_UDINT(1384421283), "Elmo_31","AxErrorQuit",
+TO_UDINT(178), "iHWErrors", C_TRY, TO_UDINT(499450212), "Elmo_41","AxError",
+TO_UDINT(178), "oActive", C_TRY, TO_UDINT(499450212), "Elmo_41","AxEnable",
+TO_UDINT(178), "oOutputSignal", C_TRY, TO_UDINT(499450212), "Elmo_41","SetPos",
+TO_UDINT(178), "DriveEnabled", C_TRY, TO_UDINT(499450212), "Elmo_41","AxEnable",
+TO_UDINT(178), "HWErrorQuit", C_TRY, TO_UDINT(499450212), "Elmo_41","AxErrorQuit",
 
 //Magic internal connections
 0$UDINT,

@@ -1637,7 +1637,7 @@
 			CyclicTime     = "10 ms"
 			BackgroundTime = "100 ms">
 			<Channels>
-				<Server Name="AbsEncoder" Value="1"/>
+				<Server Name="AbsEncoder" Value="0"/>
 				<Server Name="ActPos"/>
 				<Server Name="ActVelocity"/>
 				<Server Name="AEmergency" Value="0"/>
@@ -1741,7 +1741,7 @@
 						</Object>
 						<Object Name="_LMCABSEncoder1" GUID="{4997BF67-81DA-49B7-8B08-D58CDF069D7E}" Class="_LMCABSEncoder">
 							<Channels>
-								<Server Name="AbsEncoder" Value="1"/>
+								<Server Name="AbsEncoder" Value="0"/>
 								<Server Name="ClassSvr"/>
 								<Server Name="PosCRC32"/>
 								<Server Name="PosOffset"/>
@@ -2043,7 +2043,7 @@
 			CyclicTime     = "10 ms"
 			BackgroundTime = "100 ms">
 			<Channels>
-				<Server Name="AbsEncoder" Value="1"/>
+				<Server Name="AbsEncoder" Value="0"/>
 				<Server Name="ActPos"/>
 				<Server Name="ActVelocity"/>
 				<Server Name="AEmergency" Value="0"/>
@@ -2147,7 +2147,7 @@
 						</Object>
 						<Object Name="_LMCABSEncoder1" GUID="{4997BF67-81DA-49B7-8B08-D58CDF069D7E}" Class="_LMCABSEncoder">
 							<Channels>
-								<Server Name="AbsEncoder" Value="1"/>
+								<Server Name="AbsEncoder" Value="0"/>
 								<Server Name="ClassSvr"/>
 								<Server Name="PosCRC32"/>
 								<Server Name="PosOffset"/>
@@ -2449,7 +2449,7 @@
 			CyclicTime     = "10 ms"
 			BackgroundTime = "100 ms">
 			<Channels>
-				<Server Name="AbsEncoder" Value="1"/>
+				<Server Name="AbsEncoder" Value="0"/>
 				<Server Name="ActPos"/>
 				<Server Name="ActVelocity"/>
 				<Server Name="AEmergency" Value="0"/>
@@ -2553,7 +2553,7 @@
 						</Object>
 						<Object Name="_LMCABSEncoder1" GUID="{4997BF67-81DA-49B7-8B08-D58CDF069D7E}" Class="_LMCABSEncoder">
 							<Channels>
-								<Server Name="AbsEncoder" Value="1"/>
+								<Server Name="AbsEncoder" Value="0"/>
 								<Server Name="ClassSvr"/>
 								<Server Name="PosCRC32"/>
 								<Server Name="PosOffset"/>
@@ -2855,7 +2855,7 @@
 			CyclicTime     = "10 ms"
 			BackgroundTime = "100 ms">
 			<Channels>
-				<Server Name="AbsEncoder" Value="1"/>
+				<Server Name="AbsEncoder" Value="0"/>
 				<Server Name="ActPos"/>
 				<Server Name="ActVelocity"/>
 				<Server Name="AEmergency" Value="0"/>
@@ -2959,7 +2959,7 @@
 						</Object>
 						<Object Name="_LMCABSEncoder1" GUID="{4997BF67-81DA-49B7-8B08-D58CDF069D7E}" Class="_LMCABSEncoder">
 							<Channels>
-								<Server Name="AbsEncoder" Value="1"/>
+								<Server Name="AbsEncoder" Value="0"/>
 								<Server Name="ClassSvr"/>
 								<Server Name="PosCRC32"/>
 								<Server Name="PosOffset"/>
@@ -3261,7 +3261,7 @@
 			CyclicTime     = "10 ms"
 			BackgroundTime = "100 ms">
 			<Channels>
-				<Server Name="AbsEncoder" Value="1"/>
+				<Server Name="AbsEncoder" Value="0"/>
 				<Server Name="ActPos"/>
 				<Server Name="ActVelocity"/>
 				<Server Name="AEmergency" Value="0"/>
@@ -3365,7 +3365,7 @@
 						</Object>
 						<Object Name="_LMCABSEncoder1" GUID="{4997BF67-81DA-49B7-8B08-D58CDF069D7E}" Class="_LMCABSEncoder">
 							<Channels>
-								<Server Name="AbsEncoder" Value="1"/>
+								<Server Name="AbsEncoder" Value="0"/>
 								<Server Name="ClassSvr"/>
 								<Server Name="PosCRC32"/>
 								<Server Name="PosOffset"/>
@@ -4378,6 +4378,34 @@
 			</Networks>
 		</Object>
 		<Object
+			Name       = "AbsEncoderSetup1"
+			GUID       = "{727875A3-5B57-4F28-8400-7623B6AD8FDC}"
+			Class      = "AbsEncoderSetup"
+			Position   = "(5850,5130)"
+			Visualized = "false">
+			<Channels>
+				<Server Name="Axis_1" Value="1"/>
+				<Server Name="Axis_2" Value="1"/>
+				<Server Name="Axis_3"/>
+				<Server Name="Axis_4"/>
+				<Server Name="Axis_5"/>
+				<Server Name="Axis_6"/>
+				<Server Name="Axis_7"/>
+				<Server Name="Axis_8"/>
+				<Server Name="Axis_9"/>
+				<Server Name="ClassSvr"/>
+				<Client Name="AbsEnc_Axis_1" DrawChnConn="Text"/>
+				<Client Name="AbsEnc_Axis_2" DrawChnConn="Text"/>
+				<Client Name="AbsEnc_Axis_3" DrawChnConn="Text"/>
+				<Client Name="AbsEnc_Axis_4" DrawChnConn="Text"/>
+				<Client Name="AbsEnc_Axis_5" DrawChnConn="Text"/>
+				<Client Name="AbsEnc_Axis_6" DrawChnConn="Text"/>
+				<Client Name="AbsEnc_Axis_7" DrawChnConn="Text"/>
+				<Client Name="AbsEnc_Axis_8" DrawChnConn="Text"/>
+				<Client Name="AbsEnc_Axis_9" DrawChnConn="Text"/>
+			</Channels>
+		</Object>
+		<Object
 			Name       = "LMCEcatInputLatch1"
 			GUID       = "{10BDB5A5-256E-4AEF-8524-A71F24BF2C88}"
 			Class      = "LMCEcatInputLatch"
@@ -4392,10 +4420,10 @@
 				<Client Name="Drive4" DrawChnConn="Text"/>
 				<Client Name="EcatMaster"/>
 				<Client Name="InputSlot"/>
-				<Client Name="LMCAxis1"/>
-				<Client Name="LMCAxis2"/>
-				<Client Name="LMCAxis3"/>
-				<Client Name="LMCAxis4"/>
+				<Client Name="LMCAxis1" DrawChnConn="Text"/>
+				<Client Name="LMCAxis2" DrawChnConn="Text"/>
+				<Client Name="LMCAxis3" DrawChnConn="Text"/>
+				<Client Name="LMCAxis4" DrawChnConn="Text"/>
 				<Client Name="OutputSlot"/>
 				<Client Name="RecorderStore"/>
 			</Channels>
@@ -4817,6 +4845,7 @@
 		<Connection Source="PosController4.DriveEnabled" Destination="Elmo_41.AxEnable"/>
 		<Connection Source="_LMCAxis4.ActPosition" Destination="Elmo_41.ActPos"/>
 		<Connection Source="_LMCAxis4.HWError" Destination="Elmo_41.AxError"/>
+		<Connection Source="AbsEncoderSetup1.AbsEnc_Axis_1" Destination="_LMCAxis1.AbsEncoder" Vertices="(5850,5220),(3756,1890),"/>
 		<Connection Source="LMCEcatInputLatch1.Coupler" Destination="GL_9086_11.ClassState"/>
 		<Connection Source="LMCEcatInputLatch1.InputSlot" Destination="GL_9086_1_Slot001.ClassState"/>
 		<Connection Source="_LMCAxis4.LMCController" Destination="PosController4.Signal_Input" Vertices="(3090,5880),(2440,5880),"/>
@@ -4843,6 +4872,14 @@
 		<Connection Source="SimulationSetup1.Simul_Axis_7" Destination="_LMCAxis7.SimulateMode" Vertices="(5850,4800),(3756,11940),"/>
 		<Connection Source="SimulationSetup1.Simul_Axis_8" Destination="_LMCAxis8.SimulateMode" Vertices="(5850,4860),(3756,13680),"/>
 		<Connection Source="SimulationSetup1.Simul_Axis_9" Destination="_LMCAxis9.SimulateMode" Vertices="(5850,4920),(3756,15390),"/>
+		<Connection Source="AbsEncoderSetup1.AbsEnc_Axis_2" Destination="_LMCAxis2.AbsEncoder" Vertices="(5850,5280),(3756,3810),"/>
+		<Connection Source="AbsEncoderSetup1.AbsEnc_Axis_3" Destination="_LMCAxis3.AbsEncoder" Vertices="(5850,5340),(3756,5580),"/>
+		<Connection Source="AbsEncoderSetup1.AbsEnc_Axis_4" Destination="_LMCAxis4.AbsEncoder" Vertices="(5850,5400),(3756,7320),"/>
+		<Connection Source="AbsEncoderSetup1.AbsEnc_Axis_5" Destination="_LMCAxis5.AbsEncoder" Vertices="(5850,5460),(3756,9150),"/>
+		<Connection Source="AbsEncoderSetup1.AbsEnc_Axis_6" Destination="_LMCAxis6.AbsEncoder" Vertices="(5850,5520),(3756,11070),"/>
+		<Connection Source="AbsEncoderSetup1.AbsEnc_Axis_7" Destination="_LMCAxis7.AbsEncoder" Vertices="(5850,5580),(3756,12840),"/>
+		<Connection Source="AbsEncoderSetup1.AbsEnc_Axis_8" Destination="_LMCAxis8.AbsEncoder" Vertices="(5850,5640),(3756,14580),"/>
+		<Connection Source="AbsEncoderSetup1.AbsEnc_Axis_9" Destination="_LMCAxis9.AbsEncoder" Vertices="(5850,5700),(3756,16290),"/>
 		<Connection Source="_LMCAxis9.LMCController" Destination="PosController9.Signal_Input" Vertices="(3090,14850),(2410,14850),"/>
 		<Connection Source="_LMCAxis8.LMCController" Destination="PosController8.Signal_Input" Vertices="(3090,13140),(2410,13140),"/>
 		<Connection Source="_LMCAxis7.LMCController" Destination="PosController7.Signal_Input" Vertices="(3090,11400),(2410,11400),"/>
