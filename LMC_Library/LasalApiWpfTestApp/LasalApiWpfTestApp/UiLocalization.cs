@@ -1602,8 +1602,8 @@ namespace LasalMotionControlApiExample
                 "TEST ONLY - Encoder Maintenance (TW[20] / TW[19])"] =
                 "테스트 전용 - Encoder 유지보수 (TW[20] / TW[19])";
             values[
-                "DESTRUCTIVE TEST ONLY: TW[20] writes UInt16 1 to 0x20FC:0x02. TW[19] writes UInt16 1 to 0x20FC:0x01, resets the absolute multi-turn position, and requires LMC Home before motion. Select the exact drive axis."] =
-                "파괴적 테스트 전용: TW[20]은 0x20FC:0x02에 UInt16 1을 씁니다. TW[19]는 0x20FC:0x01에 UInt16 1을 써 absolute multi-turn position을 reset하며 motion 전에 LMC Home이 필요합니다. 정확한 drive 축을 선택하십시오.";
+                "DESTRUCTIVE TEST ONLY: TW[20] writes UInt16 1 to 0x20FC:0x02. TW[19] writes UInt16 1 to 0x20FC:0x01 and resets the absolute multi-turn position. Single-axis and Group commands are dispatched to native LMC; actual errors are returned for operator Reset or recovery. Select the exact drive axis."] =
+                "파괴적 테스트 전용: TW[20]은 0x20FC:0x02에 UInt16 1을 씁니다. TW[19]는 0x20FC:0x01에 UInt16 1을 써 absolute multi-turn position을 reset합니다. 개별축과 Group 명령은 native LMC로 전달하고 실제 오류를 사용자 Reset 또는 복구 대상으로 반환합니다. 정확한 drive 축을 선택하십시오.";
             values[
                 "Before arming: power off the selected axis, verify stable standstill and physical position independently, and confirm support for the exact 0x20FC command. This dedicated 0x7E53/0x7E54/0x7E55 path is separate from generic SDO Write."] =
                 "Arm 전: 선택한 축의 Power를 끄고 안정적인 standstill과 실제 위치를 독립적으로 확인한 뒤 정확한 0x20FC 명령 지원 여부를 확인하십시오. 전용 0x7E53/0x7E54/0x7E55 경로는 일반 SDO Write와 분리됩니다.";
@@ -1748,8 +1748,8 @@ namespace LasalMotionControlApiExample
                 "PLC terminal proves the exact SDO write completion and cleanup, not the physical encoder effect. Verify the effect independently before further operation."] =
                 "PLC terminal은 정확한 SDO write 완료와 cleanup만 증명하며 실제 encoder 효과는 증명하지 않습니다. 추가 동작 전에 효과를 독립적으로 확인하십시오.";
             values[
-                "TW[19] position reset requires successful LMC Home current-position-zero before any subsequent motion."] =
-                "TW[19] position reset 뒤에는 다음 motion 전에 LMC Home 현재 위치 0 설정이 성공해야 합니다.";
+                "TW[19] position reset retained a diagnostic rebase marker. Single-axis and Group commands are still dispatched to native LMC; actual native errors are returned for operator Reset or recovery."] =
+                "TW[19] position reset 뒤 진단용 rebase marker가 유지됩니다. 개별축과 Group 명령은 native LMC로 전달하며 실제 native 오류를 사용자 Reset 또는 복구 대상으로 반환합니다.";
             values[
                 "Recovery record resolved without sending a command. Last read-only status: IsReferenced="] =
                 "명령을 전송하지 않고 복구 record를 resolve했습니다. 마지막 읽기 전용 상태: IsReferenced=";

@@ -161,7 +161,7 @@ END_FUNCTION
 FUNCTION GLOBAL TAB _IO_ELEMENTS_TAB
 0001$UINT, 0001$UINT, 
 "**IOCONN_EMPTY**", "Elmo_11.AxError", 
-0044$UINT, 
+0043$UINT, 
 "**IOCONN_EMPTY**", "PosController1.iHWErrors", 
 "**IOCONN_EMPTY**", "PosController1.HWErrorQuit", 
 "**IOCONN_EMPTY**", "PosController1.oActive", 
@@ -193,7 +193,6 @@ FUNCTION GLOBAL TAB _IO_ELEMENTS_TAB
 "**IOCONN_EMPTY**", "PosController4.DriveEnabled", 
 "**IOCONN_EMPTY**", "_LMCAxis4.ActPosition", 
 "**IOCONN_EMPTY**", "_LMCAxis4.HWError", 
-"**IOCONN_EMPTY**", "_LMCAxis4.HWReady", 
 "**IOCONN_EMPTY**", "LMCEcatInputLatch1.EcatMaster", 
 "**IOCONN_EMPTY**", "LMCEcatInputLatch1.Drive1", 
 "**IOCONN_EMPTY**", "LMCEcatInputLatch1.Drive2", 

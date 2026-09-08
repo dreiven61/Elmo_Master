@@ -921,6 +921,11 @@ Terminal success는 exact SDO completion, executor drain, motor-off post observa
 증거다. 실제 encoder reset 효과는 별도 확인해야 한다. TW19 뒤에는 motion 전에 LMC Home
 current-position-zero가 필요하다.
 
+> 2026-09-08 current override: 위의 motion 전 LMC Home 강제 조건은 폐기한다. TW19 retained
+> marker가 있어도 Single Axis 및 Group 명령을 handler/native LMC까지 전달하고 실제 axis/Group
+> 오류를 반환한다. 사용자가 반환 오류를 확인해 Reset 또는 명시적 복구를 수행하며 자동
+> Reset/Home/replay는 하지 않는다.
+
 별도 read-only review에서 11절 LMC Home cancel/drain은 cancel 실패 후 safety handler 진행,
 terminal-before-cleanup restart window 및 unbounded normal drain 문제가 발견됐다. 이 Home 문제는
 TW19/TW20 fixed-one correction과 분리하며, Home gate를 계속 `FALSE`로 유지하고 후속 수정한다.

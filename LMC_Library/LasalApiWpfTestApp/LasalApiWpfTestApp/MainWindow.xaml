@@ -1885,7 +1885,7 @@
                                 <TextBlock
                                     Foreground="#B00020"
                                     FontWeight="Bold"
-                                    Text="DESTRUCTIVE TEST ONLY: TW[20] writes UInt16 1 to 0x20FC:0x02. TW[19] writes UInt16 1 to 0x20FC:0x01, resets the absolute multi-turn position, and requires LMC Home before motion. Select the exact drive axis."
+                                    Text="DESTRUCTIVE TEST ONLY: TW[20] writes UInt16 1 to 0x20FC:0x02. TW[19] writes UInt16 1 to 0x20FC:0x01 and resets the absolute multi-turn position. Single-axis and Group commands are dispatched to native LMC; actual errors are returned for operator Reset or recovery. Select the exact drive axis."
                                     TextWrapping="Wrap" />
                                 <TextBlock
                                     x:Name="TextEncoderMaintenanceFixedTargets"

@@ -56,6 +56,9 @@ namespace LasalApiWpfTestApp.SmokeTests
                 "Wpf.ReadOnlyApi.AdminAndDriveReadsRenderTypedResults",
                 ReadOnlyApiAdminAndDriveReadsRenderTypedResults);
             tests.Add(
+                "Wpf.Axis.LegacyRebaseRejectionShowsNativePassThroughRecovery",
+                LegacyRebaseRejectionShowsNativePassThroughRecovery);
+            tests.Add(
                 "Wpf.Sdo.OrdinaryInFlightKeepsWriteEditorEditable",
                 OrdinaryInFlightKeepsWriteEditorEditable);
             tests.Add(
@@ -189,6 +192,43 @@ namespace LasalApiWpfTestApp.SmokeTests
                 "Wpf.Recorder.SemanticJournalConflictKeepsJournalUsable",
                 SemanticJournalConflictKeepsJournalUsable);
             RegisterGroupEnableWaitTests(tests);
+        }
+
+        private static void LegacyRebaseRejectionShowsNativePassThroughRecovery()
+        {
+            var response = new LMC_Response();
+            SetResponseProperty(response, "IsFrameValid", true);
+            SetResponseProperty(response, "HasCommandResult", true);
+            SetResponseProperty(response, "CommandStatus", (ushort)1);
+            SetResponseProperty(response, "ErrorId", (short)-15);
+
+            var formatResponse = typeof(MainWindow).GetMethod(
+                "FormatResponse",
+                BindingFlags.NonPublic | BindingFlags.Static);
+            AssertEx.NotNull(formatResponse);
+            var formatted = (string)formatResponse.Invoke(
+                null,
+                new object[] { response });
+
+            AssertEx.True(formatted.Contains("AxisRebaseRequired"));
+            AssertEx.True(formatted.Contains(
+                "legacy PLC image"));
+            AssertEx.True(formatted.Contains(
+                "Rebuild and download the current PLC source"));
+            AssertEx.True(formatted.Contains(
+                "actual axis or Group error"));
+        }
+
+        private static void SetResponseProperty(
+            LMC_Response response,
+            string propertyName,
+            object value)
+        {
+            var property = typeof(LMC_Response).GetProperty(propertyName);
+            AssertEx.NotNull(property);
+            var setter = property.GetSetMethod(true);
+            AssertEx.NotNull(setter);
+            setter.Invoke(response, new[] { value });
         }
 
         private static void

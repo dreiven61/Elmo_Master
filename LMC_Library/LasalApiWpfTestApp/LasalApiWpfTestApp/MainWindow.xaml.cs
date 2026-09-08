@@ -8396,7 +8396,7 @@ namespace LasalMotionControlApiExample
                 return "Response=<null>";
             }
 
-            return
+            var formatted =
                 "FrameValid="
                 + response.IsFrameValid
                 + ", Success="
@@ -8407,6 +8407,25 @@ namespace LasalMotionControlApiExample
                 + response.ErrorId
                 + ", Bytes="
                 + (response.Raw == null ? 0 : response.Raw.Length);
+
+            LMCErrorDescription errorDescription;
+            if (response.ErrorId != 0
+                && LMCErrorCatalog.TryDescribe(
+                    LMCErrorDomain.AdapterCommand,
+                    response.ErrorId,
+                    out errorDescription))
+            {
+                formatted += Environment.NewLine
+                    + "Adapter error="
+                    + errorDescription.Symbol
+                    + ": "
+                    + errorDescription.Description
+                    + Environment.NewLine
+                    + "Required action="
+                    + errorDescription.Resolution;
+            }
+
+            return formatted;
         }
 
         private static string FormatAdminResponse(LMCAdminResponse response)

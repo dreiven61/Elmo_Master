@@ -419,7 +419,13 @@ Axis Power On을 요청한다.
 2026-09-03 수정 PLC 소스 기준: 단축 Power On은 Home 완료나 retained 좌표 rebase
 해제를 요구하지 않는다. 프레임 검증, 축 소유권 충돌/격리와 실제 드라이브 인터록은
 그대로 적용하며, Power On으로 Home 상태나 좌표 rebase 플래그를 변경하지 않는다.
-이동 명령과 Group Enable/GroupPowerOn의 기존 좌표 보호는 이번 변경 범위 밖이다.
+2026-09-08 수정 PLC 소스 기준으로 direct single-axis MoveAbsolute/MoveRelative/MoveVelocity도
+retained rebase bit로 선차단하지 않고 native LMC 축까지 전달한다. Home 필요 여부는 native
+호출 결과로 반환한다. 같은 운영 원칙을 Group Enable/GroupPowerOn/motion/SetKin에도 적용한다.
+Group Enable과 Group motion은 adapter가 power/lock/kinematic readiness를 먼저 판정해 차단하지
+않고 native Group API를 호출하며, 그 반환값을 실제 Group 오류로 전달한다.
+TW19/Home 상태는 명령 전송을 막지 않으며, 실제 axis/Group 오류를 반환하면 사용자가 Reset 또는
+명시적인 복구 절차를 수행한다. 자동 Reset, 자동 Home, 명령 replay는 수행하지 않는다.
 `-9`는 단순 busy 외에 초기화/소유권 격리도 포함하므로 무조건 기다리거나 재전송하지 않는다.
 동일 날짜의 후속 수정에는 safety-repeat helper가 새 Power On을 잘못 거절하고
 RESERVED로 남기는 결함 수정도 포함된다. 새 Power On은 exact RESERVED identity를

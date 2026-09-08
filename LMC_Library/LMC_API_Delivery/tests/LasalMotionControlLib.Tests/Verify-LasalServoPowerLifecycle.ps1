@@ -67,27 +67,54 @@ $reserve = Method 'ReserveAxisOwnership'
 $helper = Method 'HandleAxisOwnershipSafetyRepeat'
 $process = Method 'ProcessAxisOwnership'
 $publish = Method 'PublishAxisOwnership'
-$allow = Capture $reserve 'rebaseAdmissionAllowed\s*:=\s*(?<Expression>.*?);'
+$groupHandler = Method 'HandleGroupCommands'
+$groupMove = Method 'MoveLinearAbsEx'
+$adminHandler = Method 'HandleAdminCommands'
+$setGroupPower = Method 'SetResolvedGroupAxesPower'
+$readGroupPower = Method 'AreResolvedGroupAxesPowered'
 $helperGuard = ($helper -split 'case\s+CommandId\s+of\s+LMC_OWNER_COMMAND_AXIS_STOP\s*:')[0]
-Check ($helperGuard -notmatch '\b(?:0x2023|LMC_OWNER_COMMAND_AXIS_POWER)\b') 'Power must pass the second rebase guard too'
-foreach ($command in @(0x2023,0x2024,0x209F,0x20A0,0x20A2,0x2047,0x204A,0x7D12)) {
-    $values = @{ CommandId=$command; OwnerKind=1; ResourceKind=1; AdmissionMode=1 }
-    $expected = $command -in @(0x2023,0x2024)
-    Check ((Predicate $allow $values) -eq $expected) ("Rebase ordinary command {0:X4}" -f $command)
-}
-foreach ($owner in @(1,2,3)) {
-    foreach ($resource in @(1,2,3,4)) {
-        foreach ($mode in @(1,2,3,4)) {
-            $values = @{ CommandId=0x2023; OwnerKind=$owner; ResourceKind=$resource; AdmissionMode=$mode }
-            $expected = ($mode -eq 2) -or (($owner -eq 1) -and ($resource -eq 1) -and ($mode -eq 1))
-            Check ((Predicate $allow $values) -eq $expected) "Power exception tuple $owner/$resource/$mode"
-        }
-    }
-}
+Check ($helperGuard -notmatch 'ReadAxisRebaseRequiredMask|LMC_OWNER_REBASE_REQUIRED') 'Safety-repeat pre-dispatch path has no Home/rebase blocker'
+Check ($reserve -notmatch 'ReadAxisRebaseRequiredMask|rebaseAdmissionAllowed|LMC_OWNER_REBASE_REQUIRED') 'Ownership reservation has no Home/rebase blocker'
 Check ($reserve -match '(?s)OwnershipState\[24\]\s*<>\s*0\)\s*then\s*Result\s*:=\s*-3;\s*RETURN;') 'Global quarantine gate preserved'
 Check ($reserve -notmatch 'OwnershipState\[24\]\s*:=\s*0') 'No force-clear on reservation'
 Check ($reserve -notmatch 'AxisRebaseRequiredState\.Write\(') 'Power admission never clears coordinate barrier'
-Check ($reserve -match '(?s)rebaseAdmissionAllowed\s*=\s*FALSE.*?Result\s*:=\s*LMC_OWNER_REBASE_REQUIRED;\s*RETURN;') 'Motion rebase rejection preserved'
+
+$groupEnable = [regex]::Match($groupHandler, '(?is)0x2047:.*?0x2048:').Value
+$groupHome = $adminHandler.Substring($adminHandler.IndexOf('0x7D22:'))
+Check ($groupEnable -match 'LMCRobot\.LockProfile\(') 'Group Enable reaches native LockProfile'
+Check ($groupEnable -notmatch 'AreResolvedGroupAxesPowered|GroupKinematicReady|_LMCPROF_LockState') 'Group Enable has no local readiness pre-interlock'
+Check ($groupMove -match 'LMCRobot\.MoveLinearCoord\(') 'Group linear motion reaches native MoveLinearCoord'
+Check ($groupMove -notmatch 'AreResolvedGroupAxesPowered|GroupKinematicReady|_LMCPROF_LockState') 'Group linear motion has no local readiness pre-interlock'
+Check ($groupHome -match 'LMCRobot\.MoveRelativeCoord\(') 'Group Home Current reaches native MoveRelativeCoord'
+Check ($groupHome -notmatch 'AreResolvedGroupAxesPowered|GroupKinematicReady|_LMCPROF_LockState') 'Group Home Current has no local readiness pre-interlock'
+
+$groupPowerOn = [regex]::Match($groupHandler, '(?is)0x204A:.*?0x204B:').Value
+$groupPowerOff = [regex]::Match($groupHandler, '(?is)0x204B:.*?0x2085:').Value
+Check ($groupPowerOn -match 'groupAxisMask\s*:=\s*LMC_OWNER_ROBOT_AXIS_MASK') 'Group PowerOn selects all nine software axes'
+Check ($groupPowerOff -match 'groupAxisMask\s*:=\s*LMC_OWNER_ROBOT_AXIS_MASK') 'Group PowerOff selects all nine software axes'
+Check ($groupPowerOn -notmatch 'ResolveConnectedGroupAxisMask') 'Group PowerOn is not limited to physical InputLatch axes'
+Check ($groupPowerOff -notmatch 'ResolveConnectedGroupAxisMask') 'Group PowerOff is not limited to physical InputLatch axes'
+Check ($setGroupPower -match 'GroupAxisMask\s*>\s*LMC_OWNER_ROBOT_AXIS_MASK') 'Group power helper accepts the nine-axis robot mask'
+Check ($readGroupPower -match 'GroupAxisMask\s*>\s*LMC_OWNER_ROBOT_AXIS_MASK') 'Group power readback accepts the nine-axis robot mask'
+for ($axis = 1; $axis -le 9; $axis++) {
+    $bit = '0x{0:X8}' -f (1 -shl ($axis - 1))
+    $nextBit = if ($axis -lt 9) {
+        '0x{0:X8}' -f (1 -shl $axis)
+    } else {
+        $null
+    }
+    $powerPattern = if ($nextBit) {
+        '(?is)GroupAxisMask\s+and\s+' + $bit +
+            '.*?(?=GroupAxisMask\s+and\s+' + $nextBit + ')'
+    } else {
+        '(?is)GroupAxisMask\s+and\s+' + $bit + '.*?END_FUNCTION'
+    }
+    $powerBlock = [regex]::Match($setGroupPower, $powerPattern).Value
+    $readBlock = [regex]::Match($readGroupPower, $powerPattern).Value
+    Check ($powerBlock -match ('LMCAxis' + $axis + '\.PowerOn')) "Group PowerOn dispatches Axis$axis"
+    Check ($powerBlock -match ('LMCAxis' + $axis + '\.PowerOff')) "Group PowerOff dispatches Axis$axis"
+    Check ($readBlock -match ('LMCAxis' + $axis + '\.ReadAxisStatus')) "Group power completion reads Axis$axis"
+}
 
 $off = Capture $process '0x2023:\s*if\s+admissionMode\s*=\s*LMC_OWNER_ADMISSION_SAFETY\s+then\s*terminalCandidate\s*:=\s*(?<Expression>.*?);'
 $on = Capture $process '0x2023:.*?else\s*terminalCandidate\s*:=\s*(?<Expression>.*?);'

@@ -415,6 +415,20 @@ compile proof만 있고 PLC task/EtherCAT 주기에서 측정되지 않았다. �
 | DS402 Home | RT owner release와 cleanup 완료 뒤 exact terminal record publish |
 | TW20/TW19 | exact retained terminal, executor drain/release, motor-off stable |
 
+2026-09-08 terminal predicate clarification:
+
+- direct `MoveAbsolute/MoveRelative`는 exact single-axis mask만 소유한다. 완료는
+  post-dispatch `activitySeen`, LMC `AxisStatus.Standstill`, LMC
+  `AxisStatus.InPosition`의 stable window로 판정한다. DS402 statusword bit 10
+  `TargetReached`는 direct owner release의 필수 조건이 아니다.
+- group move는 exact affected mask의 LMC `InPosition`/`Standstill`과
+  `ProfileFinished`를 확인한다. DS402 `TargetReached`는 configured physical mask에
+  포함된 member에 대해서만 보조 terminal evidence로 요구한다.
+- simulation member는 DS402 statusword를 completion authority로 사용하지 않는다.
+  simulation lifecycle PASS는 physical drive PASS를 대체하지 않는다.
+- `activitySeen`은 제거하지 않는다. 제거하면 dispatch 직후 아직 움직이기 전의 기존
+  `InPosition/Standstill` 값을 새 명령의 terminal로 오판할 수 있다.
+
 `0x2028`만으로 DS402 OperationEnabled/Disabled를 증명했다고 기록하지 않는다. 그 predicate가
 필요하면 InputLatch의 fresh coherent `0x6041` snapshot과 cycle/identity를 별도로 결합한다.
 Group terminal도 `0x2045` 한 번으로 member 상태를 증명하지 않고 affected mask의 각

@@ -197,7 +197,7 @@ LMCControlCommandService : CLASS
 		VAR_OUTPUT
 			Result 	: UDINT;
 		END_VAR;
-
+	
 	FUNCTION AreResolvedGroupAxesPowered
 		VAR_INPUT
 			GroupAxisMask 	: UDINT;
@@ -205,7 +205,7 @@ LMCControlCommandService : CLASS
 		VAR_OUTPUT
 			Result 	: BOOL;
 		END_VAR;
-
+	
 	FUNCTION SetResolvedGroupAxesPower
 		VAR_INPUT
 			GroupAxisMask 	: UDINT;
@@ -214,7 +214,7 @@ LMCControlCommandService : CLASS
 		VAR_OUTPUT
 			Result 	: DINT;
 		END_VAR;
-
+	
 	FUNCTION HandleRegistryCommands
 		VAR_INPUT
 			CommandId 	: UINT;
@@ -930,12 +930,6 @@ FUNCTION LMCControlCommandService::HandleAxisOwnershipSafetyRepeat
 		markerNone : BOOL;
 		markerExact : BOOL;
 		markerAny : BOOL;
-		rebaseAxisMask : UDINT;
-		rebaseTargetMask : UDINT;
-		rebaseIndex : DINT;
-		rebaseReadResult : DINT;
-		rebaseMutation : BOOL;
-		rebaseShapeValid : BOOL;
 	END_VAR
 
 	Result := LMC_OWNER_SAFETY_REPEAT_NOT_APPLICABLE;
@@ -967,137 +961,6 @@ FUNCTION LMCControlCommandService::HandleAxisOwnershipSafetyRepeat
 	else
 	end_case;
 
-	if LMC_AXIS_REBASE_BARRIER_ENABLED then
-		rebaseReadResult := ReadAxisRebaseRequiredMask();
-		rebaseAxisMask := TO_UDINT(rebaseReadResult);
-		rebaseTargetMask := 0;
-		rebaseMutation := FALSE;
-		rebaseShapeValid := FALSE;
-		case CommandId of
-			// Axis Power does not establish a coordinate reference. Its exact
-			// shape and ownership are still checked by the normal dispatcher.
-			0x209F, 0x20A0:
-				if (RequestFrameSize = 40) &
-				   (referenceAxisMask <> 0) &
-				   (referenceAxisMask <= LMC_AXIS_REBASE_STATE_AXIS_MASK) then
-					rebaseShapeValid :=
-						((pRequestFrame + 28)^$DINT = 2) &
-						((pRequestFrame + 32)^$DINT = 1) &
-						((pRequestFrame + 36)^$DINT = 1);
-					rebaseMutation := rebaseShapeValid;
-					rebaseTargetMask := referenceAxisMask;
-				end_if;
-			0x20A2:
-				if (RequestFrameSize = 32) &
-				   (referenceAxisMask <> 0) &
-				   (referenceAxisMask <= LMC_AXIS_REBASE_STATE_AXIS_MASK) then
-					rebaseShapeValid :=
-						((pRequestFrame + 16)^$DINT = 0) &
-						((pRequestFrame + 28)^$DINT = 1) &
-						((((pRequestFrame + 24)^$DINT = 1) &
-						  ((pRequestFrame + 8)^$DINT >= 0)) |
-						 (((pRequestFrame + 24)^$DINT = 3) &
-						  ((pRequestFrame + 8)^$DINT <= 0)));
-					rebaseMutation := rebaseShapeValid;
-					rebaseTargetMask := referenceAxisMask;
-				end_if;
-			0x2047, 0x204A:
-				rebaseShapeValid :=
-					(RequestFrameSize = 9) & (Reference = 0x0100) &
-					((pRequestFrame + 8)^ = 1);
-				rebaseMutation := rebaseShapeValid;
-				rebaseTargetMask := LMC_AXIS_REBASE_STATE_AXIS_MASK;
-			0x20A4:
-				if (RequestFrameSize = 104) & (Reference = 0x0100) then
-					rebaseShapeValid :=
-						((pRequestFrame + 72)^$DINT > 0) &
-						((pRequestFrame + 76)^$DINT > 0) &
-						((pRequestFrame + 80)^$DINT > 0) &
-						((pRequestFrame + 84)^$DINT >= 0) &
-						((pRequestFrame + 88)^$DINT = 0) &
-						(((pRequestFrame + 92)^$DINT = 0) |
-						 ((pRequestFrame + 92)^$DINT = 2)) &
-						(((pRequestFrame + 96)^$DINT = 1) |
-						 ((pRequestFrame + 96)^$DINT = 2)) &
-						((pRequestFrame + 100)^$DINT = 1);
-					rebaseIndex := 4;
-					while rebaseIndex <= 15 do
-						if (pRequestFrame + 8 +
-						    TO_UDINT(rebaseIndex * 4))^$DINT <> 0 then
-							rebaseShapeValid := FALSE;
-						end_if;
-						rebaseIndex += 1;
-					end_while;
-					rebaseMutation := rebaseShapeValid;
-					rebaseTargetMask := LMC_AXIS_REBASE_STATE_AXIS_MASK;
-				end_if;
-			0x7D22:
-				if (RequestFrameSize = 112) & (Reference = 0x0100) then
-					rebaseShapeValid :=
-						((pRequestFrame + 8)^$UINT = 1) &
-						((pRequestFrame + 10)^$UINT = 0) &
-						((pRequestFrame + 12)^$UDINT <> 0) &
-						((pRequestFrame + 80)^$DINT > 0) &
-						((pRequestFrame + 84)^$DINT > 0) &
-						((pRequestFrame + 88)^$DINT > 0) &
-						((pRequestFrame + 92)^$DINT >= 0) &
-						((pRequestFrame + 96)^$DINT = 0) &
-						(((pRequestFrame + 100)^$DINT = 0) |
-						 ((pRequestFrame + 100)^$DINT = 2)) &
-						(((pRequestFrame + 104)^$DINT = 1) |
-						 ((pRequestFrame + 104)^$DINT = 2)) &
-						((pRequestFrame + 108)^$DINT = 1);
-					rebaseIndex := 4;
-					while rebaseIndex <= 15 do
-						if (pRequestFrame + 16 +
-						    TO_UDINT(rebaseIndex * 4))^$DINT <> 0 then
-							rebaseShapeValid := FALSE;
-						end_if;
-						rebaseIndex += 1;
-					end_while;
-					rebaseMutation := rebaseShapeValid;
-					rebaseTargetMask := LMC_AXIS_REBASE_STATE_AXIS_MASK;
-				end_if;
-		else
-		end_case;
-
-		if rebaseMutation &
-		   ((rebaseAxisMask and rebaseTargetMask) <> 0) &
-		   (pResponseFrame <> NIL) then
-			case CommandId of
-				0x7D22:
-					if ResponseCapacity < 24 then
-						RETURN;
-					end_if;
-					_memset(dest:=pResponseFrame, usByte:=0, cntr:=24);
-					pResponseFrame^$UINT := 0;
-					(pResponseFrame + 2)^$UINT := 16;
-					(pResponseFrame + 4)^$UDINT := 0;
-					(pResponseFrame + 8)^$UINT := 1;
-					(pResponseFrame + 10)^$UINT := 0;
-					(pResponseFrame + 12)^$UINT := 1;
-					(pResponseFrame + 14)^$INT := -31000;
-					(pResponseFrame + 16)^$UDINT :=
-						(pRequestFrame + 12)^$UDINT;
-					(pResponseFrame + 20)^$UDINT := 41;
-					Result := 24;
-			else
-					if ResponseCapacity < 16 then
-						RETURN;
-					end_if;
-					_memset(dest:=pResponseFrame, usByte:=0, cntr:=16);
-					pResponseFrame^$UINT := 0;
-					(pResponseFrame + 2)^$UINT := 8;
-					(pResponseFrame + 4)^$UDINT := 0;
-					(pResponseFrame + 8)^$UDINT := TO_UDINT(Reference);
-					(pResponseFrame + 12)^$UINT := 1;
-					(pResponseFrame + 14)^$INT :=
-						LMC_OWNER_ADAPTER_ERROR_CONFLICT;
-					Result := 16;
-			end_case;
-			RETURN;
-		end_if;
-	end_if;
 	case CommandId of
 		LMC_OWNER_COMMAND_AXIS_STOP:
 			repeatEligible := TRUE;
@@ -1801,34 +1664,114 @@ FUNCTION LMCControlCommandService::AreResolvedGroupAxesPowered
 	VAR_OUTPUT
 		Result 	: BOOL;
 	END_VAR
+	VAR
+		axisStatus : _LMCAXIS_STATUS;
+	END_VAR
 
 	Result := FALSE;
-	if (GroupAxisMask = 0) | (GroupAxisMask > LMC_OWNER_PROFILE_AXIS_MASK) then
+	if (GroupAxisMask = 0) |
+	   (GroupAxisMask > LMC_OWNER_ROBOT_AXIS_MASK) then
 		RETURN;
 	end_if;
+
 	Result := TRUE;
+
 	if (GroupAxisMask and 0x00000001) <> 0 then
-		if (IsClientConnected(#LMCAxis1) = 0) |
-		   ((LMCAxis1.ReadAxisStatus()$UDINT and 0x00000001) = 0) then
+		if IsClientConnected(#LMCAxis1) = 0 then
 			Result := FALSE;
+		else
+			axisStatus := LMCAxis1.ReadAxisStatus();
+			if (axisStatus$UDINT and 0x00000001) = 0 then
+				Result := FALSE;
+			end_if;
 		end_if;
 	end_if;
+
 	if (GroupAxisMask and 0x00000002) <> 0 then
-		if (IsClientConnected(#LMCAxis2) = 0) |
-		   ((LMCAxis2.ReadAxisStatus()$UDINT and 0x00000001) = 0) then
+		if IsClientConnected(#LMCAxis2) = 0 then
 			Result := FALSE;
+		else
+			axisStatus := LMCAxis2.ReadAxisStatus();
+			if (axisStatus$UDINT and 0x00000001) = 0 then
+				Result := FALSE;
+			end_if;
 		end_if;
 	end_if;
+
 	if (GroupAxisMask and 0x00000004) <> 0 then
-		if (IsClientConnected(#LMCAxis3) = 0) |
-		   ((LMCAxis3.ReadAxisStatus()$UDINT and 0x00000001) = 0) then
+		if IsClientConnected(#LMCAxis3) = 0 then
 			Result := FALSE;
+		else
+			axisStatus := LMCAxis3.ReadAxisStatus();
+			if (axisStatus$UDINT and 0x00000001) = 0 then
+				Result := FALSE;
+			end_if;
 		end_if;
 	end_if;
+
 	if (GroupAxisMask and 0x00000008) <> 0 then
-		if (IsClientConnected(#LMCAxis4) = 0) |
-		   ((LMCAxis4.ReadAxisStatus()$UDINT and 0x00000001) = 0) then
+		if IsClientConnected(#LMCAxis4) = 0 then
 			Result := FALSE;
+		else
+			axisStatus := LMCAxis4.ReadAxisStatus();
+			if (axisStatus$UDINT and 0x00000001) = 0 then
+				Result := FALSE;
+			end_if;
+		end_if;
+	end_if;
+
+	if (GroupAxisMask and 0x00000010) <> 0 then
+		if IsClientConnected(#LMCAxis5) = 0 then
+			Result := FALSE;
+		else
+			axisStatus := LMCAxis5.ReadAxisStatus();
+			if (axisStatus$UDINT and 0x00000001) = 0 then
+				Result := FALSE;
+			end_if;
+		end_if;
+	end_if;
+
+	if (GroupAxisMask and 0x00000020) <> 0 then
+		if IsClientConnected(#LMCAxis6) = 0 then
+			Result := FALSE;
+		else
+			axisStatus := LMCAxis6.ReadAxisStatus();
+			if (axisStatus$UDINT and 0x00000001) = 0 then
+				Result := FALSE;
+			end_if;
+		end_if;
+	end_if;
+
+	if (GroupAxisMask and 0x00000040) <> 0 then
+		if IsClientConnected(#LMCAxis7) = 0 then
+			Result := FALSE;
+		else
+			axisStatus := LMCAxis7.ReadAxisStatus();
+			if (axisStatus$UDINT and 0x00000001) = 0 then
+				Result := FALSE;
+			end_if;
+		end_if;
+	end_if;
+
+	if (GroupAxisMask and 0x00000080) <> 0 then
+		if IsClientConnected(#LMCAxis8) = 0 then
+			Result := FALSE;
+		else
+			axisStatus := LMCAxis8.ReadAxisStatus();
+			if (axisStatus$UDINT and 0x00000001) = 0 then
+				Result := FALSE;
+			end_if;
+		end_if;
+	end_if;
+
+	if (GroupAxisMask and 0x00000100) <> 0 then
+		if IsClientConnected(#LMCAxis9) = 0 then
+			Result := FALSE;
+		else
+			axisStatus := LMCAxis9.ReadAxisStatus();
+			if (axisStatus$UDINT and 0x00000001) = 0 then
+				Result := FALSE;
+			end_if;
 		end_if;
 	end_if;
 
@@ -1845,10 +1788,12 @@ FUNCTION LMCControlCommandService::SetResolvedGroupAxesPower
 	END_VAR
 	VAR
 		axisResult : DINT;
+		axisCommandResult : _LMCAXIS_CMDERROR;
 	END_VAR
 
 	Result := 0;
-	if (GroupAxisMask = 0) | (GroupAxisMask > LMC_OWNER_PROFILE_AXIS_MASK) then
+	if (GroupAxisMask = 0) |
+	   (GroupAxisMask > LMC_OWNER_ROBOT_AXIS_MASK) then
 		Result := -3;
 		RETURN;
 	end_if;
@@ -1857,45 +1802,153 @@ FUNCTION LMCControlCommandService::SetResolvedGroupAxesPower
 		axisResult := -2;
 		if IsClientConnected(#LMCAxis1) = 1 then
 			if Enable then
-				axisResult := LMCAxis1.PowerOn(Mode:=LMCAXIS_MOVE_SHORTEST_WAY);
+				axisCommandResult := LMCAxis1.PowerOn(
+					Mode:=LMCAXIS_MOVE_SHORTEST_WAY);
 			else
-				axisResult := LMCAxis1.PowerOff(Mode:=LMCAXIS_SMOOTH_STOPP);
+				axisCommandResult := LMCAxis1.PowerOff(
+					Mode:=LMCAXIS_SMOOTH_STOPP);
 			end_if;
+			axisResult := TO_DINT(axisCommandResult$UDINT);
 		end_if;
-		if (Result = 0) & (axisResult <> 0) then Result := axisResult; end_if;
+		if (Result = 0) & (axisResult <> 0) then
+			Result := axisResult;
+		end_if;
 	end_if;
+
 	if (GroupAxisMask and 0x00000002) <> 0 then
 		axisResult := -2;
 		if IsClientConnected(#LMCAxis2) = 1 then
 			if Enable then
-				axisResult := LMCAxis2.PowerOn(Mode:=LMCAXIS_MOVE_SHORTEST_WAY);
+				axisCommandResult := LMCAxis2.PowerOn(
+					Mode:=LMCAXIS_MOVE_SHORTEST_WAY);
 			else
-				axisResult := LMCAxis2.PowerOff(Mode:=LMCAXIS_SMOOTH_STOPP);
+				axisCommandResult := LMCAxis2.PowerOff(
+					Mode:=LMCAXIS_SMOOTH_STOPP);
 			end_if;
+			axisResult := TO_DINT(axisCommandResult$UDINT);
 		end_if;
-		if (Result = 0) & (axisResult <> 0) then Result := axisResult; end_if;
+		if (Result = 0) & (axisResult <> 0) then
+			Result := axisResult;
+		end_if;
 	end_if;
+
 	if (GroupAxisMask and 0x00000004) <> 0 then
 		axisResult := -2;
 		if IsClientConnected(#LMCAxis3) = 1 then
 			if Enable then
-				axisResult := LMCAxis3.PowerOn(Mode:=LMCAXIS_MOVE_SHORTEST_WAY);
+				axisCommandResult := LMCAxis3.PowerOn(
+					Mode:=LMCAXIS_MOVE_SHORTEST_WAY);
 			else
-				axisResult := LMCAxis3.PowerOff(Mode:=LMCAXIS_SMOOTH_STOPP);
+				axisCommandResult := LMCAxis3.PowerOff(
+					Mode:=LMCAXIS_SMOOTH_STOPP);
 			end_if;
+			axisResult := TO_DINT(axisCommandResult$UDINT);
 		end_if;
-		if (Result = 0) & (axisResult <> 0) then Result := axisResult; end_if;
+		if (Result = 0) & (axisResult <> 0) then
+			Result := axisResult;
+		end_if;
 	end_if;
+
 	if (GroupAxisMask and 0x00000008) <> 0 then
 		axisResult := -2;
 		if IsClientConnected(#LMCAxis4) = 1 then
 			if Enable then
-				axisResult := LMCAxis4.PowerOn(Mode:=LMCAXIS_MOVE_SHORTEST_WAY);
+				axisCommandResult := LMCAxis4.PowerOn(
+					Mode:=LMCAXIS_MOVE_SHORTEST_WAY);
 			else
-				axisResult := LMCAxis4.PowerOff(Mode:=LMCAXIS_SMOOTH_STOPP);
+				axisCommandResult := LMCAxis4.PowerOff(
+					Mode:=LMCAXIS_SMOOTH_STOPP);
 			end_if;
+			axisResult := TO_DINT(axisCommandResult$UDINT);
 		end_if;
-		if (Result = 0) & (axisResult <> 0) then Result := axisResult; end_if;
+		if (Result = 0) & (axisResult <> 0) then
+			Result := axisResult;
+		end_if;
+	end_if;
+
+	if (GroupAxisMask and 0x00000010) <> 0 then
+		axisResult := -2;
+		if IsClientConnected(#LMCAxis5) = 1 then
+			if Enable then
+				axisCommandResult := LMCAxis5.PowerOn(
+					Mode:=LMCAXIS_MOVE_SHORTEST_WAY);
+			else
+				axisCommandResult := LMCAxis5.PowerOff(
+					Mode:=LMCAXIS_SMOOTH_STOPP);
+			end_if;
+			axisResult := TO_DINT(axisCommandResult$UDINT);
+		end_if;
+		if (Result = 0) & (axisResult <> 0) then
+			Result := axisResult;
+		end_if;
+	end_if;
+
+	if (GroupAxisMask and 0x00000020) <> 0 then
+		axisResult := -2;
+		if IsClientConnected(#LMCAxis6) = 1 then
+			if Enable then
+				axisCommandResult := LMCAxis6.PowerOn(
+					Mode:=LMCAXIS_MOVE_SHORTEST_WAY);
+			else
+				axisCommandResult := LMCAxis6.PowerOff(
+					Mode:=LMCAXIS_SMOOTH_STOPP);
+			end_if;
+			axisResult := TO_DINT(axisCommandResult$UDINT);
+		end_if;
+		if (Result = 0) & (axisResult <> 0) then
+			Result := axisResult;
+		end_if;
+	end_if;
+
+	if (GroupAxisMask and 0x00000040) <> 0 then
+		axisResult := -2;
+		if IsClientConnected(#LMCAxis7) = 1 then
+			if Enable then
+				axisCommandResult := LMCAxis7.PowerOn(
+					Mode:=LMCAXIS_MOVE_SHORTEST_WAY);
+			else
+				axisCommandResult := LMCAxis7.PowerOff(
+					Mode:=LMCAXIS_SMOOTH_STOPP);
+			end_if;
+			axisResult := TO_DINT(axisCommandResult$UDINT);
+		end_if;
+		if (Result = 0) & (axisResult <> 0) then
+			Result := axisResult;
+		end_if;
+	end_if;
+
+	if (GroupAxisMask and 0x00000080) <> 0 then
+		axisResult := -2;
+		if IsClientConnected(#LMCAxis8) = 1 then
+			if Enable then
+				axisCommandResult := LMCAxis8.PowerOn(
+					Mode:=LMCAXIS_MOVE_SHORTEST_WAY);
+			else
+				axisCommandResult := LMCAxis8.PowerOff(
+					Mode:=LMCAXIS_SMOOTH_STOPP);
+			end_if;
+			axisResult := TO_DINT(axisCommandResult$UDINT);
+		end_if;
+		if (Result = 0) & (axisResult <> 0) then
+			Result := axisResult;
+		end_if;
+	end_if;
+
+	if (GroupAxisMask and 0x00000100) <> 0 then
+		axisResult := -2;
+		if IsClientConnected(#LMCAxis9) = 1 then
+			if Enable then
+				axisCommandResult := LMCAxis9.PowerOn(
+					Mode:=LMCAXIS_MOVE_SHORTEST_WAY);
+			else
+				axisCommandResult := LMCAxis9.PowerOff(
+					Mode:=LMCAXIS_SMOOTH_STOPP);
+			end_if;
+			axisResult := TO_DINT(axisCommandResult$UDINT);
+		end_if;
+		if (Result = 0) & (axisResult <> 0) then
+			Result := axisResult;
+		end_if;
 	end_if;
 
 END_FUNCTION
@@ -2805,8 +2858,6 @@ FUNCTION GLOBAL LMCControlCommandService::ReserveAxisOwnership
 		repeatIdentitySize : UDINT;
 		repeatPreemptedToken : UDINT;
 		repeatPreemptedGeneration : UDINT;
-		rebaseAxisMask : UDINT;
-		rebaseReadResult : DINT;
 		existingToken : UDINT;
 		existingGeneration : UDINT;
 		existingState : DINT;
@@ -2849,7 +2900,6 @@ FUNCTION GLOBAL LMCControlCommandService::ReserveAxisOwnership
 		repeatRootPresent : BOOL;
 		repeatRootForce : BOOL;
 		repeatPreemptedSeen : BOOL;
-		rebaseAdmissionAllowed : BOOL;
     diagnosticsSdoTupleValid : BOOL;
 	END_VAR
 
@@ -3143,31 +3193,6 @@ FUNCTION GLOBAL LMCControlCommandService::ReserveAxisOwnership
     end_if;
 	else
 		RETURN;
-	end_if;
-	if LMC_AXIS_REBASE_BARRIER_ENABLED then
-		rebaseReadResult := ReadAxisRebaseRequiredMask();
-		rebaseAxisMask := TO_UDINT(rebaseReadResult);
-		rebaseAdmissionAllowed :=
-			(AdmissionMode = LMC_OWNER_ADMISSION_SAFETY) |
-			((CommandId = LMC_OWNER_COMMAND_AXIS_POWER) &
-			 (OwnerKind = LMC_OWNER_KIND_DIRECT) &
-			 (ResourceKind = LMC_OWNER_RESOURCE_AXIS) &
-			 (AdmissionMode = LMC_OWNER_ADMISSION_ORDINARY)) |
-			((CommandId = 0x7D13) &
-			 (OwnerKind = LMC_OWNER_KIND_LMC_HOME) &
-			 (ResourceKind = LMC_OWNER_RESOURCE_LMC_HOME_ENGINE)) |
-			((CommandId = 0x7E53) &
-			 (OwnerKind = LMC_OWNER_KIND_ENCODER) &
-			 (ResourceKind = LMC_OWNER_RESOURCE_DIAGNOSTICS_SDO_ENGINE)) |
-			((CommandId = 0x7D23) &
-			 (OwnerKind = LMC_OWNER_KIND_AXIS_OPERATION_MODE) &
-			 (ResourceKind = LMC_OWNER_RESOURCE_DIAGNOSTICS_SDO_ENGINE)) |
-			(CommandId = 0x2024) | (CommandId = 0x2049);
-		if ((effectiveAxisMask and rebaseAxisMask) <> 0) &
-		   (rebaseAdmissionAllowed = FALSE) then
-			Result := LMC_OWNER_REBASE_REQUIRED;
-			RETURN;
-		end_if;
 	end_if;
 	if (OwnershipState[0]$UDINT <> LMC_OWNER_TABLE_MAGIC) |
 	   (OwnershipState[3]$UDINT = 0) |
@@ -5352,8 +5377,8 @@ FUNCTION GLOBAL LMCControlCommandService::CommitAxisOwnership
 		RETURN;
 	end_if;
 	// Arm before the first owner mutation and before Diagnostics can call the
-	// SDO executor. A later pre-dispatch failure intentionally still requires
-	// Home because false-positive coordinate recovery is safer than a gap.
+	// SDO executor. This retained marker is diagnostic only: it records an
+	// uncertain TW19 outcome but does not block later axis or group commands.
 	if LMC_AXIS_REBASE_BARRIER_ENABLED &
 	   (CommandId = 0x7E53) &
 	   (ownerKind = LMC_OWNER_KIND_ENCODER) &
@@ -7424,7 +7449,8 @@ FUNCTION GLOBAL LMCControlCommandService::ProcessAxisOwnership
 		allPowerOn : BOOL;
 		allPowerOff : BOOL;
 		allErrorClear : BOOL;
-		allTargetReached : BOOL;
+		allInPosition : BOOL;
+		allPhysicalTargetReached : BOOL;
 		referencePowerOff : BOOL;
 		powerOffEscalated : BOOL;
 		tupleValid : BOOL;
@@ -7673,7 +7699,8 @@ FUNCTION GLOBAL LMCControlCommandService::ProcessAxisOwnership
 						allPowerOn := TRUE;
 						allPowerOff := TRUE;
 						allErrorClear := TRUE;
-						allTargetReached := TRUE;
+						allInPosition := TRUE;
+						allPhysicalTargetReached := TRUE;
 						referencePowerOff := FALSE;
 						activitySeen :=
 							(OwnershipObserverState[observerBase + 5]$UDINT and
@@ -7752,9 +7779,17 @@ FUNCTION GLOBAL LMCControlCommandService::ProcessAxisOwnership
 								     LMC_OWNER_DS402_FAULT_MASK) <> 0) then
 									allErrorClear := FALSE;
 								end_if;
-								if (ds402StatusRaw and
-								    LMC_OWNER_DS402_TARGET_REACHED_MASK) = 0 then
-									allTargetReached := FALSE;
+								if (axisStatusRaw and
+								    LMC_OWNER_AXIS_IN_POSITION_MASK) = 0 then
+									allInPosition := FALSE;
+								end_if;
+								// DS402 target-reached is physical-drive evidence only.
+								// Simulation axes complete through LMC application state.
+								if ((selectedAxisBit and
+								     LMC_OWNER_CONFIGURED_PHYSICAL_AXIS_MASK) <> 0) &
+								   ((ds402StatusRaw and
+								     LMC_OWNER_DS402_TARGET_REACHED_MASK) = 0) then
+									allPhysicalTargetReached := FALSE;
 								end_if;
 								if selectedAxisIndex = leaderAxisIndex then
 									if (OwnershipObserverState[observerBase + 5]$UDINT and
@@ -7788,7 +7823,7 @@ FUNCTION GLOBAL LMCControlCommandService::ProcessAxisOwnership
 						if ownerKind = LMC_OWNER_KIND_GROUP then
 							if IsClientConnected(#LMCRobot) then
 								if AreResolvedGroupAxesPowered(
-								   GroupAxisMask:=ResolveConnectedGroupAxisMask()) then
+								   GroupAxisMask:=LMC_OWNER_ROBOT_AXIS_MASK) then
 									groupPowerState := 1;
 								else
 									groupPowerState := 0;
@@ -7836,8 +7871,11 @@ FUNCTION GLOBAL LMCControlCommandService::ProcessAxisOwnership
 											terminalCandidate := allStandstill;
 										end_if;
 									0x209F, 0x20A0:
+										// A direct move owns exactly one selected axis. LMC
+										// InPosition is the application completion authority;
+										// DS402 target-reached is not required for release.
 										terminalCandidate := activitySeen & allStandstill &
-											allTargetReached;
+											allInPosition;
 									0x20A2:
 										terminalCandidate := FALSE;
 								else
@@ -7881,7 +7919,7 @@ FUNCTION GLOBAL LMCControlCommandService::ProcessAxisOwnership
 									0x20A4, 0x7D22:
 										terminalCandidate := activitySeen &
 											(groupFinished <> 0) & allStandstill &
-											allTargetReached;
+											allInPosition & allPhysicalTargetReached;
 								else
 									forceQuarantine := TRUE;
 								end_case;
@@ -9226,8 +9264,6 @@ FUNCTION LMCControlCommandService::HandleGroupCommands
 		objectRegistryReady : BOOL;
 		kinIndex : DINT;
 		kinValid : BOOL;
-		kinRebaseMask : DINT;
-		powerIsOn : DINT;
 		groupReadErrorId : DINT;
 		groupReadRetCode : _LMCPROFERRORTYPES;
 		groupReadInPosition : DINT;
@@ -9346,25 +9382,23 @@ FUNCTION LMCControlCommandService::HandleGroupCommands
 				groupAxisMask := ResolveConnectedGroupAxisMask();
 				if (IsClientConnected(#LMCRobot) = 1) & (groupAxisMask <> 0) then
 					groupReadErrorId := -6;
-					if AreResolvedGroupAxesPowered(GroupAxisMask:=groupAxisMask) then
-						groupAxis1Enable := 0; groupAxis2Enable := 0;
-						groupAxis3Enable := 0; groupAxis4Enable := 0;
-						if (groupAxisMask and 0x1) <> 0 then groupAxis1Enable := 1; end_if;
-						if (groupAxisMask and 0x2) <> 0 then groupAxis2Enable := 1; end_if;
-						if (groupAxisMask and 0x4) <> 0 then groupAxis3Enable := 1; end_if;
-						if (groupAxisMask and 0x8) <> 0 then groupAxis4Enable := 1; end_if;
-						OwnershipState[26] := TO_DINT(CommandId);
-						OwnershipState[27] := TO_DINT(Reference);
-						OwnershipState[25] := 1;
-						groupReadRetCode := LMCRobot.LockProfile(
-							Axis1:=groupAxis1Enable, Axis2:=groupAxis2Enable,
-							Axis3:=groupAxis3Enable, Axis4:=groupAxis4Enable,
-							Axis5:=0, Axis6:=0, Axis7:=0, Axis8:=0, Axis9:=0);
-						if groupReadRetCode = _LMCPROF_NoError then
-							groupReadErrorId := 0;
-						elsif groupReadRetCode$UDINT <= 32767 then
-							groupReadErrorId := groupReadRetCode$DINT;
-						end_if;
+					groupAxis1Enable := 0; groupAxis2Enable := 0;
+					groupAxis3Enable := 0; groupAxis4Enable := 0;
+					if (groupAxisMask and 0x1) <> 0 then groupAxis1Enable := 1; end_if;
+					if (groupAxisMask and 0x2) <> 0 then groupAxis2Enable := 1; end_if;
+					if (groupAxisMask and 0x4) <> 0 then groupAxis3Enable := 1; end_if;
+					if (groupAxisMask and 0x8) <> 0 then groupAxis4Enable := 1; end_if;
+					OwnershipState[26] := TO_DINT(CommandId);
+					OwnershipState[27] := TO_DINT(Reference);
+					OwnershipState[25] := 1;
+					groupReadRetCode := LMCRobot.LockProfile(
+						Axis1:=groupAxis1Enable, Axis2:=groupAxis2Enable,
+						Axis3:=groupAxis3Enable, Axis4:=groupAxis4Enable,
+						Axis5:=0, Axis6:=0, Axis7:=0, Axis8:=0, Axis9:=0);
+					if groupReadRetCode = _LMCPROF_NoError then
+						groupReadErrorId := 0;
+					elsif groupReadRetCode$UDINT <= 32767 then
+						groupReadErrorId := groupReadRetCode$DINT;
 					end_if;
 				end_if;
 				_memset(dest:=pResponseFrame, usByte:=0, cntr:=16);
@@ -9486,7 +9520,10 @@ FUNCTION LMCControlCommandService::HandleGroupCommands
 			if groupCommandInputValid = TRUE then
 				if ResponseCapacity < 16 then RETURN; end_if;
 				groupReadErrorId := -2;
-				groupAxisMask := ResolveConnectedGroupAxisMask();
+				// Group Power addresses the complete software robot membership.
+				// Axis 1..2 may be physical and Axis 3..9 may be Simulation;
+				// both kinds receive the same native axis Power command.
+				groupAxisMask := LMC_OWNER_ROBOT_AXIS_MASK;
 				if groupAxisMask <> 0 then
 					OwnershipState[26] := TO_DINT(CommandId);
 					OwnershipState[27] := TO_DINT(Reference);
@@ -9520,7 +9557,8 @@ FUNCTION LMCControlCommandService::HandleGroupCommands
 			if groupCommandInputValid = TRUE then
 				if ResponseCapacity < 16 then RETURN; end_if;
 				groupReadErrorId := -2;
-				groupAxisMask := ResolveConnectedGroupAxisMask();
+				// Power Off uses the same complete software robot membership.
+				groupAxisMask := LMC_OWNER_ROBOT_AXIS_MASK;
 				if groupAxisMask <> 0 then
 					OwnershipState[26] := TO_DINT(CommandId);
 					OwnershipState[27] := TO_DINT(Reference);
@@ -9752,24 +9790,17 @@ FUNCTION LMCControlCommandService::HandleGroupCommands
 			end_if;
 			groupReadErrorId := -7;
 			if kinValid = TRUE then
-				kinRebaseMask := ReadAxisRebaseRequiredMask();
-				if LMC_AXIS_REBASE_BARRIER_ENABLED &
-				   ((TO_UDINT(kinRebaseMask) and
-				     LMC_AXIS_REBASE_STATE_AXIS_MASK) <> 0) then
-					groupReadErrorId := LMC_OWNER_ADAPTER_ERROR_CONFLICT;
-				else
-					groupReadErrorId := -2;
-					if (IsClientConnected(#LMCRobot) = 1) &
-					   (IsClientConnected(#LMCAxis1) = 1) &
-					   (IsClientConnected(#LMCAxis2) = 1) &
-					   (IsClientConnected(#LMCAxis3) = 1) &
-					   (IsClientConnected(#LMCAxis4) = 1) then
-						OwnershipState[26] := TO_DINT(CommandId);
-						OwnershipState[27] := TO_DINT(Reference);
-						OwnershipState[25] := 1;
-						GroupKinematicReady := TRUE;
-						groupReadErrorId := 0;
-					end_if;
+				groupReadErrorId := -2;
+				if (IsClientConnected(#LMCRobot) = 1) &
+				   (IsClientConnected(#LMCAxis1) = 1) &
+				   (IsClientConnected(#LMCAxis2) = 1) &
+				   (IsClientConnected(#LMCAxis3) = 1) &
+				   (IsClientConnected(#LMCAxis4) = 1) then
+					OwnershipState[26] := TO_DINT(CommandId);
+					OwnershipState[27] := TO_DINT(Reference);
+					OwnershipState[25] := 1;
+					GroupKinematicReady := TRUE;
+					groupReadErrorId := 0;
 				end_if;
 			end_if;
 			_memset(dest:=pResponseFrame, usByte:=0, cntr:=12);
@@ -9806,8 +9837,6 @@ FUNCTION LMCControlCommandService::HandleAdminCommands
 	END_VAR
 	VAR
 		kinIndex : DINT;
-		powerIsOn : DINT;
-		profileLockState : DINT;
 		adminSchemaVersion : UINT;
 		adminRequestFlags : UINT;
 		adminRequestId : UDINT;
@@ -10416,8 +10445,6 @@ FUNCTION LMCControlCommandService::HandleAdminCommands
 			groupCommandConfig := 0;
 			groupMoveRetCode := _LMCPROF_MOVECMD_ERROR;
 			adminErrorId := -31000;
-			powerIsOn := 0;
-			profileLockState := 0;
 			_memset(dest:=#GroupMovePos, usByte:=0, cntr:=sizeof(GroupMovePos));
 
 			if RequestFrameSize >= 16 then
@@ -10478,24 +10505,11 @@ FUNCTION LMCControlCommandService::HandleAdminCommands
 			end_if;
 
 			if adminDetailCode = 0 then
-				if (IsClientConnected(#LMCRobot) = 1) &
-				   (IsClientConnected(#LMCAxis1) = 1) &
-				   (IsClientConnected(#LMCAxis2) = 1) &
-				   (IsClientConnected(#LMCAxis3) = 1) &
-				   (IsClientConnected(#LMCAxis4) = 1) then
-					if AreResolvedGroupAxesPowered(GroupAxisMask:=ResolveConnectedGroupAxisMask()) then
-				powerIsOn := 1;
-			else
-				powerIsOn := 0;
-			end_if;
-					profileLockState := LMCRobot.ReadProfileParameter(
-						ParNo:=_LMCPROF_LockState);
-					if (GroupKinematicReady = TRUE) &
-					   (powerIsOn <> 0) & (profileLockState <> 0) then
-						OwnershipState[26] := TO_DINT(CommandId);
-						OwnershipState[27] := TO_DINT(Reference);
-						OwnershipState[25] := 1;
-						groupMoveRetCode := LMCRobot.MoveRelativeCoord(
+				if IsClientConnected(#LMCRobot) = 1 then
+					OwnershipState[26] := TO_DINT(CommandId);
+					OwnershipState[27] := TO_DINT(Reference);
+					OwnershipState[25] := 1;
+					groupMoveRetCode := LMCRobot.MoveRelativeCoord(
 							pDistances:=#GroupMovePos,
 							CmdConfig:=groupCommandConfig,
 							Velocity:=groupVelocity,
@@ -10505,18 +10519,15 @@ FUNCTION LMCControlCommandService::HandleAdminCommands
 							TransRadius:=groupTransitionRadius,
 							CoordSystem:=0,
 							Jerk:=groupJerk);
-						if groupMoveRetCode = _LMCPROF_NoError then
-							adminErrorId := 0;
-						else
-							adminDetailCode := 11;
-							if groupMoveRetCode$UDINT <= 32767 then
-								adminErrorId := groupMoveRetCode$INT;
-							else
-								adminErrorId := -6;
-							end_if;
-						end_if;
+					if groupMoveRetCode = _LMCPROF_NoError then
+						adminErrorId := 0;
 					else
-						adminDetailCode := 10;
+						adminDetailCode := 11;
+						if groupMoveRetCode$UDINT <= 32767 then
+							adminErrorId := groupMoveRetCode$INT;
+						else
+							adminErrorId := -6;
+						end_if;
 					end_if;
 				else
 					adminDetailCode := 10;
@@ -10572,9 +10583,6 @@ FUNCTION LMCControlCommandService::MoveLinearAbsEx
 		groupCommandConfig : _LMCPROFCMDCONFIG;
 		groupCommandInputValid : BOOL;
 		groupReadErrorId : DINT;
-		powerIsOn : DINT;
-		profileLockState : DINT;
-		profileLocked : BOOL;
 		kinIndex : DINT;
 	END_VAR
 
@@ -10641,31 +10649,12 @@ FUNCTION LMCControlCommandService::MoveLinearAbsEx
 
 	if groupCommandInputValid = TRUE then
 		groupReadErrorId := -2;
-		if (IsClientConnected(#LMCRobot) = 1) &
-		   (IsClientConnected(#LMCAxis1) = 1) &
-		   (IsClientConnected(#LMCAxis2) = 1) &
-		   (IsClientConnected(#LMCAxis3) = 1) &
-		   (IsClientConnected(#LMCAxis4) = 1) then
+		if IsClientConnected(#LMCRobot) = 1 then
 			groupReadErrorId := -6;
-			if AreResolvedGroupAxesPowered(GroupAxisMask:=ResolveConnectedGroupAxisMask()) then
-				powerIsOn := 1;
-			else
-				powerIsOn := 0;
-			end_if;
-			profileLockState := LMCRobot.ReadProfileParameter(
-				ParNo:=_LMCPROF_LockState);
-			if profileLockState <> 0 then
-				profileLocked := TRUE;
-			else
-				profileLocked := FALSE;
-			end_if;
-
-			if (GroupKinematicReady = TRUE) &
-			   (powerIsOn <> 0) & (profileLocked = TRUE) then
-				OwnershipState[26] := TO_DINT(0x20A4);
-				OwnershipState[27] := TO_DINT(Reference);
-				OwnershipState[25] := 1;
-				groupMoveRetCode := LMCRobot.MoveLinearCoord(
+			OwnershipState[26] := TO_DINT(0x20A4);
+			OwnershipState[27] := TO_DINT(Reference);
+			OwnershipState[25] := 1;
+			groupMoveRetCode := LMCRobot.MoveLinearCoord(
 					pPositions:=#GroupMovePos,
 					CmdConfig:=groupCommandConfig,
 					Velocity:=groupVelocity,
@@ -10675,11 +10664,10 @@ FUNCTION LMCControlCommandService::MoveLinearAbsEx
 					TransRadius:=groupTransitionRadius,
 					CoordSystem:=0,
 					Jerk:=groupJerk);
-				if groupMoveRetCode = _LMCPROF_NoError then
-					groupReadErrorId := 0;
-				elsif groupMoveRetCode$UDINT <= 32767 then
-					groupReadErrorId := groupMoveRetCode$DINT;
-				end_if;
+			if groupMoveRetCode = _LMCPROF_NoError then
+				groupReadErrorId := 0;
+			elsif groupMoveRetCode$UDINT <= 32767 then
+				groupReadErrorId := groupMoveRetCode$DINT;
 			end_if;
 		end_if;
 	end_if;
@@ -10729,7 +10717,8 @@ FUNCTION LMCControlCommandService::GroupReadStatus
 	groupReadState := 0x40000000;
 	groupReadInPosition := LMCRobot.ProfileInPosition(
 		Mode:=_LMCPROF_ProfileFinished);
-	if AreResolvedGroupAxesPowered(GroupAxisMask:=ResolveConnectedGroupAxisMask()) then
+	if AreResolvedGroupAxesPowered(
+	   GroupAxisMask:=LMC_OWNER_ROBOT_AXIS_MASK) then
 				powerIsOn := 1;
 			else
 				powerIsOn := 0;
@@ -11303,7 +11292,7 @@ FUNCTION GLOBAL LMCControlCommandService::ProcessAxisZeroHome
 				ObservationCycle:=ZeroHomeState[46]$UDINT);
 			ZeroHomeState[47] := homePublishResult;
 			if homePublishResult = LMC_OWNER_REBASE_PERSIST_RETRY then
-				// Keep FINALIZE and retry the retained barrier write next cycle.
+				// Keep FINALIZE and retry the retained marker write next cycle.
 				// Global owner quarantine would block the Home recovery path itself.
 				RETURN;
 			end_if;

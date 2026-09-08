@@ -825,7 +825,7 @@
 			CyclicTime     = "10 ms"
 			BackgroundTime = "100 ms">
 			<Channels>
-				<Server Name="AbsEncoder" Value="1"/>
+				<Server Name="AbsEncoder" Value="0"/>
 				<Server Name="ActPos"/>
 				<Server Name="ActVelocity"/>
 				<Server Name="AEmergency" Value="0"/>
@@ -929,7 +929,7 @@
 						</Object>
 						<Object Name="_LMCABSEncoder1" GUID="{4997BF67-81DA-49B7-8B08-D58CDF069D7E}" Class="_LMCABSEncoder">
 							<Channels>
-								<Server Name="AbsEncoder" Value="1"/>
+								<Server Name="AbsEncoder" Value="0"/>
 								<Server Name="ClassSvr"/>
 								<Server Name="PosCRC32"/>
 								<Server Name="PosOffset"/>
@@ -1231,7 +1231,7 @@
 			CyclicTime     = "10 ms"
 			BackgroundTime = "100 ms">
 			<Channels>
-				<Server Name="AbsEncoder" Value="1"/>
+				<Server Name="AbsEncoder" Value="0"/>
 				<Server Name="ActPos"/>
 				<Server Name="ActVelocity"/>
 				<Server Name="AEmergency" Value="0"/>
@@ -1335,7 +1335,7 @@
 						</Object>
 						<Object Name="_LMCABSEncoder1" GUID="{4997BF67-81DA-49B7-8B08-D58CDF069D7E}" Class="_LMCABSEncoder">
 							<Channels>
-								<Server Name="AbsEncoder" Value="1"/>
+								<Server Name="AbsEncoder" Value="0"/>
 								<Server Name="ClassSvr"/>
 								<Server Name="PosCRC32"/>
 								<Server Name="PosOffset"/>
@@ -4817,7 +4817,6 @@
 		<Connection Source="PosController4.DriveEnabled" Destination="Elmo_41.AxEnable"/>
 		<Connection Source="_LMCAxis4.ActPosition" Destination="Elmo_41.ActPos"/>
 		<Connection Source="_LMCAxis4.HWError" Destination="Elmo_41.AxError"/>
-		<Connection Source="_LMCAxis4.HWReady" Destination="Elmo_41.Online"/>
 		<Connection Source="LMCEcatInputLatch1.Coupler" Destination="GL_9086_11.ClassState"/>
 		<Connection Source="LMCEcatInputLatch1.InputSlot" Destination="GL_9086_1_Slot001.ClassState"/>
 		<Connection Source="_LMCAxis4.LMCController" Destination="PosController4.Signal_Input" Vertices="(3090,5880),(2440,5880),"/>

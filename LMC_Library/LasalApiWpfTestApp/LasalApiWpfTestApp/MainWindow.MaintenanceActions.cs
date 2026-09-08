@@ -1852,9 +1852,16 @@ namespace LasalMotionControlApiExample
                         == LMCEncoderMaintenanceKind
                             .Tw19MultiturnPositionReset)
                     {
+                        var rebaseRequiredMessage = TranslateUiText(
+                            "TW[19] position reset retained a diagnostic rebase marker. Single-axis and Group commands are still dispatched to native LMC; actual native errors are returned for operator Reset or recovery.");
                         TextTestResetResult.Text += Environment.NewLine
-                            + TranslateUiText(
-                                "TW[19] position reset requires successful LMC Home current-position-zero before any subsequent motion.");
+                            + rebaseRequiredMessage;
+                        TextOperationState.Text = rebaseRequiredMessage;
+                        WriteLog(
+                            "TW[19] REBASE MARKER RETAINED FOR DIAGNOSTICS: single-axis and "
+                            + "Group commands are dispatched to native LMC. The adapter does "
+                            + "not synthesize a Home/rebase rejection; handle the returned "
+                            + "native axis or Group error with operator Reset or recovery.");
                     }
                 });
         }

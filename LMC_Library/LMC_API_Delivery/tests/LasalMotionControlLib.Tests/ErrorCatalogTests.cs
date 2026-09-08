@@ -27,11 +27,11 @@ namespace LasalMotionControlLib.Tests
                 "ErrorCatalog.InvalidDomain.FailClosed",
                 InvalidDomainFailClosed);
             tests.Add(
-                "ErrorCatalog.PowerRecovery.DoesNotPrescribeHomeOrReplay",
-                PowerRecoveryDoesNotPrescribeHomeOrReplay);
+                "ErrorCatalog.PowerRecoveryAndRebase.StayScoped",
+                PowerRecoveryAndRebaseStayScoped);
         }
 
-        private static void PowerRecoveryDoesNotPrescribeHomeOrReplay()
+        private static void PowerRecoveryAndRebaseStayScoped()
         {
             LMCErrorDescription conflict;
             LMCErrorDescription rebase;
@@ -40,7 +40,10 @@ namespace LasalMotionControlLib.Tests
             AssertEx.True(LMCErrorCatalog.TryDescribe(
                 LMCErrorDomain.AdapterCommand, -15, out rebase));
             AssertEx.True(conflict.Description.Contains("quarantined"));
-            AssertEx.True(rebase.Description.Contains("does not require Home"));
+            AssertEx.True(rebase.Description.Contains("legacy PLC image"));
+            AssertEx.True(rebase.Description.Contains("does not use this pre-interlock"));
+            AssertEx.True(rebase.Resolution.Contains("Rebuild and download the current PLC source"));
+            AssertEx.True(rebase.Resolution.Contains("actual axis or Group error"));
             AssertEx.True(conflict.Resolution.Contains("do not replay Power On"));
             AssertEx.False(conflict.Resolution.Contains("retry once"));
             AssertEx.False(rebase.Resolution.Contains("then retry Power On"));

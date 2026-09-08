@@ -1136,8 +1136,8 @@ TO_UDINT(183), "Simul_Axis_9", TO_UDINT(17), "SimulateMode",
 316$UDINT,
 TO_UDINT(0), "AbsEncoder", TO_UDINT(1),//|Motion_Network._LMCAxis1\_LMCABSEncoder1.AbsEncoder;
 TO_UDINT(1), "AbsEncoder", TO_UDINT(1),//|Motion_Network._LMCAxis2\_LMCABSEncoder1.AbsEncoder;
-TO_UDINT(2), "AbsEncoder", TO_UDINT(1),//|Motion_Network._LMCAxis3\_LMCABSEncoder1.AbsEncoder;
-TO_UDINT(3), "AbsEncoder", TO_UDINT(1),//|Motion_Network._LMCAxis4\_LMCABSEncoder1.AbsEncoder;
+TO_UDINT(2), "AbsEncoder", TO_UDINT(0),//|Motion_Network._LMCAxis3\_LMCABSEncoder1.AbsEncoder;
+TO_UDINT(3), "AbsEncoder", TO_UDINT(0),//|Motion_Network._LMCAxis4\_LMCABSEncoder1.AbsEncoder;
 TO_UDINT(4), "AbsEncoder", TO_UDINT(1),//|Motion_Network._LMCAxis5\_LMCABSEncoder1.AbsEncoder;
 TO_UDINT(5), "AbsEncoder", TO_UDINT(1),//|Motion_Network._LMCAxis6\_LMCABSEncoder1.AbsEncoder;
 TO_UDINT(6), "AbsEncoder", TO_UDINT(1),//|Motion_Network._LMCAxis7\_LMCABSEncoder1.AbsEncoder;
@@ -1191,7 +1191,7 @@ TO_UDINT(11), "SWMaxPos", TO_UDINT(10000 mm),//|Motion_Network._LMCAxis3.SWMaxPo
 TO_UDINT(11), "ErrorConfig", TO_UDINT(2#0000000001000000),//|Motion_Network._LMCAxis3.ErrorConfig;
 TO_UDINT(11), "AEmergency", TO_UDINT(0),//|Motion_Network._LMCAxis3.AEmergency;
 TO_UDINT(11), "JMax", TO_UDINT(75000 mm),//|Motion_Network._LMCAxis3.JMax;
-TO_UDINT(11), "AbsEncoder", TO_UDINT(1),//|Motion_Network._LMCAxis3.AbsEncoder;
+TO_UDINT(11), "AbsEncoder", TO_UDINT(0),//|Motion_Network._LMCAxis3.AbsEncoder;
 TO_UDINT(11), "Config", TO_UDINT(0),//|Motion_Network._LMCAxis3.Config;
 TO_UDINT(11), "ID", TO_UDINT(0),//|Motion_Network._LMCAxis3.ID;
 TO_UDINT(12), "SimulateMode", TO_UDINT(1),//|Motion_Network._LMCAxis4.SimulateMode;
@@ -1208,7 +1208,7 @@ TO_UDINT(12), "SWMaxPos", TO_UDINT(10000 mm),//|Motion_Network._LMCAxis4.SWMaxPo
 TO_UDINT(12), "ErrorConfig", TO_UDINT(2#0000000001000000),//|Motion_Network._LMCAxis4.ErrorConfig;
 TO_UDINT(12), "AEmergency", TO_UDINT(0),//|Motion_Network._LMCAxis4.AEmergency;
 TO_UDINT(12), "JMax", TO_UDINT(75000 mm),//|Motion_Network._LMCAxis4.JMax;
-TO_UDINT(12), "AbsEncoder", TO_UDINT(1),//|Motion_Network._LMCAxis4.AbsEncoder;
+TO_UDINT(12), "AbsEncoder", TO_UDINT(0),//|Motion_Network._LMCAxis4.AbsEncoder;
 TO_UDINT(12), "Config", TO_UDINT(0),//|Motion_Network._LMCAxis4.Config;
 TO_UDINT(12), "ID", TO_UDINT(0),//|Motion_Network._LMCAxis4.ID;
 TO_UDINT(13), "SimulateMode", TO_UDINT(1),//|Motion_Network._LMCAxis5.SimulateMode;
@@ -1501,7 +1501,7 @@ TO_UDINT(143), (500)$UDINT, 4194303$DINT, 	//_LMCROBOTBASE1\_BASE\_LMCPROFILEVIS
 
 //External connections
 0$UDINT,
-40$UDINT,
+39$UDINT,
 TO_UDINT(9), "ActPosition", C_TRY, TO_UDINT(1622340897), "Elmo_11","ActPos",
 TO_UDINT(9), "HWReady", C_TRY, TO_UDINT(1622340897), "Elmo_11","Online",
 TO_UDINT(9), "HWError", C_TRY, TO_UDINT(1622340897), "Elmo_11","AxError",
@@ -1512,7 +1512,6 @@ TO_UDINT(11), "ActPosition", C_TRY, TO_UDINT(1384421283), "Elmo_31","ActPos",
 TO_UDINT(11), "HWReady", C_TRY, TO_UDINT(1384421283), "Elmo_31","Online",
 TO_UDINT(11), "HWError", C_TRY, TO_UDINT(1384421283), "Elmo_31","AxError",
 TO_UDINT(12), "ActPosition", C_TRY, TO_UDINT(499450212), "Elmo_41","ActPos",
-TO_UDINT(12), "HWReady", C_TRY, TO_UDINT(499450212), "Elmo_41","Online",
 TO_UDINT(12), "HWError", C_TRY, TO_UDINT(499450212), "Elmo_41","AxError",
 TO_UDINT(172), "EcatMaster", C_DIR, TO_UDINT(2283968053), "EtherCAT_PLC1","ClassState",
 TO_UDINT(172), "Drive1", C_DIR, TO_UDINT(1622340897), "Elmo_11","ClassState",

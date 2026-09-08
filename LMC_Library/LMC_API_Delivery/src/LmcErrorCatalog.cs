@@ -190,8 +190,8 @@ namespace LasalMotionControlLib
                 LMCErrorDomain.AdapterCommand,
                 -15,
                 "AxisRebaseRequired",
-                "The selected axis has a retained coordinate rebase barrier. Coordinate-dependent commands remain blocked; single-axis Power On does not require Home completion in the corrected PLC implementation.",
-                "Check the deployed PLC version if Power On returns this code. For coordinate recovery, use the approved referencing procedure; do not zero the current position merely to enable the servo.",
+                "A legacy PLC image rejected a command from retained Home/rebase state before native dispatch. Current PLC source does not use this pre-interlock for single-axis or Group commands.",
+                "Rebuild and download the current PLC source. The command must reach native LMC, and any actual axis or Group error must be returned for operator Reset or recovery.",
                 AdapterSourceVersion);
 
             return entries;

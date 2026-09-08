@@ -13406,6 +13406,57 @@ function Assert-LasalDs402CommonOwnershipActivationMatrix {
     return 'FALSE'
 }
 
+function Assert-LasalAxisMoveTerminalPredicateContract {
+    param(
+        [string]$ObserverBlock,
+        [string]$Owner
+    )
+
+    $blocker = "$Owner axis/group move terminal predicate blocker:"
+    Assert-Match $ObserverBlock (
+        '(?s)allInPosition\s*:=\s*TRUE\s*;.*?' +
+        'if\s*\(axisStatusRaw\s+and\s+' +
+        'LMC_OWNER_AXIS_IN_POSITION_MASK\)\s*=\s*0\s+then\s*' +
+        'allInPosition\s*:=\s*FALSE\s*;\s*end_if\s*;') (
+        "$blocker LMC InPosition aggregation is missing.")
+    Assert-Match $ObserverBlock (
+        '(?s)if\s*\(\(selectedAxisBit\s+and\s+' +
+        'LMC_OWNER_CONFIGURED_PHYSICAL_AXIS_MASK\)\s*<>\s*0\)\s*&\s*' +
+        '\(\(ds402StatusRaw\s+and\s+' +
+        'LMC_OWNER_DS402_TARGET_REACHED_MASK\)\s*=\s*0\)\s+then\s*' +
+        'allPhysicalTargetReached\s*:=\s*FALSE\s*;\s*end_if\s*;') (
+        "$blocker DS402 TargetReached must be aggregated for physical axes only.")
+
+    $directPositionTerminal = [regex]::Match(
+        $ObserverBlock,
+        ('(?ims)^\s*0x209F\s*,\s*0x20A0\s*:\s*' +
+         '(?<Body>.*?)(?=^\s*0x20A2\s*:)'))
+    if (-not $directPositionTerminal.Success) {
+        throw "$blocker direct position-move terminal arm is missing."
+    }
+    Assert-Match $directPositionTerminal.Groups['Body'].Value (
+        'terminalCandidate\s*:=\s*activitySeen\s*&\s*' +
+        'allStandstill\s*&\s*allInPosition\s*;') (
+        "$blocker direct move must use activity, Standstill, and LMC InPosition.")
+    if ($directPositionTerminal.Groups['Body'].Value -match
+            '(?i)(?:allPhysicalTargetReached|LMC_OWNER_DS402_TARGET_REACHED_MASK)') {
+        throw "$blocker direct move must not require DS402 TargetReached."
+    }
+
+    $groupMoveTerminal = [regex]::Match(
+        $ObserverBlock,
+        ('(?ims)^\s*0x20A4\s*,\s*0x7D22\s*:\s*' +
+         '(?<Body>.*?)(?=^\s*else\s*$)'))
+    if (-not $groupMoveTerminal.Success) {
+        throw "$blocker group position-move terminal arm is missing."
+    }
+    Assert-Match $groupMoveTerminal.Groups['Body'].Value (
+        'terminalCandidate\s*:=\s*activitySeen\s*&\s*' +
+        '\(groupFinished\s*<>\s*0\)\s*&\s*allStandstill\s*&\s*' +
+        'allInPosition\s*&\s*allPhysicalTargetReached\s*;') (
+        "$blocker group move must use LMC completion and physical-only DS402 evidence.")
+}
+
 function Assert-LasalOrdinaryAxisGroupOwnershipDormantContract {
     param(
         [string]$TcpText,
@@ -14074,6 +14125,11 @@ function Assert-LasalOrdinaryAxisGroupOwnershipDormantContract {
          'LMCControlCommandService::ProcessAxisOwnership.*?END_FUNCTION')).Value
     if ([string]::IsNullOrWhiteSpace($observerBlock)) {
         throw "$blocker ProcessAxisOwnership implementation is missing."
+    }
+    if (-not $AllowLegacySetPositionOwnershipFixture) {
+        Assert-LasalAxisMoveTerminalPredicateContract `
+            -ObserverBlock $observerBlock `
+            -Owner $Owner
     }
     $observerGate = [regex]::Match(
         $observerBlock,
@@ -15886,44 +15942,15 @@ function Assert-LasalAxisRebaseBarrierContract {
     $repeatCase = [regex]::Match(
         $helper,
         '(?is)case\s+CommandId\s+of\s+LMC_OWNER_COMMAND_AXIS_STOP\s*:')
-    $rebaseRead = [regex]::Match(
-        $helper,
-        '(?is)rebaseReadResult\s*:=\s*ReadAxisRebaseRequiredMask\(\)\s*;\s*' +
-        'rebaseAxisMask\s*:=\s*TO_UDINT\(rebaseReadResult\)\s*;')
-    if (-not $rebaseRead.Success -or -not $repeatCase.Success -or
-        $rebaseRead.Index -ge $repeatCase.Index) {
-        throw "$blocker the retained-state guard must run at the top of the repeat helper."
+    if (-not $repeatCase.Success) {
+        throw "$blocker the safety-repeat command dispatcher is missing."
     }
     $helperGuard = $helper.Substring(0, $repeatCase.Index)
-    foreach ($pattern in @(
-            '0x209F\s*,\s*0x20A0\s*:\s*if\s*\(RequestFrameSize\s*=\s*40\)',
-            '0x20A2\s*:\s*if\s*\(RequestFrameSize\s*=\s*32\)',
-            '0x2047\s*,\s*0x204A\s*:.*?\(pRequestFrame\s*\+\s*8\)\^\s*=\s*1',
-            '0x20A4\s*:\s*if\s*\(RequestFrameSize\s*=\s*104\)',
-            '0x7D22\s*:\s*if\s*\(RequestFrameSize\s*=\s*112\)')) {
-        Assert-Match $helperGuard ('(?is)' + $pattern) (
-            "$blocker guarded mutation shape is missing: $pattern")
+    if ($helperGuard -match
+        'ReadAxisRebaseRequiredMask|LMC_OWNER_REBASE_REQUIRED|' +
+        'rebaseMutation|rebaseAdmissionAllowed') {
+        throw "$blocker safety-repeat must not reject commands from retained Home/rebase state."
     }
-    foreach ($allowedCommand in @(
-            '0x2022', '0x2023', '0x2024', '0x2048', '0x2049', '0x204B', '0x2085',
-            '0x20E7', '0x7D13', '0x7D18', '0x7D19',
-            '0x7E53', '0x7E54', '0x7E55')) {
-        if ($helperGuard -match ('(?<![A-Fa-f0-9])' + $allowedCommand + '(?![A-Fa-f0-9])')) {
-            throw "$blocker reset, safety, Home, and maintenance command $allowedCommand must fall through."
-        }
-    }
-    Assert-Match $helperGuard (
-        '(?is)0x7D22\s*:.*?_memset\([^;]*cntr\s*:=\s*24\).*?' +
-        '\(pResponseFrame\s*\+\s*14\)\^\$INT\s*:=\s*-31000\s*;.*?' +
-        '\(pResponseFrame\s*\+\s*20\)\^\$UDINT\s*:=\s*41\s*;.*?' +
-        'Result\s*:=\s*24\s*;') (
-        "$blocker Group Admin conflict envelope is not canonical 24-byte output.")
-    Assert-Match $helperGuard (
-        '(?is)else\s+if\s+ResponseCapacity\s*<\s*16\s+then.*?' +
-        '_memset\([^;]*cntr\s*:=\s*16\).*?' +
-        '\(pResponseFrame\s*\+\s*14\)\^\$INT\s*:=\s*' +
-        'LMC_OWNER_ADAPTER_ERROR_CONFLICT\s*;.*?Result\s*:=\s*16\s*;') (
-        "$blocker legacy conflict envelope is not canonical 16-byte adapter output.")
     if ($helperGuard -match
         '(?i)DispatchRequestCommand|HandleAxisCommands|' +
         'HandleGroupCommands|HandleAdminCommands|' +
@@ -15936,61 +15963,22 @@ function Assert-LasalAxisRebaseBarrierContract {
     Assert-Match $groupHandler (
         '(?is)0x20E7\s*:.*?groupReadErrorId\s*:=\s*-7\s*;\s*' +
         'if\s+kinValid\s*=\s*TRUE\s+then\s*' +
-        'kinRebaseMask\s*:=\s*ReadAxisRebaseRequiredMask\(\)\s*;\s*' +
-        'if\s+LMC_AXIS_REBASE_BARRIER_ENABLED\s*&\s*' +
-        '\(\(TO_UDINT\(kinRebaseMask\)\s+and\s+' +
-        'LMC_AXIS_REBASE_STATE_AXIS_MASK\)\s*<>\s*0\)\s+then\s*' +
-        'groupReadErrorId\s*:=\s*LMC_OWNER_ADAPTER_ERROR_CONFLICT\s*;\s*' +
-        'else.*?GroupKinematicReady\s*:=\s*TRUE\s*;.*?' +
+        'groupReadErrorId\s*:=\s*-2\s*;.*?' +
+        'GroupKinematicReady\s*:=\s*TRUE\s*;.*?' +
         '_memset\([^;]*cntr\s*:=\s*12\).*?' +
         '\(pResponseFrame\s*\+\s*10\)\^\$INT\s*:=\s*groupReadErrorId\$INT\s*;.*?' +
         'ResponseSize\s*:=\s*12\s*;') (
-        "$blocker SetKin must preserve malformed -7, then block valid mutation with canonical output.")
-    $kinFinalShape = [regex]::Match(
-        $groupHandler,
-        '(?is)\(pRequestFrame\s*\+\s*1320\)\^\$DINT\s*<>\s*1.*?' +
-        'kinValid\s*:=\s*FALSE\s*;')
-    $kinBarrier = [regex]::Match(
-        $groupHandler,
-        'kinRebaseMask\s*:=\s*ReadAxisRebaseRequiredMask\(\)\s*;')
-    $kinMutation = @([regex]::Matches(
-            $groupHandler,
-            'OwnershipState\[26\]\s*:=\s*TO_DINT\(CommandId\)\s*;') |
-        Where-Object { $_.Index -gt $kinBarrier.Index } |
-        Select-Object -First 1)
-    if (-not $kinFinalShape.Success -or -not $kinBarrier.Success -or
-        $kinMutation.Count -ne 1 -or
-        $kinFinalShape.Index -ge $kinBarrier.Index -or
-        $kinBarrier.Index -ge $kinMutation[0].Index) {
-        throw "$blocker SetKin barrier must be after full shape proof and before mutation."
+        "$blocker SetKin must preserve malformed -7 and apply a valid request without a Home pre-interlock.")
+    if ($groupHandler -match
+        'kinRebaseMask|ReadAxisRebaseRequiredMask') {
+        throw "$blocker Group handler must not synthesize a Home/rebase rejection."
     }
 
     $reserve = $blocks['ReserveAxisOwnership']
-    Assert-Match $reserve (
-        '(?is)rebaseReadResult\s*:=\s*ReadAxisRebaseRequiredMask\(\)\s*;\s*' +
-        'rebaseAxisMask\s*:=\s*TO_UDINT\(rebaseReadResult\)\s*;.*?' +
-        'rebaseAdmissionAllowed\s*:=\s*' +
-        '\(AdmissionMode\s*=\s*LMC_OWNER_ADMISSION_SAFETY\)\s*\|\s*' +
-        '\(\(CommandId\s*=\s*LMC_OWNER_COMMAND_AXIS_POWER\)\s*&\s*' +
-        '\(OwnerKind\s*=\s*LMC_OWNER_KIND_DIRECT\)\s*&\s*' +
-        '\(ResourceKind\s*=\s*LMC_OWNER_RESOURCE_AXIS\)\s*&\s*' +
-        '\(AdmissionMode\s*=\s*LMC_OWNER_ADMISSION_ORDINARY\)\)\s*\|.*?' +
-        '\(CommandId\s*=\s*0x7D13\).*?' +
-        '\(CommandId\s*=\s*0x7E53\).*?' +
-        '\(CommandId\s*=\s*0x2024\)\s*\|\s*' +
-        '\(CommandId\s*=\s*0x2049\)\s*;.*?' +
-        'if\s*\(\(effectiveAxisMask\s+and\s+rebaseAxisMask\)\s*<>\s*0\)\s*&\s*' +
-        '\(rebaseAdmissionAllowed\s*=\s*FALSE\)\s+then\s*' +
-        'Result\s*:=\s*LMC_OWNER_REBASE_REQUIRED\s*;\s*RETURN\s*;') (
-        "$blocker ReserveAxisOwnership duplicate guard or allow matrix drifted.")
-    $rebaseAllowAssignment = [regex]::Match(
-        $reserve,
-        '(?is)rebaseAdmissionAllowed\s*:=\s*(?<Body>.*?)\s*;')
-    if (-not $rebaseAllowAssignment.Success -or
-        $rebaseAllowAssignment.Groups['Body'].Value -match '(?i)\b0x7D12\b') {
-        throw (
-            "$blocker 0x7D12 must remain outside every rebase admission " +
-            'exception.')
+    if ($reserve -match
+        'ReadAxisRebaseRequiredMask|LMC_OWNER_REBASE_REQUIRED|' +
+        'rebaseAdmissionAllowed') {
+        throw "$blocker ownership reservation must not reject commands from retained Home/rebase state."
     }
     if ([regex]::Matches(
             $reserve,
@@ -56305,11 +56293,8 @@ if ($ControlServiceCheckpoint -ne 'Phase2Skeleton') {
         'LMCAxis3',
         'LMCAxis4')
     foreach ($clientGate in @(
-            @{ Owner = 'Service 0x2047'; Block = $serviceGroupEnableCaseBlock },
-            @{ Owner = 'Service 0x204A'; Block = $serviceGroupPowerOnCaseBlock },
-            @{ Owner = 'Service MoveLinearAbsEx'; Block = $serviceMoveLinearBlock },
-            @{ Owner = 'Service 0x20E7'; Block = $serviceKinematicCaseBlock },
-            @{ Owner = 'Service 0x7D22'; Block = $serviceAdminRelativeMoveCaseBlock })) {
+            @{ Owner = 'Service 0x20E7'; Block = $serviceKinematicCaseBlock }
+            )) {
         Assert-ExactLasalConnectedClientSet `
             -Text $clientGate.Block `
             -Owner $clientGate.Owner `
@@ -56323,20 +56308,17 @@ if ($ControlServiceCheckpoint -ne 'Phase2Skeleton') {
             "$($clientGate.Owner) must conjunct all five exact client gates.")
     }
 
-    Assert-Match $serviceGroupEnableCaseBlock (
-        'if\s+\(GroupKinematicReady\s*=\s*TRUE\)\s*&\s*' +
-        '\(powerIsOn\s*<>\s*0\)\s+then') (
-        'Service 0x2047 must conjunct kinematic readiness and group power.')
-    Assert-Match $serviceMoveLinearBlock (
-        '(?s)if\s+\(GroupKinematicReady\s*=\s*TRUE\)\s*&\s*' +
-        '\(powerIsOn\s*<>\s*0\)\s*&\s*' +
-        '\(profileLocked\s*=\s*TRUE\)\s+then') (
-        'Service MoveLinearAbsEx must conjunct kinematic, power, and lock readiness.')
-    Assert-Match $serviceAdminRelativeMoveCaseBlock (
-        '(?s)if\s+\(GroupKinematicReady\s*=\s*TRUE\)\s*&\s*' +
-        '\(powerIsOn\s*<>\s*0\)\s*&\s*' +
-        '\(profileLockState\s*<>\s*0\)\s+then') (
-        'Service 0x7D22 must conjunct kinematic, power, and lock readiness.')
+    if ($serviceGroupEnableCaseBlock -match 'AreResolvedGroupAxesPowered') {
+        throw 'Service 0x2047 still pre-blocks LockProfile on member power state.'
+    }
+    if ($serviceMoveLinearBlock -match
+        'AreResolvedGroupAxesPowered|GroupKinematicReady\s*=\s*TRUE|_LMCPROF_LockState') {
+        throw 'Service MoveLinearAbsEx still pre-blocks native dispatch on local readiness state.'
+    }
+    if ($serviceAdminRelativeMoveCaseBlock -match
+        'AreResolvedGroupAxesPowered|GroupKinematicReady\s*=\s*TRUE|_LMCPROF_LockState') {
+        throw 'Service 0x7D22 still pre-blocks native dispatch on local readiness state.'
+    }
 
     $serviceFrameContracts = @(
         @{ Owner = '0x20D2'; Block = $serviceGroupMembersCaseBlock;
@@ -56518,19 +56500,21 @@ if ($ControlServiceCheckpoint -ne 'Phase2Skeleton') {
     }
     Assert-Match $serviceGroupEnableCaseBlock (
         '(?s)IsClientConnected\(#LMCRobot\).*?' +
-        'IsClientConnected\(#LMCAxis1\).*?' +
-        'IsClientConnected\(#LMCAxis4\).*?' +
-        'LMCRobot\.RobotIsOn\(\).*?GroupKinematicReady\s*=\s*TRUE.*?' +
-        'LMCRobot\.LockProfile\(.*?Axis1:=1.*?Axis4:=1.*?' +
+        'ResolveConnectedGroupAxisMask\(\).*?groupAxisMask\s*<>\s*0.*?' +
+        'LMCRobot\.LockProfile\(.*?Axis1:=groupAxis1Enable.*?' +
+        'Axis4:=groupAxis4Enable.*?' +
         'Axis5:=0.*?Axis9:=0.*?groupReadRetCode\s*=\s*_LMCPROF_NoError') (
-        'Service 0x2047 configured/powered four-axis LockProfile dispatch is missing.')
+        'Service 0x2047 connected-member LockProfile dispatch is missing.')
     Assert-Match $serviceGroupEnableCaseBlock (
         '(?s)LMCRobot\.LockProfile\(\s*' +
-        'Axis1:=1\s*,\s*Axis2:=1\s*,\s*Axis3:=1\s*,\s*Axis4:=1\s*,\s*' +
+        'Axis1:=groupAxis1Enable\s*,\s*Axis2:=groupAxis2Enable\s*,\s*' +
+        'Axis3:=groupAxis3Enable\s*,\s*Axis4:=groupAxis4Enable\s*,\s*' +
         'Axis5:=0\s*,\s*Axis6:=0\s*,\s*Axis7:=0\s*,\s*Axis8:=0\s*,\s*' +
         'Axis9:=0\s*\)') (
-        'Service 0x2047 LockProfile must enable exactly Axis1..4 and ' +
-        'disable Axis5..9.')
+        'Service 0x2047 LockProfile connected-member mask or Axis5..9 zeros are missing.')
+    if ($serviceGroupEnableCaseBlock -match 'AreResolvedGroupAxesPowered') {
+        throw 'Service 0x2047 still blocks LockProfile before native dispatch on member power state.'
+    }
     if ($serviceGroupEnableCaseBlock -match
         'ReadProfileParameter|_LMCPROF_LockState') {
         throw 'Service 0x2047 must not treat the same-call LockState as completion.'
@@ -56704,11 +56688,7 @@ if ($ControlServiceCheckpoint -ne 'Phase2Skeleton') {
         'Service 0x20A4 approved motion parameter validation is incomplete.')
     Assert-Match $serviceMoveLinearBlock (
         '(?s)IsClientConnected\(#LMCRobot\).*?' +
-        'IsClientConnected\(#LMCAxis1\).*?' +
-        'IsClientConnected\(#LMCAxis4\).*?LMCRobot\.RobotIsOn\(\).*?' +
-        'LMCRobot\.ReadProfileParameter\(.*?_LMCPROF_LockState.*?' +
-        'GroupKinematicReady\s*=\s*TRUE.*?powerIsOn\s*<>\s*0.*?' +
-        'profileLocked\s*=\s*TRUE.*?LMCRobot\.MoveLinearCoord\(.*?' +
+        'LMCRobot\.MoveLinearCoord\(.*?' +
         'pPositions:=#GroupMovePos.*?CmdConfig:=groupCommandConfig.*?' +
         'Velocity:=groupVelocity.*?Accel:=groupAccel.*?' +
         'Decel:=groupDecel.*?TransMode:=groupTransitionMode.*?' +
@@ -56716,7 +56696,11 @@ if ($ControlServiceCheckpoint -ne 'Phase2Skeleton') {
         'Jerk:=groupJerk.*?' +
         'groupMoveRetCode\s*=\s*_LMCPROF_NoError.*?' +
         'groupReadErrorId\s*:=\s*0') (
-        'Service MoveLinearAbsEx powered/locked dispatch and return-code gate is missing.')
+        'Service MoveLinearAbsEx native dispatch and return-code gate is missing.')
+    if ($serviceMoveLinearBlock -match
+        'AreResolvedGroupAxesPowered|GroupKinematicReady\s*=|_LMCPROF_LockState') {
+        throw 'Service MoveLinearAbsEx still pre-blocks native dispatch on local readiness state.'
+    }
     Assert-Match $serviceMoveLinearBlock (
         '(?s)\(pResponseFrame\s*\+\s*2\)\^\$UINT\s*:=\s*8.*?' +
         '\(pResponseFrame\s*\+\s*4\)\^\$UDINT\s*:=\s*0.*?' +
@@ -57015,37 +56999,33 @@ if ($ControlServiceCheckpoint -ne 'Phase2Skeleton') {
         'Service 0x7D22 transition/buffer mapping is incomplete.')
     Assert-Match $serviceAdminRelativeMoveCaseBlock (
         '(?s)IsClientConnected\(#LMCRobot\).*?' +
-        'IsClientConnected\(#LMCAxis1\).*?' +
-        'IsClientConnected\(#LMCAxis4\).*?LMCRobot\.RobotIsOn\(\).*?' +
-        'LMCRobot\.ReadProfileParameter\(.*?_LMCPROF_LockState.*?' +
-        'GroupKinematicReady\s*=\s*TRUE.*?powerIsOn\s*<>\s*0.*?' +
-        'profileLockState\s*<>\s*0.*?LMCRobot\.MoveRelativeCoord\(.*?' +
+        'LMCRobot\.MoveRelativeCoord\(.*?' +
         'pDistances:=#GroupMovePos.*?CmdConfig:=groupCommandConfig.*?' +
         'Velocity:=groupVelocity.*?Accel:=groupAccel.*?' +
         'Decel:=groupDecel.*?TransMode:=groupTransitionMode.*?' +
         'TransRadius:=groupTransitionRadius.*?CoordSystem:=0.*?' +
         'Jerk:=groupJerk') (
-        'Service 0x7D22 powered/locked MoveRelativeCoord dispatch is missing.')
+        'Service 0x7D22 native MoveRelativeCoord dispatch is missing.')
     Assert-Match $serviceAdminRelativeMoveCaseBlock (
         '(?s)if\s+adminDetailCode\s*=\s*0\s+then\s*' +
-        'if\s+\(IsClientConnected\(#LMCRobot\)\s*=\s*1\).*?then.*?' +
-        'if\s+\(GroupKinematicReady\s*=\s*TRUE\)\s*&\s*' +
-        '\(powerIsOn\s*<>\s*0\)\s*&\s*' +
-        '\(profileLockState\s*<>\s*0\)\s+then.*?' +
+        'if\s+IsClientConnected\(#LMCRobot\)\s*=\s*1\s+then.*?' +
+        'LMCRobot\.MoveRelativeCoord\(.*?' +
         'if\s+groupMoveRetCode\s*=\s*_LMCPROF_NoError\s+then\s*' +
         'adminErrorId\s*:=\s*0;\s*else\s*' +
         'adminDetailCode\s*:=\s*11;.*?end_if;\s*' +
-        'else\s*adminDetailCode\s*:=\s*10;\s*end_if;\s*' +
         'else\s*adminDetailCode\s*:=\s*10;\s*end_if;\s*end_if;') (
-        'Service 0x7D22 must map readiness/client failure to detail 10 ' +
-        'and native rejection to detail 11.')
+        'Service 0x7D22 must dispatch the native call and map client/native failures.')
     if ([regex]::Matches(
             $serviceAdminRelativeMoveCaseBlock,
-            'adminDetailCode\s*:=\s*10\s*;').Count -ne 2 -or
+            'adminDetailCode\s*:=\s*10\s*;').Count -ne 1 -or
         [regex]::Matches(
             $serviceAdminRelativeMoveCaseBlock,
             'adminDetailCode\s*:=\s*11\s*;').Count -ne 1) {
-        throw 'Service 0x7D22 state detail 10 and native detail 11 assignments are not exact.'
+        throw 'Service 0x7D22 client detail 10 and native detail 11 assignments are not exact.'
+    }
+    if ($serviceAdminRelativeMoveCaseBlock -match
+        'AreResolvedGroupAxesPowered|GroupKinematicReady\s*=\s*TRUE|_LMCPROF_LockState') {
+        throw 'Service 0x7D22 still pre-blocks native dispatch on local readiness state.'
     }
     Assert-Match $serviceAdminRelativeMoveCaseBlock (
         '(?s)groupMoveRetCode\s*=\s*_LMCPROF_NoError.*?' +

@@ -41,6 +41,13 @@ fixture와 LASAL IDE-generated `_FileSys` ABI가 확보된 뒤에만 시작한�
 `1852bd2`에 다음 수정이 반영됐다.
 
 - direct ordinary Axis Power On을 retained rebase bit만으로 거절하지 않음
+- 2026-09-08 후속 수정: direct ordinary Axis MoveAbsolute/MoveRelative/MoveVelocity도 retained
+  rebase bit로 선차단하지 않고 native LMC 결과를 반환함
+- 2026-09-08 최종 운영 수정: Group Enable/PowerOn/motion/SetKin/Group Home Current도 동일하게
+  native handler까지 전달함. 실제 axis/Group 오류는 사용자 Reset 또는 복구 대상으로 반환하며
+  자동 Reset/Home/replay는 하지 않음
+- Group Enable과 Group motion의 adapter-side power/lock/kinematic readiness 선차단도 제거하고
+  연결된 native Group API 반환값을 그대로 성공/오류 판정에 사용함
 - Power Off가 `PowerOff + Standstill`에 도달하면 alarm-only 상태를 terminal failure로 오분류하지 않음
 - 새 Power On 예약을 Power Off safety-repeat로 오분류해 `ErrorId=-9`와 `RESERVED` 잔류를 만들던
   `HandleAxisOwnershipSafetyRepeat` 경로 수정
@@ -48,9 +55,14 @@ fixture와 LASAL IDE-generated `_FileSys` ABI가 확보된 뒤에만 시작한�
 
 2026-09-07 current source 검증:
 
-- Servo Power source predicate: `133/133 PASS`
-- rebase negative fixtures: `39/39 PASS`
+- Servo/Group native-dispatch source predicate: `83/83 PASS`
+- rebase negative fixtures: `25/25 PASS`
 - safety-repeat negative fixtures: `31/31 PASS`
+
+PC Release tests are `1201/1201 PASS`. The focused WPF localization and legacy `-15`
+display tests also return exit code 0. Full LASAL `-SourceOnly` currently stops at the pre-existing
+compact identity/preemption self-test baseline header inventory/order drift, so it is not claimed as
+a full static PASS.
 
 이 결과는 source/static 결과다. 추가 helper 수정이 포함된 current image의 LASAL build/download와
 실제 Servo On 성공을 증명하지 않는다. 과거 BootId 137 시험은 수정 전 실패 원인 확인 증거이며,

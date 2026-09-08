@@ -88,31 +88,23 @@ TW19 barrier의 arm linearization point는 SDO 성공 뒤가 아니다. `CommitA
 set하고 readback한다. 따라서 arm 확인 전에는 SDO write가 한 번도 나갈 수 없다. arm 뒤 SDO가
 실패하거나 결과가 불확실해도 bit는 유지한다. TW20 kind `1`은 bit를 set하지 않는다.
 
-bit가 set된 축에도 다음 경로는 허용한다.
+2026-09-08 운영 계약에서는 bit를 명령 admission 인터록으로 사용하지 않는다. 다음 경로는
+bit 상태와 관계없이 기존 request/ownership 검증 뒤 handler 또는 native LMC로 전달한다.
 
 - 모든 read/status/outcome query
+- direct single-axis PowerOn 및 MoveAbsolute/MoveRelative/MoveVelocity
 - Axis/Group Reset
 - Axis Stop/PowerOff
 - Group Disable/Stop/PowerOff
+- Group Enable/PowerOn/motion/`0x7D22` mutation
+- `0x20E7` SetKin
 - TW19/TW20 Start, Outcome, Retire
 - exact LMC Home Start, Outcome, Retire
 - DS402 Home을 포함한 기존 ledger의 비동작 Outcome/Retire cleanup
 
-다음 경로는 해당 축 또는 해당 축을 포함하는 Group에 대해 native call 전에 차단한다.
-
-- Axis PowerOn과 MoveAbsolute/MoveRelative/MoveVelocity
-- `0x7D15` DS402 Home Start
-- Group Enable/PowerOn/motion/`0x7D22` mutation
-- `0x20E7` SetKin은 full `kinValid` parser 성공 뒤 `GroupKinematicReady`/native marker 전에 차단
-
-`0x20E7` malformed payload는 barrier conflict로 바꾸지 않고 기존 `-7` parser result를 유지한다.
-fully valid이며 affected Group인 경우에만 rebase conflict를 반환하고 native marker/configuration
-mutation은 0회다. `0x7D12` SetPosition은 현재 dormant/unavailable 상태를 그대로 유지한다. 향후
-활성화하려면 정상 request shape parsing 뒤, native call 전 동일 barrier를 적용하는 것이 선행
-조건이다.
-
-이 barrier check는 unconditional이다. ordinary ownership, DS402 Home 또는 startup activation gate가
-아직 dormant여도 우회하지 않는다.
+`0x20E7` malformed payload는 기존 `-7` parser result를 유지하고, valid payload는 rebase marker를
+확인하지 않고 기존 GroupKinematicReady 설정 경로로 전달한다. `0x7D12` SetPosition의
+dormant/unavailable 상태는 별도 기능 activation 조건이며 TW19/Home 인터록으로 취급하지 않는다.
 
 Reset, DS402 Home, TW20, owner cleanup 또는 session cleanup은 bit를 clear하지 않는다. clear가
 가능한 유일한 경로는 exact `0x7D13` LMC Home의 terminal-success receipt가 COMPLETE이고 기존
@@ -121,10 +113,11 @@ clear하고 retained word readback까지 확인한 뒤에만 outcome `Result=1`�
 확인이 실패하면 COMPLETE receipt를 보존한 채 다음 exact outcome read에서 재시도하며 global
 ownership quarantine으로 승격하지 않는다.
 
-형식이 잘못된 요청은 기존 parser 오류를 유지해야 한다. barrier는 정상 형식의 금지된 mutation에만
-기존 command-specific ownership-conflict/fail-closed response를 반환하고 owner/native/SDO call을
-0회로 유지한다. adapter ABI가 적용되는 일반 ownership 충돌은 symbolic `-9 AxisOwnershipConflict`를 사용한다. retained current-position rebase barrier 차단은 별도 `-15 AxisRebaseRequired`를 반환하며,
-Admin 경로는 기존 Admin envelope/error detail 형식을 유지한다. 상세 공통 ownership 계약은
+형식이 잘못된 요청은 기존 parser 오류를 유지해야 한다. adapter ABI가 적용되는 일반 ownership
+충돌은 symbolic `-9 AxisOwnershipConflict`를 사용한다. `-15 AxisRebaseRequired`는 이전 PLC
+image가 native dispatch 전에 반환하던 호환 진단 코드이며 current source는 Single/Group 명령
+admission에서 반환하지 않는다. Admin 경로는 기존 Admin envelope/error detail 형식을 유지한다.
+상세 공통 ownership 계약은
 [axis ownership overlay IDE handoff](./LMC_AXIS_OWNERSHIP_OVERLAY_IDENTITY_RESTORE_IDE_HANDOFF_2026-08-04.md#10-tw19-retained-current-position-zero-barrier)를 따른다.
 
 이 설계는 TW19 gate가 `TRUE`라는 사실만으로 완료되지 않는다. hidden channel declaration,
@@ -178,16 +171,40 @@ rebuild/download/restart 전까지 미검증이다.
    `DiagnosticsBits=0x000C633F`, nonzero BootId, `MapRevision=0x957F101E`, `TW20=True`,
    `TW19=True`를 확인한다.
 5. 실제 write 전에는 선택 축 power-off/standstill과 현재 encoder 상태를 기록한다.
-6. 초기 retained word `0x5242530F`에서 Axis/Group motion은 차단되고 safety와 exact LMC Home은
-   허용되는지 확인한다.
+6. 초기 retained word `0x5242530F`에서도 Single/Group 명령이 rebase 사유로 선차단되지 않고
+   기존 handler/native LMC까지 전달되는지 확인한다.
 7. 축별 exact LMC Home 성공 뒤 해당 bit만 clear되는지 확인하고, 4축 완료 뒤 exact
    `0x524253F0`을 확인한다.
 8. TW20은 active error/warning 전후를, TW19는 multi-turn position 전후를 독립적으로 확인한다.
-9. TW19에서 SDO 전 해당 축 bit가 먼저 set되고 이후 PowerOn/motion이 차단되는지 확인한다.
-10. 같은 축 exact LMC Home COMPLETE 성공 뒤에만 motion admission이 다시 열리는지 확인한다.
+9. TW19에서 SDO 전 해당 축 bit가 먼저 set되지만 이후 PowerOn/motion admission에는 사용되지
+   않는지 확인한다.
+10. native LMC/drive가 Home 또는 다른 복구를 요구하면 실제 오류가 응답에 보존되고, 사용자
+   Reset/복구 뒤 새 명령을 명시적으로 실행할 수 있는지 확인한다.
 11. PLC restart와 target power loss 뒤 마지막 encoded word가 유지되는지 확인한다.
 
 Source/static/build 성공은 PLC download 또는 실축 효과 증거가 아니다.
+
+## 2026-09-08 Single/Group native pass-through 수정
+
+실축 확인 결과 TW19 뒤 Home을 수행하지 않아도 PLC에서 직접 호출한 개별축 motion은 정상
+호출된다. 따라서 TCP adapter가 direct `MoveAbsolute`, `MoveRelative`, `MoveVelocity`를
+`ErrorId=-15 AxisRebaseRequired`로 선차단하는 것은 native LMC 동작과 불일치한다.
+
+수정된 최종 계약은 다음과 같다.
+
+1. direct single-axis Power 및 세 motion 명령은 retained rebase bit와 관계없이 ordinary
+   ownership/shape 검증 뒤 native `_LMCAxis`까지 전달한다.
+2. Group Enable/PowerOn/motion/SetKin/Group Home Current 명령도 retained rebase bit로 선차단하지
+   않고 기존 group handler/native `_LMCRobot` 경로로 전달한다.
+   Group Enable과 Group motion은 adapter의 power/lock/kinematic readiness 사전판정을 제거하고
+   연결된 native Group 객체를 호출한다.
+3. Home이 실제로 필요하면 native LMC/drive/Group 반환값을 기존 response로 반환하고 사용자가
+   Reset 또는 명시적 복구를 수행한다.
+4. TW19가 set한 retained marker와 exact LMC Home 성공 시 clear하는 수명주기는 진단 정보로
+   유지하되 명령 admission에는 사용하지 않는다.
+
+이 수정은 명령을 자동 replay하거나 retained bit를 수동/자동 clear하지 않는다. 매 사용자 intent
+한 건을 native API로 전달하고 그 호출의 실제 결과만 반환한다.
 
 ## LMCDiagnosticsService method-size split 설계와 증거
 
@@ -226,7 +243,7 @@ Save All, IDE 종료, external inspection을 마치기 전에는 **C78 Rebuild�
 current split source의 정적 verifier 결과는 다음과 같다.
 
 - diagnostics method-size split negative mutation `23/23` reject
-- TW19 retained Home barrier negative mutation `37/37` reject
+- TW19 retained marker/no-admission-block negative mutation `25/25` reject
 - encoder-maintenance negative mutation `56/56` reject
 - ownership activation/repeated-safety negative mutation `247/247` reject
 - DS402 Home retirement negative mutation `50/50` reject

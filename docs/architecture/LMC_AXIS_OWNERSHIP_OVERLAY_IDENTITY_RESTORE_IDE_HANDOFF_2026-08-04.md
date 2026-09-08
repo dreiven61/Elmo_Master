@@ -486,47 +486,45 @@ changing any selected owner record to ACTIVE/QUEUED and before any SDO executor 
 If the retained word cannot be confirmed, return without owner mutation and without SDO dispatch so
 the exact reservation can retry the commit. TW20 maintenance kind `1` does not arm the barrier.
 
-Arming before the SDO is intentionally conservative. A post-arm TW19 dispatch failure leaves the bit
-set and requires LMC Home. Repeated TW19 and TW20 maintenance remain admissible while the bit is set;
-they never clear it.
+Arming before the SDO preserves an uncertain TW19 result as diagnostic evidence. A post-arm dispatch
+failure leaves the bit set, but the bit does not force LMC Home or block later axis/group commands.
+Repeated TW19 and TW20 maintenance remain admissible while the bit is set; they never clear it.
 
 ### 10.3 Admission matrix while a rebase bit is effective
 
-For a direct request, apply the barrier to its exact axis. For a Group request, apply it when the
-resolved Group mask intersects the effective physical mask. An invalid retained word is treated as
-all four physical bits set. This policy check is unconditional; it is not bypassed when ordinary
-ownership, DS402 Home or startup activation gates remain dormant.
+> 2026-09-08 current override: 이 절의 사전 차단 matrix는 더 이상 runtime admission에
+> 적용하지 않는다. Single Axis와 Group 명령 모두 기존 shape/ownership 검증 뒤 handler/native
+> LMC까지 전달하고 실제 axis/Group 오류를 반환한다. retained rebase word는 진단 정보로만
+> 유지하며 사용자가 오류를 확인한 뒤 Reset 또는 명시적 복구를 수행한다. 자동 Reset/Home/replay는
+> 금지한다.
 
-| request class | decision while affected | clear effect |
+The retained word is decoded and preserved for diagnostics, but it is not consulted by ordinary
+single-axis or Group admission. An invalid retained word therefore does not synthesize a motion or
+Group rejection. Normal request-shape, reference, connection and ownership checks still apply.
+
+| request class | current decision while marker is set | native/error behavior |
 |---|---|---|
-| read/status/outcome queries | allow | none |
-| Axis/Group Reset | allow | none |
-| Axis Stop or PowerOff | allow | none |
-| Group Disable, Stop or PowerOff | allow | none |
-| TW19/TW20 Start, Outcome or Retire | allow | none |
-| exact LMC Home Start, Outcome or Retire | allow | only the exact success receipt path may clear |
-| Axis PowerOn, MoveAbsolute, MoveRelative or MoveVelocity | block before native call | none |
-| `0x7D12` SetPosition | currently dormant/unavailable; barrier is mandatory before future activation | none |
-| `0x7D15` DS402 Home Start | block before native call | none |
-| Group Enable, PowerOn, motion or `0x7D22` mutation | block before native call | none |
-| `0x20E7` SetKin | block after full `kinValid` parsing and before `GroupKinematicReady`/native marker | none |
+| read/status/outcome queries | allow | return the normal read result |
+| Axis/Group Reset, Stop, Disable or PowerOff | allow | return the invoked command result |
+| TW19/TW20 Start, Outcome or Retire | allow | preserve the maintenance result |
+| exact LMC Home Start, Outcome or Retire | allow | exact success receipt may clear the marker |
+| Axis PowerOn, MoveAbsolute, MoveRelative or MoveVelocity | dispatch | return native `_LMCAXIS_CMDERROR` |
+| `0x7D12` SetPosition | keep its independent dormant/unavailable policy | no TW19 pre-interlock |
+| `0x7D15` DS402 Home Start | dispatch through its normal lifecycle | return its actual lifecycle result |
+| Group Enable, PowerOn, motion or `0x7D22` mutation | dispatch | return actual member-axis or Group result |
+| `0x20E7` SetKin | apply after full `kinValid` parsing | return normal configuration result |
 
-DS402 Home Outcome/Retire and other non-motion cleanup must remain available so a pre-existing ledger
-can drain, but DS402 Home success is not a substitute for LMC current-position-zero Home. Safety
-Stop/PowerOff/Disable always outrank this barrier. A Reset may remove a drive fault but cannot clear
-the retained position-basis requirement.
+DS402 Home Outcome/Retire and other cleanup remain available so a pre-existing ledger can drain.
+Safety Stop/PowerOff/Disable retain their existing priority. Reset may remove an actual drive fault,
+but it neither clears nor needs to clear the diagnostic retained marker.
 
-Shape and identity validation still precede this policy decision. A malformed request must reach its
-normal parser error rather than being reported as a rebase conflict. A blocked, otherwise valid
-request uses its existing command-specific ownership-conflict/fail-closed response and performs zero
-owner/native/SDO mutation. Where the adapter ABI applies, that response is symbolic
-`-9 AxisOwnershipConflict`; an Admin envelope retains its existing Admin error/detail shape. The
-currently dormant `0x7D12` route keeps its present dormant response and native-call-zero behavior;
-its future activation is forbidden until the same parse-first, barrier-before-native rule is added.
-For `0x20E7`, the exact barrier boundary is inside the existing handler after the complete payload
-has produced `kinValid=TRUE` and before `GroupKinematicReady` or any native-call marker. A malformed
-SetKin payload therefore keeps the existing `-7` parser result; only a fully valid affected request
-is converted to the rebase conflict, with no native marker or configuration mutation.
+Shape and identity validation still precede dispatch. A malformed request reaches its
+normal parser error rather than being reported as a rebase conflict. A valid request proceeds to its
+handler/native path. Independent ownership conflicts still return symbolic `-9 AxisOwnershipConflict`,
+and an Admin envelope retains its existing Admin error/detail shape. The
+currently dormant `0x7D12` route keeps its independent dormant response and native-call-zero behavior.
+For `0x20E7`, a malformed SetKin payload keeps the existing `-7` parser result; a fully valid payload
+is applied without consulting the retained marker.
 
 ### 10.4 The only clear linearization point
 

@@ -141,61 +141,14 @@ Add-NegativeFixture 'InverseMaskDrift' `
     '(#define\s+LMC_AXIS_REBASE_STATE_INVERSE_MASK\s+)0x000000F0' '${1}0x000000E0'
 Add-NegativeFixture 'PersistenceRetryDrift' `
     '(#define\s+LMC_OWNER_REBASE_PERSIST_RETRY\s+)-4' '${1}-3'
-Add-NegativeFixture 'HelperReadRemoved' `
-    ('(FUNCTION\s+LMCControlCommandService::HandleAxisOwnershipSafetyRepeat\b.*?' +
-     'rebaseReadResult\s*:=\s*)ReadAxisRebaseRequiredMask\(\)') '${1}0'
 Add-NegativeFixture 'ReaderInvalidStateOpens' `
     ('(FUNCTION\s+LMCControlCommandService::ReadAxisRebaseRequiredMask\b.*?' +
      'if\s+stateValid\s*=\s*FALSE\s+then\s*axisMask\s*:=\s*)' +
      'LMC_AXIS_REBASE_STATE_AXIS_MASK') '${1}0'
-Add-NegativeFixture 'HelperPowerBlockedAgain' `
-    ('(FUNCTION\s+LMCControlCommandService::HandleAxisOwnershipSafetyRepeat\b.*?' +
-     ')0x209F\s*,\s*0x20A0\s*:') '${1}0x2023, 0x209F, 0x20A0:'
-Add-NegativeFixture 'HelperMoveShapeDrift' `
-    ('(FUNCTION\s+LMCControlCommandService::HandleAxisOwnershipSafetyRepeat\b.*?' +
-     '0x209F\s*,\s*0x20A0\s*:\s*if\s*\(RequestFrameSize\s*=\s*)40') '${1}39'
-Add-NegativeFixture 'HelperAxisResetBlocked' `
-    ('(FUNCTION\s+LMCControlCommandService::HandleAxisOwnershipSafetyRepeat\b.*?' +
-     ')0x209F\s*,\s*0x20A0\s*:') '${1}0x2024, 0x209F, 0x20A0:'
-Add-NegativeFixture 'HelperGroupEnableMissing' `
-    ('(FUNCTION\s+LMCControlCommandService::HandleAxisOwnershipSafetyRepeat\b.*?' +
-     ')0x2047\s*,\s*0x204A\s*:') '${1}0x204A:'
-Add-NegativeFixture 'HelperAdminDetailDrift' `
-    ('(FUNCTION\s+LMCControlCommandService::HandleAxisOwnershipSafetyRepeat\b.*?' +
-     'case\s+CommandId\s+of\s*0x7D22\s*:.*?' +
-     '\(pResponseFrame\s*\+\s*20\)\^\$UDINT\s*:=\s*)41') '${1}42'
-Add-NegativeFixture 'HelperLegacyConflictCleared' `
-    ('(FUNCTION\s+LMCControlCommandService::HandleAxisOwnershipSafetyRepeat\b.*?' +
-     'case\s+CommandId\s+of\s*0x7D22\s*:.*?else\s+if\s+ResponseCapacity\s*<\s*16.*?' +
-     '\(pResponseFrame\s*\+\s*14\)\^\$INT\s*:=\s*)' +
-     'LMC_OWNER_ADAPTER_ERROR_CONFLICT') '${1}0'
 Add-NegativeFixture 'SetKinMalformedPathBlocked' `
     ('(FUNCTION\s+LMCControlCommandService::HandleGroupCommands\b.*?' +
      '0x20E7\s*:.*?groupReadErrorId\s*:=\s*-7\s*;\s*' +
      'if\s+)kinValid\s*=\s*TRUE') '${1}TRUE'
-Add-NegativeFixture 'SetKinBarrierReadRemoved' `
-    ('(FUNCTION\s+LMCControlCommandService::HandleGroupCommands\b.*?' +
-     '0x20E7\s*:.*?kinRebaseMask\s*:=\s*)ReadAxisRebaseRequiredMask\(\)') '${1}0'
-Add-NegativeFixture 'SetKinConflictDrift' `
-    ('(FUNCTION\s+LMCControlCommandService::HandleGroupCommands\b.*?' +
-     '0x20E7\s*:.*?groupReadErrorId\s*:=\s*)' +
-     'LMC_OWNER_ADAPTER_ERROR_CONFLICT') '${1}-2'
-Add-NegativeFixture 'ReserveInvalidStateOpens' `
-    ('(FUNCTION\s+GLOBAL\s+LMCControlCommandService::ReserveAxisOwnership\b.*?' +
-     'rebaseReadResult\s*:=\s*)ReadAxisRebaseRequiredMask\(\)') '${1}0'
-Add-NegativeFixture 'ReservePowerExceptionRemoved' `
-    ('(rebaseAdmissionAllowed\s*:=.*?\(\(CommandId\s*=\s*)' +
-     'LMC_OWNER_COMMAND_AXIS_POWER') '${1}0x209F'
-Add-NegativeFixture 'ReservePowerOwnerBroadened' `
-    ('(rebaseAdmissionAllowed\s*:=.*?\(OwnerKind\s*=\s*)' +
-     'LMC_OWNER_KIND_DIRECT') '${1}LMC_OWNER_KIND_GROUP'
-Add-NegativeFixture 'ReserveGroupResetNotAllowed' `
-    ('(FUNCTION\s+GLOBAL\s+LMCControlCommandService::ReserveAxisOwnership\b.*?' +
-     '\(CommandId\s*=\s*0x2024\)\s*\|\s*' +
-     '\(CommandId\s*=\s*)0x2049') '${1}0x204A'
-Add-NegativeFixture 'ReserveConflictDrift' `
-    ('(FUNCTION\s+GLOBAL\s+LMCControlCommandService::ReserveAxisOwnership\b.*?' +
-     'rebaseAdmissionAllowed\s*=\s*FALSE\)\s+then\s*Result\s*:=\s*)LMC_OWNER_REBASE_REQUIRED') '${1}-3'
 Add-NegativeFixture 'CommitTw20Arms' `
     ('(FUNCTION\s+GLOBAL\s+LMCControlCommandService::CommitAxisOwnership\b.*?' +
      'OwnershipState\[recordBase\s*\+\s*25\]\$UINT\s*=\s*)2') '${1}1'
