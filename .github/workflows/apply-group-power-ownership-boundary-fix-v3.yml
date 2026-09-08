@@ -1,0 +1,146 @@
+name: Apply Group Power ownership boundary fix v3
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/apply-group-power-ownership-boundary-fix-v3.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Apply corrected ownership boundary patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          import textwrap
+
+          source = Path('.github/workflows/apply-group-power-ownership-boundary-fix-v2.yml').read_text(encoding='utf-8')
+          match = re.search(r"python3 - <<'PY'\n(?P<body>.*?)\n          PY", source, flags=re.S)
+          if not match:
+              raise RuntimeError('Unable to extract v2 patch script.')
+          script = textwrap.dedent(match.group('body'))
+
+          start_marker = '# Align the authoritative static contract with the new ownership boundary.'
+          end_marker = 'save(contract_path, contract)'
+          start = script.find(start_marker)
+          end = script.find(end_marker, start)
+          if start < 0 or end < 0:
+              raise RuntimeError('Unable to locate v2 contract patch section.')
+          end += len(end_marker)
+
+          corrected = r'''# Align the authoritative static contract with the ownership/power split.
+          contract = load(contract_path)
+
+          tcp_start = contract.find('$tcpArmSpecifications = @(')
+          tcp_end = contract.find('foreach ($specification in $tcpArmSpecifications)', tcp_start)
+          if tcp_start < 0 or tcp_end < 0:
+              raise RuntimeError('TCP ownership contract specification block is missing.')
+          tcp_specs = contract[tcp_start:tcp_end]
+          old_tcp = "'LMC_OWNER_ROBOT_AXIS_MASK'"
+          tcp_count = tcp_specs.count(old_tcp)
+          print(f'contract TCP ownership mask expectations: replacements={tcp_count}')
+          if tcp_count != 3:
+              raise RuntimeError(f'Expected 3 TCP ownership mask expectations, got {tcp_count}.')
+          tcp_specs = tcp_specs.replace(old_tcp, "'LMC_OWNER_PROFILE_AXIS_MASK'")
+          contract = contract[:tcp_start] + tcp_specs + contract[tcp_end:]
+
+          service_start = contract.find('$serviceClassifierSpecifications = @(')
+          service_end = contract.find('foreach ($specification in $serviceClassifierSpecifications)', service_start)
+          if service_start < 0 or service_end < 0:
+              raise RuntimeError('Service ownership contract specification block is missing.')
+          service_specs = contract[service_start:service_end]
+          old_service = r'RequestedAxisMask\s*<>\s*LMC_OWNER_ROBOT_AXIS_MASK'
+          service_count = service_specs.count(old_service)
+          print(f'contract service ownership mask expectations: replacements={service_count}')
+          if service_count != 3:
+              raise RuntimeError(f'Expected 3 service ownership mask expectations, got {service_count}.')
+          service_specs = service_specs.replace(
+              old_service,
+              r'RequestedAxisMask\s*<>\s*LMC_OWNER_PROFILE_AXIS_MASK')
+          service_specs = service_specs.replace("Name = 'Robot ordinary mutation'", "Name = 'Group Reset/PowerOn ownership'")
+          service_specs = service_specs.replace("Name = 'Robot safety mutation'", "Name = 'Group PowerOff ownership'")
+          service_specs = service_specs.replace("Name = 'Robot lifecycle mutation'", "Name = 'Set Identity ownership'")
+          contract = contract[:service_start] + service_specs + contract[service_end:]
+
+          old_safety_shape = "0x204B:.*?LMC_OWNER_ROBOT_AXIS_MASK.*?"
+          safety_shape_count = contract.count(old_safety_shape)
+          print(f'contract Group PowerOff safety helper expectation: replacements={safety_shape_count}')
+          if safety_shape_count != 1:
+              raise RuntimeError(f'Expected 1 Group PowerOff safety helper expectation, got {safety_shape_count}.')
+          contract = contract.replace(
+              old_safety_shape,
+              "0x204B:.*?LMC_OWNER_PROFILE_AXIS_MASK.*?")
+          save(contract_path, contract)'''
+          corrected = textwrap.dedent(corrected)
+          script = script[:start] + corrected + script[end:]
+          exec(compile(script, '<group-power-ownership-boundary-v3>', 'exec'), {})
+          PY
+
+      - name: Show focused diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --stat
+          git diff -- \
+            'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st' \
+            'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st' \
+            'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalAxisOwnershipActivationGuard.Fixture.ps1' \
+            'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1' \
+            'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-GroupPowerOwnershipBoundary.ps1'
+
+      - name: Verify all-axis Power dispatch lifecycle
+        shell: pwsh
+        run: |
+          & 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalServoPowerLifecycle.ps1' -RepositoryRoot $PWD
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify ownership boundary
+        shell: pwsh
+        run: |
+          & 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-GroupPowerOwnershipBoundary.ps1' -RepositoryRoot $PWD
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify ownership activation fixture
+        shell: pwsh
+        run: |
+          & 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalAxisOwnershipActivationGuard.Fixture.ps1' -RunSelfTest -RepositoryRoot $PWD
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Diff check
+        shell: bash
+        run: git diff --check
+
+      - name: Commit and push
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo 'No source changes to commit.'
+            exit 1
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st' \
+            'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st' \
+            'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalAxisOwnershipActivationGuard.Fixture.ps1' \
+            'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1' \
+            'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-GroupPowerOwnershipBoundary.ps1'
+          git commit -m 'fix(group): split power dispatch from profile ownership'
+          git push origin HEAD:dev
