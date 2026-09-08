@@ -1,0 +1,223 @@
+name: Apply Group Power ownership boundary fix v2
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/apply-group-power-ownership-boundary-fix-v2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Apply ownership boundary patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          tcp_path = Path('Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st')
+          control_path = Path('Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st')
+          fixture_path = Path('LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalAxisOwnershipActivationGuard.Fixture.ps1')
+          contract_path = Path('LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1')
+          boundary_test_path = Path('LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-GroupPowerOwnershipBoundary.ps1')
+
+          def load(path):
+              return path.read_bytes().decode('utf-8')
+
+          def save(path, text):
+              path.write_bytes(text.encode('utf-8'))
+
+          def sub_exact(text, name, pattern, replacement, expected=1):
+              updated, count = re.subn(pattern, replacement, text, flags=re.S)
+              print(f'{name}: replacements={count}')
+              if count != expected:
+                  raise RuntimeError(f'{name}: expected {expected} replacement(s), got {count}')
+              return updated
+
+          def method_patch(text, method, edits):
+              pattern = rf'(?ms)^FUNCTION (?:GLOBAL )?LMCControlCommandService::{re.escape(method)}\b.*?^END_FUNCTION'
+              match = re.search(pattern, text)
+              if not match:
+                  raise RuntimeError(f'Missing method {method}')
+              block = match.group(0)
+              for name, edit_pattern, replacement, expected in edits:
+                  block = sub_exact(block, f'{method}: {name}', edit_pattern, replacement, expected)
+              return text[:match.start()] + block + text[match.end():]
+
+          # Repair the verifier bootstrap commit's accidental bash-style continuations.
+          boundary_test = load(boundary_test_path)
+          boundary_test, continuation_count = re.subn(r' \\\r?\n\s*', ' ', boundary_test)
+          print(f'Boundary verifier continuation repair: replacements={continuation_count}')
+          if continuation_count == 0:
+              raise RuntimeError('Expected at least one verifier continuation repair.')
+          save(boundary_test_path, boundary_test)
+
+          # TCP admission owns only the four profile axes. This is intentionally
+          # independent of the native Group Power dispatch mask.
+          tcp = load(tcp_path)
+          tcp = sub_exact(tcp, 'TCP 0x2049/0x204A ownership mask',
+              r'(0x2049\s*,\s*0x204A\s*:\s*controlClassifierValid\s*:=.{0,600}?controlAxisMask\s*:=\s*)LMC_OWNER_ROBOT_AXIS_MASK',
+              r'\1LMC_OWNER_PROFILE_AXIS_MASK')
+          tcp = sub_exact(tcp, 'TCP 0x204B ownership mask',
+              r'(0x204B\s*:\s*controlClassifierValid\s*:=.{0,600}?controlAxisMask\s*:=\s*)LMC_OWNER_ROBOT_AXIS_MASK',
+              r'\1LMC_OWNER_PROFILE_AXIS_MASK')
+          tcp = sub_exact(tcp, 'TCP 0x20E7 ownership mask',
+              r'(0x20E7\s*:\s*controlClassifierValid\s*:=.{0,600}?controlAxisMask\s*:=\s*)LMC_OWNER_ROBOT_AXIS_MASK',
+              r'\1LMC_OWNER_PROFILE_AXIS_MASK')
+          save(tcp_path, tcp)
+
+          control = load(control_path)
+
+          for method, variable, op in [
+              ('ReserveAxisOwnership', 'RequestedAxisMask', '<>'),
+              ('ValidateAxisOwnership', 'ExpectedAxisMask', '='),
+              ('ValidateAxisOwnershipIdentity', 'ExpectedAxisMask', '='),
+          ]:
+              control = method_patch(control, method, [
+                  ('0x2049/0x204A', rf'(0x2049\s*,\s*0x204A\s*:.{{0,700}}?{variable}\s*{re.escape(op)}\s*)LMC_OWNER_ROBOT_AXIS_MASK', r'\1LMC_OWNER_PROFILE_AXIS_MASK', 1),
+                  ('0x204B', rf'(0x204B\s*:.{{0,700}}?{variable}\s*{re.escape(op)}\s*)LMC_OWNER_ROBOT_AXIS_MASK', r'\1LMC_OWNER_PROFILE_AXIS_MASK', 1),
+                  ('0x20E7', rf'(0x20E7\s*:.{{0,700}}?{variable}\s*{re.escape(op)}\s*)LMC_OWNER_ROBOT_AXIS_MASK', r'\1LMC_OWNER_PROFILE_AXIS_MASK', 1),
+              ])
+
+          for name, pattern in [
+              ('retained identity 0x2049/0x204A', r'(0x2049\s*,\s*0x204A\s*:\s*identityExpectedSize.{0,900}?oldAxisMask\s*=\s*)LMC_OWNER_ROBOT_AXIS_MASK'),
+              ('retained identity 0x204B', r'(0x204B\s*:\s*identityExpectedSize.{0,900}?oldAxisMask\s*=\s*)LMC_OWNER_ROBOT_AXIS_MASK'),
+              ('retained identity 0x20E7', r'(0x20E7\s*:\s*identityExpectedSize.{0,900}?oldAxisMask\s*=\s*)LMC_OWNER_ROBOT_AXIS_MASK'),
+              ('snapshot 0x2049/0x204A', r'(\(snapshotCommand\s*=\s*0x2049\)\s*\|\s*\(snapshotCommand\s*=\s*0x204A\).{0,900}?snapshotMask\s*=\s*)LMC_OWNER_ROBOT_AXIS_MASK'),
+              ('snapshot 0x204B', r'(snapshotCommand\s*=\s*0x204B.{0,700}?snapshotMask\s*=\s*)LMC_OWNER_ROBOT_AXIS_MASK'),
+              ('snapshot 0x20E7', r'(snapshotCommand\s*=\s*0x20E7.{0,700}?snapshotMask\s*=\s*)LMC_OWNER_ROBOT_AXIS_MASK'),
+              ('live Group Reset/PowerOn identity', r'(LMC_OWNER_COMMAND_GROUP_RESET\s*,\s*LMC_OWNER_COMMAND_GROUP_POWER_ON\s*:.{0,900}?OwnershipState\[liveGroupRecordBase\s*\+\s*11\]\$UDINT\s*=\s*)LMC_OWNER_ROBOT_AXIS_MASK'),
+              ('live Group PowerOff identity', r'(LMC_OWNER_COMMAND_GROUP_POWER_OFF\s*:.{0,900}?OwnershipState\[liveGroupRecordBase\s*\+\s*11\]\$UDINT\s*=\s*)LMC_OWNER_ROBOT_AXIS_MASK'),
+              ('live Set Identity identity', r'(LMC_OWNER_COMMAND_GROUP_SET_KIN\s*:.{0,900}?OwnershipState\[liveGroupRecordBase\s*\+\s*11\]\$UDINT\s*=\s*)LMC_OWNER_ROBOT_AXIS_MASK'),
+          ]:
+              control = sub_exact(control, name, pattern, r'\1LMC_OWNER_PROFILE_AXIS_MASK')
+
+          control = sub_exact(control, 'old safety-repeat Group PowerOff mask',
+              r'(\(oldCommand\s*=\s*LMC_OWNER_COMMAND_GROUP_POWER_OFF\)\s*&\s*\(oldAxisMask\s*<>\s*)LMC_OWNER_ROBOT_AXIS_MASK',
+              r'\1LMC_OWNER_PROFILE_AXIS_MASK')
+          control = sub_exact(control, 'reservation safety-repeat Group PowerOff mask',
+              r'(\(repeatCommand\s*=\s*LMC_OWNER_COMMAND_GROUP_POWER_OFF\)\s*&\s*\(repeatAxisMask\s*<>\s*)LMC_OWNER_ROBOT_AXIS_MASK',
+              r'\1LMC_OWNER_PROFILE_AXIS_MASK')
+          control = sub_exact(control, 'safety escalation Group owner mask',
+              r'(\(\(oldOwnerKind\s*=\s*LMC_OWNER_KIND_GROUP\)\s*&\s*\(oldAxisMask\s*<>\s*)LMC_OWNER_ROBOT_AXIS_MASK',
+              r'\1LMC_OWNER_PROFILE_AXIS_MASK')
+          control = sub_exact(control, 'Group PowerOff safety root masks',
+              r'(0x204B\s*:.{0,500}?safetyAxisMask\s*=\s*)LMC_OWNER_ROBOT_AXIS_MASK',
+              r'\1LMC_OWNER_PROFILE_AXIS_MASK', expected=2)
+
+          # Native power remains all nine axes; only ownership is narrowed.
+          if not re.search(r'(?s)0x204A\s*:.{0,900}?groupAxisMask\s*:=\s*LMC_OWNER_ROBOT_AXIS_MASK.{0,900}?SetResolvedGroupAxesPower\(GroupAxisMask:=groupAxisMask,\s*Enable:=TRUE\)', control):
+              raise RuntimeError('Native Group PowerOn no longer targets all nine axes.')
+          if not re.search(r'(?s)0x204B\s*:.{0,900}?groupAxisMask\s*:=\s*LMC_OWNER_ROBOT_AXIS_MASK.{0,900}?SetResolvedGroupAxesPower\(GroupAxisMask:=groupAxisMask,\s*Enable:=FALSE\)', control):
+              raise RuntimeError('Native Group PowerOff no longer targets all nine axes.')
+          if not re.search(r'AreResolvedGroupAxesPowered\(\s*GroupAxisMask:=LMC_OWNER_ROBOT_AXIS_MASK\)', control):
+              raise RuntimeError('Nine-axis power readback proof was lost.')
+          save(control_path, control)
+
+          # Align the production activation fixture.
+          fixture = load(fixture_path)
+          for method, variable, op in [
+              ('ReserveAxisOwnership', 'RequestedAxisMask', '<>'),
+              ('ValidateAxisOwnership', 'ExpectedAxisMask', '='),
+          ]:
+              fixture = method_patch(fixture, method, [
+                  ('0x2049/0x204A', rf'(0x2049\s*,\s*0x204A\s*:.{{0,700}}?{variable}\s*{re.escape(op)}\s*)LMC_OWNER_ROBOT_AXIS_MASK', r'\1LMC_OWNER_PROFILE_AXIS_MASK', 1),
+                  ('0x204B', rf'(0x204B\s*:.{{0,700}}?{variable}\s*{re.escape(op)}\s*)LMC_OWNER_ROBOT_AXIS_MASK', r'\1LMC_OWNER_PROFILE_AXIS_MASK', 1),
+                  ('0x20E7', rf'(0x20E7\s*:.{{0,700}}?{variable}\s*{re.escape(op)}\s*)LMC_OWNER_ROBOT_AXIS_MASK', r'\1LMC_OWNER_PROFILE_AXIS_MASK', 1),
+              ])
+          save(fixture_path, fixture)
+
+          # Align the authoritative static contract with the new ownership boundary.
+          # The ROBOT mask remains a valid constant and native dispatch/readback mask;
+          # only these ownership classifier expectations become PROFILE scoped.
+          contract = load(contract_path)
+          for name in ['Group Reset/PowerOn', 'Group PowerOff', 'Group configuration']:
+              contract = sub_exact(
+                  contract,
+                  f'contract TCP {name} mask',
+                  rf'(@\{{ Name = {re.escape(repr(name))};.*?Required = @\(.*?)[\'\"]LMC_OWNER_ROBOT_AXIS_MASK[\'\"]',
+                  r"\1'LMC_OWNER_PROFILE_AXIS_MASK'")
+          for old_name, new_name in [
+              ('Robot ordinary mutation', 'Group Reset/PowerOn ownership'),
+              ('Robot safety mutation', 'Group PowerOff ownership'),
+              ('Robot lifecycle mutation', 'Set Identity ownership'),
+          ]:
+              contract = sub_exact(
+                  contract,
+                  f'contract service {old_name} mask/name',
+                  rf"(@\{{ Name = '){re.escape(old_name)}(';.*?RequestedAxisMask\\s\*<>\\s\*)LMC_OWNER_ROBOT_AXIS_MASK')",
+                  rf"\1{new_name}\2LMC_OWNER_PROFILE_AXIS_MASK\3")
+          contract = sub_exact(
+              contract,
+              'contract safety drain Group PowerOff shape',
+              r"('0x204B:\.\*\?LMC_OWNER_)ROBOT(_AXIS_MASK\.\*\?' \+)",
+              r'\1PROFILE\2')
+          save(contract_path, contract)
+          PY
+
+      - name: Show focused diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --stat
+          git diff -- \
+            'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st' \
+            'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st' \
+            'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalAxisOwnershipActivationGuard.Fixture.ps1' \
+            'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1' \
+            'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-GroupPowerOwnershipBoundary.ps1'
+
+      - name: Verify all-axis Power dispatch lifecycle
+        shell: pwsh
+        run: |
+          & 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalServoPowerLifecycle.ps1' -RepositoryRoot $PWD
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify ownership boundary
+        shell: pwsh
+        run: |
+          & 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-GroupPowerOwnershipBoundary.ps1' -RepositoryRoot $PWD
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify ownership activation fixture
+        shell: pwsh
+        run: |
+          & 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalAxisOwnershipActivationGuard.Fixture.ps1' -RunSelfTest -RepositoryRoot $PWD
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Diff check
+        shell: bash
+        run: git diff --check
+
+      - name: Commit and push
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo 'No source changes to commit.'
+            exit 1
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st' \
+            'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st' \
+            'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalAxisOwnershipActivationGuard.Fixture.ps1' \
+            'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1' \
+            'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-GroupPowerOwnershipBoundary.ps1'
+          git commit -m 'fix(group): split power dispatch from profile ownership'
+          git push origin HEAD:dev
