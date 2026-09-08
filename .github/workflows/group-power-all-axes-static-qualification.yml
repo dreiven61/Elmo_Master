@@ -1,0 +1,61 @@
+name: Group Power all-axes static qualification
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/group-power-all-axes-static-qualification.yml'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
+      - 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/Motion_Network/ONE_Motion_Network_Table.st'
+      - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalServoPowerLifecycle.ps1'
+
+permissions:
+  contents: read
+
+jobs:
+  qualify-group-power:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Verify Group Power full robot membership
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalServoPowerLifecycle.ps1' -RepositoryRoot $PWD
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify physical and simulation axis topology
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $networkPath = 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/Motion_Network/ONE_Motion_Network_Table.st'
+          $network = Get-Content -Raw -LiteralPath $networkPath
+
+          foreach ($axis in 1..2) {
+            $pattern = '(?m)"SimulateMode",\s*TO_UDINT\(0\),//\|Motion_Network\._LMCAxis' + $axis + '\.SimulateMode;'
+            if ($network -notmatch $pattern) {
+              throw "Axis$axis must remain a physical axis (SimulateMode=0)."
+            }
+          }
+
+          foreach ($axis in 3..9) {
+            $pattern = '(?m)"SimulateMode",\s*TO_UDINT\(1\),//\|Motion_Network\._LMCAxis' + $axis + '\.SimulateMode;'
+            if ($network -notmatch $pattern) {
+              throw "Axis$axis must remain a simulation axis (SimulateMode=1)."
+            }
+          }
+
+          Write-Host 'PASS Group Power topology: Axis1-2 physical, Axis3-9 simulation.'
+
+      - name: Static diff check
+        shell: pwsh
+        run: |
+          git diff --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
