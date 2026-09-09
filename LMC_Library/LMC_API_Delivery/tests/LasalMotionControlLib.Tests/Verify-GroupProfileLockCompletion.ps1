@@ -53,42 +53,26 @@ if ([string]::IsNullOrWhiteSpace($enableHandler)) {
 
 # Native LASAL semantics: LockState means all axes are locked; ProfileFinished
 # means all motion sequences are completed and no buffered move remains.
-Check ($types -match '(?is)_LMCPROF_LockState.*?All axis are locked') \
-    'Generated LASAL type documents LockState as the profile-lock authority'
-Check ($types -match '(?is)_LMCPROF_ProfileFinished.*?all motion sequences have been completed') \
-    'Generated LASAL type documents ProfileFinished as motion completion'
+Check ($types -match '(?is)_LMCPROF_LockState.*?All axis are locked') 'Generated LASAL type documents LockState as the profile-lock authority'
+Check ($types -match '(?is)_LMCPROF_ProfileFinished.*?all motion sequences have been completed') 'Generated LASAL type documents ProfileFinished as motion completion'
 
-Check ($enableHandler -match 'LMCRobot\.LockProfile\(\s*Profile:=0') \
-    'Group Enable still reaches native LockProfile'
-Check ($status -match 'ReadProfileParameter\(\s*ParNo:=_LMCPROF_LockState\)') \
-    'GroupReadStatus reads the authoritative LockState'
-Check ($status -match 'ProfileInPosition\(\s*Mode:=_LMCPROF_ProfileFinished\)') \
-    'GroupReadStatus may still observe ProfileFinished for motion diagnostics'
-Check ($status -match '(?is)if\s*\(powerIsOn\s*<>\s*0\)\s*&\s*\(profileLocked\s*=\s*TRUE\)\s*then\s*groupReadState\s*:=\s*groupReadState\s+or\s+0x00020000') \
-    'Standby is asserted from PowerOn plus LockState'
-Check (-not ($status -match '(?is)if\s*\(powerIsOn\s*<>\s*0\)\s*&\s*\(profileLocked\s*=\s*TRUE\)\s*&\s*\(groupReadInPosition\s*<>\s*0\)')) \
-    'Standby no longer depends on ProfileFinished before the first Move'
+Check ($enableHandler -match 'LMCRobot\.LockProfile\(\s*Profile:=0') 'Group Enable still reaches native LockProfile'
+Check ($status -match 'ReadProfileParameter\(\s*ParNo:=_LMCPROF_LockState\)') 'GroupReadStatus reads the authoritative LockState'
+Check ($status -match 'ProfileInPosition\(\s*Mode:=_LMCPROF_ProfileFinished\)') 'GroupReadStatus may still observe ProfileFinished for motion diagnostics'
+Check ($status -match '(?is)if\s*\(powerIsOn\s*<>\s*0\)\s*&\s*\(profileLocked\s*=\s*TRUE\)\s*then\s*groupReadState\s*:=\s*groupReadState\s+or\s+0x00020000') 'Standby is asserted from PowerOn plus LockState'
+Check (-not ($status -match '(?is)if\s*\(powerIsOn\s*<>\s*0\)\s*&\s*\(profileLocked\s*=\s*TRUE\)\s*&\s*\(groupReadInPosition\s*<>\s*0\)')) 'Standby no longer depends on ProfileFinished before the first Move'
 
-Check ($enableObserver -match 'groupLockState\s*<>\s*0') \
-    '0x2047 ownership retirement requires LockState'
-Check ($enableObserver -match 'allStandstill') \
-    '0x2047 ownership retirement requires standstill'
-Check ($enableObserver -match 'allPowerOn') \
-    '0x2047 ownership retirement requires power-on evidence'
-Check ($enableObserver -match 'allErrorClear') \
-    '0x2047 ownership retirement requires error-clear evidence'
-Check ($enableObserver -match 'groupError\s*=\s*0') \
-    '0x2047 ownership retirement requires no group error'
-Check (-not ($enableObserver -match 'groupFinished')) \
-    '0x2047 ownership retirement does not wait for ProfileFinished'
+Check ($enableObserver -match 'groupLockState\s*<>\s*0') '0x2047 ownership retirement requires LockState'
+Check ($enableObserver -match 'allStandstill') '0x2047 ownership retirement requires standstill'
+Check ($enableObserver -match 'allPowerOn') '0x2047 ownership retirement requires power-on evidence'
+Check ($enableObserver -match 'allErrorClear') '0x2047 ownership retirement requires error-clear evidence'
+Check ($enableObserver -match 'groupError\s*=\s*0') '0x2047 ownership retirement requires no group error'
+Check (-not ($enableObserver -match 'groupFinished')) '0x2047 ownership retirement does not wait for ProfileFinished'
 
 # Motion completion must remain stricter than lock completion.
-Check ($motionObserver -match 'activitySeen') \
-    'Motion ownership still requires observed activity before completion'
-Check ($motionObserver -match 'groupFinished\s*<>\s*0') \
-    'Motion ownership still requires ProfileFinished'
-Check ($motionObserver -match 'allInPosition') \
-    'Motion ownership still requires in-position evidence'
+Check ($motionObserver -match 'activitySeen') 'Motion ownership still requires observed activity before completion'
+Check ($motionObserver -match 'groupFinished\s*<>\s*0') 'Motion ownership still requires ProfileFinished'
+Check ($motionObserver -match 'allInPosition') 'Motion ownership still requires in-position evidence'
 
 if ($failures.Count -gt 0) {
     Write-Host "FAIL GroupProfileLockCompletion: $($failures.Count)/$checks checks failed."
