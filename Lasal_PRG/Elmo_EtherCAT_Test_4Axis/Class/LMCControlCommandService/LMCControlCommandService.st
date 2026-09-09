@@ -7937,7 +7937,7 @@ FUNCTION GLOBAL LMCControlCommandService::ProcessAxisOwnership
 									0x2047:
 										terminalCandidate :=
 											(groupLockState <> 0) &
-											(groupFinished <> 0) & allStandstill &
+											allStandstill &
 											allPowerOn & allErrorClear &
 											(groupError = 0);
 									0x2048:
@@ -10784,8 +10784,7 @@ FUNCTION LMCControlCommandService::GroupReadStatus
 	if powerIsOn <> 0 then
 		groupReadState := groupReadState or 0x00040000;
 	end_if;
-	if (powerIsOn <> 0) & (profileLocked = TRUE) &
-	   (groupReadInPosition <> 0) then
+	if (powerIsOn <> 0) & (profileLocked = TRUE) then
 		groupReadState := groupReadState or 0x00020000;
 	elsif profileLocked = FALSE then
 		groupReadState := groupReadState or 0x00010000;
