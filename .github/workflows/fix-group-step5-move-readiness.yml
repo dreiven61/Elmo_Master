@@ -1,0 +1,145 @@
+name: Apply Group step5 move readiness fix
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/fix-group-step5-move-readiness.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fix:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Apply Group step5 and Move readiness patch
+        shell: pwsh
+        run: |
+          @'
+          from pathlib import Path
+
+          main_path = Path(r'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.xaml.cs')
+          xaml_path = Path(r'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.xaml')
+          readme_path = Path(r'LMC_Library/LasalApiWpfTestApp/README.md')
+
+          def read(path):
+              return path.read_text(encoding='utf-8')
+
+          def write(path, text):
+              path.write_text(text, encoding='utf-8', newline='')
+
+          main = read(main_path)
+
+          # Step 5 is a verification action. A manual 0x2045 read already contributes
+          # one sample to the accepted GroupEnable continuation. If the continuation
+          # is still short of 3/3, finish it with status-only polling here instead of
+          # leaving Move silently disabled. No 0x2047 replay is permitted.
+          start_marker = '                        if (continuation != null && continuation.IsPending)\n                        {\n'
+          end_marker = '                        else\n                        {\n                            pendingGroupEnableWaitContinuation = null;\n'
+          start = main.find(start_marker)
+          end = main.find(end_marker, start)
+          if start < 0 or end < 0:
+              raise RuntimeError('Could not locate pending GroupEnable status block.')
+
+          new_pending_block = '''                        if (continuation != null && continuation.IsPending)\n                        {\n                            groupProfileLockVerificationPending = true;\n                            groupProfileLocked = false;\n                            if (continuation.StableSampleCount\n                                < continuation.RequiredStableSampleCount)\n                            {\n                                WriteLog(\n                                    "Step 5 Lock Ready sample observed ("\n                                    + continuation.StableSampleCount\n                                    + "/"\n                                    + continuation.RequiredStableSampleCount\n                                    + "). Completing the same accepted Enable with "\n                                    + "status-only 0x2045 polling; 0x2047 is not replayed.");\n                            }\n\n                            try\n                            {\n                                var completed = await SendLiveCommandAsync(\n                                    statusSafetyGeneration,\n                                    "Step 5 Group Lock Ready verification",\n                                    () => currentGroup\n                                        .ResumeGroupEnableWaitForLockedStandbyAsync(\n                                            continuation,\n                                            CancellationToken.None));\n                                if (statusSafetyGeneration\n                                    != safetyRequestGeneration)\n                                {\n                                    MarkGroupProfileLockResultDiscarded(\n                                        "Step 5 Read Group Status lock completion");\n                                }\n                                EnsureNoNewSafetyRequestBeforeResultApplication(\n                                    statusSafetyGeneration,\n                                    "Step 5 Read Group Status lock completion");\n                                await EnsureGroupProfileLockRecoveryIdentityAsync(\n                                    currentGroup,\n                                    "Step 5 Read Group Status lock completion",\n                                    true);\n                                if (statusSafetyGeneration\n                                    != safetyRequestGeneration)\n                                {\n                                    MarkGroupProfileLockResultDiscarded(\n                                        "Step 5 Read Group Status post-identity completion");\n                                }\n                                EnsureNoNewSafetyRequestBeforeResultApplication(\n                                    statusSafetyGeneration,\n                                    "Step 5 Read Group Status post-identity completion");\n                                CompleteGroupEnableWaitUi(completed);\n                            }\n                            catch\n                            {\n                                if (HasActiveGroupProfileLockRecoveryJournalRecord\n                                    && currentGroup\n                                        .PendingGroupEnableWaitContinuation == null\n                                    && !groupProfileLockRecoveryRequired)\n                                {\n                                    MarkGroupProfileLockCompletionOutcomeUncertain(\n                                        "Step 5 Read Group Status lock completion");\n                                }\n\n                                throw;\n                            }\n                        }\n'''
+          main = main[:start] + new_pending_block + main[end:]
+
+          old_move_block = '''            ButtonGroupMoveLinear.IsEnabled = groupReady\n                && liveCommandAllowed\n                && MotionUncertaintyJournalCanArm\n                && !groupPowerOffVerificationPending\n                && groupActiveVerified\n                && groupIdentityConfigured\n                && !HasUnresolvedGroupProfileLockState()\n                && groupProfileLocked\n                && groupMotionCoordinateReady;\n            ButtonGroupMoveLinearRelative.IsEnabled = groupReady\n                && liveCommandAllowed\n                && MotionUncertaintyJournalCanArm\n                && !groupPowerOffVerificationPending\n                && groupActiveVerified\n                && groupIdentityConfigured\n                && !HasUnresolvedGroupProfileLockState()\n                && groupProfileLocked\n                && groupMotionCoordinateReady;\n'''
+          new_move_block = '''            var groupMoveReadinessBlocker = GetGroupMoveReadinessBlocker(\n                groupReady,\n                liveCommandAllowed,\n                groupMotionCoordinateReady);\n            var groupMoveReady = string.IsNullOrEmpty(\n                groupMoveReadinessBlocker);\n            ButtonGroupMoveLinear.IsEnabled = groupMoveReady;\n            ButtonGroupMoveLinearRelative.IsEnabled = groupMoveReady;\n            var groupMoveToolTip = groupMoveReady\n                ? "Group Move ready."\n                : "Group Move blocked: " + groupMoveReadinessBlocker;\n            ButtonGroupMoveLinear.ToolTip = groupMoveToolTip;\n            ButtonGroupMoveLinearRelative.ToolTip = groupMoveToolTip;\n'''
+          if main.count(old_move_block) != 1:
+              raise RuntimeError('Expected exactly one Group Move enable block.')
+          main = main.replace(old_move_block, new_move_block, 1)
+
+          old_prep_call = '''            TextGroupPreparationState.Text = GetGroupPreparationStateText(\n                groupReady);\n'''
+          new_prep_call = '''            TextGroupPreparationState.Text = GetGroupPreparationStateText(\n                groupReady,\n                groupMoveReadinessBlocker);\n'''
+          if main.count(old_prep_call) != 1:
+              raise RuntimeError('Expected exactly one preparation-state call.')
+          main = main.replace(old_prep_call, new_prep_call, 1)
+
+          old_method = '        private string GetGroupPreparationStateText(bool groupReady)\n'
+          if main.count(old_method) != 1:
+              raise RuntimeError('Expected exactly one GetGroupPreparationStateText method.')
+          helper = '''        private string GetGroupMoveReadinessBlocker(\n            bool groupReady,\n            bool liveCommandAllowed,\n            bool groupMotionCoordinateReady)\n        {\n            if (!groupReady)\n            {\n                return "load the group first";\n            }\n\n            if (groupPowerOffVerificationPending)\n            {\n                return "Group Power Off verification is pending";\n            }\n\n            if (!groupActiveVerified)\n            {\n                return groupPowerVerificationPending\n                    ? "Power Ready is not verified; resume Power On verification"\n                    : "Power Ready/ACTIVE is not verified";\n            }\n\n            if (!groupIdentityConfigured)\n            {\n                return "Set Identity has not completed in this session";\n            }\n\n            if (HasUnresolvedGroupProfileLockState())\n            {\n                return groupProfileLockVerificationPending\n                    ? "Profile Lock proof is pending; run step 5 Read Status to finish status-only verification"\n                    : "Profile Lock recovery is unresolved; use the indicated Resume/Disable recovery action";\n            }\n\n            if (!groupProfileLocked)\n            {\n                return "Profile Lock is not verified";\n            }\n\n            if (!groupMotionCoordinateReady)\n            {\n                return "Group motion Coordinate must be None; ACS is read-position only";\n            }\n\n            if (!MotionUncertaintyJournalCanArm)\n            {\n                return "the durable motion-safety journal cannot arm; "\n                    + GetMotionUncertaintyJournalGuidance();\n            }\n\n            if (!liveCommandAllowed)\n            {\n                return "a live-command safety/recovery interlock is active; see the SAFETY message";\n            }\n\n            return null;\n        }\n\n        private string GetGroupPreparationStateText(\n            bool groupReady,\n            string groupMoveReadinessBlocker)\n'''
+          main = main.replace(old_method, helper, 1)
+
+          old_ready = '''            else\n            {\n                nextStep = "Ready: Move Linear or Disable (Unlock Profile).";\n            }\n\n            return "Preparation: "\n'''
+          new_ready = '''            else if (!string.IsNullOrEmpty(groupMoveReadinessBlocker))\n            {\n                nextStep = "Move blocked: " + groupMoveReadinessBlocker + ".";\n            }\n            else\n            {\n                nextStep = "Ready: Move Linear or Disable (Unlock Profile).";\n            }\n\n            return "Preparation: "\n'''
+          if main.count(old_ready) != 1:
+              raise RuntimeError('Expected exactly one final Group preparation Ready branch.')
+          main = main.replace(old_ready, new_ready, 1)
+
+          write(main_path, main)
+
+          xaml = read(xaml_path)
+          old_status_button = '''                                        <Button\n                                            x:Name="ButtonGroupReadStatus"\n                                            Click="ButtonGroupReadStatus_Click"\n                                            Content="2 / 5 Read Status (Power Ready / Lock Ready)" />'''
+          new_status_button = '''                                        <Button\n                                            x:Name="ButtonGroupReadStatus"\n                                            Click="ButtonGroupReadStatus_Click"\n                                            Content="2 / 5 Read Status (Power Ready / Lock Ready)"\n                                            ToolTip="Before Enable this reads Power Ready. After an accepted Enable, step 5 finishes the required three-sample Locked Standby proof with 0x2045 status reads only; it never replays 0x2047." />'''
+          if xaml.count(old_status_button) != 1:
+              raise RuntimeError('Expected exactly one Group Read Status button.')
+          xaml = xaml.replace(old_status_button, new_status_button, 1)
+
+          old_order = 'Required order: 1 Power On (automatic three-sample PowerOn=True verification) -> 3 Set Identity (Home Check is optional diagnostics) -> 4 Enable (automatic three-sample Locked Standby verification) -> 6 Move -> Disable (Unlock Profile) -> 7 Power Off (automatic three-sample PowerOn=False verification). If a verification is interrupted, press the same Power or Enable button to resume status reads without command replay. Read Status observes one sample and does not complete a pending Power On/Off transition.'
+          new_order = 'Required order: 1 Power On -> 2 Read Status (Power Ready) -> 3 Set Identity -> 4 Enable (Lock Profile) -> 5 Read Status (finish three-sample Locked Standby proof with status reads only) -> 6 Move -> Disable (Unlock Profile) -> 7 Power Off. Step 5 never replays Enable. If the profile was already fully verified by step 4 automatic polling, step 5 is a harmless confirmation read. Read Status still does not complete a pending Power On/Off transition from only one sample.'
+          if xaml.count(old_order) != 1:
+              raise RuntimeError('Expected exactly one Group required-order text.')
+          xaml = xaml.replace(old_order, new_order, 1)
+          write(xaml_path, xaml)
+
+          readme = read(readme_path)
+          old_readme = '''16. timeout, status 오류 또는 Stop/Power Off 우선순위 선점 뒤에는 버튼이\n    `Resume Lock Verification (No Enable Replay)`로 바뀐다. 이 버튼은 기존 ACK를 재사용해\n    `0x2045`만 다시 보내며 `0x2047`을 재전송하지 않는다. 수동 Read Status 한 번만으로\n    continuation을 완료하지는 않지만 safety generation 검증을 통과한 성공 응답은 상태에 맞는\n    pending continuation proof에 누적된다. Locked Standby proof가 3/3이면 기존 ACK를 재사용한\n    zero-wire Resume으로 완료할 수 있으며, 완료 뒤에만 Move가 활성화된다.\n17. 작은 X/Y/Z/U 목표로 `6 Move Linear Absolute`를 먼저 시험한다.\n'''
+          new_readme = '''16. timeout, status 오류 또는 Stop/Power Off 우선순위 선점 뒤에는 버튼이\n    `Resume Lock Verification (No Enable Replay)`로 바뀐다. 이 버튼은 기존 ACK를 재사용해\n    `0x2045`만 다시 보내며 `0x2047`을 재전송하지 않는다. `2 / 5 Read Status`를 step 5로\n    실행한 경우에도 첫 성공 status sample을 pending continuation proof에 누적하고, 아직 3/3이\n    아니면 같은 accepted ACK를 사용해 `0x2045`만 추가 polling하여 Locked Standby 3회 연속\n    proof를 끝낸다. `0x2047`은 replay하지 않는다. 검증 완료 뒤에만 Move가 활성화된다.\n    Move가 계속 비활성화되면 Preparation 문구와 Move tooltip이 Profile Lock, Coordinate=None,\n    durable motion-safety journal 등 정확한 차단 조건을 표시한다.\n17. 작은 X/Y/Z/U 목표로 `6 Move Linear Absolute`를 먼저 시험한다.\n'''
+          if readme.count(old_readme) != 1:
+              raise RuntimeError('Expected README Group Enable recovery paragraph.')
+          readme = readme.replace(old_readme, new_readme, 1)
+          write(readme_path, readme)
+
+          print('Patched Group step 5 completion and Move readiness diagnostics.')
+          '@ | python -
+
+      - name: Show focused diff
+        shell: pwsh
+        run: |
+          git diff --stat
+          git diff -- `
+            'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.xaml.cs' `
+            'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.xaml' `
+            'LMC_Library/LasalApiWpfTestApp/README.md'
+
+      - name: Run WPF smoke tests
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $msbuild = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
+          if (-not $msbuild) { throw 'MSBuild.exe was not found.' }
+          & $msbuild `
+            'LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\LasalApiWpfTestApp.SmokeTests.csproj' `
+            '/t:RunWpfSmokeTests' `
+            '/p:Configuration=Debug' `
+            '/p:Platform=AnyCPU' `
+            '/nologo'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Diff check
+        shell: pwsh
+        run: git diff --check
+
+      - name: Commit and push
+        shell: pwsh
+        run: |
+          if (git diff --quiet) { throw 'No source changes to commit.' }
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add `
+            'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.xaml.cs' `
+            'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.xaml' `
+            'LMC_Library/LasalApiWpfTestApp/README.md'
+          git commit -m 'fix(group-ui): complete lock proof from step 5'
+          git push origin HEAD:dev
