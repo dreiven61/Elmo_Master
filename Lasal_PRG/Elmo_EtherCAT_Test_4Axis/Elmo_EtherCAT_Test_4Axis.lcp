@@ -270,6 +270,10 @@
 		<File Path=".\Class\LMCSetPositionStore\global_LMCSetPositionStore.st"/>
 		<File Path=".\Class\SimulationSetup\SimulationSetup.st"/>
 		<File Path=".\Class\AbsEncoderSetup\AbsEncoderSetup.st"/>
+		<File Path=".\Class\StringInternal\StringInternalUTF.cpp"/>
+		<File Path=".\Class\DriveAxisDS402\DriveAxisDS402.st"/>
+		<File Path=".\Class\DriveAxisDS402_Base\DriveAxisDS402_Base.st"/>
+		<File Path=".\Class\WELCON_1\WELCON_1.st"/>
 	</ClassFiles>
 	<NetworkFiles>
 		<File Path=".\Network\HW_Network\HW_Network.lcn"/>
@@ -289,6 +293,7 @@
 		<File Path=".\Hardware\Hardware.lcp"/>
 		<File Path=".\Tools\Tools.lcp"/>
 		<File Path=".\System\System.lcp"/>
+		<File Path="..\..\..\..\..\Users\dreiv\source\repos\SIGMATEK\CP313\CP313.lcp"/>
 	</LibraryFiles>
 	<DocuFiles>
 		<File Path=".\Class\_LMCAxis\_LMCAxis.vov"/>
@@ -473,6 +478,14 @@
 			</Folder>
 		</Folder>
 	</SigmatekFolders>
+	<ClassFolders>
+		<Folder Name="Utilities">
+			<Class Name="DriveAxisDS402"/>
+			<Folder Name="Internal">
+				<Class Name="DriveAxisDS402_Base"/>
+			</Folder>
+		</Folder>
+	</ClassFolders>
 	<TypeFolders>
 		<Folder Name="_LMC">
 			<Type Name="_LMC_DYN_SWLIMITS"/>

@@ -2,291 +2,458 @@
 // +----------------------------------------------------------------------------------------------+
 // +-[   copyright ] Sigmatek GmbH & CoKG                                                         |
 // +-[      author ] kolott                                                                       |
-// +-[        date ] 10.07.2017                                                                   |
+// +-[        date ] 10.07.2017, revised 01.06.2026                                               |
 // +-[ description ]------------------------------------------------------------------------------+
 // |                                                                                              |
+// | sigclib_queue:                                                                               |
+// |   The most common way to transport data of arbitrary byte length between different           |
+// |   threads/tasks. The maximum number of intern used records is 131072 (0x20000).              |
+// |   Functionality is given by using atomic functions without usage of semaphores.              |
+// |   Info: Functionality will act like a FiFo, that means first in and first out.               |
+// |         If all intern records are occupied, user can't add some more.                        |
+// |                                                                                              |
+// | cPipe:                                                                                       |
+// |   Based on sigclib_queue and is used to transport data of defined byte length                |
+// |   between different threads/tasks.                                                           |
+// |                                                                                              |
+// | sigclib_actdata:                                                                             |
+// |   Thread-safe buffer which will always serve the last valid data-record.                     |
+// |   Functionality is given by using atomic functions without usage of semaphores.              |
 // |                                                                                              |
 // +----------------------------------------------------------------------------------------------+
 
 #include "SigCLib.h" 
 
-#define PIPE_MASK_CPXG   0x00121314
-#define PIPE_MASK_LOCK   0x005A5ABC
-#define PIPE_MASK_VALID  0x01234560
-
-// ------------------------------------------------------------------------------------------------
-// constructor of cPipe
-// --> record_size ....... max.bytesize of single record
-// --> recode_no ......... maximum number of records in buffer
-// ------------------------------------------------------------------------------------------------
-// <-- NULL ... error,  <> NULL pointer to cPipe
-// ================================================================================================
-cPipe *cPipe_CTor(unsigned long record_size, unsigned long record_no)
+typedef struct
 {
-  cPipe *retcode = (cPipe*)sigclib_malloc(sizeof(cPipe));
-  
-  if(retcode != NULL)
+  void   *ptr;        // pointer to userdata
+  _uint32 state;      // atomic state of record
+  _uint32 datasize;   // byte size of userdata in record
+  _uint08 data[4];    // userdata, do not change size
+} _tQueueRecord;
+
+typedef struct        // note: structure keeps legacy to previous version
+{
+  _uint32 rd, wr;     // rd/wr index
+  _uint32 id, no;     // identifier + number of records
+  _uint32 recordsize; // byte size of each record
+  _uint32 datasize;   // max. byte size of userdata in single record
+  _uint32 bitpattern; // bittpattern used for indexing records
+  _uint32 fill, fillmax; // actual load, max load
+  _uint08 data[4];    // records
+} _tQueue;
+
+#define Q_Spacer                    4      // spacer
+#define Q_Identifier                0xCAFEBA00 // low byte has to be 0 to ensure lock_push() and lock_pop()
+#define QRst_FREE                   0x0000 // do not change value
+#define QRst_BUSY_WR                0xBEBA // record is busy with write
+#define QRst_BUSY_RD                0xABAE // record is busy with read
+#define QRst_READY                  0xB055 // record is ready done and valid
+#define intern_queue_lock_push(__p) sigclib_atomic_incU32(&((__p)->id))
+#define intern_queue_lock_pop(__p)  sigclib_atomic_decU32(&((__p)->id))
+
+inline _uint32 sigclib_queue_potenz2(_uint32 no, _uint32 ceiling)
+{
+  // The function returns the next higher or equal power of two.
+  if(no > ceiling) { no = ceiling; }
+  _uint32 potenz = 2;
+  while(1)
   {
-    cPipe_Init(retcode, record_size, record_no);
+    if(no <= potenz) { return potenz; }
+    potenz = potenz * 2;
+  }
+  
+  return 2;
+}
+
+inline _tQueue *sigclib_queue_chkhdl_exact(void *phdl)
+{
+  // Function will check if given pointer is a valid handle.
+  _tQueue *pq = (_tQueue *)phdl;
+  if(pq != NULL)
+  {
+    if(pq->id == Q_Identifier)
+    {
+      return pq;
+    }
+  }
+  return NULL;
+}
+
+inline _tQueue *sigclib_queue_chkhdl(void *phdl)
+{
+  // Function will check if given pointer is a valid handle.
+  _tQueue *pq = (_tQueue *)phdl;
+  if(pq != NULL)
+  {
+    if((pq->id & 0xFFFFFF00) == Q_Identifier)
+    {
+      return pq;
+    }
+  }
+  return NULL;
+}
+
+static void sigclib_queue_free_record(_tQueueRecord *pr)
+{
+  // The function will free and release specified record.
+  void *pd = pr->data;
+  void *ph = pr->ptr;
+  pr->ptr = NULL;
+  pr->datasize = 0;
+  sigclib_atomic_setU32(&pr->state, QRst_FREE); // release record
+  if(ph != pd)
+  {
+    sigclib_free(ph); // free memory
+  }
+}
+
+static _uint32 sigclib_queue_free_record_all(_tQueue *pq)
+{
+  _uint32 retcode = 0;
+  _uint32 nox = pq->no;
+  while(nox--) // iterate all records
+  {
+    _tQueueRecord *pr = (_tQueueRecord*)(&pq->data[nox * pq->recordsize]);
+    if(sigclib_atomic_cmpxchgU32(&pr->state, QRst_READY, QRst_BUSY_RD) == QRst_READY)
+    {
+      sigclib_queue_free_record(pr);
+      retcode += 1;
+    }
   }
   
   return retcode;
 }
 
-// ------------------------------------------------------------------------------------------------
-// destructor to destroy whole cPipe. NOTE: just use when constructor is in use
-// --> p ................. pointer to cPipe
-// ------------------------------------------------------------------------------------------------
-// <-- always NULL
-// ================================================================================================
-cPipe *cPipe_DTor(cPipe *p)
+void *sigclib_queue_cTor(_uint32 record_size, _uint32 record_no)
 {
-  if(p != NULL)
+  // This function is used to create a thread-safe databuffer of arbitrary size.
+  // Functionality is given without usage of semaphores and is as performant as possible.
+  // --> record_no ....... number of records in databuffer
+  // --> record_size ..... estimated byte size (used case) of data in single record
+  // function will return a valid pointer to thread-safe buffer or NULL on error
+  
+  if((record_no > 0) && (record_size != 0))
   {
-    cPipe_Free(p);
-    sigclib_free(p);
+    if(record_no <= 16) { record_no += Q_Spacer; } // if user desires a buffer with few entries, all of them should be available.
+    
+    record_no = sigclib_queue_potenz2(record_no, 0x20000); // It must be a power of 2, otherwise 32-bit wrap of rd and wr indexes will not work.
+  
+    _uint32 rec_head = sizeof(_tQueueRecord) - 4; // byte size of recordheader
+    _uint32 datasize = record_size + rec_head; // byte size of entire single record
+    while(datasize & 3) { datasize ++; } // 32bit aligned
+    record_size = datasize - rec_head;
+  
+    _tQueue *pq = (_tQueue*)sigclib_calloc((datasize * record_no) + sizeof(_tQueue), 1);
+    if(pq != NULL)
+    {
+      pq->no = record_no;
+      pq->fillmax = record_no - Q_Spacer; // care spacer, maximum fill level
+      pq->datasize = record_size;
+      pq->recordsize = datasize;
+      pq->bitpattern = record_no - 1;
+      pq->id = Q_Identifier;
+      
+      sigclib_atomic_setU32(&pq->rd, 0);
+      sigclib_atomic_setU32(&pq->wr, 0);
+      
+      return (void*)pq;
+    }
   }
   
   return NULL;
 }
 
-// ------------------------------------------------------------------------------------------------
-// initialize cPipe
-// --> p ................. pointer to cPipe
-// --> record_size ....... max.bytesize of single record
-// --> recode_no ......... maximum number of records in buffer
-// ------------------------------------------------------------------------------------------------
-// <-- 1 ... success, 0 ... error
-// ================================================================================================
-unsigned long cPipe_Init(cPipe *p, unsigned long record_size, unsigned long record_no)
+void *sigclib_queue_dTor(void *phdl)
 {
-  p->rd          = 0;    // aktuelle leseposition
-  p->wr          = 0;    // aktuelle writeposition
-  p->record_no   = 0;    // gesamtanzahl der reords im recordpuffer
-  p->record_size = 0;    // grösse eines records in bytes
-  p->record_user = 0;    // grösse der userdaten im record
-  p->data        = NULL; // pointer auf datapuffer
-  p->rd_lock     = 0;    // rd_lock
-  p->bitpattern  = 0;
+  // This function is used to destroy already created thread-safe buffer
+  // --> phdl ............ pointer to buffer, created by function sigclib_queue_cTor()
+  // Function will return NULL on success
   
-  if((record_size != 0) && (record_no > 0) && ((((unsigned long)p) & 3) == 0))
+  _tQueue *pq = sigclib_queue_chkhdl(phdl);
+  if(pq != NULL)
   {
-    unsigned long fullsize = record_size + 8; // userdaten + 2*4byte
-    fullsize = ((fullsize + 3) / 4) * 4; // recordsize muss 4 byte aligned sein
-    
-    // folgende grössen einhalten, ansonsten funktioniert 32bit-wrap von rd- und wr-index nicht
-    if     (record_no > 0x8000) record_no = 0x10000;
-    else if(record_no > 0x4000) record_no = 0x08000;
-    else if(record_no > 0x2000) record_no = 0x04000;
-    else if(record_no > 0x1000) record_no = 0x02000;
-    else if(record_no > 0x0800) record_no = 0x01000;
-    else if(record_no > 0x0400) record_no = 0x00800;
-    else if(record_no > 0x0200) record_no = 0x00400;
-    else if(record_no > 0x0100) record_no = 0x00200;
-    else if(record_no > 0x0080) record_no = 0x00100;
-    else if(record_no > 0x0040) record_no = 0x00080;
-    else if(record_no > 0x0020) record_no = 0x00040;
-    else if(record_no > 0x0010) record_no = 0x00020;
-    else if(record_no > 0x0008) record_no = 0x00010;
-    else if(record_no > 0x0004) record_no = 0x00008;
-    else if(record_no > 0x0002) record_no = 0x00004;
-    
-    unsigned long bytesize = fullsize * record_no; // gesamtgrösse des puffers in bytes
-    if(sigclib_memory((void**)&p->data, bytesize) != 0)
+    intern_queue_lock_push(pq); // lock queue, access is therefore blocked
+    sigclib_queue_free_record_all(pq); // iterate all records an free
+    sigclib_free(pq);
+    return NULL;
+  }
+  
+  return phdl;
+}
+
+_uint32 sigclib_queue_add(void *phdl, void *pdata, _uint32 bytesize)
+{
+  // Function is used to add arbitrary userdata to already created thread-safe buffer
+  // --> phdl ............ pointer to buffer, created by function sigclib_queue_cTor()
+  // --> pdata ........... userdata to add
+  // --> bytesize ........ byte size of userdata to add
+  // Function will return <>0 on success or 0 if userdata not added
+  // Note: Buffer is able to deal with byte size bigger than given record_size in sigclib_queue_cTor().
+  //       In this case memory will be allocated internally. There is no need for user to care this allocation.
+  
+  _tQueue *pq = sigclib_queue_chkhdl_exact(phdl);
+  if(pq != NULL) // && (pdata != NULL) && (bytesize != 0)) // ensure 0 bytes in single record
+  {
+    void *pd = NULL;
+    if(bytesize > pq->datasize)
     {
-      sigclib_memset(p->data, 0, bytesize);
-      p->record_no   = record_no;
-      p->bitpattern  = record_no - 1;
-      p->record_size = fullsize;
-      p->record_user = record_size;
-      return 1;
+      pd = sigclib_malloc(bytesize);
+      if(pd == NULL)
+      {
+        return 0;
+      }
+    }
+    
+    _uint32 nox = sigclib_atomic_getU32(&pq->fill);
+    if(nox <= pq->fillmax) // spacer, necessary because the wr should not overtake rd index and the add function can be called by multiple tasks simultaneously
+    {
+      _uint32 idx = sigclib_atomic_incU32(&pq->wr);
+      _tQueueRecord *pr = (_tQueueRecord*)&pq->data[(idx & pq->bitpattern) * pq->recordsize];
+      _uint32 rst = sigclib_atomic_cmpxchgU32(&pr->state, QRst_FREE, QRst_BUSY_WR);
+      if(rst == QRst_FREE)
+      {
+        sigclib_atomic_incU32(&pq->fill);
+        pr->ptr = (pd != NULL)? pd : pr->data;
+        sigclib_memcpy(pr->ptr, pdata, bytesize);
+        pr->datasize = bytesize; //xigclib_atomic_setU32(&pr->datasize, bytesize);
+        sigclib_atomic_setU32(&pr->state, QRst_READY); // set ready
+        return 1;
+      }
+    }
+    
+    sigclib_free(pd);
+  }
+  
+  return 0;
+}
+
+_uint32 sigclib_queue_get_copy(void *phdl, void *pdata, _uint32 bytesize)
+{
+  // Use this function to get a copy of recorded data from thread-safe buffer
+  // --> phdl ............ pointer to buffer, created by function sigclib_queue_cTor()
+  // --> pdata ........... destination where copy of userdata should be filed
+  // --> bytesize ........ max. byte size of destination
+  // Function will return number of copied bytes if record was present, on the other hand 0
+
+  _tQueue *pq = sigclib_queue_chkhdl_exact(phdl);
+  if(pq != NULL)
+  {
+    _uint32 ird = sigclib_atomic_getU32(&pq->rd);
+    _tQueueRecord *pr = (_tQueueRecord*)(&pq->data[(ird & pq->bitpattern) * pq->recordsize]);
+    if(sigclib_atomic_cmpxchgU32(&pr->state, QRst_READY, QRst_BUSY_RD) == QRst_READY)
+    {
+      sigclib_atomic_incU32(&pq->rd); // inc rd
+      _uint32 retcode = (pdata != NULL)? pr->datasize : 0; // check NULL-pointer
+      sigclib_memcpy(pdata, pr->ptr, (bytesize < retcode)? bytesize : retcode);
+      sigclib_atomic_decU32(&pq->fill);
+      sigclib_queue_free_record(pr); // free record
+      return retcode;
     }
   }
   
   return 0;
 }
 
-// ------------------------------------------------------------------------------------------------
-// free whole cPipe
-// --> p ................. pointer to cPipe
-// ================================================================================================
-void cPipe_Free(cPipe *p)
+void *sigclib_queue_get(void *phdl, _uint32 *pbytesize)
 {
-  if(p != NULL)
+  // Use this function to get data from thread-safe buffer
+  // --> phdl ............ pointer to buffer, created by function sigclib_queue_cTor()
+  // --> pbytesize ....... address where byte size of userdata should be filed, or NULL if not needed
+  // Function will return pointer to userdata or NULL if none are present
+  // Note: User must call function sigclib_queue_skip() after usage of data to skip record. 
+  //       Otherwise the thread-safe buffer will be stuffed over time.
+
+  _tQueue *pq = sigclib_queue_chkhdl_exact(phdl);
+  if(pq != NULL)
   {
-    unsigned char *tmp = p->data;
-    cPipe_Init(p, 0, 0);
-    sigclib_memory((void**)&tmp, 0);
+    _uint32 ird = sigclib_atomic_getU32(&pq->rd);
+    _tQueueRecord *pr = (_tQueueRecord*)(&pq->data[(ird & pq->bitpattern) * pq->recordsize]);
+    if(sigclib_atomic_cmpxchgU32(&pr->state, QRst_READY, QRst_BUSY_RD) == QRst_READY)
+    {
+      sigclib_atomic_incU32(&pq->rd); // inc rd
+      if(pbytesize != NULL)
+      {
+        *pbytesize = pr->datasize;
+      }
+      return pr->ptr;
+    }
   }
+  
+  if(pbytesize != NULL)
+  {
+    *pbytesize = 0;
+  }
+  
+  return NULL;
 }
 
-// ------------------------------------------------------------------------------------------------
-// put copy of recorddata into cPipe
-// --> p ................. pointer to cPipe
-// --> pdata ............. pointer to recorddata
-// --> datasize .......... bytenumber of new recorddata
-// ------------------------------------------------------------------------------------------------
-// <-- 1 ... success, 0 ... error (cPipe is full, recorddata too big)
-// ================================================================================================
-unsigned long cPipe_Add(cPipe *p, void *pdata, unsigned long datasize)
+void *sigclib_queue_skip(void *phdl, void *pdata)
 {
-  if(p != NULL) 
+  // Function is used to skip (free) record in thread-safe buffer
+  // --> phdl ............ pointer to buffer, created by function sigclib_queue_cTor()
+  // --> pdata ........... pointer to userdata given by function sigclib_queue_get()
+  // Function will return NULL
+
+  if(pdata != NULL)
   {
-    if(datasize <= p->record_user)
+    _tQueue *pq = sigclib_queue_chkhdl(phdl);
+    if(pq != NULL)
     {
-      unsigned long nox = (p->record_no > 10)? 10 : p->record_no; // incl.bremse, 10 versuche sollten reichen
-      unsigned long idx = sigclib_atomic_getU32(&p->wr);
+      _uint32 nox = pq->no;
+      _uint08 *pi = pq->data;
+      _uint32 idx = sigclib_atomic_getU32(&pq->rd);
       
       while(nox--)
       {
-        unsigned long *pu32 = (unsigned long*)&p->data[(idx & p->bitpattern) * p->record_size];
-        if(sigclib_atomic_cmpxchgU32(&pu32[0], 0, PIPE_MASK_CPXG) == 0) // ist record aktuell unbenützt --> diesen benützen
+        idx--;
+        _tQueueRecord *pr = (_tQueueRecord*)(&pi[(idx & pq->bitpattern) * pq->recordsize]);
+        if(pr->ptr == pdata)
         {
-          sigclib_memcpy(&pu32[2], pdata, datasize); // recorddaten kopieren
-          sigclib_atomic_swpU32(&pu32[1], PIPE_MASK_VALID); // recorddaten auf gültig setzen
-          sigclib_atomic_incU32(&p->wr); // inc wr-index
-          return 1; // finito
+          sigclib_atomic_decU32(&pq->fill);
+          sigclib_queue_free_record(pr); // free record
+          return NULL;
         }
-        idx++;
       }
     }
   }
-  return 0;
-}
-
-// ------------------------------------------------------------------------------------------------
-// get record from cPipe
-// --> pd ................ pointer to destination where data of record will be copied
-// --> p ................. pointer to cPipe
-// ------------------------------------------------------------------------------------------------
-// <-- 1 ... recorddata sucessfull copied, 0 ... no recorddata available 
-// ================================================================================================
-unsigned long cPipe_Get(void *pdata, cPipe *p)
-{
-  unsigned long retcode = 0;
   
-  if(p != NULL)
-  {
-    if(p->wr != p->rd) // sind records vorhanden
-    {
-      if(sigclib_atomic_cmpxchgU32(&p->rd_lock, 0, PIPE_MASK_LOCK) == 0) // wenn kein lock --> lock
-      {
-        if(p->wr != p->rd) // nochmalige prüfung während rd-lock
-        {
-          unsigned long idx = sigclib_atomic_getU32(&p->rd) & p->bitpattern;
-          unsigned long *pu32 = (unsigned long*)&p->data[idx * p->record_size];
-      
-          if(pu32[1] == PIPE_MASK_VALID) // ist record aktuell gültig --> diesen auslesen
-          {
-            if(pdata != NULL)
-            {
-              sigclib_memcpy(pdata, &pu32[2], p->record_user); // recorddaten kopieren
-            }
-            sigclib_atomic_swpU32(&pu32[1], 0); // recorddaten auf ungültig setzen
-            sigclib_atomic_swpU32(&pu32[0], 0); // record auf unbenützt setzen
-            sigclib_atomic_incU32(&p->rd); // inc rd-index
-            retcode = 1;
-          }
-        }
-      
-        sigclib_atomic_swpU32(&p->rd_lock, 0); // unlock
-      }
-    }
-  }
-  return retcode;
+  return pdata;
 }
 
-// ------------------------------------------------------------------------------------------------
-// get number of used recordplaces in cPipe
-// --> p ................. pointer at cPipe
-// ------------------------------------------------------------------------------------------------
-// <-- number of records in cPipe 
-// ================================================================================================
-unsigned long cPipe_GetUsed(cPipe *p)
+_uint32 sigclib_queue_free(void *phdl)
 {
-  if(p != NULL)
+  // This function is used to empty thread-safe buffer
+  // --> phdl ............ pointer to buffer, created by function sigclib_queue_cTor()
+  // Function will return number of recent occupied records
+  
+  _tQueue *pq = sigclib_queue_chkhdl(phdl);
+  if(pq != NULL)
   {
-    return (sigclib_atomic_getU32(&p->wr) - sigclib_atomic_getU32(&p->rd));
-  }
-  return 0;
-}
-
-// ------------------------------------------------------------------------------------------------
-// get number of unused records in buffer
-// --> p ................. pointer auf cPipe
-// ------------------------------------------------------------------------------------------------
-// <-- number of unused records in cPipe 
-// ================================================================================================
-unsigned long cPipe_GetUnUsed(cPipe *p)
-{
-  if(p != NULL)
-  {
-    return p->record_no - (sigclib_atomic_getU32(&p->wr) - sigclib_atomic_getU32(&p->rd));
-  }
-  return 0;
-}
-
-
-/*
-// liefert immer die letzte gültige zelle
-unsigned long cLiFo_Add(cPipe *p, void *pdata, unsigned long datasize)
-{
-  if(p != NULL) 
-  {
-    if(datasize <= p->record_user)
-    {
-      unsigned long nox = (p->record_no > 5)? 5 : p->record_no; // incl.bremse, 5 versuche sollten reichen
-      unsigned long idx = sigclib_atomic_getU32(&p->wr);
-      
-      while(nox--)
-      {
-        unsigned long *pu32 = (unsigned long*)&p->data[(idx & p->bitpattern) * p->record_size];
-        if(sigclib_atomic_cmpxchgU32(&pu32[0], 0, PIPE_MASK_LOCK) == 0) // wenn kein lock --> lock
-        {
-          sigclib_atomic_swpU32(&pu32[1], 0); // recorddaten auf ungültig setzen
-          sigclib_memcpy(&pu32[2], pdata, datasize); // recorddaten kopieren
-          sigclib_atomic_swpU32(&pu32[1], PIPE_MASK_VALID); // recorddaten auf gültig setzen
-          sigclib_atomic_incU32(&p->wr); // inc wr-index
-          sigclib_atomic_swpU32(&pu32[0], 0); // unlock
-          return 1; // finito
-        }
-        idx++;
-      }
-    }
-  }
-  return 0;
-}
-
-unsigned long cLiFo_Get(void *pdata, cPipe *p)
-{
-  if(p != NULL)
-  {
-    unsigned long nox = (p->record_no > 5)? 5 : p->record_no; // incl.bremse, 5 versuche sollten reichen
-    unsigned long idx = sigclib_atomic_getU32(&p->wr); 
+    intern_queue_lock_push(pq); // lock queue, access is therefore blocked
+    _uint32 retcode = sigclib_queue_free_record_all(pq); // iterate all records an free
+    sigclib_memset(pq->data, 0, pq->no * pq->recordsize); // set data to 0
+    sigclib_atomic_setU32(&pq->fill, 0);
+    sigclib_atomic_setU32(&pq->wr, 0);
+    sigclib_atomic_setU32(&pq->rd, 0);
+    intern_queue_lock_pop(pq); // unlock queue, access is therefore guaranteed
     
-    while(nox--)
-    {
-      idx--;
-      unsigned long *pu32 = (unsigned long*)&p->data[(idx & p->bitpattern) * p->record_size];
-  
-      if(pu32[1] == PIPE_MASK_VALID) // ist record aktuell gültig --> diesen auslesen
-      {
-        if(sigclib_atomic_cmpxchgU32(&pu32[0], 0, PIPE_MASK_LOCK) == 0) // wenn kein lock --> lock
-        {
-          if(pdata != NULL)
-          {
-            sigclib_memcpy(pdata, &pu32[2], p->record_user); // recorddaten kopieren
-          }
-          sigclib_atomic_swpU32(&pu32[0], 0); // unlock
-          return 1;
-        }
-      }
-    }
+    return retcode;
   }
   
   return 0;
 }
-*/
+
+void sigclib_queue_lock_push(void *phdl)
+{
+  // The function is used to lock thread-safe-buffer. While buffer is locked user is not able to add or get records.
+  // Use function sigclib_queue_lock_pop() to unlock buffer afterwards.
+  // --> phdl ............ pointer to buffer, created by function sigclib_queue_cTor()
+  // Note: Initially, the buffer is not blocked. If the buffer is blocked by user multiple times, this blockage must also be 
+  //       resolved multiple times by using function sigclib_queue_lock_pop().
+  
+  _tQueue *pq = sigclib_queue_chkhdl(phdl);
+  if(pq != NULL)
+  {
+    intern_queue_lock_push(pq);
+  }
+}
+
+void sigclib_queue_lock_pop(void *phdl)
+{
+  // This function is used to unlock a already locked thread-safe-buffer.
+  // Use function sigclib_queue_lock_pop() to unlock buffer afterwards.
+  // --> phdl ............ pointer to buffer, created by function sigclib_queue_cTor()
+  
+  _tQueue *pq = sigclib_queue_chkhdl(phdl);
+  if(pq != NULL)
+  {
+    intern_queue_lock_pop(pq);
+  }
+}
+
+_uint32 sigclib_queue_used(void *phdl)
+{
+  // The function is used to determine the actual number of occupied records in thread-safe buffer.
+  // --> phdl ............ pointer to buffer, created by function sigclib_queue_cTor()
+  // Function will return the actual number of occupied records in thread-safe buffer
+  
+  _tQueue *pq = sigclib_queue_chkhdl(phdl);
+  if(pq != NULL)
+  {
+    return sigclib_atomic_getU32(&pq->fill);
+  }
+  return 0;
+}
+
+void *cPipe_CTor(_uint32 record_size, _uint32 record_no)
+{
+  // constructor of cPipe
+  // --> record_size ..... max.byte size of single record
+  // --> recode_no ....... maximum number of records in buffer
+  // Function will return a valid pointer to cPipe or NULL on error
+  return sigclib_queue_cTor(record_size, record_no);
+}
+
+void *cPipe_DTor(void *phdl)
+{
+  // Destructor of cPipe. NOTE.
+  // --> phdl ............ pointer to cPipe
+  // Function will return NULL on success
+  return sigclib_queue_dTor(phdl);
+}
+
+_uint32 cPipe_Add(void *phdl, void *pdata, _uint32 datasize)
+{
+  // Function ist used to userdefined data into cPipe
+  // --> phdl ............ pointer to cPipe
+  // --> pdata ........... pointer to userdata
+  // --> datasize ........ byte size of usedefined data
+  // Function will return <>0 on success, on the other hand 0
+  
+  _tQueue *pq = sigclib_queue_chkhdl(phdl);
+  if(pq != NULL)
+  {
+    if(datasize <= pq->datasize)
+    {
+      return sigclib_queue_add(phdl, pdata, datasize);
+    }
+  }
+  return 0;
+}
+
+_uint32 cPipe_Get(void *pdata, void *phdl)
+{
+  // Function is used to get a copy of data from cPipe
+  // --> pd .............. pointer to destination where user data should be filed
+  // --> phdl ............ pointer to cPipe
+  // Function will return 1 when record including userdata is found or 0 if no record is available
+  return (sigclib_queue_get_copy(phdl, pdata, 0xFFFFFFFF) != 0)? 1 : 0; // legacy 1/0
+}
+
+_uint32 cPipe_GetUsed(void *phdl)
+{
+  // The function is used to determine the actual number of occupied records in thread-safe buffer.
+  // --> phdl ............ pointer to buffer, created by function sigclib_queue_cTor()
+  // Function will return the actual number of occupied records in thread-safe buffer
+  
+  return sigclib_queue_used(phdl);
+}
+
+_uint32 cPipe_GetUnUsed(void *phdl)
+{
+  // The function is used to determine the actual number of unused records in thread-safe buffer.
+  // --> phdl ............ pointer to buffer, created by function sigclib_queue_cTor()
+  // Function will return the actual number of unused records in thread-safe buffer
+  
+  _tQueue *pq = sigclib_queue_chkhdl(phdl);
+  if(pq != NULL)
+  {
+    _uint32 no = sigclib_atomic_getU32(&pq->fill);
+    return (no < pq->fillmax)? (pq->fillmax - no) : 0;
+  }
+  return 0;
+}
 
 #define tDataRec_DATAUNUSED    0  // Note: Wert nicht ändern
 #define tDataRec_DATAREADY     1  // Note: Wert nicht ändern
@@ -365,8 +532,9 @@ static tActDataRec *SeekUnusedOrOldestNonBlocked(tActDataBuff *p)
 
 void *sigclib_actdata_cTor(_uint32 recordsize)
 {
-  // Constructor
-  // --> recordsize ............ erzeugt einen ActDataBuffer
+  // Function is used to create a thread-safe buffer to put in datasets and serve the latest valid dataset
+  // --> recordsize ............ maximum size of single record
+  // Function will return valid pointer to thread-safe buffer, ot NULL on error
   
   _uint32 size0 = sizeof(tActDataBuff);
   while(size0 & 3) { size0++; }           // 32Bit align
@@ -391,7 +559,7 @@ void *sigclib_actdata_cTor(_uint32 recordsize)
 void *sigclib_actdata_dTor(void *phdl)
 {
   // Destructor
-  // <-- retourniert immer NULL
+  // Function will always return NULL
   
   if(phdl != NULL)
   {
@@ -403,10 +571,10 @@ void *sigclib_actdata_dTor(void *phdl)
 _uint32 sigclib_actdata_add(void *phdl, void *pdata, _uint32 bytesize)
 {
   // neue Daten in Puffer eintragen
-  // --> phdl .................. gültiges Handle
-  // --> pdata ................. Daten
-  // --> bytesize .............. Bytesize der Daten
-  // <-- Funktion liefert bei Erfolg 1, ansonsten 0
+  // --> phdl .................. valid pointer to thread-safe buffer
+  // --> pdata ................. user data
+  // --> bytesize .............. byte size of userdata
+  // Function will return 1 on success, on the oterr hand 0
 
   if (phdl != NULL)
   {
@@ -434,7 +602,7 @@ void *sigclib_actdata_get(void *phdl, _uint32 *pbytesize)
   // Pointer auf aktuelle Daten im Puffer ermitteln
   // --> phdl .................. gültiges Handle
   // --> bytesize .............. NULL oder die Adresse wo anzahl der aktuellen DatenBytes eingetragen wird
-  // <-- Funktion liefert einen Pointer auf die aktuellsten Daten oder NULL falls keine Daten vorhanden
+  // Funktion liefert einen Pointer auf die aktuellsten Daten oder NULL falls keine Daten vorhanden
   // NOTE: Nachdem Daten verarbeitet wurden muss Funktion ActDataBuff_Skip() aufgerufen werden.
   
   if(phdl != NULL)
@@ -488,7 +656,6 @@ void *sigclib_actdata_get(void *phdl, _uint32 *pbytesize)
   return NULL;
 }
 
-
 void sigclib_actdata_skip(void *phdl, void *pdata)
 {
   // diese Funktion muss nach ActDataBuff_GetActual() aufgerufen werden.
@@ -512,7 +679,4 @@ void sigclib_actdata_skip(void *phdl, void *pdata)
     }
   }
 }
-
-
-
 

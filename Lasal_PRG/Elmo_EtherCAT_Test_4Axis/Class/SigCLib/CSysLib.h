@@ -107,6 +107,9 @@
     // destroy created thread
     cExtern long sigclib_thread_destroy(unsigned long threadhdl);
 
+    // call membarrier-function of OpSys
+    cExtern void sigclib_membarrier(void);
+
     // delay thread ms
     cExtern void sigclib_thread_delay(unsigned long duration);
     
@@ -221,6 +224,9 @@
 
     // destroy created thread
     function global __cdecl sigclib_thread_destroy var_input threadhdl:udint; end_var var_output retcode:dint; end_var;
+
+    // call membarrier-function of OpSys
+    function global __cdecl sigclib_membarrier;
 
     // delay thread ms
     function global __cdecl sigclib_thread_delay var_input duration:udint; end_var;

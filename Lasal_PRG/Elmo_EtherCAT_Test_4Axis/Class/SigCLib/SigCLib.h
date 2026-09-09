@@ -26,10 +26,20 @@
   #include "CHeap.h"
   #include "CDeEncode.h"
 
-  #define sigclib_version 46
+  #define sigclib_version 47
  
 #endif
 
+
+// version 0.47, 18.06.2026 ----------------------------------------------------------------------
+// changes:
+//   SWAGV-574: Changes in atomic functions to ensure call of MemBarrier when using arm-architecture.
+// new functions added:
+//   SWAGV-574: sigclib_queue_cTor(), sigclib_queue_dTor(), sigclib_queue_add(), sigclib_queue_get_copy(), sigclib_queue_get(), sigclib_queue_skip(),
+//   sigclib_queue_get_used(), sigclib_queue_lock_push(), sigclib_queue_lock_pop(), sigclib_membarrier(), sigclib_DMB()
+//   Functionality of cPipe will internally use newly added fuctionality of sigclib_queue
+// new define added:
+//   sigclib_sizeof_ptr
 
 // version 0.46, 04.12.2025 ----------------------------------------------------------------------
 // correction:

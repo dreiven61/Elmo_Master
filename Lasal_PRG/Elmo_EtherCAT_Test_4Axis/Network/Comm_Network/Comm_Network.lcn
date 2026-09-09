@@ -429,8 +429,8 @@
 		<Connection Source="LMCDiagnosticsService1.InputLatch" Destination="LMCEcatInputLatch1.ClassSvr"/>
 		<Connection Source="LMCDiagnosticsService1.RecorderStore" Destination="LMCRecorderStore1.ClassSvr"/>
 		<Connection Source="TCPMotionInterface1._TCPIPServer" Destination="TCPIPServer1.Control" Vertices="(2670,270),(1942,270),"/>
-		<Connection Source="LMCDiagnosticsService1.SdoAxis1" Destination="LMCSdoExecutor1.ClassState"/>
-		<Connection Source="LMCDiagnosticsService1.SdoAxis2" Destination="LMCSdoExecutor2.ClassState"/>
+		<Connection Source="LMCDiagnosticsService1.SdoAxis1" Destination="LMCSdoExecutor5.ClassState"/>
+		<Connection Source="LMCDiagnosticsService1.SdoAxis2" Destination="LMCSdoExecutor6.ClassState"/>
 		<Connection Source="LMCDiagnosticsService1.SdoAxis3" Destination="LMCSdoExecutor3.ClassState"/>
 		<Connection Source="LMCDiagnosticsService1.SdoAxis4" Destination="LMCSdoExecutor4.ClassState"/>
 		<Connection Source="TCPMotionInterface1.ControlCommands" Destination="LMCControlCommandService1.ClassSvr" Vertices="(2670,450),(2520,450),(2520,1980),(1968,1980),"/>

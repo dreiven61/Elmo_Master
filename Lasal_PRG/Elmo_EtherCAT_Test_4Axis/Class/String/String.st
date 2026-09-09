@@ -104,14 +104,14 @@ FUNCTION GLOBAL TAB String::@CT_
 1$UINT, 11$UINT, (SIZEOF(::String))$UINT, 
 0$UINT, 1$UINT, 0$UINT, 
 TO_UDINT(1850111279), "String", //Class
-TO_UDINT(2898603620), "StringInternal", 1$UINT, 86$UINT, //Baseclass
+TO_UDINT(2898603620), "StringInternal", 1$UINT, 87$UINT, //Baseclass
 //Servers:
 //Clients:
 (::String.MerkerEx0.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(2860615309), "MerkerEx0", TO_UDINT(2225119864), "MerkerEx", 1$UINT, 22$UINT, 
 END_FUNCTION
 
 
-#define USER_CNT_String 52
+#define USER_CNT_String 55
 
 TYPE
 	_LSL_STD_VMETH	: STRUCT

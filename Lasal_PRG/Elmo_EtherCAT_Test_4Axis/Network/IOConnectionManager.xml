@@ -13,17 +13,17 @@
 			<IOConnection ObjSrv="Elmo_11" Server="AxEnable" ObjClt="PosController1" Client="oActive" IOI="Output" Type="Digital" SortIndex="2" KeyName="000002" Advanced="0"/>
 			<IOConnection ObjSrv="Elmo_11" Server="SetPos" ObjClt="PosController1" Client="oOutputSignal" IOI="Output" Type="Analog" SortIndex="3" KeyName="000003" Advanced="0"/>
 			<IOConnection ObjSrv="Elmo_11" Server="AxEnable" ObjClt="PosController1" Client="DriveEnabled" IOI="Output" Type="Digital" SortIndex="4" KeyName="000004" Advanced="0"/>
-			<IOConnection ObjSrv="Elmo_11" Server="ActPos" ObjClt="_LMCAxis1" Client="ActPosition" IOI="Input" Type="Analog" SortIndex="5" KeyName="000005" Advanced="0"/>
-			<IOConnection ObjSrv="Elmo_11" Server="AxError" ObjClt="_LMCAxis1" Client="HWError" IOI="Input" Type="Digital" SortIndex="6" KeyName="000006" Advanced="0"/>
-			<IOConnection ObjSrv="Elmo_11" Server="Online" ObjClt="_LMCAxis1" Client="HWReady" IOI="IOState" SortIndex="7" KeyName="000007" Advanced="0"/>
+			<IOConnection ObjSrv="WELCON_11" Server="ActPos" ObjClt="_LMCAxis1" Client="ActPosition" IOI="Input" Type="Analog" SortIndex="5" KeyName="000005" Advanced="0"/>
+			<IOConnection ObjSrv="WELCON_11" Server="AxError" ObjClt="_LMCAxis1" Client="HWError" IOI="Input" Type="Digital" SortIndex="6" KeyName="000006" Advanced="0"/>
+			<IOConnection ObjSrv="WELCON_11" Server="Online" ObjClt="_LMCAxis1" Client="HWReady" IOI="IOState" SortIndex="7" KeyName="000007" Advanced="0"/>
 			<IOConnection ObjSrv="Elmo_21" Server="AxError" ObjClt="PosController2" Client="iHWErrors" IOI="Input" Type="Digital" SortIndex="8" KeyName="000008" Advanced="0"/>
 			<IOConnection ObjSrv="Elmo_21" Server="AxErrorQuit" ObjClt="PosController2" Client="HWErrorQuit" IOI="Output" Type="Digital" SortIndex="9" KeyName="000009" Advanced="0"/>
 			<IOConnection ObjSrv="Elmo_21" Server="AxEnable" ObjClt="PosController2" Client="oActive" IOI="Output" Type="Digital" SortIndex="10" KeyName="000010" Advanced="0"/>
 			<IOConnection ObjSrv="Elmo_21" Server="SetPos" ObjClt="PosController2" Client="oOutputSignal" IOI="Output" Type="Analog" SortIndex="11" KeyName="000011" Advanced="0"/>
 			<IOConnection ObjSrv="Elmo_21" Server="AxEnable" ObjClt="PosController2" Client="DriveEnabled" IOI="Output" Type="Digital" SortIndex="12" KeyName="000012" Advanced="0"/>
-			<IOConnection ObjSrv="Elmo_21" Server="ActPos" ObjClt="_LMCAxis2" Client="ActPosition" IOI="Input" Type="Analog" SortIndex="13" KeyName="000013" Advanced="0"/>
-			<IOConnection ObjSrv="Elmo_21" Server="AxError" ObjClt="_LMCAxis2" Client="HWError" IOI="Input" Type="Digital" SortIndex="14" KeyName="000014" Advanced="0"/>
-			<IOConnection ObjSrv="Elmo_21" Server="Online" ObjClt="_LMCAxis2" Client="HWReady" IOI="IOState" SortIndex="15" KeyName="000015" Advanced="0"/>
+			<IOConnection ObjSrv="DriveAxisDS4021" Server="ActPos" ObjClt="_LMCAxis2" Client="ActPosition" IOI="Input" SortIndex="13" KeyName="000013" Advanced="0"/>
+			<IOConnection ObjSrv="DriveAxisDS4021" Server="ActPos" ObjClt="_LMCAxis2" Client="HWError" IOI="Input" SortIndex="14" KeyName="000014" Advanced="0"/>
+			<IOConnection ObjSrv="WELCON_11" Server="Online" ObjClt="_LMCAxis2" Client="HWReady" IOI="IOState" SortIndex="15" KeyName="000015" Advanced="0"/>
 			<IOConnection ObjSrv="Elmo_31" Server="AxError" ObjClt="PosController3" Client="iHWErrors" IOI="Input" Type="Digital" SortIndex="16" KeyName="000016" Advanced="0"/>
 			<IOConnection ObjSrv="Elmo_31" Server="AxErrorQuit" ObjClt="PosController3" Client="HWErrorQuit" IOI="Output" Type="Digital" SortIndex="17" KeyName="000017" Advanced="0"/>
 			<IOConnection ObjSrv="Elmo_31" Server="AxEnable" ObjClt="PosController3" Client="oActive" IOI="Output" Type="Digital" SortIndex="18" KeyName="000018" Advanced="0"/>
@@ -39,6 +39,7 @@
 			<IOConnection ObjSrv="Elmo_41" Server="AxEnable" ObjClt="PosController4" Client="DriveEnabled" IOI="Output" Type="Digital" SortIndex="28" KeyName="000028" Advanced="0"/>
 			<IOConnection ObjSrv="Elmo_41" Server="ActPos" ObjClt="_LMCAxis4" Client="ActPosition" IOI="Input" Type="Analog" SortIndex="29" KeyName="000029" Advanced="0"/>
 			<IOConnection ObjSrv="Elmo_41" Server="AxError" ObjClt="_LMCAxis4" Client="HWError" IOI="Input" Type="Digital" SortIndex="30" KeyName="000030" Advanced="0"/>
+			<IOConnection ObjSrv="WELCON_11" Server="AxError" ObjClt="PosController_Welcon_01" Client="iHWErrors" IOI="Input" Type="Digital" SortIndex="48" KeyName="000031" Advanced="0"/>
 			<IOConnection ObjSrv="EtherCAT_PLC1" Server="ClassState" ObjClt="LMCEcatInputLatch1" Client="EcatMaster" IOI="IOState" SortIndex="32" KeyName="000032" Advanced="0"/>
 			<IOConnection ObjSrv="Elmo_11" Server="ClassState" ObjClt="LMCEcatInputLatch1" Client="Drive1" IOI="IOState" SortIndex="33" KeyName="000033" Advanced="0"/>
 			<IOConnection ObjSrv="Elmo_21" Server="ClassState" ObjClt="LMCEcatInputLatch1" Client="Drive2" IOI="IOState" SortIndex="34" KeyName="000034" Advanced="0"/>
@@ -48,9 +49,26 @@
 			<IOConnection ObjSrv="GL_9086_11" Server="ClassState" ObjClt="LMCEcatInputLatch1" Client="Coupler" IOI="IOState" SortIndex="45" KeyName="000038" Advanced="0"/>
 			<IOConnection ObjSrv="GL_9086_1_Slot001" Server="ClassState" ObjClt="LMCEcatInputLatch1" Client="InputSlot" IOI="IOState" SortIndex="46" KeyName="000039" Advanced="0"/>
 			<IOConnection ObjSrv="GL_9086_1_Slot011" Server="ClassState" ObjClt="LMCEcatInputLatch1" Client="OutputSlot" IOI="IOState" SortIndex="47" KeyName="000040" Advanced="0"/>
+			<IOConnection ObjSrv="WELCON_11" Server="AxEnable" ObjClt="PosController_Welcon_01" Client="oActive" IOI="Output" Type="Digital" SortIndex="49" KeyName="000041" Advanced="0"/>
 			<IOConnection ObjSrv="Elmo_21" Server="ClassState" ObjClt="LMCSdoExecutor2" Client="toSlave" IOI="IOState" SortIndex="42" KeyName="000042" Advanced="0"/>
 			<IOConnection ObjSrv="Elmo_31" Server="ClassState" ObjClt="LMCSdoExecutor3" Client="toSlave" IOI="IOState" SortIndex="43" KeyName="000043" Advanced="0"/>
 			<IOConnection ObjSrv="Elmo_41" Server="ClassState" ObjClt="LMCSdoExecutor4" Client="toSlave" IOI="IOState" SortIndex="44" KeyName="000044" Advanced="0"/>
+			<IOConnection ObjSrv="WELCON_11" Server="SetPos" ObjClt="PosController_Welcon_01" Client="oOutputSignal" IOI="Output" Type="Analog" SortIndex="50" KeyName="000045" Advanced="0"/>
+			<IOConnection ObjSrv="WELCON_11" Server="AxEnable" ObjClt="PosController_Welcon_01" Client="DriveEnabled" IOI="Output" Type="Digital" SortIndex="51" KeyName="000046" Advanced="0"/>
+			<IOConnection ObjSrv="WELCON_11" Server="AxErrorQuit" ObjClt="PosController_Welcon_01" Client="HWErrorQuit" IOI="Output" Type="Digital" SortIndex="52" KeyName="000047" Advanced="0"/>
+			<IOConnection ObjSrv="WELCON_11" Server="RxPDO9_Controlword2" ObjClt="DriveAxisDS4021" Client="CiA_ControlWord" IOI="Output" Type="Analog" SortIndex="53" KeyName="000048" Advanced="0"/>
+			<IOConnection ObjSrv="WELCON_11" Server="TxPDO9_Statusword2" ObjClt="DriveAxisDS4021" Client="CiA_StatusWord" IOI="Input" Type="Analog" SortIndex="54" KeyName="000049" Advanced="0"/>
+			<IOConnection ObjSrv="WELCON_11" Server="RxPDO9_ModesOfOperation2" ObjClt="DriveAxisDS4021" Client="ModesOfOperation" IOI="Output" Type="Analog" SortIndex="55" KeyName="000050" Advanced="0"/>
+			<IOConnection ObjSrv="WELCON_11" Server="TxPDO9_ModesOfOperationDisplay2" ObjClt="DriveAxisDS4021" Client="ModesOfOperationDisplay" IOI="Input" Type="Analog" SortIndex="56" KeyName="000051" Advanced="0"/>
+			<IOConnection ObjSrv="WELCON_11" Server="TxPDO9_PositionActualValue2" ObjClt="DriveAxisDS4021" Client="PositionActualValue" IOI="Input" Type="Analog" SortIndex="57" KeyName="000052" Advanced="0"/>
+			<IOConnection ObjSrv="WELCON_11" Server="RxPDO9_TargetPosition2" ObjClt="DriveAxisDS4021" Client="TargetPosition" IOI="Output" Type="Analog" SortIndex="58" KeyName="000053" Advanced="0"/>
+			<IOConnection ObjSrv="WELCON_11" Server="RxPDO9_TargetTorque2" ObjClt="DriveAxisDS4021" Client="TargetTorque" IOI="Output" Type="Analog" SortIndex="59" KeyName="000054" Advanced="0"/>
+			<IOConnection ObjSrv="WELCON_11" Server="RxPDO9_TargetVelocity2" ObjClt="DriveAxisDS4021" Client="TargetVelocity" IOI="Output" Type="Analog" SortIndex="60" KeyName="000055" Advanced="0"/>
+			<IOConnection ObjSrv="WELCON_11" Server="TxPDO9_TorqueActualValue2" ObjClt="DriveAxisDS4021" Client="TorqueActualValue" IOI="Input" Type="Analog" SortIndex="61" KeyName="000056" Advanced="0"/>
+			<IOConnection ObjSrv="WELCON_11" Server="TxPDO9_VelocityActualValue2" ObjClt="DriveAxisDS4021" Client="VelocityActualValue" IOI="Input" Type="Analog" SortIndex="62" KeyName="000057" Advanced="0"/>
+			<IOConnection ObjSrv="WELCON_11" Server="Online" ObjClt="DriveAxisDS4021" Client="Online" IOI="IOState" SortIndex="63" KeyName="000058" Advanced="0"/>
+			<IOConnection ObjSrv="WELCON_11" Server="ClassState" ObjClt="LMCSdoExecutor5" Client="toSlave" IOI="IOState" SortIndex="64" KeyName="000059" Advanced="0"/>
+			<IOConnection ObjSrv="WELCON_11" Server="ClassState" ObjClt="LMCSdoExecutor6" Client="toSlave" IOI="IOState" SortIndex="65" KeyName="000060" Advanced="0"/>
 		</IOConnections>
 	</Entry>
 	<!-- List of Folders -->

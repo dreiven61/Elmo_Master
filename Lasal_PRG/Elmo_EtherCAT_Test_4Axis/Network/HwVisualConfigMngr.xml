@@ -9,7 +9,9 @@
 	<HwVisualConfig Key="GL_9086_11" Top="449.8" Left="20"/>
 	<HwVisualConfig Key="GL_9086_1_Slot001" Top="556.8" Left="20"/>
 	<HwVisualConfig Key="GL_9086_1_Slot011" Top="556.8" Left="20"/>
+	<HwVisualConfig Key="WELCON_11" Top="556.8" Left="20"/>
 	<HwVisualConnection Source="Elmo_21.toMaster" Destination="Elmo_11.EtherCATOut_1" Vertices="(34.8,125),(122,125),(122,114),(157.7,114),"/>
 	<HwVisualConnection Source="Elmo_31.toMaster" Destination="Elmo_21.EtherCATOut_1" Vertices="(34.8,229),(73,229),(73,144.88),"/>
 	<HwVisualConnection Source="Elmo_41.toMaster" Destination="Elmo_31.EtherCATOut_1" Vertices="(34.8,336),(73,336),(73,251.88),"/>
+	<HwVisualConnection Source="WELCON_11.toMaster" Destination="Elmo_41.EtherCATOut_1" Vertices="(34.8,550),(17,550),(17,339),(53.77,339),"/>
 </HwVisualConfigManager>

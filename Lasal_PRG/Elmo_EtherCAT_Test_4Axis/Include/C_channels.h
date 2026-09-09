@@ -1120,6 +1120,13 @@ typedef struct SvrCh_SafetyConfigStateType
     SVRDSC *pDsc;
   } SvrCh_SafetyConfigStateType;
 
+typedef struct SvrCh_t_bd_ControllerError_PTofCls_DriveAxisDS402_Base 
+  {
+    CHMETH *pMeth;
+    t_bd_ControllerError dData;
+    SVRDSC *pDsc;
+  } SvrCh_t_bd_ControllerError_PTofCls_DriveAxisDS402_Base;
+
 typedef struct SvrCh_t_e_ECAT_STATE 
   {
     CHMETH *pMeth;
@@ -1147,4 +1154,11 @@ typedef struct SvrCh_t_s_LMCAxis_SafetyState_PTofCls__LMCAxisBase
     t_s_LMCAxis_SafetyState dData;
     SVRDSC *pDsc;
   } SvrCh_t_s_LMCAxis_SafetyState_PTofCls__LMCAxisBase;
+
+typedef struct SvrChCmd_t_e_EnableSequence_PTofCls_DriveAxisDS402_Base 
+  {
+    CMDMETH *pMeth;
+    t_e_EnableSequence dData;
+    SVRDSC *pDsc;
+  } SvrChCmd_t_e_EnableSequence_PTofCls_DriveAxisDS402_Base;
 

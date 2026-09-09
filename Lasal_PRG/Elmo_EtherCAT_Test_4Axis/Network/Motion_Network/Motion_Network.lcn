@@ -445,10 +445,10 @@
 				<Server Name="SWMinPos" Value="-10000 mm"/>
 				<Server Name="Tjerk" Value="0"/>
 				<Server Name="VMax" Value="75 mm"/>
-				<Client Name="ActPosition"/>
+				<Client Name="ActPosition" DrawChnConn="Text"/>
 				<Client Name="Config" Value="0"/>
 				<Client Name="Emergency"/>
-				<Client Name="HWError"/>
+				<Client Name="HWError" DrawChnConn="Text"/>
 				<Client Name="HWMax"/>
 				<Client Name="HWMin"/>
 				<Client Name="HWReady"/>
@@ -4406,6 +4406,66 @@
 			</Channels>
 		</Object>
 		<Object
+			Name       = "DriveAxisDS4021"
+			GUID       = "{C0D2994E-B410-4689-AF10-2F012B700960}"
+			Class      = "DriveAxisDS402"
+			Position   = "(820,2970)"
+			Visualized = "true"
+			Remotely   = "true"
+			RealTime   = "1 ms">
+			<Channels>
+				<Server Name="ActOpMode"/>
+				<Server Name="ActPos"/>
+				<Server Name="ActSpeed"/>
+				<Server Name="ActTorque"/>
+				<Server Name="ActXW"/>
+				<Server Name="AxEnable"/>
+				<Server Name="AxError"/>
+				<Server Name="AxErrorQuit"/>
+				<Server Name="ClassState"/>
+				<Server Name="ControllerError"/>
+				<Server Name="ControlWord"/>
+				<Server Name="OperationEnabled"/>
+				<Server Name="SetOpMode" Value="8"/>
+				<Server Name="SetPos"/>
+				<Server Name="SetSpeed"/>
+				<Server Name="SetSpeedOffset"/>
+				<Server Name="SetTorque"/>
+				<Server Name="SetTorqueOffset"/>
+				<Server Name="StateWord"/>
+				<Client Name="CiA_ControlWord"/>
+				<Client Name="CiA_StatusWord"/>
+				<Client Name="FollowingErrorActualValue"/>
+				<Client Name="ModesOfOperation"/>
+				<Client Name="ModesOfOperationDisplay"/>
+				<Client Name="Online"/>
+				<Client Name="PositionActualValue"/>
+				<Client Name="TargetPosition"/>
+				<Client Name="TargetTorque"/>
+				<Client Name="TargetVelocity"/>
+				<Client Name="TorqueActualValue"/>
+				<Client Name="TorqueOffset"/>
+				<Client Name="VelocityActualValue"/>
+				<Client Name="VelocityOffset"/>
+			</Channels>
+			<!-- List of Networks in this component -->
+			<Networks>
+				<Network>
+					<!-- List of Components in this network -->
+					<Components>
+						<Object Name="_base" GUID="{554D6C6F-E801-406B-9201-480800FB7F31}" Class="DriveAxisDS402_Base">
+							<Channels>
+								<Server Name="ClassState"/>
+								<Client Name="_TaskObjCntrl"/>
+							</Channels>
+						</Object>
+					</Components>
+					<Connections>
+					</Connections>
+				</Network>
+			</Networks>
+		</Object>
+		<Object
 			Name       = "LMCEcatInputLatch1"
 			GUID       = "{10BDB5A5-256E-4AEF-8524-A71F24BF2C88}"
 			Class      = "LMCEcatInputLatch"
@@ -4772,6 +4832,80 @@
 			</Networks>
 		</Object>
 		<Object
+			Name       = "PosController_Welcon_01"
+			GUID       = "{08822314-8525-4E07-9E91-EF296272D401}"
+			Class      = "PosController"
+			Position   = "(1950,1110)"
+			Visualized = "true"
+			Remotely   = "true">
+			<Channels>
+				<Server Name="Signal_Input"/>
+				<Server Name="XW"/>
+				<Server Name="XWMax"/>
+				<Client Name="cDragCalcDelay" Value="0"/>
+				<Client Name="cDragLimit" Value="0"/>
+				<Client Name="DriveEnabled"/>
+				<Client Name="HWErrorQuit"/>
+				<Client Name="iHWErrors" Value="0"/>
+				<Client Name="oActive" Value="0"/>
+				<Client Name="oOutputSignal"/>
+				<Client Name="PosOffset"/>
+				<Client Name="vHWDelay" Value="0"/>
+			</Channels>
+			<!-- List of Networks in this component -->
+			<Networks>
+				<Network>
+					<!-- List of Components in this network -->
+					<Components>
+						<Object Name="_base" GUID="{B691716C-8462-4CBF-B00E-25D77FA0C2C0}" Class="Controller">
+							<Channels>
+								<Server Name="Signal_Input"/>
+							</Channels>
+						</Object>
+					</Components>
+					<Connections>
+					</Connections>
+				</Network>
+			</Networks>
+		</Object>
+		<Object
+			Name       = "PosController_Welcon_02"
+			GUID       = "{1D5F665C-6160-4B86-AFBB-726D1BD46A08}"
+			Class      = "PosController"
+			Position   = "(2110,2970)"
+			Visualized = "true"
+			Remotely   = "true">
+			<Channels>
+				<Server Name="Signal_Input"/>
+				<Server Name="XW"/>
+				<Server Name="XWMax"/>
+				<Client Name="cDragCalcDelay" Value="0"/>
+				<Client Name="cDragLimit" Value="0"/>
+				<Client Name="DriveEnabled"/>
+				<Client Name="HWErrorQuit"/>
+				<Client Name="iHWErrors" Value="0"/>
+				<Client Name="oActive" Value="0"/>
+				<Client Name="oOutputSignal"/>
+				<Client Name="PosOffset"/>
+				<Client Name="vHWDelay" Value="0"/>
+			</Channels>
+			<!-- List of Networks in this component -->
+			<Networks>
+				<Network>
+					<!-- List of Components in this network -->
+					<Components>
+						<Object Name="_base" GUID="{B691716C-8462-4CBF-B00E-25D77FA0C2C0}" Class="Controller">
+							<Channels>
+								<Server Name="Signal_Input"/>
+							</Channels>
+						</Object>
+					</Components>
+					<Connections>
+					</Connections>
+				</Network>
+			</Networks>
+		</Object>
+		<Object
 			Name       = "SimulationSetup1"
 			GUID       = "{A54B0119-C60A-4794-83D2-826992E55829}"
 			Class      = "SimulationSetup"
@@ -4816,21 +4950,21 @@
 		<Connection Source="PosController1.oActive" Destination="Elmo_11.AxEnable"/>
 		<Connection Source="PosController1.oOutputSignal" Destination="Elmo_11.SetPos"/>
 		<Connection Source="PosController1.DriveEnabled" Destination="Elmo_11.AxEnable"/>
-		<Connection Source="_LMCAxis1.ActPosition" Destination="Elmo_11.ActPos"/>
-		<Connection Source="_LMCAxis1.HWError" Destination="Elmo_11.AxError"/>
-		<Connection Source="_LMCAxis1.LMCController" Destination="PosController1.Signal_Input" Vertices="(3090,450),(2440,450),"/>
-		<Connection Source="_LMCAxis1.HWReady" Destination="Elmo_11.Online"/>
+		<Connection Source="_LMCAxis1.ActPosition" Destination="WELCON_11.ActPos"/>
+		<Connection Source="_LMCAxis1.HWError" Destination="WELCON_11.AxError"/>
+		<Connection Source="_LMCAxis1.LMCController" Destination="PosController_Welcon_01.Signal_Input" Vertices="(3090,450),(2440,1200),"/>
+		<Connection Source="_LMCAxis1.HWReady" Destination="WELCON_11.Online"/>
 		<Connection Source="PosController2.iHWErrors" Destination="Elmo_21.AxError"/>
 		<Connection Source="PosController2.HWErrorQuit" Destination="Elmo_21.AxErrorQuit"/>
 		<Connection Source="PosController2.oActive" Destination="Elmo_21.AxEnable"/>
 		<Connection Source="PosController2.oOutputSignal" Destination="Elmo_21.SetPos"/>
 		<Connection Source="PosController2.DriveEnabled" Destination="Elmo_21.AxEnable"/>
-		<Connection Source="_LMCAxis2.ActPosition" Destination="Elmo_21.ActPos"/>
-		<Connection Source="_LMCAxis2.HWError" Destination="Elmo_21.AxError"/>
-		<Connection Source="_LMCAxis2.HWReady" Destination="Elmo_21.Online"/>
+		<Connection Source="_LMCAxis2.ActPosition" Destination="DriveAxisDS4021.ActPos" Vertices="(3090,2310),(1618,3180),"/>
+		<Connection Source="_LMCAxis2.HWError" Destination="DriveAxisDS4021.ActPos" Vertices="(3090,2610),(1618,3180),"/>
+		<Connection Source="_LMCAxis2.HWReady" Destination="WELCON_11.Online"/>
 		<Connection Source="PosController3.iHWErrors" Destination="Elmo_31.AxError"/>
 		<Connection Source="PosController3.HWErrorQuit" Destination="Elmo_31.AxErrorQuit"/>
-		<Connection Source="_LMCAxis2.LMCController" Destination="PosController2.Signal_Input" Vertices="(3090,2370),(2440,2370),"/>
+		<Connection Source="_LMCAxis2.LMCController" Destination="PosController_Welcon_02.Signal_Input" Vertices="(3090,2370),(2600,3060),"/>
 		<Connection Source="PosController3.oActive" Destination="Elmo_31.AxEnable"/>
 		<Connection Source="PosController3.oOutputSignal" Destination="Elmo_31.SetPos"/>
 		<Connection Source="PosController3.DriveEnabled" Destination="Elmo_31.AxEnable"/>
@@ -4880,11 +5014,32 @@
 		<Connection Source="AbsEncoderSetup1.AbsEnc_Axis_7" Destination="_LMCAxis7.AbsEncoder" Vertices="(5850,5580),(3756,12840),"/>
 		<Connection Source="AbsEncoderSetup1.AbsEnc_Axis_8" Destination="_LMCAxis8.AbsEncoder" Vertices="(5850,5640),(3756,14580),"/>
 		<Connection Source="AbsEncoderSetup1.AbsEnc_Axis_9" Destination="_LMCAxis9.AbsEncoder" Vertices="(5850,5700),(3756,16290),"/>
+		<Connection Source="PosController_Welcon_02.iHWErrors" Destination="DriveAxisDS4021.AxError" Vertices="(2110,3060),(1790,3060),(1790,3960),(1618,3960),"/>
 		<Connection Source="_LMCAxis9.LMCController" Destination="PosController9.Signal_Input" Vertices="(3090,14850),(2410,14850),"/>
 		<Connection Source="_LMCAxis8.LMCController" Destination="PosController8.Signal_Input" Vertices="(3090,13140),(2410,13140),"/>
 		<Connection Source="_LMCAxis7.LMCController" Destination="PosController7.Signal_Input" Vertices="(3090,11400),(2410,11400),"/>
 		<Connection Source="_LMCAxis6.LMCController" Destination="PosController6.Signal_Input" Vertices="(3090,9630),(2410,9630),"/>
 		<Connection Source="_LMCAxis5.LMCController" Destination="PosController5.Signal_Input" Vertices="(3090,7710),(2410,7710),"/>
+		<Connection Source="PosController_Welcon_02.oActive" Destination="DriveAxisDS4021.AxEnable" Vertices="(2110,3180),(1820,3180),(1820,3840),(1790,3810),(1760,3840),(1618,3840),"/>
+		<Connection Source="PosController_Welcon_02.oOutputSignal" Destination="DriveAxisDS4021.SetPos" Vertices="(2110,3240),(1850,3240),(1820,3210),(1790,3210),(1760,3240),(1618,3240),"/>
+		<Connection Source="PosController_Welcon_02.DriveEnabled" Destination="DriveAxisDS4021.AxEnable" Vertices="(2110,3420),(1618,3840),"/>
+		<Connection Source="PosController_Welcon_02.HWErrorQuit" Destination="DriveAxisDS4021.AxErrorQuit" Vertices="(2110,3480),(1880,3480),(1880,4020),(1618,4020),"/>
+		<Connection Source="PosController_Welcon_01.iHWErrors" Destination="WELCON_11.AxError"/>
+		<Connection Source="PosController_Welcon_01.oActive" Destination="WELCON_11.AxEnable"/>
+		<Connection Source="PosController_Welcon_01.oOutputSignal" Destination="WELCON_11.SetPos"/>
+		<Connection Source="PosController_Welcon_01.DriveEnabled" Destination="WELCON_11.AxEnable"/>
+		<Connection Source="PosController_Welcon_01.HWErrorQuit" Destination="WELCON_11.AxErrorQuit"/>
+		<Connection Source="DriveAxisDS4021.CiA_ControlWord" Destination="WELCON_11.RxPDO9_Controlword2"/>
+		<Connection Source="DriveAxisDS4021.CiA_StatusWord" Destination="WELCON_11.TxPDO9_Statusword2"/>
+		<Connection Source="DriveAxisDS4021.ModesOfOperation" Destination="WELCON_11.RxPDO9_ModesOfOperation2"/>
+		<Connection Source="DriveAxisDS4021.ModesOfOperationDisplay" Destination="WELCON_11.TxPDO9_ModesOfOperationDisplay2"/>
+		<Connection Source="DriveAxisDS4021.PositionActualValue" Destination="WELCON_11.TxPDO9_PositionActualValue2"/>
+		<Connection Source="DriveAxisDS4021.TargetPosition" Destination="WELCON_11.RxPDO9_TargetPosition2"/>
+		<Connection Source="DriveAxisDS4021.TargetTorque" Destination="WELCON_11.RxPDO9_TargetTorque2"/>
+		<Connection Source="DriveAxisDS4021.TargetVelocity" Destination="WELCON_11.RxPDO9_TargetVelocity2"/>
+		<Connection Source="DriveAxisDS4021.TorqueActualValue" Destination="WELCON_11.TxPDO9_TorqueActualValue2"/>
+		<Connection Source="DriveAxisDS4021.VelocityActualValue" Destination="WELCON_11.TxPDO9_VelocityActualValue2"/>
+		<Connection Source="DriveAxisDS4021.Online" Destination="WELCON_11.Online"/>
 	</Connections>
 	<!-- Headerfiles -->
 	<Options>

@@ -20,6 +20,16 @@
   
   #endif
 
+  #ifndef sigclib_sizeof_ptr
+    #ifdef __SIZEOF_POINTER__
+      #define sigclib_sizeof_ptr __SIZEOF_POINTER__ // 4(32bit) - 8(64bit)
+    #else
+      #define sigclib_sizeof_ptr 4 // default 4(32bit)
+    #endif
+  #endif
+
+  // #define sigclib_atomic_oldstyle
+
   #ifdef cCompile
 
     #ifndef cExtern

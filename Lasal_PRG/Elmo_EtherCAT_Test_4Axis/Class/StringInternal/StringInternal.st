@@ -5,7 +5,7 @@
 (*!
 <Class
 	Name               = "StringInternal"
-	Revision           = "1.86"
+	Revision           = "1.87"
 	GUID               = "{2C12408A-7CCA-458A-912B-98C634EE4BD9}"
 	RealtimeTask       = "false"
 	CyclicTask         = "false"
@@ -28,10 +28,12 @@
 	<Dependencies>
 		<Files>
 			<File Path=".\Class\StringInternal\StringDefs.h" Include="false"/>
+			<File Path=".\Class\StringInternal\StringInternalUTF.cpp"/>
 		</Files>
 	</Dependencies>
 	<RevDoku>
-		<Owner Company="Sigmatek GmbH &amp; Co KG"/>
+		<Owner Company="Sigmatek"/>
+		<Dokumentation Revision="1.87" Date="2026-03-12" Author="kolott" Company="Sigmatek" Description="SWAGV-413: UTF-8 and UTF-16 ready"/>
 		<Dokumentation Revision="1.86" Date="2025-03-18" Author="kolott" Company="Sigmatek" Description="8D-12241: Bugfix, method ICmpUniUni() did not work properly"/>
 		<Dokumentation Revision="1.85" Date="2021-09-01" Author="kolott" Company="Sigmatek" Description="8D-3289: Bugfix in method TxtToUni()"/>
 		<Dokumentation Revision="1.84" Date="2020-05-28" Author="kolott" Company="Sigmatek" Description="DEVVIS-37, sa57324: Support of utf8-encoded strings added"/>
@@ -168,7 +170,7 @@ StringInternal : CLASS
 		END_VAR;
 				//! <Function Comment="All lower case letters are converted to upper case letters. The&#13;&#10;string object itself will be changed.&#13;&#10;Alle Kleinbuchstaben werden in Großbuchstaben konvertiert. Durch diese&#13;&#10;Funktion wird der String selbst geändert.&#13;&#10;" Name="StrUpr"/>
 	FUNCTION VIRTUAL GLOBAL StrUpr;
-				//! <Function Comment="All characters of a UNICODE-string are converted to ASCII-characters.&#13;&#10;If a character can not be transformed to ASCII-code, it will be replaced&#13;&#10;by a SPACE-character (0x20).&#13;&#10;Die Zeichen eines UNICODE-STrings werden in ASCII-Code gewandelt. Wenn&#13;&#10;sich ein Zeichen nicht auf ASCII-Code abbilden läßt, dann wird es durch&#13;&#10;ein Leerzeichen (0x20) ersetzt.&#13;&#10;" Name="ToAscii"/>
+				//! <Function Comment="All characters in string are converted to ASCII-characters.&#13;&#10;If a character can not be transformed to ASCII-code, it will be replaced&#13;&#10;by a SPACE-character (0x20).&#13;&#10;Alle Zeichen im String werden in ASCII-Code gewandelt. Wenn&#13;&#10;sich ein Zeichen nicht auf ASCII-Code abbilden läßt, dann wird es durch&#13;&#10;ein Leerzeichen (0x20) ersetzt.&#13;&#10;" Name="ToAscii"/>
 	FUNCTION VIRTUAL GLOBAL ToAscii;
 				//! <Function Comment="All characters of an ASCII-string are converted to UNICODE.&#13;&#10;Alle Zeichen eines ASCII-Strings werden auf UNICODE übersetzt.&#13;&#10;" Name="ToUniCode"/>
 	FUNCTION VIRTUAL GLOBAL ToUniCode;
@@ -490,7 +492,7 @@ StringInternal : CLASS
 		VAR_OUTPUT
 			retcode 	: BOOL;			//! <Variable Comment="Method will return &apos;true&apos; on success, on the other hand &apos;false&apos;." Name="ObjIns.retcode"/>
 		END_VAR;
-				//! <Function Comment="Get 0-terminated copy (ASCII-format) of objectcontent. Note copy is always in ASCII-format and will be truncated if objectcontent does not fit into destination.&#13;&#10;When converting unicode-string to ascii-format all non-representable characters will be replaced by &apos;?&apos;.&#13;&#10;Method will return size of single caracter in destination (1=ASCII) or 0 when nothing is written into destination.&#13;&#10;pdst.... pointer to destination. (where copy should be filed)&#13;&#10;dstsize .... bytesize of destination" Name="TxtGetAscii"/>
+				//! <Function Comment="Get 0-terminated copy (ASCII-format) of objectcontent. Note copy is always in ASCII-format and will be truncated if objectcontent does not fit into destination.&#13;&#10;When converting unicode-string to ascii-format all non-representable characters will be replaced by &apos; &apos;.&#13;&#10;Method will return size of single caracter in destination (1=ASCII) or 0 when nothing is written into destination.&#13;&#10;pdst.... pointer to destination. (where copy should be filed)&#13;&#10;dstsize .... bytesize of destination" Name="TxtGetAscii"/>
 	FUNCTION VIRTUAL GLOBAL TxtGetAscii
 		VAR_INPUT
 			pdst 	: ^CHAR;			//! <Variable Comment="pointer to destination. (where ASCII-copy should be filed)" Name="TxtGetAscii.pdst"/>
@@ -567,7 +569,7 @@ StringInternal : CLASS
 		VAR_OUTPUT
 			retcode 	: UDINT;			//! <Variable Comment="stringlength (amount of characters) of destination string" Name="TxtUtf8ToUni.retcode"/>
 		END_VAR;
-				//! <Function Comment="Set content of object with given utf8-formatted string.&#13;&#10;Method will return &apos;true&apos; on success, on the other hand &apos;false&apos;.&#13;&#10;NOTE: Internal used format of string will be unicode. To get content in utf8-format use TxtGetUtf8()&#13;&#10;" Name="TxtSetUtf8"/>
+				//! <Function Comment="Set content of object with given utf8-formatted string.&#13;&#10;Method will return &apos;true&apos; on success, on the other hand &apos;false&apos;.&#13;&#10;" Name="TxtSetUtf8"/>
 	FUNCTION VIRTUAL GLOBAL TxtSetUtf8
 		VAR_INPUT
 			src_utf8 	: ^CHAR;			//! <Variable Comment="Address of utf8-string to be copied into objectcontent" Name="TxtSetUtf8.src_utf8"/>
@@ -590,6 +592,27 @@ StringInternal : CLASS
 		END_VAR;
 	
 	FUNCTION KillUBOM;
+				//! <Function Comment="Get content of object in utf16-format.&#13;&#10;Method will return amount of characters in destination excluding final 0.&#13;&#10;NOTE: To avoid overflows, the size of the dst array shall be big enough to contain the utf16-formatted-string." Name="TxtGetUtf16"/>
+	FUNCTION VIRTUAL GLOBAL TxtGetUtf16
+		VAR_INPUT
+			dst_utf16 	: ^UINT;			//! <Variable Comment="Address of destination where utf16-string should be filed" Name="TxtGetUtf16.dst_utf16"/>
+		END_VAR
+		VAR_OUTPUT
+			retcode 	: UDINT;			//! <Variable Comment="stringlength (amount of characters) of destination string" Name="TxtGetUtf16.retcode"/>
+		END_VAR;
+				//! <Function Comment="Method will compute amount of characters when objectcontent is converted to uft16-formatted string.&#13;&#10;Note: Method will not change content of object." Name="TxtLenUtf16"/>
+	FUNCTION VIRTUAL GLOBAL TxtLenUtf16
+		VAR_OUTPUT
+			retcode 	: UDINT;			//! <Variable Comment="computed stringlength (amount of characters) after conversion of objectcontent to utf16-formatted string" Name="TxtLenUtf16.retcode"/>
+		END_VAR;
+				//! <Function Comment="Set content of object with given utf16-formatted string.&#13;&#10;Method will return &apos;true&apos; on success, on the other hand &apos;false&apos;." Name="TxtSetUtf16"/>
+	FUNCTION VIRTUAL GLOBAL TxtSetUtf16
+		VAR_INPUT
+			src_utf16 	: ^UINT;			//! <Variable Comment="Address of utf16-string to be copied into objectcontent" Name="TxtSetUtf16.src_utf16"/>
+		END_VAR
+		VAR_OUTPUT
+			retcode 	: BOOL;			//! <Variable Comment="&apos;true&apos; in case of set success, on the other hand &apos;false&apos; on error" Name="TxtSetUtf16.retcode"/>
+		END_VAR;
 				//! <Function Comment="[!GET_ADD_INFO]&#13;&#10; Klassenaghängige Zusatzinformation wird geliefert&#13;&#10;[!GET_ADD_INFO]&#13;&#10; returns class specific additional information&#13;&#10;" Name="Data.NewInst"/>
 	FUNCTION VIRTUAL GLOBAL Data::NewInst
 		VAR_INPUT
@@ -629,7 +652,7 @@ END_CLASS;
 FUNCTION GLOBAL TAB StringInternal::@CT_
 0$UINT,
 2#0100000000000000$UINT, //TY_STRINGINTERNAL
-1$UINT, 86$UINT, (SIZEOF(::StringInternal))$UINT, 
+1$UINT, 87$UINT, (SIZEOF(::StringInternal))$UINT, 
 0$UINT, 2$UINT, 0$UINT, 
 TO_UDINT(2898603620), "StringInternal", //Class
 TO_UDINT(3232495061), "VirtualBaseInit", 1$UINT, 3$UINT, //Baseclass
@@ -640,7 +663,7 @@ TO_UDINT(3232495061), "VirtualBaseInit", 1$UINT, 3$UINT, //Baseclass
 END_FUNCTION
 
 
-#define USER_CNT_StringInternal 52
+#define USER_CNT_StringInternal 55
 
 TYPE
 	_LSL_STD_VMETH	: STRUCT
@@ -874,6 +897,18 @@ FUNCTION StringInternal::@STD
 	vmt.UserFcts[51]		:= #TxtLenUtf8();
 
 #pragma warning (default : 74)
+#pragma warning (disable : 74)
+	vmt.UserFcts[52]		:= #TxtGetUtf16();
+
+#pragma warning (default : 74)
+#pragma warning (disable : 74)
+	vmt.UserFcts[53]		:= #TxtLenUtf16();
+
+#pragma warning (default : 74)
+#pragma warning (disable : 74)
+	vmt.UserFcts[54]		:= #TxtSetUtf16();
+
+#pragma warning (default : 74)
 	VirtualBaseInit::Data.pMeth		:= StoreCmd (pCmd := #vmt.CmdTable, SHARED);
 
 	IF VirtualBaseInit::Data.pMeth THEN
@@ -895,9 +930,45 @@ END_FUNCTION
 //==============================================================
 #define GetData()				DataBuffer.GetDataPtr()
 #define IsAscii()				GetCharSize() = sizeof(char)
-#define IsUniCode()				GetCharSize() = sizeof(UINT)
+#define IsUniCode()			GetCharSize() = sizeof(UINT)
 #define SI_TMP_HELPSIZE 64
 //==============================================================
+
+#define support_UTF8
+#define support_UTF16
+
+ function global __cdecl stilib_strcpy8 var_input dst:^char; dst_bytesize:udint; src:^char; end_var var_output retcode:udint; end_var;
+ function global __cdecl stilib_strcpy16 var_input dst:^uint; dst_bytesize:udint; src:^uint; end_var var_output retcode:udint; end_var;
+ function global __cdecl stilib_utf8_check var_input src:^char; end_var var_output retcode:udint; end_var;
+ function global __cdecl stilib_utf16_check var_input src:^uint; end_var var_output retcode:udint; end_var;
+ function global __cdecl stilib_strupr8 var_input src:^char; end_var var_output retcode:udint; end_var;
+ function global __cdecl stilib_strlwr8 var_input src:^char; end_var var_output retcode:udint; end_var;
+ function global __cdecl stilib_strupr16 var_input src:^uint; end_var var_output retcode:udint; end_var;
+ function global __cdecl stilib_strlwr16 var_input src:^uint; end_var var_output retcode:udint; end_var;
+ function global __cdecl stilib_utf8_to_utf16  var_input pdst_utf16:^uint; dst_bytesize:udint; psrc_utf8:^char; end_var var_output retcode:udint; end_var;
+ function global __cdecl stilib_utf8_to_utf16_len var_input psrc_utf8:^char; end_var var_output retcode:udint; end_var;
+ function global __cdecl stilib_utf8_to_u8 var_input pdst_u8:^char; dst_bytesize:udint; psrc_utf8:^char; chr_unknown:char; end_var var_output retcode:udint; end_var;
+ function global __cdecl stilib_utf8_to_u8_len var_input psrc_utf8:^char; chr_unknown:char; end_var var_output retcode:udint; end_var;
+ function global __cdecl stilib_utf8_to_u16 var_input pdst_u16:^uint; dst_bytesize:udint; psrc_utf8:^char; chr_unknown:uint; end_var var_output retcode:udint; end_var;
+ function global __cdecl stilib_utf8_to_u16_len var_input psrc_utf8:^char; chr_unknown:uint; end_var var_output retcode:udint; end_var;
+ function global __cdecl stilib_u8_to_utf8 var_input pdst_utf8:^char; dst_bytesize:udint; psrc_u8:^char; end_var var_output retcode:udint; end_var;
+ function global __cdecl stilib_u8_to_utf8_len var_input psrc_u8:^char; end_var var_output retcode:udint; end_var;
+ function global __cdecl stilib_u8_to_u16 var_input pdst_u16:^uint; dst_bytesize:udint; psrc_u8:^char; end_var var_output retcode:udint; end_var;
+ function global __cdecl stilib_u8_to_u16_len var_input psrc_u8:^char; end_var var_output retcode:udint; end_var;
+ function global __cdecl stilib_u8_to_utf16 var_input pdst_utf16:^uint; dst_bytesize:udint; psrc_u8:^char; end_var var_output retcode:udint; end_var;
+ function global __cdecl stilib_u8_to_utf16_len var_input psrc_u8:^char; end_var var_output retcode:udint; end_var;
+ function global __cdecl stilib_utf16_to_utf8 var_input pdst_utf8:^char; dst_bytesize:udint; psrc_utf16:^uint; end_var var_output retcode:udint; end_var;
+ function global __cdecl stilib_utf16_to_utf8_len var_input psrc_utf16:^uint; end_var var_output retcode:udint; end_var;
+ function global __cdecl stilib_utf16_to_u8 var_input pdst_u8:^char; dst_bytesize:udint; psrc_utf16:^uint; chr_unknown:char; end_var var_output retcode:udint; end_var;
+ function global __cdecl stilib_utf16_to_u8_len var_input psrc_utf16:^uint; chr_unknown:char; end_var var_output retcode:udint; end_var;
+ function global __cdecl stilib_utf16_to_u16 var_input pdst_u16:^uint; dst_bytesize:udint; psrc_utf16:^uint; chr_unknown:uint; end_var var_output retcode:udint; end_var;
+ function global __cdecl stilib_utf16_to_u16_len var_input psrc_utf16:^uint; chr_unknown:uint; end_var var_output retcode:udint; end_var;
+ function global __cdecl stilib_u16_to_utf8 var_input pdst_utf8:^char; dst_bytesize:udint; psrc_u16:^uint; end_var var_output retcode:udint; end_var;
+ function global __cdecl stilib_u16_to_utf8_len var_input psrc_u16:^uint; end_var var_output retcode:udint; end_var;
+ function global __cdecl stilib_u16_to_u8 var_input pdst_u8:^char; dst_bytesize:udint; psrc_u16:^uint; chr_unknown:char; end_var var_output retcode:udint; end_var;
+ function global __cdecl stilib_u16_to_u8_len var_input psrc_u16:^uint; chr_unknown:char; end_var var_output retcode:udint; end_var;
+ function global __cdecl stilib_u16_to_utf16 var_input pdst_utf16:^uint; dst_bytesize:udint; psrc_u16:^uint; end_var var_output retcode:udint; end_var;
+ function global __cdecl stilib_u16_to_utf16_len var_input psrc_u16:^uint; end_var var_output retcode:udint; end_var;
 
 (*
   String-Darstellung:
@@ -923,7 +994,7 @@ END_FUNCTION
     
     '\0' '\2'                       Leerstring in UNICODE
     '\0' '\2' '\0' '\0'             Leerstring in UNICODE
-    '\0' '\2' '\0' 'A'  '\0' '\0'   String "A" in UNICODE
+    '\0' '\2' 'A' '\0'  '\0' '\0'   String "A" in UNICODE
 *)
 
 FUNCTION VIRTUAL GLOBAL StringInternal::GetLength
@@ -1443,21 +1514,14 @@ END_FUNCTION //VIRTUAL GLOBAL StringInternal::Data::NewInst
 FUNCTION VIRTUAL GLOBAL StringInternal::StrUpr
 VAR
   pa : ^usint;
-  pu : ^uint;
 END_VAR
 
 	pa := GetData();
   if(pa <> NIL) then
-    if IsAscii() then
-			_strupr(pa);
+    if(IsAscii()) then
+      stilib_strupr8(pa);
     else
-      pu := pa$^uint;
-      while pu^ do
-        if((pu^ >= 'a') & (pu^ <= 'z')) then
-          pu^ -= 'a'-'A';
-        end_if;
-        pu += 2;
-      end_while;
+      stilib_strupr16(pa$^uint + 2);
     end_if;
     
 	  CalcCRC();
@@ -1473,27 +1537,15 @@ END_FUNCTION
 //Funktion wird der String selbst geändert.
 FUNCTION VIRTUAL GLOBAL StringInternal::StrLwr
 VAR
-  pu : ^uint;
   pa : ^usint;
 END_VAR
 
 	pa := GetData();
   if(pa <> NIL) then
-    if IsAscii() then
-      while pa^ do
-        if((pa^ <= 'Z') & (pa^ >= 'A')) then
-          pa^ -= ('A'-'a');
-        end_if;
-        pa += 1;
-      end_while;
+    if(IsAscii()) then
+      stilib_strlwr8(pa);
     else
-      pu := pa$^uint;
-      while pu^ do
-        if((pu^ <= 'Z') & (pu^ >= 'A')) then
-          pu^ -= ('A'-'a');
-        end_if;
-        pu += 2;
-      end_while;
+      stilib_strlwr16(pa$^uint + 2);
     end_if;
     
 	  CalcCRC();
@@ -1550,7 +1602,7 @@ END_VAR
   
 END_FUNCTION
 //[#ENGLISH]
-//All characters of a UNICODE-string are converted to ASCII-characters.
+//All characters are converted to ASCII-characters.
 //If a character can not be transformed to ASCII-code, it will be replaced
 //by a SPACE-character (0x20).
 //[#DEUTSCH]
@@ -1561,31 +1613,36 @@ FUNCTION VIRTUAL GLOBAL StringInternal::ToAscii
 VAR
   pa : ^usint;
   pu : ^uint;
-  noc : udint;
+  len : udint;
+  done : bool;
 END_VAR
 
 	pa := GetData();
   if(pa <> NIL) then
+    done := false;
     if IsUnicode() then
-      pu  := pa$^uint + 2;
-      noc := 0;
-      while(pu^) do
-        if(pu^ < 256) then
-          pa^ := pu$^usint^;
-        else
-          pa^ := 32; // space
-        end_if;
-        pu  += 2;
-        pa  += 1;
-        noc += 1;
-      end_while;
-      pa^ := 0;
-      noc += 1;
-
-      if(SingleRealloc = 0) then // If client is not set the function works like it did before rev. >= 1.8
-        DataBuffer.SetSize(noc); // shrink buffer
+      done := true;
+      pu   := pa$^uint + 2;
+     #ifdef SUPPORT_UTF16
+      if(stilib_utf16_check(pu)) then
+        len := stilib_utf16_to_u8(pa, 0xFFFFFFFF, pu, ' ');
+      else
+        len := stilib_u16_to_u8(pa, 0xFFFFFFFF, pu, ' ');
       end_if;
-      
+     #else
+      len := stilib_u16_to_u8(pa, 0xFFFFFFFF, pu, ' ');
+     #endif
+   #ifdef support_utf8   
+    elsif(stilib_utf8_check(pa)) then
+      done := true;
+      len  := stilib_utf8_to_u8(pa, 0xFFFFFFFF, pa, ' ');
+   #endif   
+    end_if;
+
+    if(done = true) then
+      if(SingleRealloc = 0) then // If client is not set the function works like it did before rev. >= 1.8
+        DataBuffer.SetSize(len + 1); // shrink buffer
+      end_if;
       CalcCRC();
       DataBuffer.UpdateToFile();
     end_if;
@@ -1597,53 +1654,11 @@ END_FUNCTION
 //[#DEUTSCH]
 //Alle Zeichen eines ASCII-Strings werden auf UNICODE übersetzt.
 FUNCTION VIRTUAL GLOBAL StringInternal::ToUniCode
-VAR
-  pa : ^usint;
-  pu : ^uint;
-  noc, len : udint;
-END_VAR
 
+  TxtToUni();
 
-  if IsAscii() then
-    noc := GetLength() + 1;
-    len := (noc + 1) * sizeof(uint); // unicodekennung + uni-0-string
+END_FUNCTION
 
-    if(SingleRealloc = 0) then // If client is not set the function works like it did before rev. >= 1.8
-      if(DataBuffer.SetSize(len) <> C_OK) then
-        return;
-      end_if;
-    else
-      if(len > DataBuffer.m_udLength) then
-        if(DataBuffer.SetSize(len) <> C_OK) then
-          return;
-        end_if;
-      end_if;
-    end_if;
-
-    pa  := GetData();
-
-    if(pa <> NIL) then
-
-      pu  := pa$^uint + len;
-      pa  += noc;
-
-      while noc do
-        pu  -= 2;
-        pa  -= 1;
-        pu^ := pa^;
-        noc -= 1;
-      end_while;
-
-      pu  -= 2;
-      pu^ := 16#0200;  // unicode kennung
-    
-      CalcCRC();
-      DataBuffer.UpdateToFile();
-
-    end_if;
-  end_if;
-
-END_FUNCTION//[#ENGLISH]
 //[#ENGLISH]
 //Checks, if the string is terminated with a 0-character. If not, 
 //a 0-character is appended. The string length is not changed by
@@ -1758,7 +1773,7 @@ FUNCTION VIRTUAL GLOBAL StringInternal::StrLen
 
   udLen := GetLength();
 	if IsUnicode() then
-    udLen :=  (udLen / 2) - 1;
+    udLen := (udLen / 2) - 1;
 	END_IF;
 
 END_FUNCTION
@@ -1920,30 +1935,6 @@ FUNCTION StrInt_StrLen16 var_input pu:^uint; end_var var_output retcode:udint; e
     pu += 2;
     retcode += 1;
   end_while;
-  
-end_function
-
-FUNCTION StrInt_StrNCpy16 var_input pd:^uint; ps:^uint; maxlen:udint; end_var
-
-  while((ps^) & (maxlen > 0)) do
-    pd^ := ps^;
-    ps  += 2;
-    pd  += 2;
-    maxlen -= 1;
-  end_while;
-  pd^ := 0;
-  
-end_function
-
-FUNCTION StrInt_StrNCpy08 var_input pd:^usint; ps:^usint; maxlen:udint; end_var
-
-  while((ps^) & (maxlen > 0)) do
-    pd^ := ps^;
-    ps  += 1;
-    pd  += 1;
-    maxlen -= 1;
-  end_while;
-  pd^ := 0;
   
 end_function
 
@@ -2405,19 +2396,17 @@ FUNCTION VIRTUAL GLOBAL StringInternal::TxtGet
  
   charsize := 0;
   if((pdst <> nil) & (dstsize > 0)) then
-    charsize     := 1;
+    charsize     := 1; // default
     pdst$^usint^ := 0; // 0-termination
     
     ps := StrInt_GetData();
     if(ps <> nil) then
       if(StrInt_IsUnicode()) then
-        if(dstsize >= 2) then
-          StrInt_StrNCpy16(pdst$^uint, ps$^uint+2, dstsize/2-1);
-          charsize := 2;
-        end_if;
+        stilib_strcpy16(pdst$^uint, dstsize, ps$^uint + 2);
+        charsize := 2;
       else
-        StrInt_StrNCpy08(pdst$^usint, ps, dstsize-1);
-      end_if;
+        stilib_strcpy8(pdst$^char, dstsize, ps$^char);
+      end_if;  
     end_if;
   end_if;
   
@@ -2433,7 +2422,6 @@ FUNCTION VIRTUAL GLOBAL StringInternal::TxtGetAscii
 	END_VAR
   VAR
   	ps : ^usint;
-    len : udint;
   END_VAR
  
   charsize := 0;
@@ -2444,13 +2432,21 @@ FUNCTION VIRTUAL GLOBAL StringInternal::TxtGetAscii
     ps := StrInt_GetData();
     if(ps <> nil) then
       if(StrInt_IsUnicode()) then
-        len := StrInt_StrLen16(ps$^uint+2);
-        if(dstsize >= len) then
-          len := dstsize - 1;  
-        end_if;
-        ToAsciiSequence(pdst, ps$^uint+2, len, true);
+       #ifdef support_utf16
+        stilib_utf16_to_u8(pdst, dstsize, ps$^uint+2, ' ');
+       #else
+        stilib_u16_to_u8(pdst, dstsize, ps$^uint+2, ' ');
+       #endif
       else
-        StrInt_StrNCpy08(pdst$^usint, ps, dstsize-1);
+       #ifdef support_utf8
+        if(stilib_utf8_check(ps)) then
+          stilib_utf8_to_u8(pdst, dstsize, ps, ' ');
+        else
+          stilib_strcpy8(pdst, dstsize, ps);
+        end_if;
+       #else
+        stilib_strcpy8(pdst, dstsize, ps);
+       #endif
       end_if;
     end_if;
   end_if;
@@ -2488,20 +2484,19 @@ FUNCTION VIRTUAL GLOBAL StringInternal::TxtGetAt
         end_if;
         
         if(StrInt_IsUnicode()) then
-          if(dstsize >= 2) then
-            tmp := (dstsize / 2) - 1;
-            if(nchar > tmp) then
-              nchar := tmp;
-            end_if;
-            StrInt_StrNCpy16(pdst$^uint, ps$^uint+2+fromwhere*2, nchar);
-            charsize := 2;
+          dstsize := dstsize shr 1;
+          if(nchar >= dstsize) then
+            nchar := dstsize - 1;
           end_if;
+          ps := ps + 2 + fromwhere * 2;
+          stilib_strcpy16(pdst$^uint, (nchar+1)*2, ps$^uint);
+          charsize := 2;
         else
-          tmp := dstsize - 1;
-          if(nchar > tmp) then
-            nchar := tmp;
+          if(nchar >= dstsize) then
+            nchar := dstsize - 1;
           end_if;
-          StrInt_StrNCpy08(pdst$^usint, ps+fromwhere, nchar);
+          ps := ps + fromwhere;
+          stilib_strcpy8(pdst$^char, nchar+1, ps$^char);
         end_if;
       end_if;
     end_if;
@@ -2778,11 +2773,12 @@ FUNCTION VIRTUAL GLOBAL StringInternal::TxtToAscii
   pd := StrInt_GetData();
   if(pd <> nil) then
     if(StrInt_IsUnicode()) then
-      len := TxtLen() + 1;
-      if(len = 1) then
-        KillUBOM();
-      end_if;
-      ToAsciiSequence(pd, pd$^uint+2, len, false);
+      KillUBOM();
+     #ifdef support_utf16
+      len := stilib_utf16_to_u8(pd, 0xFFFFFFFF, pd$^uint+2, ' ') + 1;
+     #else
+      len := stilib_u16_to_u8(pd, 0xFFFFFFFF, pd$^uint+2, ' ') + 1;
+     #endif 
       if(SingleRealloc = 0) then
         DataBuffer.SetSize(len);
       end_if;
@@ -2804,20 +2800,59 @@ FUNCTION VIRTUAL GLOBAL StringInternal::TxtToUni
     len : udint;
   END_VAR
 
-  retcode := true;
+  retcode := false;
 
   pd := StrInt_GetData();
   if(pd = nil) then
     retcode := TxtSet(2, "", 1);
   else
     if(StrInt_IsAscii()) then
-      len := TxtLen() + 1;
-      if(TmpAlloc(#pu, len*2+2, #thelp[0], sizeof(thelp)) <> 0) then
+     #ifdef support_utf8
+      if(stilib_utf8_check(pd)) then
+        // UTF8
+       #ifdef support_UTF16
+        // utf8 --> UTF16
+        len := stilib_utf8_to_utf16_len(pd);
+        len := (len + 2) * 2; // 0002 + 0-terminator
+        if(TmpAlloc(#pu, len, #thelp[0], sizeof(thelp)) <> 0) then
+          pu^ := 16#0200;
+          stilib_utf8_to_utf16(pu + 2, len - 2, pd);
+          retcode := AddDataIntern(pu$^usint, len, 0);
+          TmpFree(#pu, #thelp[0]);
+        end_if;
+       #else
+        // utf8 --> U16
+        len := stilib_utf8_to_u16_len(pd, '?');
+        len := (len + 2) * 2; // 0002 + 0-terminator
+        if(TmpAlloc(#pu, len, #thelp[0], sizeof(thelp)) <> 0) then
+          pu^ := 16#0200;
+          stilib_utf8_to_u16(pu + 2, len - 2, pd, '?');
+          retcode := AddDataIntern(pu$^usint, len, 0);
+          TmpFree(#pu, #thelp[0]);
+        end_if;
+       #endif
+      else
+        // u8 --> u16
+        len := stilib_u8_to_u16_len(pd);
+        len := (len + 2) * 2; // 0002 + 0-terminator
+        if(TmpAlloc(#pu, len, #thelp[0], sizeof(thelp)) <> 0) then
+          pu^ := 16#0200;
+          stilib_u8_to_u16(pu + 2, len - 2, pd);
+          retcode := AddDataIntern(pu$^usint, len, 0);
+          TmpFree(#pu, #thelp[0]);
+        end_if;
+      end_if;
+     #else
+      // u8 --> u16
+      len := stilib_u8_to_u16_len(pd);
+      len := (len + 2) * 2; // 0002 + 0-terminator
+      if(TmpAlloc(#pu, len, #thelp[0], sizeof(thelp)) <> 0) then
         pu^ := 16#0200;
-        ToUniSequence(pu+2, pd, len, false);
-        retcode := AddDataIntern(pu$^usint, len*2+2, 0);
+        stilib_u8_to_u16(pu + 2, len - 2, pd);
+        retcode := AddDataIntern(pu$^usint, len, 0);
         TmpFree(#pu, #thelp[0]);
       end_if;
+     #endif
     end_if;
   end_if;
 
@@ -2826,26 +2861,15 @@ END_FUNCTION
 FUNCTION VIRTUAL GLOBAL StringInternal::TxtUpr
   VAR
     pa : ^usint;
-    pu : ^uint;
     size : udint;
   END_VAR
 
 	pa := StrInt_GetData();
-  
   if(pa <> NIL) then
     if(StrInt_IsUnicode()) then
-      pu   := pa$^uint + 2;
-      size := 4; // 16#0200 + termination
-      while(pu^) do
-        if((pu^ >= 'a') & (pu^ <= 'z')) then
-          pu^ -= 'a'-'A';
-        end_if;
-        pu   += 2;
-        size += 2;
-      end_while;
+      size := (stilib_strupr16(pa$^uint + 2) + 2) * 2; // UBOM + termination
     else
-			_strupr(pa);
-      size := _strlen(pa) + 1;
+      size := stilib_strupr8(pa) + 1; // termination
     end_if;
     
     DataBuffer.UpdateToFile();
@@ -2856,7 +2880,6 @@ END_FUNCTION
 
 FUNCTION VIRTUAL GLOBAL StringInternal::TxtLwr
   VAR
-    pu : ^uint;
     pa : ^usint;
     size : udint;
   END_VAR
@@ -2864,24 +2887,9 @@ FUNCTION VIRTUAL GLOBAL StringInternal::TxtLwr
 	pa := StrInt_GetData();
   if(pa <> NIL) then
     if(StrInt_IsUnicode()) then
-      pu   := pa$^uint + 2;
-      size := 4; // 16#0200 + termination
-      while(pu^) do
-        if((pu^ <= 'Z') & (pu^ >= 'A')) then
-          pu^ -= ('A'-'a');
-        end_if;
-        pu   += 2;
-        size += 2;
-      end_while;
+      size := (stilib_strlwr16(pa$^uint + 2) + 2) * 2; // UBOM + termination
     else
-      size := 1; // termination
-      while(pa^) do
-        if((pa^ <= 'Z') & (pa^ >= 'A')) then
-          pa^ -= ('A'-'a');
-        end_if;
-        pa   += 1;
-        size += 1;
-      end_while;
+      size := stilib_strlwr8(pa) + 1; // termination
     end_if;
     
     DataBuffer.UpdateToFile();
@@ -3123,26 +3131,8 @@ FUNCTION GLOBAL StringInternal::TxtLenAsciiToUtf8
 	VAR_OUTPUT
 		retcode 	: UDINT;
 	END_VAR
-  VAR
-  	ps08 : ^USINT;
-  END_VAR
   
-  // compute length of given ASCII string in UTF8-Format
-  // NOTE: same algorithm as in funktion TxtAsciiToUtf8
-  
-  retcode := 0;
-  
-  if(src_ascii <> nil) then
-    ps08 := src_ascii$^USINT;
-    while(ps08^) do 
-      if((ps08^) < 16#80) then    
-        retcode += 1;    
-      else 
-        retcode += 2;
-      end_if;
-      ps08 += 1;
-    end_while;
-  end_if;
+  retcode:= stilib_u8_to_utf8_len(src_ascii); // compute length of given ASCII string in UTF8-Format
 
 END_FUNCTION
 
@@ -3153,30 +3143,12 @@ FUNCTION GLOBAL StringInternal::TxtLenUniToUtf8
 	VAR_OUTPUT
 		retcode 	: UDINT;
 	END_VAR
-  VAR
-  	ps16 : ^UINT;
-    chr : UINT;
-  END_VAR
   
-  // compute length of given UNICODE string in UTF8-Format
-  // NOTE: same algorithm as in funktion TxtUniToUtf8
-  
-  retcode := 0;
-  
-  if(src_uni <> nil) then
-    ps16 := src_uni$^UINT;
-    while(ps16^) do
-      chr  := ps16^;
-      ps16 += 2;    
-      if(chr < 16#0080) then
-        retcode += 1;
-      elsif(chr < 16#0800) then
-        retcode += 2;  
-      else
-        retcode += 3;
-      end_if;    
-    end_while;
-  end_if;
+#ifdef support_UTF16  
+  retcode := stilib_utf16_to_utf8_len(src_uni);
+#else
+  retcode := stilib_u16_to_utf8_len(src_uni);
+#endif
 
 END_FUNCTION
 
@@ -3187,9 +3159,8 @@ FUNCTION GLOBAL StringInternal::TxtLenUtf8ToAscii
 	VAR_OUTPUT
 		retcode 	: UDINT;
 	END_VAR
-
-  // compute textlength of given utf8 formatted string in ascii-format
-  retcode := TxtLenUtf8ToUni(src_utf8);
+  
+  retcode := stilib_utf8_to_u8_len(src_utf8, '?'); // compute textlength of given utf8 formatted string in ascii-format
   
 END_FUNCTION
 
@@ -3200,53 +3171,13 @@ FUNCTION GLOBAL StringInternal::TxtLenUtf8ToUni
 	VAR_OUTPUT
 		retcode 	: UDINT;
 	END_VAR
-  VAR
-    ps : ^USINT;
-    follow : UDINT;
-    chr : UINT;
-  END_VAR
- 
-  // compute textlength of given utf8 formatted string in u16-format
-    
-  retcode := 0;
   
-  if(src_utf8 <> nil) then
-    ps := src_utf8$^USINT;
-    
-    while(ps^) do
-   
-      chr := ps^;
-      ps += 1;
-      
-      if(chr AND 16#0080) then
-      
-        follow := 0;
-        
-        if((chr AND 16#00E0) = 16#00C0) then      
-          follow := 1; // 1 folgebyte
-        elsif((chr AND 16#00F0) = 16#00E0) then      
-          follow := 2; // 2 folgebytes
-        elsif((chr AND 16#00F8) = 16#00F0) then      
-          follow := 3; // 3 folgebytes
-        end_if;
-        
-        while(follow <> 0) do
-          follow -= 1;
-          
-          if((ps^ AND 16#C0) = 16#80) then        
-            ps += 1;
-            if(follow = 0) then          
-              retcode += 1;
-            end_if;  
-          end_if;
-        end_while;
-        
-      else    
-        retcode += 1;    
-      end_if;
-    end_while;
-  end_if;
-
+ #ifdef support_UTF16
+  retcode := stilib_utf8_to_utf16_len(src_utf8);
+ #else
+  retcode := stilib_utf8_to_u16_len(src_utf8, '?');
+ #endif
+ 
 END_FUNCTION
 
 FUNCTION GLOBAL StringInternal::TxtAsciiToUtf8
@@ -3257,42 +3188,8 @@ FUNCTION GLOBAL StringInternal::TxtAsciiToUtf8
 	VAR_OUTPUT
 		retcode 	: UDINT;
 	END_VAR
-  VAR
-  	ps : ^USINT;
-    pd : ^USINT;
-    chr : USINT;
-  END_VAR
   
-  // NOTE: same algorithm as in funktion TxtLenUTF8
-  
-  retcode := 0;
-  
-  if(dst_utf8 <> nil) then
-    pd := dst_utf8$^USINT;
-    
-    if(src_ascii <> nil) then
-      ps := src_ascii$^USINT;
-
-      while(ps^) do 
-
-        chr := ps^;
-        ps  += 1;
-        if(chr < 16#0080) then    
-          pd^  := chr$USINT;
-          pd += 1;
-          retcode += 1;    
-        else 
-          pd^    := to_usint(16#00C0 OR (chr SHR 6));
-          pd += 1;
-          pd^    := to_usint(16#0080 OR (chr AND 16#003F));
-          pd += 1;
-          retcode += 2;
-        end_if;
-      end_while;
-    end_if;
-    
-    pd^ := 0;
-  end_if;
+  retcode := stilib_u8_to_utf8(dst_utf8, 0xFFFFFFFF, src_ascii);
 
 END_FUNCTION
 
@@ -3304,51 +3201,13 @@ FUNCTION GLOBAL StringInternal::TxtUniToUtf8
 	VAR_OUTPUT
 		retcode 	: UDINT;
 	END_VAR
-  VAR
-    pd : ^USINT;
-    chr : UINT;
-  END_VAR
   
-  // convert unicode-0-string to utf8-0-string, function will return number of used bytes in destination, excluding final zero
-  // NOTE: same algorithm as in funktion TxtLenUTF8
-  
-  retcode := 0;
-  
-  if(dst_utf8 <> nil) then
-    pd := dst_utf8$^USINT;
-    
-    if(src_uni <> nil) then
-      while(src_uni^) do
-      
-        chr := src_uni^;
-        src_uni += 2;
-        
-        if(chr < 16#0080) then
-          pd^ := chr$USINT;
-          pd += 1;
-          retcode += 1;
-        elsif(chr < 16#0800) then
-          pd^ := to_usint(16#00C0 OR (chr SHR 6));
-          pd += 1;
-          pd^ := to_usint(16#0080 OR (chr AND 16#003F));
-          pd += 1;
-          retcode += 2;  
-        else
-          pd^ := to_usint(16#00E0 OR (chr SHR 12));
-          pd += 1;
-          pd^ := to_usint(16#0080 OR ((chr SHR 6) AND 16#003F));
-          pd += 1;
-          pd^ := to_usint(16#0080 OR (chr AND 16#003F)); 
-          pd += 1;
-          retcode += 3;
-        end_if;
-        
-      end_while;
-    end_if;
-
-    pd^ := 0;
-  end_if;
-  
+ #ifdef support_UTF16
+  retcode := stilib_utf16_to_utf8(dst_utf8, 0xFFFFFFFF, src_uni);
+ #else
+  retcode := stilib_u16_to_utf8(dst_utf8, 0xFFFFFFFF, src_uni);
+ #endif
+ 
 END_FUNCTION
 
 FUNCTION GLOBAL StringInternal::TxtUtf8ToAscii
@@ -3359,63 +3218,8 @@ FUNCTION GLOBAL StringInternal::TxtUtf8ToAscii
 	VAR_OUTPUT
 		retcode 	: UDINT;
 	END_VAR
-  VAR
-  	ps : ^USINT;
-    pd : ^USINT;
-    follow : UDINT;
-    chr : UINT;
-  END_VAR
-
-  retcode := 0;
   
-  if(dst_ascii <> nil) then
-    pd := dst_ascii$^USINT;
-    
-    if(src_utf8 <> nil) then
-      ps := src_utf8$^USINT;
-
-      while(ps^) do 
-      
-        chr := ps^;
-        ps  += 1;
-        if(chr AND 0x0080) then    
-          follow := 0;      
-          if ((chr AND 16#00E0) = 16#00C0) then      
-            follow := 1; // 1 folgebyte
-            chr    := chr AND 16#001F;      
-          elsif((chr AND 16#00F0) = 16#00E0) then
-            follow := 2; // 2 folgebytes
-            chr    := chr AND 16#000F;
-          elsif((chr AND 16#00F8) = 16#00F0) then
-            follow := 3; // 3 folgebytes
-            chr    := chr AND 16#0007;
-          end_if;
-          
-          while(follow <> 0) do
-            follow -= 1;
-            if((ps^ AND 16#C0) = 16#80) then       
-              chr := ((chr SHL 6) OR ((ps^) AND 16#3F));
-              ps += 1;
-              if(follow = 0) then 
-                if(chr > 255) then
-                  chr := 63; //'?'
-                end_if;
-                pd^ := chr$usint;
-                pd  += 1;
-                retcode += 1;
-              end_if;
-            end_if;
-          end_while;
-        else    
-          pd^ := chr$usint;
-          pd  += 1;
-          retcode += 1;
-        end_if;
-      end_while;
-    end_if;
-    
-    pd^ := 0;
-  end_if;
+  retcode := stilib_utf8_to_u8(dst_ascii, 0xFFFFFFFF, src_utf8, '?');
 
 END_FUNCTION
 
@@ -3427,66 +3231,13 @@ FUNCTION GLOBAL StringInternal::TxtUtf8ToUni
 	VAR_OUTPUT
 		retcode 	: UDINT;
 	END_VAR
-  VAR
-    ps : ^USINT;
-    follow : UDINT;
-    chr : UINT;
-  END_VAR
+  
+ #ifdef support_UTF16
+  retcode := stilib_utf8_to_utf16(dst_uni, 0xFFFFFFFF, src_utf8);
+ #else
+  retcode := stilib_utf8_to_u16(dst_uni, 0xFFFFFFFF, src_utf8, '?');
+ #endif
  
-  // convert utf8-0-string to unicode-0-string, function will return number of characters in destination
-    
-  retcode := 0;
-  if(dst_uni <> nil) then
-  
-    if(src_utf8 <> nil) then
-      ps := src_utf8$^USINT;
-      
-      while(ps^) do
-     
-        chr := ps^;
-        ps += 1;
-        
-        if(chr AND 16#0080) then
-        
-          follow := 0;
-          
-          if((chr AND 16#00E0) = 16#00C0) then      
-            follow := 1; // 1 folgebyte
-            chr    := chr AND 16#001F;      
-          elsif((chr AND 16#00F0) = 16#00E0) then      
-            follow := 2; // 2 folgebytes
-            chr    := chr AND 0x000F;      
-          elsif((chr AND 16#00F8) = 16#00F0) then      
-            follow := 3; // 3 folgebytes
-            chr    := chr AND 16#0007;     
-          end_if;
-          
-          while(follow <> 0) do
-            follow -= 1;
-            
-            if((ps^ AND 16#C0) = 16#80) then        
-              chr := ((chr SHL 6) OR (ps^ AND 16#3F));
-              ps += 1;
-              if (follow = 0) then          
-                dst_uni^ := chr;
-                dst_uni += 2;
-                retcode += 1;
-              end_if;  
-            end_if;
-          end_while;
-          
-        else    
-          dst_uni^ := chr;
-          dst_uni += 2;
-          retcode += 1;    
-        end_if;
-        
-      end_while;
-    end_if;
-    
-    dst_uni^ := 0;
-  end_if;
-  
 END_FUNCTION
 
 FUNCTION VIRTUAL GLOBAL StringInternal::TxtSetUtf8
@@ -3503,11 +3254,19 @@ FUNCTION VIRTUAL GLOBAL StringInternal::TxtSetUtf8
   END_VAR
 
   retcode := false;
-  tmplen  := (TxtLenUtf8ToUni(src_utf8) + 2) * 2; // final zero + unicode mark
+ #ifdef support_UTF16
+  tmplen := (stilib_utf8_to_utf16_len(src_utf8) + 2) * 2; // final zero + unicode mark
+ #else
+  tmplen := (stilib_utf8_to_u16_len(src_utf8, '?') + 2) * 2; // final zero + unicode mark
+ #endif
   
   if(TmpAlloc(#pu, tmplen, #thelp[0], sizeof(thelp)) <> 0) then
     pu^ := 16#0200;
-    TxtUtf8ToUni(pu+2, src_utf8);
+   #ifdef support_UTF16
+    stilib_utf8_to_utf16(pu+2, 0xFFFFFFFF, src_utf8);
+   #else
+    stilib_utf8_to_u16(pu+2, 0xFFFFFFFF, src_utf8, '?');
+   #endif
     retcode := AddDataIntern(pu$^usint, tmplen, 0);
     TmpFree(#pu, #thelp[0]);
   end_if;
@@ -3533,9 +3292,21 @@ FUNCTION VIRTUAL GLOBAL StringInternal::TxtGetUtf8
   
     if(pa <> nil) then
       if(StrInt_IsUnicode()) then
-        retcode := TxtUniToUtf8(dst_utf8, 2 + pa$^uint);
+       #ifdef support_UTF16
+        retcode := stilib_utf16_to_utf8(dst_utf8, 0xFFFFFFFF, 2 + pa$^uint);
+       #else
+        retcode := stilib_u16_to_utf8(dst_utf8, 0xFFFFFFFF, 2 + pa$^uint);
+       #endif
       else
-        retcode := TxtAsciiToUtf8(dst_utf8, pa);
+       #ifdef support_UTF8
+        if(stilib_utf8_check(pa)) then
+          retcode := stilib_strcpy8(dst_utf8, 0xFFFFFFFF, pa);
+        else
+          retcode := stilib_u8_to_utf8(dst_utf8, 0xFFFFFFFF, pa);
+        end_if;
+       #else
+        retcode := stilib_u8_to_utf8(dst_utf8, 0xFFFFFFFF, pa);
+       #endif
       end_if;
     end_if;
   end_if;
@@ -3554,11 +3325,133 @@ FUNCTION VIRTUAL GLOBAL StringInternal::TxtLenUtf8
   ph      := StrInt_GetData();
   if(ph <> nil) then
     if(StrInt_IsUnicode()) then
-      retcode := TxtLenUniToUtf8(2 + ph$^uint);
+     #ifdef support_UTF16
+      retcode := stilib_utf16_to_utf8_len(2 + ph$^uint);
+     #else 
+      retcode := stilib_u16_to_utf8_len(2 + ph$^uint);
+     #endif 
     else
-      retcode := TxtLenAsciiToUtf8(ph);
+     #ifdef support_UTF8
+      if(stilib_utf8_check(ph)) then
+        retcode := _strlen(ph);
+      else
+        retcode := stilib_u8_to_utf8_len(ph);
+      end_if;
+     #else 
+      retcode := stilib_u8_to_utf8_len(ph);
+     #endif 
     end_if;
   end_if;
+
+END_FUNCTION
+
+FUNCTION VIRTUAL GLOBAL StringInternal::TxtGetUtf16
+	VAR_INPUT
+		dst_utf16 	: ^UINT;
+	END_VAR
+	VAR_OUTPUT
+		retcode 	: UDINT;
+	END_VAR
+  VAR
+  	ph : ^usint;
+  END_VAR
+
+  retcode := 0;
+  
+  if(dst_utf16 <> nil) then
+    ph         := StrInt_GetData();
+    dst_utf16^ := 0;
+  
+    if(ph <> nil) then
+      if(StrInt_IsUnicode()) then
+        ph += 2;
+       #ifdef support_UTF16
+        if(stilib_utf16_check(ph$^uint)) then
+          retcode := stilib_strcpy16(dst_utf16, 0xFFFFFFFF, ph$^uint);
+        else
+          retcode := stilib_u16_to_utf16(dst_utf16, 0xFFFFFFFF, ph$^uint);
+        end_if;
+       #else
+        retcode := stilib_u16_to_utf16(dst_utf16, 0xFFFFFFFF, ph$^uint);
+       #endif
+      else
+       #ifdef support_UTF8
+        if(stilib_utf8_check(ph)) then
+          retcode := stilib_utf8_to_utf16(dst_utf16, 0xFFFFFFFF, ph);
+        else
+          retcode := stilib_u8_to_utf16(dst_utf16, 0xFFFFFFFF, ph);
+        end_if;
+       #else
+        retcode := stilib_u8_to_utf16(dst_utf16, 0xFFFFFFFF, ph);
+       #endif
+      end_if;
+    end_if;
+  end_if;
+
+END_FUNCTION
+
+FUNCTION VIRTUAL GLOBAL StringInternal::TxtLenUtf16
+	VAR_OUTPUT
+		retcode 	: UDINT;
+	END_VAR
+  VAR
+  	ph : ^usint;
+  END_VAR
+
+  retcode := 0;
+  ph      := StrInt_GetData();
+  if(ph <> nil) then
+    if(StrInt_IsUnicode()) then
+      ph += 2;
+     #ifdef support_UTF16
+      if(stilib_utf16_check(ph$^uint)) then
+        retcode := StrInt_StrLen16(ph$^uint);
+      else
+        retcode := stilib_u16_to_utf16_len(ph$^uint);
+      end_if;
+     #else 
+      retcode := stilib_u16_to_utf16_len(ph$^uint);
+     #endif 
+    else
+     #ifdef support_UTF8
+      if(stilib_utf8_check(ph)) then
+        retcode := stilib_utf8_to_utf16_len(ph);
+      else
+        retcode := stilib_u8_to_utf16_len(ph);
+      end_if;
+     #else 
+      retcode := stilib_u8_to_utf16_len(ph);
+     #endif 
+    end_if;
+  end_if;
+
+END_FUNCTION
+
+FUNCTION VIRTUAL GLOBAL StringInternal::TxtSetUtf16
+	VAR_INPUT
+		src_utf16 	: ^UINT;
+	END_VAR
+	VAR_OUTPUT
+		retcode 	: BOOL;
+	END_VAR
+ #ifdef support_UTF16
+  retcode := CatAtIntern(true, 0, src_utf16, 2);
+ #else
+  VAR
+  	tmplen : udint;
+    pu : ^uint;
+    thelp : array[0..SI_TMP_HELPSIZE] of uint;
+  END_VAR
+  
+  retcode := false;
+  tmplen  := (stilib_utf16_to_u16_len(src_utf16, '?') + 2) * 2; // final zero + unicode mark
+  if(TmpAlloc(#pu, tmplen, #thelp[0], sizeof(thelp)) <> 0) then
+    pu^ := 16#0200;
+    stilib_utf16_to_u16(pu+2, tmplen-2, src_utf16, '?');
+    retcode := AddDataIntern(pu$^usint, tmplen, 0);
+    TmpFree(#pu, #thelp[0]);
+  end_if;
+ #endif
 
 END_FUNCTION
 

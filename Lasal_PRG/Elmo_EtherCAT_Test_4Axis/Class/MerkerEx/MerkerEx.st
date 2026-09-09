@@ -164,7 +164,7 @@ MerkerEx : CLASS
 			pCode 	: ^void;			//! <Variable Comment="pointer to allocated block" Name="Alloc.pCode"/>
 		END_VAR;
 				//! <Function Comment="[#ENGLISH]&#13;&#10;checks for udGrowBy and calculates the size of memory&#13;&#10;which is actually to allocate&#13;&#10;" Name="GetNewBlockSize"/>
-	FUNCTION AWL GetNewBlockSize
+	FUNCTION GetNewBlockSize
 		VAR_INPUT
 			udSize 	: UDINT;
 		END_VAR
@@ -800,13 +800,13 @@ FUNCTION VIRTUAL GLOBAL MerkerEx::m_udLength::NewInst
 
 END_FUNCTION
 
-FUNCTION  MerkerEx::GetNewBlockSize
-VAR_INPUT
-	udSize		: UDINT;
-END_VAR
-VAR_OUTPUT 
-	bAlloc		: BOOL;
-END_VAR
+FUNCTION MerkerEx::GetNewBlockSize
+	VAR_INPUT
+		udSize 	: UDINT;
+	END_VAR
+	VAR_OUTPUT
+		bAlloc 	: BOOL;
+	END_VAR
 
   bAlloc := false;
   if(udSize <> m_udLength) then

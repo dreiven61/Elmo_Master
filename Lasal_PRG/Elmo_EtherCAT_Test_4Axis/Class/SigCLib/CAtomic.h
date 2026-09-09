@@ -8,6 +8,8 @@
 
   #ifdef cCompile
     
+    // Function will perform DMB-instruction on arm-processor
+    cExtern void          sigclib_DMB(void);
     // atomic get u32
     cExtern unsigned long sigclib_atomic_getU32(unsigned long *pValue);
     // atomic set u32
@@ -94,6 +96,8 @@
     
   #else
   
+    // Function will perform DMB-instruction on arm-processor
+    function global __cdecl sigclib_DMB;
     // atomic get u32
     function global __cdecl sigclib_atomic_getU32 var_input pValue:^udint; end_var var_output retcode:udint; end_var;
     // atomic set u32

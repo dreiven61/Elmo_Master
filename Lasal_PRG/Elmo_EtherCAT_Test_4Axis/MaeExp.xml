@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<File CRC="25A9EBD6" Version="1.1" SubVersion="2">
+<File CRC="DD1DD0C7" Version="1.1" SubVersion="2">
 	<Types>
 		<Type Name="_LMCAXIS_CMDERROR" Datatype="BDINT" TypeId="BIT">
 			<Elements>
@@ -440,6 +440,17 @@
 				<Type Name="OperationModeSpec2" BitNo="14"/>
 				<Type Name="ManufactureSpec2" BitNo="15"/>
 				<Type Name="ManufactureSpec3" BitNo="16"/>
+			</Elements>
+		</Type>
+		<Type Name="iprStates" Datatype="UDINT" TypeId="ENUM">
+			<Elements>
+				<Type Name="READY" Value="0"/>
+				<Type Name="ERROR" Value="1"/>
+				<Type Name="ERROR_BUSY" Value="2"/>
+				<Type Name="BUSY" Value="3"/>
+				<Type Name="QUIT" Value="4"/>
+				<Type Name="STOP_BP" Value="5"/>
+				<Type Name="SINGLESTEP" Value="6"/>
 			</Elements>
 		</Type>
 		<Type Name="ProfileCommandStatus" Datatype="UDINT" TypeId="ENUM">
@@ -1007,6 +1018,90 @@
 			</Servers>
 		</Class>
 		<Class
+			Name     = "DriveAxisDS402"
+			Datatype = "DriveAxisDS402_Base::t_e_EnableSequence"
+			Base     = "DriveAxisDS402_Base"
+			Size     = "468"
+			Guid     = "DA823FBD-6CAC-4823-99DF-ECEE32D6ED84">
+			<Servers>
+				<Server Name="ClassState" Datatype="DriveAxisDS402_Base::t_e_EnableSequence" Guid="1937400A-759C-45CE-AEA5-98C31A8C253B" WriteProtected="true"/>
+				<Server Name="ControllerError" Datatype="DriveAxisDS402_Base::t_bd_ControllerError" Guid="126F9155-699F-480A-B4F4-A028264B17AE" WriteProtected="true"/>
+				<Server Name="ActPos" Datatype="DINT" Guid="047EDCD6-CCE0-4301-960E-01E7CD4216EE" WriteProtected="true"/>
+				<Server Name="SetPos" Datatype="DINT" Guid="77396153-7CE5-4375-9BED-7967401EAFFC" WriteProtected="false"/>
+				<Server Name="ActSpeed" Datatype="DINT" Guid="0D97B832-F5C0-4781-94AA-3A5821185B92" WriteProtected="true"/>
+				<Server Name="SetSpeed" Datatype="DINT" Guid="5E47E8CE-F27F-43D2-AC87-94E8CA2F74A6" WriteProtected="false"/>
+				<Server Name="SetSpeedOffset" Datatype="DINT" Guid="16F0B40A-5CD2-43D6-9148-E66155EDBF27" WriteProtected="false"/>
+				<Server Name="ActTorque" Datatype="DINT" Guid="894C8D19-E285-485D-80A4-658BFC7CA94E" WriteProtected="true"/>
+				<Server Name="SetTorque" Datatype="DINT" Guid="4CFABACA-3A66-46B0-9007-F1B2C77CCAFC" WriteProtected="false"/>
+				<Server Name="SetTorqueOffset" Datatype="DINT" Guid="7E5DE609-7404-40F3-807E-2AC762D45597" WriteProtected="false"/>
+				<Server Name="ActXW" Datatype="DINT" Guid="15B5B3BF-9078-4B29-8D12-A7CF70A3CDA2" WriteProtected="true"/>
+				<Server Name="StateWord" Datatype="DS402_State" Guid="CA1A8E69-DA6B-42EF-8B9C-D50F050D50BE" WriteProtected="true"/>
+				<Server Name="ControlWord" Datatype="DS402_Control" Guid="ED4B5660-9B0E-40C4-A84D-54880602F2EB" WriteProtected="true"/>
+				<Server Name="AxEnable" Datatype="DINT" Guid="D5AFE1EF-0167-4A67-B003-5D6E6335A44E" WriteProtected="false"/>
+				<Server Name="OperationEnabled" Datatype="DINT" Guid="7266559D-8086-4302-94D6-72EF5A4BDE42" WriteProtected="true"/>
+				<Server Name="AxError" Datatype="DINT" Guid="43D935AC-5F9D-44BE-9F03-A9F4F8552BC8" WriteProtected="true"/>
+				<Server Name="AxErrorQuit" Datatype="DINT" Guid="38266BE4-F473-452B-B2E4-1C62DDB1067A" WriteProtected="false"/>
+				<Server Name="ActOpMode" Datatype="DINT" Guid="2BDC0593-F1C3-4923-9925-1037B2F4C182" WriteProtected="true"/>
+				<Server Name="SetOpMode" Datatype="DINT" Guid="606EAFF7-F41C-4CFD-B6FA-8E876266689A" WriteProtected="false"/>
+			</Servers>
+		</Class>
+		<Class
+			Name     = "DriveAxisDS402_Base"
+			Datatype = "DriveAxisDS402_Base::t_e_EnableSequence"
+			Size     = "40"
+			Guid     = "D545518F-07E6-41C6-B013-09B6A98E8FD0">
+			<Types>
+				<Type Name="t_bd_ControllerError" Datatype="BDINT" TypeId="BIT">
+					<Elements>
+						<Type Name="ClientStatusWordNotConnected" BitNo="1"/>
+						<Type Name="ClientControlWordNotConnected" BitNo="2"/>
+						<Type Name="EnableError" BitNo="3"/>
+						<Type Name="Bit4" BitNo="4"/>
+						<Type Name="Bit5" BitNo="5"/>
+						<Type Name="Bit6" BitNo="6"/>
+						<Type Name="Bit7" BitNo="7"/>
+						<Type Name="Bit8" BitNo="8"/>
+						<Type Name="Bit9" BitNo="9"/>
+						<Type Name="Bit10" BitNo="10"/>
+						<Type Name="Bit11" BitNo="11"/>
+						<Type Name="Bit12" BitNo="12"/>
+						<Type Name="Bit13" BitNo="13"/>
+						<Type Name="Bit14" BitNo="14"/>
+						<Type Name="Bit15" BitNo="15"/>
+						<Type Name="Bit16" BitNo="16"/>
+						<Type Name="Bit17" BitNo="17"/>
+						<Type Name="Bit18" BitNo="18"/>
+						<Type Name="Bit19" BitNo="19"/>
+						<Type Name="Bit20" BitNo="20"/>
+						<Type Name="Bit21" BitNo="21"/>
+						<Type Name="Bit22" BitNo="22"/>
+						<Type Name="Bit23" BitNo="23"/>
+						<Type Name="Bit24" BitNo="24"/>
+						<Type Name="Bit25" BitNo="25"/>
+						<Type Name="Bit26" BitNo="26"/>
+						<Type Name="Bit27" BitNo="27"/>
+						<Type Name="Bit28" BitNo="28"/>
+						<Type Name="Bit29" BitNo="29"/>
+						<Type Name="Bit30" BitNo="30"/>
+						<Type Name="Bit31" BitNo="31"/>
+						<Type Name="Bit32" BitNo="32"/>
+					</Elements>
+				</Type>
+				<Type Name="t_e_EnableSequence" Datatype="UDINT" TypeId="ENUM">
+					<Elements>
+						<Type Name="ES_Disabled" Value="0"/>
+						<Type Name="ES_DisableOperation" Value="1"/>
+						<Type Name="ES_StartEnable" Value="2"/>
+						<Type Name="ES_SwitchOn" Value="3"/>
+						<Type Name="ES_EnableOperation" Value="4"/>
+						<Type Name="ES_CheckOperationEnabled" Value="5"/>
+						<Type Name="ES_Enabled" Value="6"/>
+						<Type Name="ES_ERROR" Value="7"/>
+					</Elements>
+				</Type>
+			</Types>
+		</Class>
+		<Class
 			Name     = "ECAT_DS402Base"
 			Datatype = "t_e_VaranErrors"
 			Base     = "ECAT_Slave_Base"
@@ -1215,6 +1310,12 @@
 			</Objects>
 		</Class>
 		<Class
+			Name     = "EtherCAT_SDOBase"
+			Datatype = "iprStates"
+			Size     = "356"
+			Guid     = "47421B46-76BD-4CB4-B2B2-8EEF7265063A">
+		</Class>
+		<Class
 			Name     = "GetCILInterface"
 			Datatype = "DINT"
 			Size     = "12"
@@ -1296,6 +1397,29 @@
 			Datatype = "DINT"
 			Size     = "72"
 			Guid     = "25529921-015E-4979-B126-D406D2F83DDD">
+		</Class>
+		<Class
+			Name     = "LMCSdoExecutor"
+			Datatype = "iprStates"
+			Base     = "EtherCAT_SDOBase"
+			Size     = "432"
+			Guid     = "D56A17BA-3B39-40E6-988E-236B4A449DD2">
+			<Servers>
+				<Server Name="ClassState" Datatype="iprStates" Guid="17AB54D3-7855-45B7-911A-9576DDCF8542" WriteProtected="true"/>
+				<Server Name="ParaReadWrite" Datatype="DINT" Guid="F7F3A11F-08AA-435F-B427-8F4E437665A3" WriteProtected="false"/>
+				<Server Name="ParaIndex" Datatype="HDINT" Guid="4979D147-33CC-40E4-BF4D-103FDF7CDD51" WriteProtected="false"/>
+				<Server Name="ParaSubIndex" Datatype="HDINT" Guid="37984192-41B7-4AB5-B298-660332D0CE9F" WriteProtected="false"/>
+				<Server Name="CompleteAccess" Datatype="DINT" Guid="169F4D23-3A87-40A6-9196-71482210E348" WriteProtected="false"/>
+				<Server Name="ParaType" Datatype="DINT" Guid="BE7C3AC0-BADC-4862-B1FF-721F6CC53433" WriteProtected="false"/>
+				<Server Name="ParaLength" Datatype="UDINT" Guid="81E23868-A40C-4C38-9A78-DAD5CBBBDB44" WriteProtected="false"/>
+				<Server Name="ParaValue" Datatype="DINT" Guid="37F60183-F4FA-47EF-A37C-506DFE25453D" WriteProtected="false"/>
+				<Server Name="ParaString" Datatype="STRING" Guid="E3ABA0FE-B2B7-4F92-84F6-53B2E9E267EF" WriteProtected="false"/>
+				<Server Name="ErrorCode" Datatype="HDINT" Guid="8E57551A-D82B-457E-ABF9-2947396D236F" WriteProtected="true"/>
+				<Server Name="Timeout" Datatype="UDINT" Guid="ABA1E8CE-60A4-4B2E-B1CC-0A713B759C1A" WriteProtected="false"/>
+			</Servers>
+			<Objects>
+				<Object Name="strSDOParaString" Datatype="String" Guid="98B9A5C1-8414-4C70-9E8B-4085B98A8848"/>
+			</Objects>
 		</Class>
 		<Class
 			Name     = "PosController"
@@ -1434,6 +1558,44 @@
 			Guid     = "9FBB5A34-CCCF-441F-A614-0CCECBD76648">
 		</Class>
 		<Class
+			Name     = "WELCON_1"
+			Datatype = "t_e_VaranErrors"
+			Base     = "ECAT_DS402Base"
+			Size     = "1204"
+			Guid     = "92EA4C66-519E-4841-BE39-480BB63FDDC8">
+			<Servers>
+				<Server Name="ClassState" Datatype="t_e_VaranErrors" Guid="55939D13-31EB-4F92-87E9-37432CD73662" WriteProtected="true"/>
+				<Server Name="EtherCATState" Datatype="t_e_ECAT_STATE" Guid="F6712724-204E-45FE-896A-455A32D34092" WriteProtected="true"/>
+				<Server Name="SlaveState" Datatype="UDINT" Guid="59B4BBD8-B774-43D6-83F9-D4F09EB8EB41" WriteProtected="true"/>
+				<Server Name="DeviceAdress" Datatype="HDINT" Guid="996EE089-26F8-4CA8-9945-15DACE0A9B1F" WriteProtected="true"/>
+				<Server Name="VendorID" Datatype="UDINT" Guid="1ACF7BA1-5295-4305-932D-8A1D27553333" WriteProtected="true"/>
+				<Server Name="ProductCode" Datatype="HDINT" Guid="D0C27402-1EE6-433D-BA51-B4F341EE193F" WriteProtected="true"/>
+				<Server Name="RevisionNo" Datatype="HDINT" Guid="985B1B71-5C16-4722-B138-E3919AA7F7E4" WriteProtected="true"/>
+				<Server Name="SerialNo" Datatype="UDINT" Guid="8E150447-2599-48D7-A290-E5173A6DAD4F" WriteProtected="true"/>
+				<Server Name="DeviceName" Datatype="STRING" Guid="8D4A3D7E-EDD9-4976-A32B-004F2ED17A2C" WriteProtected="false"/>
+				<Server Name="ProductRevision" Datatype="STRING" Guid="81C42FD2-EAA8-473F-8D1A-F37CB89BF3E6" WriteProtected="false"/>
+				<Server Name="AL_StatusCode" Datatype="DINT" Guid="A63437F0-D29F-4575-8ED7-7B91DEBEAB1E" WriteProtected="true"/>
+				<Server Name="Online" Datatype="DINT" Guid="90B23B7F-17A5-4B15-B193-E8E590AC4FB1" WriteProtected="true"/>
+				<Server Name="ActPos" Datatype="DINT" Guid="C16227E5-C4A6-4AA8-8D75-0C0753DEA5D3" WriteProtected="true"/>
+				<Server Name="SetPos" Datatype="DINT" Guid="AD1653E3-273F-420E-BCF9-631C1B69B748" WriteProtected="false"/>
+				<Server Name="ActSpeed" Datatype="DINT" Guid="AFB03870-3A1E-4E3F-9E25-2F05B7593A66" WriteProtected="true"/>
+				<Server Name="SetSpeed" Datatype="DINT" Guid="5FB66503-845A-4EE2-8E21-F480200B845F" WriteProtected="false"/>
+				<Server Name="ActTorque" Datatype="DINT" Guid="61590530-82E2-4719-BF31-D7AE8376ED57" WriteProtected="true"/>
+				<Server Name="SetTorque" Datatype="DINT" Guid="C74C0E31-0D17-4578-8AFB-AD336E158079" WriteProtected="false"/>
+				<Server Name="ActXw" Datatype="DINT" Guid="ABECB260-B243-40AB-9929-1ED139ACBF86" WriteProtected="true"/>
+				<Server Name="StateWord" Datatype="DS402_State" Guid="C8F60D06-0A44-46D4-9682-CEDAE7956CB9" WriteProtected="true"/>
+				<Server Name="ControlWord" Datatype="DS402_Control" Guid="A9BBEE13-72D9-4AA3-88D9-8D4329DA6FCC" WriteProtected="false"/>
+				<Server Name="AxEnable" Datatype="DINT" Guid="AB4D3D68-889C-4A85-9B6A-A5C7CD7EEA14" WriteProtected="false"/>
+				<Server Name="AxError" Datatype="DINT" Guid="851BEEE9-E2BC-41D3-8A6C-E2E474DA0824" WriteProtected="true"/>
+				<Server Name="AxErrorQuit" Datatype="DINT" Guid="D3337E02-F64C-423E-AD8D-333B0D3BC7DB" WriteProtected="false"/>
+			</Servers>
+			<Objects>
+				<Object Name="DeviceNameStr" Datatype="String" Guid="90F50F62-25DC-456C-B345-491F993164C4"/>
+				<Object Name="GetCILInterface_ECAT" Datatype="GetCILInterface" Guid="011CA525-35F4-4C54-9FFF-B30CB50751D6"/>
+				<Object Name="ProductRevStr" Datatype="String" Guid="E7CD79D3-8E47-4407-8EB1-B3910316B819"/>
+			</Objects>
+		</Class>
+		<Class
 			Name     = "XXXBase_IOs"
 			Datatype = "DINT"
 			Size     = "204"
@@ -1452,6 +1614,7 @@
 		<Object Name="_LMCAxis9" Datatype="_LMCAxis" Guid="3787C705-87DA-4625-994F-8D424E7D15AE"/>
 		<Object Name="_LMCRobotBase1" Datatype="_LMCRobotBase" Guid="A01C18CD-FE1E-432E-B14F-EF0871CE3576"/>
 		<Object Name="CP313_IOs1" Datatype="CP313_IOs" Guid="497B385D-9838-4142-ABB3-D6A101CCAFB9"/>
+		<Object Name="DriveAxisDS4021" Datatype="DriveAxisDS402" Guid="C0D2994E-B410-4689-AF10-2F012B700960"/>
 		<Object Name="Elmo_11" Datatype="Elmo_1" Guid="47F87ED0-D0EE-486E-BC7A-A70547F6C0D9"/>
 		<Object Name="Elmo_21" Datatype="Elmo_2" Guid="5F64D794-EC42-413A-AE7D-FE8E9353E49B"/>
 		<Object Name="Elmo_31" Datatype="Elmo_3" Guid="C34DFC99-CE46-4D0E-A5C3-DC9ACEB167D5"/>
@@ -1461,6 +1624,8 @@
 		<Object Name="GL_9086_1_Slot001" Datatype="GL_9086_1_Slot00" Guid="8ED78C6C-3CD3-4F28-8D77-8B808D9D0F31"/>
 		<Object Name="GL_9086_1_Slot011" Datatype="GL_9086_1_Slot01" Guid="7557A81C-A45C-4ACC-9E85-0C14F77A00EC"/>
 		<Object Name="HwControl1" Datatype="HwControl" Guid="406A4ED8-33F6-4556-ADF2-F23B00CC917F"/>
+		<Object Name="LMCSdoExecutor5" Datatype="LMCSdoExecutor" Guid="E700FF33-C72C-4EB0-A62D-50FC67CA9B70"/>
+		<Object Name="LMCSdoExecutor6" Datatype="LMCSdoExecutor" Guid="41B105A4-6CC1-4EA9-BE2C-55AA3FD9E03A"/>
 		<Object Name="PosController1" Datatype="PosController" Guid="637805E5-FCE3-4345-B84C-0FE8CBED0CA7"/>
 		<Object Name="PosController2" Datatype="PosController" Guid="5FAFF91E-5CF1-4877-9F73-3603EA6BC8A2"/>
 		<Object Name="PosController3" Datatype="PosController" Guid="23CB87E5-7D2D-4540-BBC6-9125BC86C593"/>
@@ -1470,8 +1635,11 @@
 		<Object Name="PosController7" Datatype="PosController" Guid="BFF28872-10BB-425A-8580-E9B416A035E0"/>
 		<Object Name="PosController8" Datatype="PosController" Guid="E6D9BAF9-D469-4698-B3EC-C997E2332D56"/>
 		<Object Name="PosController9" Datatype="PosController" Guid="DD1683F0-18A2-4ADB-BE79-2848AB050801"/>
+		<Object Name="PosController_Welcon_01" Datatype="PosController" Guid="08822314-8525-4E07-9E91-EF296272D401"/>
+		<Object Name="PosController_Welcon_02" Datatype="PosController" Guid="1D5F665C-6160-4B86-AFBB-726D1BD46A08"/>
 		<Object Name="SdiasPLC1" Datatype="SdiasPLC" Guid="43AA458B-5C1E-470D-AC43-542AFEF91F6F"/>
 		<Object Name="TCPIPServer1" Datatype="TCPIPServer" Guid="42E82217-EDCD-47A0-BF97-FCBD9C009436"/>
+		<Object Name="WELCON_11" Datatype="WELCON_1" Guid="8A6AEE2A-4F37-43C9-912E-58704FA6B50C"/>
 	</Objects>
 	<UnitDefinitions>
 		<UnitGrp Name="Acceleration">

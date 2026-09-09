@@ -2255,6 +2255,62 @@ Controller : CLASS_PUBLIC
 	END_TYPE
 END_CLASS;
 #pragma define (restore)
+DriveAxisDS402_Base : CLASS_PUBLIC
+	TYPE
+	  CmdClassState :
+	  (
+	    NiGetPara,
+	    NiSetPara
+	  )$UINT;
+	  t_bd_ControllerError : BDINT
+	  [
+	    1 ClientStatusWordNotConnected,
+	    2 ClientControlWordNotConnected,
+	    3 EnableError,
+	    4 Bit4,
+	    5 Bit5,
+	    6 Bit6,
+	    7 Bit7,
+	    8 Bit8,
+	    9 Bit9,
+	    10 Bit10,
+	    11 Bit11,
+	    12 Bit12,
+	    13 Bit13,
+	    14 Bit14,
+	    15 Bit15,
+	    16 Bit16,
+	    17 Bit17,
+	    18 Bit18,
+	    19 Bit19,
+	    20 Bit20,
+	    21 Bit21,
+	    22 Bit22,
+	    23 Bit23,
+	    24 Bit24,
+	    25 Bit25,
+	    26 Bit26,
+	    27 Bit27,
+	    28 Bit28,
+	    29 Bit29,
+	    30 Bit30,
+	    31 Bit31,
+	    32 Bit32,
+	  ];
+	  t_e_EnableSequence :
+	  (
+	    ES_Disabled,
+	    ES_DisableOperation,
+	    ES_StartEnable,
+	    ES_SwitchOn,
+	    ES_EnableOperation,
+	    ES_CheckOperationEnabled,
+	    ES_Enabled,
+	    ES_ERROR
+	  )$UDINT;
+	END_TYPE
+END_CLASS;
+#pragma define (restore)
 ECAT_Master_Base : CLASS_PUBLIC
 #include "..\Class\ECAT_Master_Base\ECAT_Master_Base.h"
 #include "..\Source\BusInterface.h"

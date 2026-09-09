@@ -801,6 +801,11 @@ TYPE
     dData : SafetyConfigStateType;
     pDsc : ^SVRDSC;
   END_STRUCT;
+  SvrCh_t_bd_ControllerError_PTofCls_DriveAxisDS402_Base : STRUCT
+    pMeth : ^CHMETH;
+    dData : DriveAxisDS402_Base::t_bd_ControllerError;
+    pDsc : ^SVRDSC;
+  END_STRUCT;
   SvrCh_t_e_ECAT_STATE : STRUCT
     pMeth : ^CHMETH;
     dData : t_e_ECAT_STATE;
@@ -819,6 +824,11 @@ TYPE
   SvrCh_t_s_LMCAxis_SafetyState_PTofCls__LMCAxisBase : STRUCT
     pMeth : ^CHMETH;
     dData : _LMCAxisBase::t_s_LMCAxis_SafetyState;
+    pDsc : ^SVRDSC;
+  END_STRUCT;
+  SvrChCmd_t_e_EnableSequence_PTofCls_DriveAxisDS402_Base : STRUCT
+    pMeth : ^CMDMETH;
+    dData : DriveAxisDS402_Base::t_e_EnableSequence;
     pDsc : ^SVRDSC;
   END_STRUCT;
 END_TYPE
