@@ -307,7 +307,8 @@ Windows 탐색기에서 프로젝트 폴더를 통째로 복사한 뒤 `.lcp/.lc
   ACK를 servo ready/off 완료로 오해하지 말고 `PowerOn -> GroupReadStatus의
   IsPowerOn(0x00040000) -> SetKin -> Enable/LockProfile -> motion ->
   Disable/UnlockProfile -> PowerOff -> IsPowerOn=false 확인` 순서를 지킨다.
-  `0x00040000`만 local Power Ready 확장이다. `0x00020000=NC_GROUP_STANDBY_MASK`와
+  `0x00040000`은 local Power Ready 확장이고 `0x00080000`은
+  `ProfileFinished` 기반 local InPosition 확장이다. `0x00020000=NC_GROUP_STANDBY_MASK`와
   `0x00010000=NC_GROUP_DISABLED_MASK`는 Maestro 표준이고, lock/unlock 조건에
   mapping하는 방식만 현재 어댑터 계약이다.
 - `GroupReset`의 `AxQuitError(AxisNo:=0)`는 axis/hardware error reset이다.

@@ -335,7 +335,16 @@ Double inventory/adopt/release 송신이나 PLC runtime 증거는 아니다.
 17. 작은 X/Y/Z/U 목표로 `6 Move Linear Absolute`를 먼저 시험한다.
 18. `0x7D00`에 `GroupLinearRelative`가 광고된 최신 PLC에서 X/Y/Z/U를 작은
     delta로 바꿔 `6 Move Linear Relative`를 시험한다. PASS는 profile queue 수락이며
-    화면의 Group InPosition monitor가 완료될 때까지 기다린다. monitor timeout은
+    화면의 Group InPosition monitor가 완료될 때까지 기다린다. PLC `0x2045`의
+    `IsStandby(0x00020000)`는 Profile Lock 준비 상태이고, project-local
+    `IsInPosition(0x00080000)`은 `ProfileFinished`와 Cartesian 구성축 X/Y/Z/U의
+    Standstill을 모두 확인한 완료 상태다. monitor는 ACK
+    직후 polling을 시작해 이동 중 `IsInPosition=false`를 관측하고 완료 후
+    `IsInPosition=true` 3회를 확인한다. 구버전 예제는 기존 `IsStandby` 변화를
+    사용하므로 PLC도 Cartesian 구성축 중 하나라도 Standstill이 아니면 Standby를
+    내리고 전 축 Standstill에서 다시 올리는 호환 상태를 함께 제공한다. 이 판정에는
+    각 status 요청 시작 시 초기화되는 dispatch marker를 사용하지 않는다.
+    monitor timeout은
     XYZU 거리, velocity, acceleration과 deceleration으로 계산하며 15~600초로 제한한다.
     축 순서 검증 capture는 나머지 세 delta를 0으로 두고 한 축씩 왕복한다.
 19. 종료 순서는 Group Stop 및 stable Standby 확인, `Disable (Unlock Profile)`,

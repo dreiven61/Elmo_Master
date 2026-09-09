@@ -358,8 +358,9 @@ kinematic transform 생성 기능이 아니다.
 0x20E7 SetKin -> 0x2047 Enable/LockProfile -> motion ->
 0x2048 Disable/UnlockProfile -> 0x204B PowerOff -> IsPowerOn=false 확인`이다.
 `0x204A/0x204B` ACK는
-비동기 `RobotOn`/`RobotOff` 요청 접수이며 최종 완료가 아니다. `0x00040000`만
-LASAL local Power Ready다. `0x00020000=NC_GROUP_STANDBY_MASK`와
+비동기 `RobotOn`/`RobotOff` 요청 접수이며 최종 완료가 아니다. `0x00040000`은
+LASAL local Power Ready이고 `0x00080000`은 `ProfileFinished` 기반 local
+InPosition이다. `0x00020000=NC_GROUP_STANDBY_MASK`와
 `0x00010000=NC_GROUP_DISABLED_MASK`는 Maestro 표준이며, 현재 어댑터가 각각
 locked standby와 unlocked disabled 조건에 연결한다.
 

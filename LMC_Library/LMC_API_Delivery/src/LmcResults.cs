@@ -162,6 +162,7 @@ namespace LasalMotionControlLib
         private const uint LasalGroupDisabledMask = 0x00010000u;
         private const uint LasalGroupStandbyMask = 0x00020000u;
         private const uint LasalGroupPowerReadyMask = 0x00040000u;
+        private const uint LasalGroupInPositionMask = 0x00080000u;
 
         internal LMCGroupReadStatusResult(
             LMC_Response response,
@@ -192,8 +193,21 @@ namespace LasalMotionControlLib
         }
 
         /// <summary>
+        /// True when the LASAL profile reports ProfileFinished and all four
+        /// Cartesian member axes report Standstill. This is kept separate from
+        /// IsStandby because profile lock can be ready before the first motion
+        /// has established a finished profile state.
+        /// </summary>
+        public bool IsInPosition
+        {
+            get { return (State & LasalGroupInPositionMask) != 0; }
+        }
+
+        /// <summary>
         /// True when the standard Maestro group standby mask is set. The LASAL
-        /// adapter sets it only while powered, profile-locked, and in position.
+        /// adapter uses it for the powered, profile-locked preparation state
+        /// and clears it while a submitted group motion or stop is unfinished.
+        /// New code should inspect IsInPosition for motion completion.
         /// </summary>
         public bool IsStandby
         {
@@ -201,7 +215,8 @@ namespace LasalMotionControlLib
         }
 
         /// <summary>
-        /// Compatibility alias for IsStandby; this means profile locked, not servo power on.
+        /// Compatibility alias for IsStandby; this means profile locked, not
+        /// servo power on or motion completion.
         /// </summary>
         public bool IsEnabled
         {

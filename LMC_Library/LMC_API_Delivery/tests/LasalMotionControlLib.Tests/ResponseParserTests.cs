@@ -503,6 +503,7 @@ namespace LasalMotionControlLib.Tests
             AssertEx.False(result.HasCommandError);
             AssertEx.True(result.IsSuccess);
             AssertEx.False(result.IsPowerOn);
+            AssertEx.False(result.IsInPosition);
             AssertEx.False(result.IsStandby);
             AssertEx.False(result.IsEnabled);
             AssertEx.False(result.IsDisabled);
@@ -511,6 +512,7 @@ namespace LasalMotionControlLib.Tests
             result = LMCConnection.ParseGroupReadStatusResult(
                 TestFrame.Response(0, payload));
             AssertEx.True(result.IsPowerOn);
+            AssertEx.False(result.IsInPosition);
             AssertEx.False(result.IsStandby);
             AssertEx.False(result.IsEnabled);
             AssertEx.False(result.IsDisabled);
@@ -520,6 +522,7 @@ namespace LasalMotionControlLib.Tests
                 TestFrame.Response(0, payload));
             AssertEx.False(result.IsPowerOn);
             AssertEx.True(result.IsStandby);
+            AssertEx.False(result.IsInPosition);
             AssertEx.True(result.IsEnabled);
             AssertEx.False(result.IsDisabled);
 
@@ -530,6 +533,14 @@ namespace LasalMotionControlLib.Tests
             AssertEx.False(result.IsStandby);
             AssertEx.False(result.IsEnabled);
             AssertEx.True(result.IsDisabled);
+
+            TestFrame.WriteUInt32(payload, 0, 0x00080000u);
+            result = LMCConnection.ParseGroupReadStatusResult(
+                TestFrame.Response(0, payload));
+            AssertEx.True(result.IsInPosition);
+            AssertEx.False(result.IsPowerOn);
+            AssertEx.False(result.IsStandby);
+            AssertEx.False(result.IsDisabled);
 
             TestFrame.WriteUInt16(payload, 8, 99);
             result = LMCConnection.ParseGroupReadStatusResult(

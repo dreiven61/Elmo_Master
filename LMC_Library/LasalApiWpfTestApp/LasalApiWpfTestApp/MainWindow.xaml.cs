@@ -6420,8 +6420,6 @@ namespace LasalMotionControlApiExample
                 bool noMovementExpected,
                 int timeoutMilliseconds)
         {
-            await Task.Delay(250);
-
             var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMilliseconds);
             var stableSamples = 0;
             while (DateTime.UtcNow < deadline)
@@ -8302,6 +8300,9 @@ namespace LasalMotionControlApiExample
                 + "PowerOn="
                 + result.IsPowerOn
                 + Environment.NewLine
+                + "InPosition/ProfileFinished="
+                + result.IsInPosition
+                + Environment.NewLine
                 + "Disabled/Unlocked="
                 + result.IsDisabled
                 + ", Enabled/LockedStandby="
@@ -8399,7 +8400,7 @@ namespace LasalMotionControlApiExample
         private static bool IsGroupInPosition(
             LMCGroupReadStatusResult result)
         {
-            return result != null && result.IsStandby;
+            return result != null && result.IsInPosition;
         }
 
         private static void EnsureResponseSuccess(

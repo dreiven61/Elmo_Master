@@ -40,6 +40,18 @@ fixture와 LASAL IDE-generated `_FileSys` ABI가 확보된 뒤에만 시작한�
 
 `1852bd2`에 다음 수정이 반영됐다.
 
+- 2026-09-09 Group Robot ACTIVE 후속 수정: `0x204A`가 Axis1~9의 개별 PowerOn만
+  호출해 Robot을 `_ROBOT_PASSIVE`에 남겼고, 그 결과 `LockProfile()`이
+  `_LMCROBOT_POWERON_ERROR(1003)`를 반환했다. Group Power On/Off를 각각
+  `LMCRobot.RobotOn(_ACTIVE)`와 `LMCRobot.RobotOff()`로 변경했다. Group Read Status의
+  Power Ready는 모든 configured robot axis PowerOn과 `_ROBOT_ACTIVE`가 모두 확인될 때만
+  설정한다. 구현만 반영했으며 LASAL build/download와 PLC runtime test는 사용자가 수행한다.
+- 2026-09-09 최종 native-dispatch 운영 수정: TCP와 Control service의
+  `LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED`를 모두 `FALSE`로 변경했다. 일반 Axis/Group
+  명령은 retained owner admission에서 `-9`로 선차단하지 않고 native LMC handler에
+  전달한다. 성공/실패는 실제 axis/robot 반환으로 판정하며 자동 Reset/Home/replay는 없다.
+  LMC Home/DS402 Home 등 별도 durable lifecycle 명령은 이 bypass 대상이 아니다.
+  구현만 반영했으며 LASAL build/download와 PLC runtime test는 사용자가 수행한다.
 - direct ordinary Axis Power On을 retained rebase bit만으로 거절하지 않음
 - 2026-09-08 후속 수정: direct ordinary Axis MoveAbsolute/MoveRelative/MoveVelocity도 retained
   rebase bit로 선차단하지 않고 native LMC 결과를 반환함
@@ -64,6 +76,13 @@ fixture와 LASAL IDE-generated `_FileSys` ABI가 확보된 뒤에만 시작한�
   `0x1F0` mask를 제거했다. 따라서 Group Power ACK/status PASS 뒤 owner가
   Simulation 축 때문에 quarantine되어 Set Identity가 `-9`로 거부되는 경로를 제거했다.
   이 항목은 source-only이며 C78 build/download와 PLC runtime 확인은 별도다.
+- 2026-09-09 prior-boot ownership retirement 후속 수정: 이전 PLC boot에서 남은
+  structurally valid active/quarantined owner와 identity/observer bank는 새 boot에서
+  즉시 삭제하지 않는다. 기존 startup reconciler가 physical axes safe idle, group
+  unlocked/idle, diagnostics 및 Home drain을 3회/100 ms 안정적으로 증명한 뒤에만 전체
+  prior-boot ownership table을 재초기화한다. same-boot owner, global integrity latch,
+  malformed table은 계속 fail-closed이며 command replay와 Watch 강제 clear는 없다.
+  구현만 반영했으며 LASAL build/download와 PLC runtime test는 사용자가 수행한다.
 - Power Off가 `PowerOff + Standstill`에 도달하면 alarm-only 상태를 terminal failure로 오분류하지 않음
 - 새 Power On 예약을 Power Off safety-repeat로 오분류해 `ErrorId=-9`와 `RESERVED` 잔류를 만들던
   `HandleAxisOwnershipSafetyRepeat` 경로 수정

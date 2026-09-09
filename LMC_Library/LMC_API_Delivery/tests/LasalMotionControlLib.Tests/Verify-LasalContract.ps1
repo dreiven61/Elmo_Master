@@ -56758,10 +56758,12 @@ if ($ControlServiceCheckpoint -ne 'Phase2Skeleton') {
         '_LMCPROF_LockState.*?LMCRobot\.ReadRobotParameter\(.*?' +
         '_ROBOT_STATE.*?powerIsOn\s*<>\s*0.*?' +
         'groupReadState\s*:=\s*groupReadState or 0x00040000.*?' +
-        'profileLocked\s*=\s*TRUE.*?groupReadInPosition\s*<>\s*0.*?' +
+        'profileLocked\s*=\s*TRUE.*?' +
         'groupReadState\s*:=\s*groupReadState or 0x00020000.*?' +
         'profileLocked\s*=\s*FALSE.*?' +
-        'groupReadState\s*:=\s*groupReadState or 0x00010000') (
+        'groupReadState\s*:=\s*groupReadState or 0x00010000.*?' +
+        'groupMotionComplete.*?' +
+        'groupReadState\s*:=\s*groupReadState or 0x00080000') (
         'Service GroupReadStatus power/lock/in-position state mapping is missing.')
     Assert-Match $serviceGroupReadStatusBlock (
         '(?s)robotState\s*=\s*_ROBOT_ERROR\$DINT.*?' +

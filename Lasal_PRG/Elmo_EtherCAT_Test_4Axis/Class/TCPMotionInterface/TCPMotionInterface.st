@@ -325,7 +325,10 @@ END_FUNCTION
 
 //{{LSL_IMPLEMENTATION
 
-#define LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED TRUE
+// Ordinary Axis/Group commands must reach the native LMC handler. The drive
+// or robot returns the operational error; retained adapter ownership must not
+// reject the command before dispatch.
+#define LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED FALSE
 #define LMC_OWNER_PROFILE_AXIS_MASK 0x0000000F
 #define LMC_OWNER_ROBOT_AXIS_MASK 0x000001FF
 #define LMC_OWNER_KIND_DIRECT 1

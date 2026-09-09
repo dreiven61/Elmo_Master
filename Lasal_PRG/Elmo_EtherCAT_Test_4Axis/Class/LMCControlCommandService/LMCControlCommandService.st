@@ -618,7 +618,9 @@ END_FUNCTION
 #define LMC_SET_POSITION_EVIDENCE_AXIS_MASK 0x00000002
 #define LMC_SET_POSITION_EVIDENCE_READY_MASK 0x800003FF
 #define LMC_SET_POSITION_EVIDENCE_REJECT_MASK 0x80000003
-#define LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED TRUE
+// Keep ordinary Axis/Group admission out of the native dispatch path. Runtime
+// drive/robot status is authoritative for command acceptance and failure.
+#define LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED FALSE
 #define LMC_OWNER_ADAPTER_ERROR_CONFLICT -9
 #define LMC_OWNER_SAFETY_DRAIN_PENDING -10
 #define LMC_OWNER_SAFETY_REPEAT_NOT_APPLICABLE -11
@@ -7024,6 +7026,7 @@ FUNCTION GLOBAL LMCControlCommandService::ReconcileAxisOwnershipStartup
 		signatureStable : BOOL;
 		freshObservation : BOOL;
 		auxiliaryIdle : BOOL;
+		priorBootOwnerTable : BOOL;
 	END_VAR
 
 	Result := -1;
@@ -7047,6 +7050,15 @@ FUNCTION GLOBAL LMCControlCommandService::ReconcileAxisOwnershipStartup
 		RETURN;
 	end_if;
 
+	priorBootOwnerTable :=
+		(OwnershipState[0]$UDINT = LMC_OWNER_TABLE_MAGIC) &
+		(OwnershipState[3]$UDINT <> 0) &
+		(OwnershipState[3]$UDINT <> DiagnosticsBootId) &
+		(OwnershipState[4]$UDINT <> 0) &
+		(OwnershipState[5]$UDINT = LMC_OWNER_STARTUP_PROOF_REQUIRED) &
+		(OwnershipState[6] = 0) &
+		(OwnershipState[24] = 0);
+
 	auxiliaryIdle := TRUE;
 	stateIndex := 0;
 	while stateIndex <= 431 do
@@ -7065,13 +7077,18 @@ FUNCTION GLOBAL LMCControlCommandService::ReconcileAxisOwnershipStartup
 		end_if;
 		stateIndex += 1;
 	end_while;
-	if auxiliaryIdle = FALSE then
+	// A structurally valid prior-boot owner cannot execute after restart. Its
+	// immutable identity banks are retired only after the complete startup
+	// physical/group/drain proof below is stable. Same-boot owners and damaged
+	// tables remain fail-closed.
+	if (auxiliaryIdle = FALSE) & (priorBootOwnerTable = FALSE) then
 		Result := -3;
 		RETURN;
 	end_if;
 
-	// A nonzero existing table may be replaced only when it is a valid,
-	// prior-boot, completely idle owner table.
+	// A nonzero existing table may be replaced when it is a structurally valid
+	// prior-boot table. Active or quarantined records are not replayed and are
+	// not cleared until the stable startup safety proof completes.
 	if OwnershipState[0]$UDINT = 0 then
 		tableIdle := TRUE;
 		stateIndex := 1;
@@ -7086,20 +7103,7 @@ FUNCTION GLOBAL LMCControlCommandService::ReconcileAxisOwnershipStartup
 			RETURN;
 		end_if;
 	elsif OwnershipState[0]$UDINT = LMC_OWNER_TABLE_MAGIC then
-		tableIdle := (OwnershipState[3]$UDINT <> 0) &
-			(OwnershipState[4]$UDINT <> 0) &
-			(OwnershipState[5]$UDINT = LMC_OWNER_STARTUP_PROOF_REQUIRED) &
-			(OwnershipState[6] = 0) &
-			(OwnershipState[7] = 0) & (OwnershipState[8] = 0) &
-			(OwnershipState[9] = 0) & (OwnershipState[10] = 0) &
-			(OwnershipState[11] = 0) & (OwnershipState[12] = 0) &
-			(OwnershipState[13] = 0) & (OwnershipState[14] = 0) &
-			(OwnershipState[15] = 0) & (OwnershipState[16] = 0) &
-			(OwnershipState[17] = 0) & (OwnershipState[18] = 0) &
-			(OwnershipState[19] = 0) & (OwnershipState[20] = 0) &
-			(OwnershipState[21] = 0) & (OwnershipState[24] = 0) &
-			(OwnershipState[25] = 0) & (OwnershipState[26] = 0) &
-			(OwnershipState[27] = 0);
+		tableIdle := priorBootOwnerTable;
 		axisIndex := 1;
 		while axisIndex <= LMC_OWNER_AXIS_COUNT do
 			recordBase := LMC_OWNER_GLOBAL_SLOTS +
@@ -7109,13 +7113,6 @@ FUNCTION GLOBAL LMCControlCommandService::ReconcileAxisOwnershipStartup
 				 (LMC_OWNER_AXIS_RECORD_MAGIC + TO_UDINT(axisIndex))) then
 				tableIdle := FALSE;
 			end_if;
-			stateIndex := 1;
-			while stateIndex <= 34 do
-				if OwnershipState[recordBase + stateIndex] <> 0 then
-					tableIdle := FALSE;
-				end_if;
-				stateIndex += 1;
-			end_while;
 			axisIndex += 1;
 		end_while;
 		if tableIdle = FALSE then
@@ -9336,6 +9333,7 @@ FUNCTION LMCControlCommandService::HandleGroupCommands
 		groupAxis2Enable : DINT;
 		groupAxis3Enable : DINT;
 		groupAxis4Enable : DINT;
+		robotPowerResult : DINT;
 	END_VAR
 
 	ResponseSize := -1;
@@ -9569,15 +9567,17 @@ FUNCTION LMCControlCommandService::HandleGroupCommands
 			if groupCommandInputValid = TRUE then
 				if ResponseCapacity < 16 then RETURN; end_if;
 				groupReadErrorId := -2;
-				// Group Power addresses the complete software robot membership.
-				// Axis 1..2 may be physical and Axis 3..9 may be Simulation;
-				// both kinds receive the same native axis Power command.
-				groupAxisMask := LMC_OWNER_ROBOT_AXIS_MASK;
-				if groupAxisMask <> 0 then
+				// RobotOn(_ACTIVE) owns the complete configured robot membership,
+				// including Simulation axes, and completes the Robot state change
+				// required by LockProfile. Individual axis PowerOn calls alone leave
+				// the Robot in _ROBOT_PASSIVE and LockProfile returns 1003.
+				if IsClientConnected(#LMCRobot) = 1 then
 					OwnershipState[26] := TO_DINT(CommandId);
 					OwnershipState[27] := TO_DINT(Reference);
 					OwnershipState[25] := 1;
-					groupReadErrorId := SetResolvedGroupAxesPower(GroupAxisMask:=groupAxisMask, Enable:=TRUE);
+					robotPowerResult := LMCRobot.RobotOn(
+						Mode:=_LMCRobotBase::_ACTIVE);
+					groupReadErrorId := robotPowerResult;
 				end_if;
 				_memset(dest:=pResponseFrame, usByte:=0, cntr:=16);
 				pResponseFrame^$UINT := 0; (pResponseFrame + 2)^$UINT := 8;
@@ -9606,13 +9606,14 @@ FUNCTION LMCControlCommandService::HandleGroupCommands
 			if groupCommandInputValid = TRUE then
 				if ResponseCapacity < 16 then RETURN; end_if;
 				groupReadErrorId := -2;
-				// Power Off uses the same complete software robot membership.
-				groupAxisMask := LMC_OWNER_ROBOT_AXIS_MASK;
-				if groupAxisMask <> 0 then
+				// RobotOff is the matching group lifecycle command. It returns the
+				// Robot to PASSIVE and powers off its configured Axis 1..9 members.
+				if IsClientConnected(#LMCRobot) = 1 then
 					OwnershipState[26] := TO_DINT(CommandId);
 					OwnershipState[27] := TO_DINT(Reference);
 					OwnershipState[25] := 1;
-					groupReadErrorId := SetResolvedGroupAxesPower(GroupAxisMask:=groupAxisMask, Enable:=FALSE);
+					robotPowerResult := LMCRobot.RobotOff();
+					groupReadErrorId := robotPowerResult;
 				end_if;
 				_memset(dest:=pResponseFrame, usByte:=0, cntr:=16);
 				pResponseFrame^$UINT := 0; (pResponseFrame + 2)^$UINT := 8;
@@ -10753,6 +10754,9 @@ FUNCTION LMCControlCommandService::GroupReadStatus
 		profileLockState : DINT;
 		profileLocked : BOOL;
 		groupReadInPosition : DINT;
+		groupAxesStandstill : BOOL;
+		groupMotionComplete : BOOL;
+		groupAxisStatus : _LMCAXIS_STATUS;
 		groupReadState : UDINT;
 		groupReadErrorId : DINT;
 	END_VAR
@@ -10766,7 +10770,46 @@ FUNCTION LMCControlCommandService::GroupReadStatus
 	groupReadState := 0x40000000;
 	groupReadInPosition := LMCRobot.ProfileInPosition(
 		Mode:=_LMCPROF_ProfileFinished);
-	if AreResolvedGroupAxesPowered(
+	groupAxesStandstill := TRUE;
+	if IsClientConnected(#LMCAxis1) = 0 then
+		groupAxesStandstill := FALSE;
+	else
+		groupAxisStatus := LMCAxis1.ReadAxisStatus();
+		if (groupAxisStatus$UDINT and LMC_AXIS_STATUS_STANDSTILL) = 0 then
+			groupAxesStandstill := FALSE;
+		end_if;
+	end_if;
+	if IsClientConnected(#LMCAxis2) = 0 then
+		groupAxesStandstill := FALSE;
+	else
+		groupAxisStatus := LMCAxis2.ReadAxisStatus();
+		if (groupAxisStatus$UDINT and LMC_AXIS_STATUS_STANDSTILL) = 0 then
+			groupAxesStandstill := FALSE;
+		end_if;
+	end_if;
+	if IsClientConnected(#LMCAxis3) = 0 then
+		groupAxesStandstill := FALSE;
+	else
+		groupAxisStatus := LMCAxis3.ReadAxisStatus();
+		if (groupAxisStatus$UDINT and LMC_AXIS_STATUS_STANDSTILL) = 0 then
+			groupAxesStandstill := FALSE;
+		end_if;
+	end_if;
+	if IsClientConnected(#LMCAxis4) = 0 then
+		groupAxesStandstill := FALSE;
+	else
+		groupAxisStatus := LMCAxis4.ReadAxisStatus();
+		if (groupAxisStatus$UDINT and LMC_AXIS_STATUS_STANDSTILL) = 0 then
+			groupAxesStandstill := FALSE;
+		end_if;
+	end_if;
+	groupMotionComplete :=
+		(groupReadInPosition <> 0) & groupAxesStandstill;
+	robotState := LMCRobot.ReadRobotParameter(ParNo:=_ROBOT_STATE, Mode:=0);
+	// Power ready means Robot ACTIVE and every configured robot axis powered.
+	// Axis-only power must not enable Set Identity/Profile Lock sequencing.
+	if (robotState = _ROBOT_ACTIVE$DINT) &
+	   AreResolvedGroupAxesPowered(
 	   GroupAxisMask:=LMC_OWNER_ROBOT_AXIS_MASK) then
 				powerIsOn := 1;
 			else
@@ -10779,15 +10822,24 @@ FUNCTION LMCControlCommandService::GroupReadStatus
 	else
 		profileLocked := FALSE;
 	end_if;
-	robotState := LMCRobot.ReadRobotParameter(ParNo:=_ROBOT_STATE, Mode:=0);
-
 	if powerIsOn <> 0 then
 		groupReadState := groupReadState or 0x00040000;
 	end_if;
 	if (powerIsOn <> 0) & (profileLocked = TRUE) then
-		groupReadState := groupReadState or 0x00020000;
+		// Legacy clients use Standby for both Lock Ready and motion completion.
+		// The request-dispatch marker is cleared by every status request and
+		// cannot identify an active move. Clear Standby directly while any
+		// Cartesian member axis is moving, then restore it at standstill.
+		if groupAxesStandstill then
+			groupReadState := groupReadState or 0x00020000;
+		end_if;
 	elsif profileLocked = FALSE then
 		groupReadState := groupReadState or 0x00010000;
+	end_if;
+	// Keep Lock Ready separate from motion completion. ProfileFinished may be
+	// false before the first move, so it must not gate the Standby lock bit.
+	if groupMotionComplete then
+		groupReadState := groupReadState or 0x00080000;
 	end_if;
 
 	if robotState = _ROBOT_ERROR$DINT then

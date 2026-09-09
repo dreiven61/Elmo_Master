@@ -1,5 +1,29 @@
 # LASAL Motion Control API 개발 진척도
 
+2026-09-09 Group Robot ACTIVE/LockProfile 수정: live 로그에서 Group Power On은 PASS였지만
+`_LMCRobotBase1`은 `_ROBOT_PASSIVE`였고 `LockProfile()`이 MotionLib
+`_LMCROBOT_POWERON_ERROR(1003)`를 반환했다. 원인은 `0x204A/0x204B`가 Robot lifecycle을
+호출하지 않고 Axis1~9의 개별 Power 명령만 호출한 것이었다. `0x204A`는
+`LMCRobot.RobotOn(_ACTIVE)`, `0x204B`는 `LMCRobot.RobotOff()`를 호출하도록 수정했다.
+Group Read Status의 Power Ready bit도 모든 Axis PowerOn과 `_ROBOT_ACTIVE`를 함께 요구한다.
+구현만 반영했으며 LASAL build/download와 PLC runtime test는 사용자가 수행한다.
+
+2026-09-09 native-dispatch 우선 운영 수정: 일반 Axis/Group 명령에 적용되던 retained
+ownership 사전 admission을 TCP와 Control service 양쪽에서 비활성화했다. 따라서
+Axis Power On `0x2023`을 포함한 일반 Axis/Group 명령은 stale active/quarantined owner로
+`-9`를 만들기 전에 native LMC handler까지 전달되고, 실제 axis/robot의 성공 또는 오류를
+응답한다. LMC Home/DS402 Home처럼 별도 durable lifecycle을 가진 관리 명령의 계약은
+변경하지 않았다. 구현만 반영했으며 LASAL build/download와 PLC runtime test는 사용자가
+수행한다.
+
+2026-09-09 prior-boot ownership retirement fix: 새 PLC boot에서 이전 boot의 structurally
+valid ownership table이 active/quarantined record와 identity bank를 보유해도 즉시
+`-9`로 영구 차단하지 않는다. 기존 startup reconciler의 physical idle, group unlocked/idle,
+diagnostics/home drain proof가 3회 및 100 ms 동안 안정된 뒤에만 이전 boot table 전체를
+원자적으로 재초기화한다. command replay와 same-boot owner 삭제는 수행하지 않으며,
+global integrity latch 또는 구조가 손상된 table은 계속 fail-closed다. 구현만 반영했으며
+LASAL build/download와 PLC runtime test는 사용자가 수행한다.
+
 2026-09-09 Group Power ownership completion fix: `0x204A/0x204B` ownership은
 software robot Axis1~9를 같은 범위로 관찰한다. Axis1~4는 InputLatch/DS402 snapshot을
 사용하고, Simulation Axis5~9는 native `_LMCAxis.ReadAxisStatus/ReadAxisError`를

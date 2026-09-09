@@ -1592,6 +1592,7 @@ MoveLinearAbsolute/Relative의 좌표계와 motion mode를 설정한다.
 | `IsReadSuccessful` | `bool` | - | RPC/function read 성공; native group error 존재 여부와 분리 |
 | `State` | `uint` | Bit field | Raw group state |
 | `IsPowerOn` | `bool` | - | Group power 상태 |
+| `IsInPosition` | `bool` | - | project-local `0x00080000`; `ProfileFinished` 및 Cartesian X/Y/Z/U Standstill 기반 Group motion 완료 상태 |
 | `IsStandby` | `bool` | - | Profile locked 상태 |
 | `IsEnabled` | `bool` | - | `IsStandby` 호환 alias; servo power와 다름 |
 | `IsDisabled` | `bool` | - | Profile unlocked 상태 |

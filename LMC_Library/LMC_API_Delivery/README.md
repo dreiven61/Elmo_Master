@@ -671,7 +671,11 @@ GroupReadStatus.IsPowerOn=false 확인`이다.
 LASAL project-local Power Ready 확장이다. `0x00020000`은 Maestro 표준
 `NC_GROUP_STANDBY_MASK`, `0x00010000`은 표준 `NC_GROUP_DISABLED_MASK`이며,
 현재 어댑터는 각각 locked standby(`IsStandby/IsEnabled`)와 unlocked
-disabled(`IsDisabled`) 조건에서 이 표준 mask를 설정한다.
+disabled(`IsDisabled`) 조건에서 이 표준 mask를 설정한다. project-local
+`0x00080000=IsInPosition`은 `ProfileInPosition(_LMCPROF_ProfileFinished)`과 Cartesian
+X/Y/Z/U 전 축 Standstill을 모두 요구하며 Profile Lock 준비 상태와 Group motion 완료
+상태를 분리한다. 구버전 `IsStandby` monitor 호환을 위해 Standby는 전 축 Standstill에서
+설정되고 어느 구성축이라도 이동 중이면 해제된다.
 
 public `BeginGroupPowerOnWaitForStableStateAsync`와
 `BeginGroupPowerOffWaitForStableStateAsync`는 각각 `0x204A` 또는 `0x204B`를 정확히 한 번

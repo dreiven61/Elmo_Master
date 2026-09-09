@@ -98,7 +98,8 @@ LASAL IDE Rebuild와 PLC 동작 시험
 `PowerOn -> IsPowerOn(0x00040000) 확인 -> SetKin(static mapping only) ->
 Enable/LockProfile -> motion -> Disable/UnlockProfile -> PowerOff ->
 IsPowerOn=false 확인`이다.
-`GroupReadStatus`의 `0x00040000`만 local Power Ready 확장이다.
+`GroupReadStatus`의 `0x00040000`은 local Power Ready 확장이고 `0x00080000`은
+`ProfileFinished` 기반 local InPosition 확장이다.
 `0x00020000=NC_GROUP_STANDBY_MASK`와 `0x00010000=NC_GROUP_DISABLED_MASK`는
 Maestro 표준이며, 현재 어댑터가 각각 locked standby(`IsStandby/IsEnabled`)와
 unlocked disabled(`IsDisabled`) 조건에 mapping한다.

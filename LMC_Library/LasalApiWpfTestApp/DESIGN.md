@@ -376,6 +376,17 @@ var raw = checked((int)Math.Round(
 - Relative는 Admin `0x7D22` capability가 없는 PLC에서 API가 송신 전에 거부한다.
   PLC가 `MoveRelativeCoord`를 직접 호출하므로 UI는 현재 위치를 합산해 absolute target을
   만들지 않는다. Admin ACK는 queue 수락이며 완료는 기존 Group InPosition monitor다.
+  PLC `0x2045`는 Profile Lock 준비 상태인 `IsStandby(0x00020000)`와
+  `ProfileInPosition(_LMCPROF_ProfileFinished)` 결과인 project-local
+  `IsInPosition(0x00080000)`을 분리한다. `IsInPosition`은 ProfileFinished와
+  Cartesian 구성축 X/Y/Z/U의 Standstill이 모두 확인될 때만 설정한다. Group move monitor는
+  `IsInPosition=false`를 이동 진행으로 관측한 뒤 `IsInPosition=true` 3회를
+  완료로 판정한다. PC monitor는 ACK 뒤 고정 선행 지연 없이 즉시 polling하여
+  짧은 이동의 active transition을 놓칠 가능성을 줄인다. 구버전 예제 호환을
+  위해 PLC는 Cartesian 구성축 중 하나라도 Standstill이 아니면 기존 Standby
+  비트도 내리고 전 축 Standstill에서 복원한다. status 요청마다 초기화되는
+  dispatch marker는 이 판정에 사용하지 않으며 첫 Move 전 Lock Ready는
+  ProfileFinished에 의존하지 않는다.
 - Group finite-motion monitor timeout은 첫 네 축의 absolute distance 합과
   velocity/acceleration/deceleration으로 보수적으로 계산하고 25% 및 5초 여유를 더한 뒤
   15~600초로 제한한다. timeout 뒤에도 motion-uncertain 상태와 Group Stop 경로는 유지한다.

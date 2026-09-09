@@ -112,7 +112,8 @@
   ACK는 비동기 `RobotOn`/`RobotOff` 요청 접수이며 최종 완료가 아니다. 정상 순서는
   `PowerOn -> GroupReadStatus IsPowerOn(0x00040000) -> SetKin -> Enable/lock ->
   motion -> Disable/unlock -> PowerOff -> IsPowerOn=false 확인`이다.
-  `0x00040000`만 local Power Ready 확장이다.
+  `0x00040000`은 local Power Ready 확장이고 `0x00080000`은
+  `ProfileFinished`를 독립적으로 노출하는 local InPosition 확장이다.
   `0x00020000=NC_GROUP_STANDBY_MASK`와 `0x00010000=NC_GROUP_DISABLED_MASK`는
   Maestro 표준이며, 어댑터가 이를 locked standby/unlocked disabled 조건에 mapping한다.
 - `GroupReset`은 `AxQuitError(AxisNo:=0)` 기반 axis/hardware error reset이다.
