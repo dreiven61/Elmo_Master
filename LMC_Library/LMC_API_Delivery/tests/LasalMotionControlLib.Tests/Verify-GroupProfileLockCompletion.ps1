@@ -40,7 +40,7 @@ if ([string]::IsNullOrWhiteSpace($enableObserver)) {
 }
 $motionObserver = [regex]::Match(
     $process,
-    '(?is)0x20A4\s*,\s*0x7D22\s*:(?<Body>.*?)(?=\s*else\s*\r?\n\s*end_case;)').Groups['Body'].Value
+    '(?is)0x20A4\s*,\s*0x7D22\s*:(?<Body>.*?)(?=\s*else\s*\r?\n\s*forceQuarantine\s*:=)').Groups['Body'].Value
 if ([string]::IsNullOrWhiteSpace($motionObserver)) {
     throw 'Missing 0x20A4/0x7D22 motion observer block.'
 }
