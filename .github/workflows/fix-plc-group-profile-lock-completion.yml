@@ -10,6 +10,7 @@ on:
 permissions:
   contents: write
 
+# v2: verifier bounds the 0x20A4/0x7D22 motion case at the force-quarantine default.
 jobs:
   apply-plc-fix:
     runs-on: windows-latest
