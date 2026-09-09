@@ -1,0 +1,106 @@
+name: Fix PLC Group profile lock completion
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/fix-plc-group-profile-lock-completion.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply-plc-fix:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Apply PLC profile-lock completion fix
+        shell: pwsh
+        run: |
+          @'
+          from pathlib import Path
+          import re
+
+          path = Path(r'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st')
+          data = path.read_bytes()
+
+          # GroupReadStatus: Locked Standby is a PowerOn + LockState condition.
+          # _LMCPROF_ProfileFinished describes motion-queue completion and must not
+          # prevent the group from becoming move-ready before the first motion.
+          standby_pattern = re.compile(
+              rb'if\s*\(powerIsOn\s*<>\s*0\)\s*&\s*\(profileLocked\s*=\s*TRUE\)\s*&\s*\r?\n'
+              rb'(?P<indent>[ \t]*)\(groupReadInPosition\s*<>\s*0\)\s*then')
+          standby_matches = list(standby_pattern.finditer(data))
+          if len(standby_matches) != 1:
+              raise RuntimeError(f'Expected exactly one GroupReadStatus Standby gate, found {len(standby_matches)}.')
+          data = standby_pattern.sub(
+              b'if (powerIsOn <> 0) & (profileLocked = TRUE) then',
+              data,
+              count=1)
+
+          # ProcessAxisOwnership 0x2047: retire the accepted Group Enable owner
+          # once native LockState is proven with safe stationary/error-clear axes.
+          # Waiting for ProfileFinished here creates a circular dependency because
+          # the first Move cannot reserve the same profile axes until Enable retires.
+          label = re.search(rb'\b0x2047\s*:', data)
+          next_label = re.search(rb'\b0x2048\s*:', data[label.end():] if label else b'')
+          if not label or not next_label:
+              raise RuntimeError('Could not bound the 0x2047 ownership observer block.')
+          block_end = label.end() + next_label.start()
+          block = data[label.start():block_end]
+          finished_pattern = re.compile(
+              rb'\(groupLockState\s*<>\s*0\)\s*&\s*\r?\n'
+              rb'(?P<indent>[ \t]*)\(groupFinished\s*<>\s*0\)\s*&\s*allStandstill\s*&')
+          finished_matches = list(finished_pattern.finditer(block))
+          if len(finished_matches) != 1:
+              raise RuntimeError(f'Expected exactly one 0x2047 ProfileFinished dependency, found {len(finished_matches)}.')
+          block = finished_pattern.sub(
+              lambda m: b'(groupLockState <> 0) &' + (b'\r\n' if b'\r\n' in m.group(0) else b'\n') + m.group('indent') + b'allStandstill &',
+              block,
+              count=1)
+          data = data[:label.start()] + block + data[block_end:]
+
+          path.write_bytes(data)
+          print('Applied PLC Group profile-lock completion fix.')
+          '@ | python -
+
+      - name: Show PLC diff
+        shell: pwsh
+        run: |
+          git diff --stat
+          git diff -- 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
+
+      - name: Verify Group profile-lock semantics
+        shell: pwsh
+        run: |
+          & 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-GroupProfileLockCompletion.ps1' -RepositoryRoot $PWD
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify existing servo/power lifecycle contract
+        shell: pwsh
+        run: |
+          & 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalServoPowerLifecycle.ps1' -RepositoryRoot $PWD
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Diff check
+        shell: pwsh
+        run: |
+          git diff --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Commit and push PLC source
+        shell: pwsh
+        run: |
+          if (git diff --quiet) { throw 'No PLC source changes to commit.' }
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
+          git commit -m 'fix(plc-group): decouple profile lock from motion finished'
+          git push origin HEAD:dev
