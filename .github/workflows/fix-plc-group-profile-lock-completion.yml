@@ -5,12 +5,13 @@ on:
     branches: [dev]
     paths:
       - '.github/workflows/fix-plc-group-profile-lock-completion.yml'
+      - 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-GroupProfileLockCompletion.ps1'
   workflow_dispatch:
 
 permissions:
   contents: write
 
-# v2: verifier bounds the 0x20A4/0x7D22 motion case at the force-quarantine default.
+# v3: verifier uses valid PowerShell Check invocations and guards the PLC lock/motion boundary.
 jobs:
   apply-plc-fix:
     runs-on: windows-latest
