@@ -1,0 +1,109 @@
+name: Apply Group step5 move readiness fix v3
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/fix-group-step5-move-readiness-v3.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fix:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Apply Group step5 patch
+        shell: pwsh
+        run: |
+          @'
+          from pathlib import Path
+          import re
+          import textwrap
+
+          workflow = Path('.github/workflows/fix-group-step5-move-readiness-v2.yml').read_text(encoding='utf-8')
+          match = re.search(
+              r"@'\n(?P<body>\s*from pathlib import Path\n.*?print\('Applied corrected Group step5 patch and localization entries\.'\))\n\s*'@ \| python -",
+              workflow,
+              flags=re.S)
+          if not match:
+              raise RuntimeError('Could not extract v2 Group step5 patch script.')
+          exec(compile(textwrap.dedent(match.group('body')), '<group-step5-v2>', 'exec'), {})
+          '@ | python -
+
+      - name: Verify step5 source contract
+        shell: pwsh
+        run: |
+          $path = 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.xaml.cs'
+          $source = Get-Content -Raw -LiteralPath $path
+          $start = $source.IndexOf('private async void ButtonGroupReadStatus_Click')
+          if ($start -lt 0) { throw 'ButtonGroupReadStatus_Click was not found.' }
+          $end = $source.IndexOf('private async void ButtonGroupPowerOn_Click', $start)
+          if ($end -lt 0) { throw 'Could not bound ButtonGroupReadStatus_Click.' }
+          $block = $source.Substring($start, $end - $start)
+          if ($block -notmatch 'ResumeGroupEnableWaitForLockedStandbyAsync') {
+            throw 'Step 5 does not resume the accepted Group Enable proof.'
+          }
+          if ($block -notmatch 'Step 5 Group Lock Ready verification') {
+            throw 'Step 5 status-only verification marker is missing.'
+          }
+          if ($block -match 'GroupEnableAsync|0x2047') {
+            throw 'Step 5 must never replay Group Enable / 0x2047.'
+          }
+          if ($source -notmatch 'Move blocked:.*groupMoveReadinessBlocker') {
+            throw 'Exact Move readiness blocker is not exposed in Preparation text.'
+          }
+
+      - name: Build WPF smoke harness
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $msbuild = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
+          if (-not $msbuild) { throw 'MSBuild.exe was not found.' }
+          & $msbuild `
+            'LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\LasalApiWpfTestApp.SmokeTests.csproj' `
+            '/t:Build' `
+            '/p:Configuration=Debug' `
+            '/p:Platform=AnyCPU' `
+            '/nologo'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run focused non-process Group tests
+        shell: pwsh
+        run: |
+          $exe = 'LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\bin\Debug\LasalApiWpfTestApp.SmokeTests.exe'
+          foreach ($filter in @(
+              'Wpf.UiLocalization.StaticChromeHasExplicitCatalogEntries',
+              'Wpf.GroupEnable.OneEnableThenThreeStableLockedStandbySamples',
+              'Wpf.GroupEnable.PreemptedVerificationResumesWithoutEnableReplay',
+              'Wpf.GroupPowerState.SingleReadDoesNotPromoteUnverifiedLock',
+              'Wpf.GroupDisable.FreshDurableArmAcceptedResolved')) {
+              & $exe --filter $filter
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
+      - name: Diff check
+        shell: pwsh
+        run: git diff --check
+
+      - name: Commit and push
+        shell: pwsh
+        run: |
+          if (git diff --quiet) { throw 'No source changes to commit.' }
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add `
+            'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.xaml.cs' `
+            'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.xaml' `
+            'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/UiLocalization.cs' `
+            'LMC_Library/LasalApiWpfTestApp/README.md'
+          git commit -m 'fix(group-ui): complete lock proof from step 5'
+          git push origin HEAD:dev
