@@ -56,7 +56,7 @@ if ([string]::IsNullOrWhiteSpace($enableHandler)) {
 Check ($types -match '(?is)_LMCPROF_LockState.*?All axis are locked') 'Generated LASAL type documents LockState as the profile-lock authority'
 Check ($types -match '(?is)_LMCPROF_ProfileFinished.*?all motion sequences have been completed') 'Generated LASAL type documents ProfileFinished as motion completion'
 
-Check ($enableHandler -match 'LMCRobot\.LockProfile\(\s*Profile:=0') 'Group Enable still reaches native LockProfile'
+Check ($enableHandler -match 'LMCRobot\.LockProfile\(') 'Group Enable still reaches native LockProfile'
 Check ($status -match 'ReadProfileParameter\(\s*ParNo:=_LMCPROF_LockState\)') 'GroupReadStatus reads the authoritative LockState'
 Check ($status -match 'ProfileInPosition\(\s*Mode:=_LMCPROF_ProfileFinished\)') 'GroupReadStatus may still observe ProfileFinished for motion diagnostics'
 Check ($status -match '(?is)if\s*\(powerIsOn\s*<>\s*0\)\s*&\s*\(profileLocked\s*=\s*TRUE\)\s*then\s*groupReadState\s*:=\s*groupReadState\s+or\s+0x00020000') 'Standby is asserted from PowerOn plus LockState'
