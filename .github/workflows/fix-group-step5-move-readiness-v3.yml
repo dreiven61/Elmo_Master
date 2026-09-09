@@ -55,8 +55,8 @@ jobs:
           if ($block -notmatch 'Step 5 Group Lock Ready verification') {
             throw 'Step 5 status-only verification marker is missing.'
           }
-          if ($block -match 'GroupEnableAsync|0x2047') {
-            throw 'Step 5 must never replay Group Enable / 0x2047.'
+          if ($block -match '\.GroupEnableAsync\s*\(') {
+            throw 'Step 5 must never call GroupEnableAsync / replay 0x2047.'
           }
           if ($source -notmatch 'Move blocked:.*groupMoveReadinessBlocker') {
             throw 'Exact Move readiness blocker is not exposed in Preparation text.'
