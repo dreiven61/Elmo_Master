@@ -1,0 +1,141 @@
+name: Apply Group step5 move readiness fix v2
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/fix-group-step5-move-readiness-v2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fix:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Apply corrected Group step5 patch
+        shell: pwsh
+        run: |
+          @'
+          from pathlib import Path
+          import re
+          import textwrap
+
+          # Reuse the already-reviewed v1 source patch, then apply the localization
+          # correction discovered by the first WPF smoke run.
+          workflow = Path('.github/workflows/fix-group-step5-move-readiness.yml').read_text(encoding='utf-8')
+          match = re.search(
+              r"@'\n(?P<body>\s*from pathlib import Path\n.*?print\('Patched Group step 5 completion and Move readiness diagnostics\.'\))\n\s*'@ \| python -",
+              workflow,
+              flags=re.S)
+          if not match:
+              raise RuntimeError('Could not extract v1 Group step5 patch script.')
+          exec(compile(textwrap.dedent(match.group('body')), '<group-step5-v1>', 'exec'), {})
+
+          main_path = Path(r'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.xaml.cs')
+          readme_path = Path(r'LMC_Library/LasalApiWpfTestApp/README.md')
+          localization_path = Path(r'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/UiLocalization.cs')
+
+          main = main_path.read_text(encoding='utf-8')
+          tooltip_block = '''            var groupMoveToolTip = groupMoveReady\n                ? "Group Move ready."\n                : "Group Move blocked: " + groupMoveReadinessBlocker;\n            ButtonGroupMoveLinear.ToolTip = groupMoveToolTip;\n            ButtonGroupMoveLinearRelative.ToolTip = groupMoveToolTip;\n'''
+          if main.count(tooltip_block) != 1:
+              raise RuntimeError('Expected one dynamic Group Move tooltip block.')
+          main = main.replace(tooltip_block, '', 1)
+          main_path.write_text(main, encoding='utf-8', newline='')
+
+          readme = readme_path.read_text(encoding='utf-8')
+          old_readme_phrase = 'Preparation 문구와 Move tooltip이 Profile Lock, Coordinate=None,'
+          new_readme_phrase = 'Preparation 문구가 Profile Lock, Coordinate=None,'
+          if readme.count(old_readme_phrase) != 1:
+              raise RuntimeError('Expected one README Move tooltip phrase.')
+          readme = readme.replace(old_readme_phrase, new_readme_phrase, 1)
+          readme_path.write_text(readme, encoding='utf-8', newline='')
+
+          localization = localization_path.read_text(encoding='utf-8')
+          insertion_marker = '            return values;\n'
+          insertion_index = localization.rfind(insertion_marker)
+          if insertion_index < 0:
+              raise RuntimeError('UiLocalization return values marker was not found.')
+
+          new_status_tooltip = (
+              'Before Enable this reads Power Ready. After an accepted Enable, step 5 finishes the required '
+              'three-sample Locked Standby proof with 0x2045 status reads only; it never replays 0x2047.')
+          new_order = (
+              'Required order: 1 Power On -> 2 Read Status (Power Ready) -> 3 Set Identity -> 4 Enable (Lock Profile) '
+              '-> 5 Read Status (finish three-sample Locked Standby proof with status reads only) -> 6 Move -> Disable '
+              '(Unlock Profile) -> 7 Power Off. Step 5 never replays Enable. If the profile was already fully verified '
+              'by step 4 automatic polling, step 5 is a harmless confirmation read. Read Status still does not complete '
+              'a pending Power On/Off transition from only one sample.')
+
+          if new_status_tooltip in localization or new_order in localization:
+              raise RuntimeError('New Group step5 localization keys unexpectedly already exist.')
+
+          entries = '''            values[\n                "Before Enable this reads Power Ready. After an accepted Enable, step 5 finishes the required three-sample Locked Standby proof with 0x2045 status reads only; it never replays 0x2047."] =\n                "Enable 전에는 Power Ready를 읽습니다. Enable ACK가 승인된 뒤 step 5는 0x2045 상태 읽기만 사용해 필요한 Locked Standby 3회 연속 증명을 완료하며 0x2047을 재전송하지 않습니다.";\n            values[\n                "Required order: 1 Power On -> 2 Read Status (Power Ready) -> 3 Set Identity -> 4 Enable (Lock Profile) -> 5 Read Status (finish three-sample Locked Standby proof with status reads only) -> 6 Move -> Disable (Unlock Profile) -> 7 Power Off. Step 5 never replays Enable. If the profile was already fully verified by step 4 automatic polling, step 5 is a harmless confirmation read. Read Status still does not complete a pending Power On/Off transition from only one sample."] =\n                "필수 순서: 1 Power On -> 2 Read Status(Power Ready) -> 3 Set Identity -> 4 Enable(Profile Lock) -> 5 Read Status(상태 읽기만으로 Locked Standby 3회 연속 증명 완료) -> 6 Move -> Disable(Profile Unlock) -> 7 Power Off. Step 5는 Enable을 재전송하지 않습니다. Step 4의 자동 polling에서 이미 검증이 끝났다면 step 5는 상태 확인만 수행합니다. Power On/Off 전이는 Read Status 한 번만으로 완료하지 않습니다.";\n\n'''
+          localization = localization[:insertion_index] + entries + localization[insertion_index:]
+          localization_path.write_text(localization, encoding='utf-8', newline='')
+
+          print('Applied corrected Group step5 patch and localization entries.')
+          '@ | python -
+
+      - name: Show focused diff
+        shell: pwsh
+        run: |
+          git diff --stat
+          git diff -- `
+            'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.xaml.cs' `
+            'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.xaml' `
+            'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/UiLocalization.cs' `
+            'LMC_Library/LasalApiWpfTestApp/README.md'
+
+      - name: Build WPF smoke harness
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $msbuild = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
+          if (-not $msbuild) { throw 'MSBuild.exe was not found.' }
+          & $msbuild `
+            'LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\LasalApiWpfTestApp.SmokeTests.csproj' `
+            '/t:Build' `
+            '/p:Configuration=Debug' `
+            '/p:Platform=AnyCPU' `
+            '/nologo'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify localization and Group Enable path
+        shell: pwsh
+        run: |
+          $exe = 'LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\bin\Debug\LasalApiWpfTestApp.SmokeTests.exe'
+          foreach ($filter in @(
+              'Wpf.UiLocalization.StaticChromeHasExplicitCatalogEntries',
+              'Wpf.GroupEnable',
+              'Wpf.GroupPowerState.SingleReadDoesNotPromoteUnverifiedLock',
+              'Wpf.GroupDisable')) {
+              & $exe --filter $filter
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
+      - name: Diff check
+        shell: pwsh
+        run: git diff --check
+
+      - name: Commit and push
+        shell: pwsh
+        run: |
+          if (git diff --quiet) { throw 'No source changes to commit.' }
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add `
+            'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.xaml.cs' `
+            'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.xaml' `
+            'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/UiLocalization.cs' `
+            'LMC_Library/LasalApiWpfTestApp/README.md'
+          git commit -m 'fix(group-ui): complete lock proof from step 5'
+          git push origin HEAD:dev
