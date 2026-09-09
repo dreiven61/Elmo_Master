@@ -748,7 +748,8 @@
                                         <Button
                                             x:Name="ButtonGroupReadStatus"
                                             Click="ButtonGroupReadStatus_Click"
-                                            Content="2 / 5 Read Status (Power Ready / Lock Ready)" />
+                                            Content="2 / 5 Read Status (Power Ready / Lock Ready)"
+                                            ToolTip="Before Enable this reads Power Ready. After an accepted Enable, step 5 finishes the required three-sample Locked Standby proof with 0x2045 status reads only; it never replays 0x2047." />
                                         <Button
                                             x:Name="ButtonGroupEnable"
                                             Click="ButtonGroupEnable_Click"
@@ -780,7 +781,7 @@
                                     <TextBlock
                                         Margin="4,2,4,0"
                                         Foreground="#8A4A00"
-                                        Text="Required order: 1 Power On (automatic three-sample PowerOn=True verification) -> 3 Set Identity (Home Check is optional diagnostics) -> 4 Enable (automatic three-sample Locked Standby verification) -> 6 Move -> Disable (Unlock Profile) -> 7 Power Off (automatic three-sample PowerOn=False verification). If a verification is interrupted, press the same Power or Enable button to resume status reads without command replay. Read Status observes one sample and does not complete a pending Power On/Off transition."
+                                        Text="Required order: 1 Power On -> 2 Read Status (Power Ready) -> 3 Set Identity -> 4 Enable (Lock Profile) -> 5 Read Status (finish three-sample Locked Standby proof with status reads only) -> 6 Move -> Disable (Unlock Profile) -> 7 Power Off. Step 5 never replays Enable. If the profile was already fully verified by step 4 automatic polling, step 5 is a harmless confirmation read. Read Status still does not complete a pending Power On/Off transition from only one sample."
                                         TextWrapping="Wrap" />
                                 </StackPanel>
                             </GroupBox>

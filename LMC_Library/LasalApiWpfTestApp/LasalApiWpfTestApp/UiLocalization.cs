@@ -886,6 +886,13 @@ namespace LasalMotionControlApiExample
 
             AddStaticChromeTranslations(values);
 
+            values[
+                "Before Enable this reads Power Ready. After an accepted Enable, step 5 finishes the required three-sample Locked Standby proof with 0x2045 status reads only; it never replays 0x2047."] =
+                "Enable 전에는 Power Ready를 읽습니다. Enable ACK가 승인된 뒤 step 5는 0x2045 상태 읽기만 사용해 필요한 Locked Standby 3회 연속 증명을 완료하며 0x2047을 재전송하지 않습니다.";
+            values[
+                "Required order: 1 Power On -> 2 Read Status (Power Ready) -> 3 Set Identity -> 4 Enable (Lock Profile) -> 5 Read Status (finish three-sample Locked Standby proof with status reads only) -> 6 Move -> Disable (Unlock Profile) -> 7 Power Off. Step 5 never replays Enable. If the profile was already fully verified by step 4 automatic polling, step 5 is a harmless confirmation read. Read Status still does not complete a pending Power On/Off transition from only one sample."] =
+                "필수 순서: 1 Power On -> 2 Read Status(Power Ready) -> 3 Set Identity -> 4 Enable(Profile Lock) -> 5 Read Status(상태 읽기만으로 Locked Standby 3회 연속 증명 완료) -> 6 Move -> Disable(Profile Unlock) -> 7 Power Off. Step 5는 Enable을 재전송하지 않습니다. Step 4의 자동 polling에서 이미 검증이 끝났다면 step 5는 상태 확인만 수행합니다. Power On/Off 전이는 Read Status 한 번만으로 완료하지 않습니다.";
+
             return values;
         }
 

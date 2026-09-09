@@ -326,10 +326,12 @@ Double inventory/adopt/release 송신이나 PLC runtime 증거는 아니다.
     `0x2045`를 자동 poll하고 PowerOn + Locked Standby가 3회 연속일 때만 PASS로 끝낸다.
 16. timeout, status 오류 또는 Stop/Power Off 우선순위 선점 뒤에는 버튼이
     `Resume Lock Verification (No Enable Replay)`로 바뀐다. 이 버튼은 기존 ACK를 재사용해
-    `0x2045`만 다시 보내며 `0x2047`을 재전송하지 않는다. 수동 Read Status 한 번만으로
-    continuation을 완료하지는 않지만 safety generation 검증을 통과한 성공 응답은 상태에 맞는
-    pending continuation proof에 누적된다. Locked Standby proof가 3/3이면 기존 ACK를 재사용한
-    zero-wire Resume으로 완료할 수 있으며, 완료 뒤에만 Move가 활성화된다.
+    `0x2045`만 다시 보내며 `0x2047`을 재전송하지 않는다. `2 / 5 Read Status`를 step 5로
+    실행한 경우에도 첫 성공 status sample을 pending continuation proof에 누적하고, 아직 3/3이
+    아니면 같은 accepted ACK를 사용해 `0x2045`만 추가 polling하여 Locked Standby 3회 연속
+    proof를 끝낸다. `0x2047`은 replay하지 않는다. 검증 완료 뒤에만 Move가 활성화된다.
+    Move가 계속 비활성화되면 Preparation 문구가 Profile Lock, Coordinate=None,
+    durable motion-safety journal 등 정확한 차단 조건을 표시한다.
 17. 작은 X/Y/Z/U 목표로 `6 Move Linear Absolute`를 먼저 시험한다.
 18. `0x7D00`에 `GroupLinearRelative`가 광고된 최신 PLC에서 X/Y/Z/U를 작은
     delta로 바꿔 `6 Move Linear Relative`를 시험한다. PASS는 profile queue 수락이며

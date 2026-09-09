@@ -2956,63 +2956,65 @@ namespace LasalMotionControlApiExample
                             GetPendingGroupEnableWaitContinuation(currentGroup);
                         if (continuation != null && continuation.IsPending)
                         {
+                            groupProfileLockVerificationPending = true;
+                            groupProfileLocked = false;
                             if (continuation.StableSampleCount
-                                >= continuation.RequiredStableSampleCount)
+                                < continuation.RequiredStableSampleCount)
                             {
-                                try
-                                {
-                                    var completed = await currentGroup
-                                        .ResumeGroupEnableWaitForLockedStandbyAsync(
-                                            continuation,
-                                            CancellationToken.None);
-                                    if (statusSafetyGeneration
-                                        != safetyRequestGeneration)
-                                    {
-                                        MarkGroupProfileLockResultDiscarded(
-                                            "Read Group Status lock completion");
-                                    }
-                                    EnsureNoNewSafetyRequestBeforeResultApplication(
-                                        statusSafetyGeneration,
-                                        "Read Group Status lock completion");
-                                    await EnsureGroupProfileLockRecoveryIdentityAsync(
-                                        currentGroup,
-                                        "Read Group Status lock completion",
-                                        true);
-                                    if (statusSafetyGeneration
-                                        != safetyRequestGeneration)
-                                    {
-                                        MarkGroupProfileLockResultDiscarded(
-                                            "Read Group Status post-identity completion");
-                                    }
-                                    EnsureNoNewSafetyRequestBeforeResultApplication(
-                                        statusSafetyGeneration,
-                                        "Read Group Status post-identity completion");
-                                    CompleteGroupEnableWaitUi(completed);
-                                }
-                                catch
-                                {
-                                    if (HasActiveGroupProfileLockRecoveryJournalRecord
-                                        && currentGroup
-                                            .PendingGroupEnableWaitContinuation == null
-                                        && !groupProfileLockRecoveryRequired)
-                                    {
-                                        MarkGroupProfileLockCompletionOutcomeUncertain(
-                                            "Read Group Status lock completion");
-                                    }
-
-                                    throw;
-                                }
-                            }
-                            else
-                            {
-                                groupProfileLockVerificationPending = true;
-                                groupProfileLocked = false;
                                 WriteLog(
-                                    "Group Lock Ready sample observed ("
+                                    "Step 5 Lock Ready sample observed ("
                                     + continuation.StableSampleCount
                                     + "/"
                                     + continuation.RequiredStableSampleCount
-                                    + "). Three consecutive stable samples are required.");
+                                    + "). Completing the same accepted Enable with "
+                                    + "status-only 0x2045 polling; 0x2047 is not replayed.");
+                            }
+
+                            try
+                            {
+                                var completed = await SendLiveCommandAsync(
+                                    statusSafetyGeneration,
+                                    "Step 5 Group Lock Ready verification",
+                                    () => currentGroup
+                                        .ResumeGroupEnableWaitForLockedStandbyAsync(
+                                            continuation,
+                                            CancellationToken.None));
+                                if (statusSafetyGeneration
+                                    != safetyRequestGeneration)
+                                {
+                                    MarkGroupProfileLockResultDiscarded(
+                                        "Step 5 Read Group Status lock completion");
+                                }
+                                EnsureNoNewSafetyRequestBeforeResultApplication(
+                                    statusSafetyGeneration,
+                                    "Step 5 Read Group Status lock completion");
+                                await EnsureGroupProfileLockRecoveryIdentityAsync(
+                                    currentGroup,
+                                    "Step 5 Read Group Status lock completion",
+                                    true);
+                                if (statusSafetyGeneration
+                                    != safetyRequestGeneration)
+                                {
+                                    MarkGroupProfileLockResultDiscarded(
+                                        "Step 5 Read Group Status post-identity completion");
+                                }
+                                EnsureNoNewSafetyRequestBeforeResultApplication(
+                                    statusSafetyGeneration,
+                                    "Step 5 Read Group Status post-identity completion");
+                                CompleteGroupEnableWaitUi(completed);
+                            }
+                            catch
+                            {
+                                if (HasActiveGroupProfileLockRecoveryJournalRecord
+                                    && currentGroup
+                                        .PendingGroupEnableWaitContinuation == null
+                                    && !groupProfileLockRecoveryRequired)
+                                {
+                                    MarkGroupProfileLockCompletionOutcomeUncertain(
+                                        "Step 5 Read Group Status lock completion");
+                                }
+
+                                throw;
                             }
                         }
                         else
@@ -9170,24 +9172,14 @@ namespace LasalMotionControlApiExample
                 && safetySendAvailable
                 && (!motionMayBeActive
                     || IsTrackedMotionTarget(group));
-            ButtonGroupMoveLinear.IsEnabled = groupReady
-                && liveCommandAllowed
-                && MotionUncertaintyJournalCanArm
-                && !groupPowerOffVerificationPending
-                && groupActiveVerified
-                && groupIdentityConfigured
-                && !HasUnresolvedGroupProfileLockState()
-                && groupProfileLocked
-                && groupMotionCoordinateReady;
-            ButtonGroupMoveLinearRelative.IsEnabled = groupReady
-                && liveCommandAllowed
-                && MotionUncertaintyJournalCanArm
-                && !groupPowerOffVerificationPending
-                && groupActiveVerified
-                && groupIdentityConfigured
-                && !HasUnresolvedGroupProfileLockState()
-                && groupProfileLocked
-                && groupMotionCoordinateReady;
+            var groupMoveReadinessBlocker = GetGroupMoveReadinessBlocker(
+                groupReady,
+                liveCommandAllowed,
+                groupMotionCoordinateReady);
+            var groupMoveReady = string.IsNullOrEmpty(
+                groupMoveReadinessBlocker);
+            ButtonGroupMoveLinear.IsEnabled = groupMoveReady;
+            ButtonGroupMoveLinearRelative.IsEnabled = groupMoveReady;
             ButtonCheckKinHome.IsEnabled = groupReady
                 && idle
                 && !groupPowerOffVerificationPending;
@@ -9228,7 +9220,8 @@ namespace LasalMotionControlApiExample
             TextKinAxisU.IsEnabled = identityInputAllowed;
 
             TextGroupPreparationState.Text = GetGroupPreparationStateText(
-                groupReady);
+                groupReady,
+                groupMoveReadinessBlocker);
 
             TextConnectionState.Text = currentConnection == null
                 ? LMCConnectionState.Disconnected.ToString()
@@ -9745,7 +9738,67 @@ namespace LasalMotionControlApiExample
                 + response.ErrorId.ToString(CultureInfo.InvariantCulture);
         }
 
-        private string GetGroupPreparationStateText(bool groupReady)
+        private string GetGroupMoveReadinessBlocker(
+            bool groupReady,
+            bool liveCommandAllowed,
+            bool groupMotionCoordinateReady)
+        {
+            if (!groupReady)
+            {
+                return "load the group first";
+            }
+
+            if (groupPowerOffVerificationPending)
+            {
+                return "Group Power Off verification is pending";
+            }
+
+            if (!groupActiveVerified)
+            {
+                return groupPowerVerificationPending
+                    ? "Power Ready is not verified; resume Power On verification"
+                    : "Power Ready/ACTIVE is not verified";
+            }
+
+            if (!groupIdentityConfigured)
+            {
+                return "Set Identity has not completed in this session";
+            }
+
+            if (HasUnresolvedGroupProfileLockState())
+            {
+                return groupProfileLockVerificationPending
+                    ? "Profile Lock proof is pending; run step 5 Read Status to finish status-only verification"
+                    : "Profile Lock recovery is unresolved; use the indicated Resume/Disable recovery action";
+            }
+
+            if (!groupProfileLocked)
+            {
+                return "Profile Lock is not verified";
+            }
+
+            if (!groupMotionCoordinateReady)
+            {
+                return "Group motion Coordinate must be None; ACS is read-position only";
+            }
+
+            if (!MotionUncertaintyJournalCanArm)
+            {
+                return "the durable motion-safety journal cannot arm; "
+                    + GetMotionUncertaintyJournalGuidance();
+            }
+
+            if (!liveCommandAllowed)
+            {
+                return "a live-command safety/recovery interlock is active; see the SAFETY message";
+            }
+
+            return null;
+        }
+
+        private string GetGroupPreparationStateText(
+            bool groupReady,
+            string groupMoveReadinessBlocker)
         {
             if (!groupReady)
             {
@@ -9916,6 +9969,10 @@ namespace LasalMotionControlApiExample
             else if (!groupProfileLocked)
             {
                 nextStep = "Next: Enable (Lock Profile).";
+            }
+            else if (!string.IsNullOrEmpty(groupMoveReadinessBlocker))
+            {
+                nextStep = "Move blocked: " + groupMoveReadinessBlocker + ".";
             }
             else
             {
