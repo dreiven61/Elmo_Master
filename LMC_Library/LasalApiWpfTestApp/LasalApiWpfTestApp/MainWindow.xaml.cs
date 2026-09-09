@@ -36,8 +36,15 @@ namespace LasalMotionControlApiExample
         // The API async methods schedule transport work. Keep live and safety
         // command ordering explicit at the example-application boundary.
         private readonly SemaphoreSlim commandSendGate = new SemaphoreSlim(1, 1);
+        private readonly object commandGateOwnerSync = new object();
         private readonly LMCSendPriorityCoordinator sendPriorityCoordinator =
             new LMCSendPriorityCoordinator();
+        private long commandGateOwnerSerial;
+        private long activeCommandGateOwnerSerial;
+        private string activeCommandGateOperation;
+        private LMCConnection activeCommandGateConnection;
+        private long activeCommandGateSessionGeneration;
+        private long uiOperationGeneration;
         private LMCConnection connection;
         private LMCCallbackV2StatisticsChangedEventArgs
             lastCallbackV2Statistics;
@@ -4441,10 +4448,9 @@ namespace LasalMotionControlApiExample
                     if (!homeCheck.AllReferenced)
                     {
                         throw new InvalidOperationException(
-                            "Home Check failed. Reference the following identity "
-                            + "axes before Set Identity: "
+                            "Home Check found unreferenced identity axes: "
                             + homeCheck.UnreferencedAxisSummary
-                            + ".");
+                            + ". This diagnostic does not block Set Identity.");
                     }
                 });
         }
@@ -4478,23 +4484,22 @@ namespace LasalMotionControlApiExample
                     }
 
                     groupIdentityConfigured = false;
-                    var homeCheck = await CheckIdentityAxesHomeAsync(
+                    var axisX = await LMCSingleAxis.CreateAsync(
                         currentConnection,
+                        RequiredText(TextKinAxisX.Text, "X axis object"),
                         CancellationToken.None);
-                    if (!homeCheck.AllReferenced)
-                    {
-                        groupIdentityConfigured = false;
-                        throw new InvalidOperationException(
-                            "Set Identity blocked because these identity axes "
-                            + "are not referenced: "
-                            + homeCheck.UnreferencedAxisSummary
-                            + ". Run Home, then retry Set Identity.");
-                    }
-
-                    var axisX = homeCheck.AxisX.Axis;
-                    var axisY = homeCheck.AxisY.Axis;
-                    var axisZ = homeCheck.AxisZ.Axis;
-                    var axisU = homeCheck.AxisU.Axis;
+                    var axisY = await LMCSingleAxis.CreateAsync(
+                        currentConnection,
+                        RequiredText(TextKinAxisY.Text, "Y axis object"),
+                        CancellationToken.None);
+                    var axisZ = await LMCSingleAxis.CreateAsync(
+                        currentConnection,
+                        RequiredText(TextKinAxisZ.Text, "Z axis object"),
+                        CancellationToken.None);
+                    var axisU = await LMCSingleAxis.CreateAsync(
+                        currentConnection,
+                        RequiredText(TextKinAxisU.Text, "U axis object"),
+                        CancellationToken.None);
 
                     var response = await SendLiveCommandAsync(
                         safetyGeneration,
@@ -4531,8 +4536,8 @@ namespace LasalMotionControlApiExample
                         + axisU.AxisReference
                         + ")"
                         + Environment.NewLine
-                        + "Identity configured; Enable (Lock Profile) is now "
-                        + "available.";
+                        + "Identity configured without a Home pre-interlock; "
+                        + "Enable (Lock Profile) is now available.";
                 });
         }
 
@@ -4826,6 +4831,9 @@ namespace LasalMotionControlApiExample
             }
 
             var operationSafetyGeneration = safetyRequestGeneration;
+            var operationGeneration = Interlocked.Increment(
+                ref uiOperationGeneration);
+            var operationStartedAtUtc = DateTime.UtcNow;
             operationRunning = true;
             connectionTransitionRunning = blockSafetyCommands;
             TextOperationState.Text = operation + " running";
@@ -4833,26 +4841,56 @@ namespace LasalMotionControlApiExample
 
             try
             {
-                WriteLog(operation + " started.");
+                WriteLog(
+                    operation
+                    + " started. UiOperationGeneration="
+                    + operationGeneration
+                    + ", SessionGeneration="
+                    + GetCurrentSessionGenerationForEvidence()
+                    + ".");
                 using (sendPriorityCoordinator.BeginPreemptibleScope(
                     operationSafetyGeneration,
                     operation))
                 {
                     await action();
                 }
-                WriteLog(operation + " PASS.");
-                TextOperationState.Text = operation + " completed";
+                if (operationGeneration == Interlocked.Read(
+                        ref uiOperationGeneration))
+                {
+                    WriteLog(
+                        operation
+                        + " PASS. ElapsedMs="
+                        + (long)(DateTime.UtcNow - operationStartedAtUtc)
+                            .TotalMilliseconds
+                        + ".");
+                    TextOperationState.Text = operation + " completed";
+                }
             }
             catch (Exception error)
             {
-                WriteLog(operation + " FAILED: " + error.Message);
-                TextOperationState.Text = operation + " failed";
+                if (operationGeneration == Interlocked.Read(
+                        ref uiOperationGeneration))
+                {
+                    WriteLog(
+                        operation
+                        + " FAILED: "
+                        + error.Message
+                        + " ElapsedMs="
+                        + (long)(DateTime.UtcNow - operationStartedAtUtc)
+                            .TotalMilliseconds
+                        + ".");
+                    TextOperationState.Text = operation + " failed";
+                }
             }
             finally
             {
-                operationRunning = false;
-                connectionTransitionRunning = false;
-                UpdateUiState();
+                if (operationGeneration == Interlocked.Read(
+                        ref uiOperationGeneration))
+                {
+                    operationRunning = false;
+                    connectionTransitionRunning = false;
+                    UpdateUiState();
+                }
             }
         }
 
@@ -4934,7 +4972,8 @@ namespace LasalMotionControlApiExample
                 }
 
                 WriteLog(operation + " queued with safety priority.");
-                await commandSendGate.WaitAsync();
+                await AcquireCommandGateForSafetyAsync(operation);
+                var gateOwner = RegisterCommandGateOwner(operation);
                 try
                 {
                     WriteLog(operation + " transmitting.");
@@ -4956,6 +4995,7 @@ namespace LasalMotionControlApiExample
                 }
                 finally
                 {
+                    ClearCommandGateOwner(gateOwner);
                     commandSendGate.Release();
                 }
 
@@ -4995,7 +5035,12 @@ namespace LasalMotionControlApiExample
             Func<Task<T>> send,
             bool allowPendingGroupReset = false)
         {
-            await commandSendGate.WaitAsync();
+            await AsyncCommandGatePolicy.WaitAsync(
+                commandSendGate,
+                operation,
+                AsyncCommandGatePolicy.OrdinaryGateTimeoutMilliseconds,
+                CancellationToken.None);
+            var gateOwner = RegisterCommandGateOwner(operation);
             try
             {
                 if (allowPendingGroupReset)
@@ -5023,6 +5068,7 @@ namespace LasalMotionControlApiExample
             }
             finally
             {
+                ClearCommandGateOwner(gateOwner);
                 commandSendGate.Release();
             }
         }
@@ -5030,7 +5076,13 @@ namespace LasalMotionControlApiExample
         private async Task<T> SendSerializedCommandAsync<T>(Func<Task<T>> send)
         {
             var expectedSafetyGeneration = safetyRequestGeneration;
-            await commandSendGate.WaitAsync();
+            const string operation = "Serialized command";
+            await AsyncCommandGatePolicy.WaitAsync(
+                commandSendGate,
+                operation,
+                AsyncCommandGatePolicy.OrdinaryGateTimeoutMilliseconds,
+                CancellationToken.None);
+            var gateOwner = RegisterCommandGateOwner(operation);
             try
             {
                 EnsureNoNewSafetyRequest(
@@ -5049,8 +5101,127 @@ namespace LasalMotionControlApiExample
             }
             finally
             {
+                ClearCommandGateOwner(gateOwner);
                 commandSendGate.Release();
             }
+        }
+
+        private long RegisterCommandGateOwner(string operation)
+        {
+            var ownerSerial = Interlocked.Increment(
+                ref commandGateOwnerSerial);
+            var ownerConnection = connection;
+            var ownerSessionGeneration = ownerConnection == null
+                ? 0
+                : ownerConnection.CurrentSessionGeneration;
+            lock (commandGateOwnerSync)
+            {
+                activeCommandGateOwnerSerial = ownerSerial;
+                activeCommandGateOperation = operation;
+                activeCommandGateConnection = ownerConnection;
+                activeCommandGateSessionGeneration = ownerSessionGeneration;
+            }
+
+            return ownerSerial;
+        }
+
+        private void ClearCommandGateOwner(long ownerSerial)
+        {
+            lock (commandGateOwnerSync)
+            {
+                if (activeCommandGateOwnerSerial != ownerSerial)
+                {
+                    return;
+                }
+
+                activeCommandGateOwnerSerial = 0;
+                activeCommandGateOperation = null;
+                activeCommandGateConnection = null;
+                activeCommandGateSessionGeneration = 0;
+            }
+        }
+
+        private async Task AcquireCommandGateForSafetyAsync(string operation)
+        {
+            if (await AsyncCommandGatePolicy.TryWaitAsync(
+                    commandSendGate,
+                    AsyncCommandGatePolicy.SafetyGateGraceMilliseconds,
+                    CancellationToken.None))
+            {
+                return;
+            }
+
+            // Close the race where the ordinary owner released immediately
+            // after the grace period expired.
+            if (await AsyncCommandGatePolicy.TryWaitAsync(
+                    commandSendGate,
+                    0,
+                    CancellationToken.None))
+            {
+                return;
+            }
+
+            LMCConnection stalledConnection;
+            long stalledSessionGeneration;
+            string stalledOperation;
+            lock (commandGateOwnerSync)
+            {
+                stalledConnection = activeCommandGateConnection;
+                stalledSessionGeneration =
+                    activeCommandGateSessionGeneration;
+                stalledOperation = activeCommandGateOperation;
+            }
+
+            if (stalledConnection == null
+                || stalledSessionGeneration <= 0
+                || !ReferenceEquals(stalledConnection, connection))
+            {
+                throw new AsyncCommandGateTimeoutException(
+                    operation + " safety-priority wait",
+                    AsyncCommandGatePolicy.SafetyGateGraceMilliseconds);
+            }
+
+            var abortEvidence = stalledConnection
+                .AbortTransportForSafetyPreemption(
+                    stalledSessionGeneration);
+            WriteLog(
+                operation
+                + " retired the stalled RPC transport after the safety gate "
+                + "grace expired. StalledOperation="
+                + (stalledOperation ?? "unknown")
+                + ", SessionGeneration="
+                + abortEvidence.SessionGeneration
+                + ", TransportDetached="
+                + abortEvidence.TransportDetached
+                + ", FaultStatePublished="
+                + abortEvidence.FaultStatePublished
+                + ". The safety command was not sent; reconnect, reacquire "
+                + "the exact target identity, and issue it once.");
+
+            // The old operation can no longer produce a result for a reusable
+            // session. Fence its outer UI completion before making recovery
+            // controls available. Durable command-specific catch paths still
+            // retain their exact no-replay evidence.
+            Interlocked.Increment(ref uiOperationGeneration);
+            operationRunning = false;
+            connectionTransitionRunning = false;
+            ClearLoadedObjects();
+            UpdateUiState();
+
+            throw new InvalidOperationException(
+                operation
+                + " was not sent because a stalled RPC transport had to be "
+                + "retired first. Reconnect, reacquire the exact axis/group "
+                + "identity, and issue the safety command once. The interrupted "
+                + "ordinary mutation must not be replayed automatically.");
+        }
+
+        private long GetCurrentSessionGenerationForEvidence()
+        {
+            var currentConnection = connection;
+            return currentConnection == null
+                ? 0
+                : currentConnection.CurrentSessionGeneration;
         }
 
         private void EnsureNoNewSafetyRequest(
@@ -9729,10 +9900,7 @@ namespace LasalMotionControlApiExample
             }
             else if (!groupIdentityConfigured)
             {
-                nextStep = groupIdentityHomeCheckComplete
-                    && !groupIdentityHomeCheckPassed
-                    ? "Next: Home the failed axes, then Set Identity."
-                    : "Next: Set Identity (automatic Home Check).";
+                nextStep = "Next: Set Identity. Home Check is optional diagnostics.";
             }
             else if (groupProfileLockRecoveryRequired)
             {

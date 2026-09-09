@@ -780,7 +780,7 @@
                                     <TextBlock
                                         Margin="4,2,4,0"
                                         Foreground="#8A4A00"
-                                        Text="Required order: 1 Power On (automatic three-sample PowerOn=True verification) -> 3 Set Identity (automatic Home Check) -> 4 Enable (automatic three-sample Locked Standby verification) -> 6 Move -> Disable (Unlock Profile) -> 7 Power Off (automatic three-sample PowerOn=False verification). If a verification is interrupted, press the same Power or Enable button to resume status reads without command replay. Read Status observes one sample and does not complete a pending Power On/Off transition."
+                                        Text="Required order: 1 Power On (automatic three-sample PowerOn=True verification) -> 3 Set Identity (Home Check is optional diagnostics) -> 4 Enable (automatic three-sample Locked Standby verification) -> 6 Move -> Disable (Unlock Profile) -> 7 Power Off (automatic three-sample PowerOn=False verification). If a verification is interrupted, press the same Power or Enable button to resume status reads without command replay. Read Status observes one sample and does not complete a pending Power On/Off transition."
                                         TextWrapping="Wrap" />
                                 </StackPanel>
                             </GroupBox>
@@ -934,11 +934,11 @@
                                             <Button
                                                 x:Name="ButtonSetKinTransform"
                                                 Click="ButtonSetKinTransform_Click"
-                                                Content="3 Set Identity (Auto Home Check + Configure)" />
+                                                Content="3 Set Identity (Configure)" />
                                         </WrapPanel>
                                         <TextBlock
                                             Foreground="#5F6B7A"
-                                            Text="Home Check reads _LMCAXIS_STATUS.IsReferenced for the four identity axes. Set Identity repeats the check automatically and is blocked when any selected axis is not referenced."
+                                            Text="Home Check reads _LMCAXIS_STATUS.IsReferenced for the four identity axes. Set Identity does not use this read-only diagnostic as a command pre-interlock."
                                             TextWrapping="Wrap" />
                                     </StackPanel>
 

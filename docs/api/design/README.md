@@ -12,14 +12,15 @@
 
 **2026-09-07 Servo Power 수정과 testbed EtherCAT 변경 이후 신규 구현은 다음 문서를 정본으로 사용한다.**
 
-1. `CURRENT_IMPLEMENTATION_HANDOFF_20260907.md` — current HEAD 판정, 즉시 재검증 순서, 다음 코드 구현 시작점
-2. `REMAINING_IMPLEMENTATION_DESIGN_20260902.md` — 남은 기능 구현 순서/의존성 master
-3. `CURRENT_IMPLEMENTATION_HANDOFF_20260902.md` — 2 physical drives + SimulationSetup 도입 당시 historical handoff
-4. `HOME_DS402_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md` — HomeDS402 frozen lifecycle + completion handoff
-5. `SET_POSITION_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md` — SetPosition durable runtime handoff
-6. `SET_POSITION_CURRENT_SOURCE_INVENTORY_20260902.md` — SP-C0 current source inventory evidence
-7. `TOPOLOGY_STATIC_QUALIFICATION_RESULT_20260902.md` — TOPO-C0 source/network/generated-table static tranche evidence
-8. `HOME_DS402_H37_OPERATOR_ACTIVATION_IMPLEMENTATION_20260902.md` — Method 37 UI/source activation과 당시 operator procedure
+1. `ASYNC_OPERATION_WATCHDOG_AND_TRANSPORT_RECOVERY_DESIGN_20260909.md` — WPF 무기한 async/gate 대기 제거, post-write transport 폐기, safety takeover 설계
+2. `CURRENT_IMPLEMENTATION_HANDOFF_20260907.md` — current HEAD 판정, 즉시 재검증 순서, 다음 코드 구현 시작점
+3. `REMAINING_IMPLEMENTATION_DESIGN_20260902.md` — 남은 기능 구현 순서/의존성 master
+4. `CURRENT_IMPLEMENTATION_HANDOFF_20260902.md` — 2 physical drives + SimulationSetup 도입 당시 historical handoff
+5. `HOME_DS402_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md` — HomeDS402 frozen lifecycle + completion handoff
+6. `SET_POSITION_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md` — SetPosition durable runtime handoff
+7. `SET_POSITION_CURRENT_SOURCE_INVENTORY_20260902.md` — SP-C0 current source inventory evidence
+8. `TOPOLOGY_STATIC_QUALIFICATION_RESULT_20260902.md` — TOPO-C0 source/network/generated-table static tranche evidence
+9. `HOME_DS402_H37_OPERATOR_ACTIVATION_IMPLEMENTATION_20260902.md` — Method 37 UI/source activation과 당시 operator procedure
 
 기존 상세 문서는 frozen wire/state-machine 또는 historical evidence로 계속 참조한다.
 

@@ -56499,19 +56499,24 @@ if ($ControlServiceCheckpoint -ne 'Phase2Skeleton') {
             'expression instead of after its nested gate.')
     }
     Assert-Match $serviceGroupEnableCaseBlock (
-        '(?s)IsClientConnected\(#LMCRobot\).*?' +
-        'ResolveConnectedGroupAxisMask\(\).*?groupAxisMask\s*<>\s*0.*?' +
+        '(?s)groupAxisMask\s*:=\s*LMC_OWNER_PROFILE_AXIS_MASK.*?' +
+        'IsClientConnected\(#LMCRobot\).*?' +
+        'groupAxis1Enable\s*:=\s*1.*?groupAxis2Enable\s*:=\s*1.*?' +
+        'groupAxis3Enable\s*:=\s*1.*?groupAxis4Enable\s*:=\s*1.*?' +
         'LMCRobot\.LockProfile\(.*?Axis1:=groupAxis1Enable.*?' +
         'Axis4:=groupAxis4Enable.*?' +
         'Axis5:=0.*?Axis9:=0.*?groupReadRetCode\s*=\s*_LMCPROF_NoError') (
-        'Service 0x2047 connected-member LockProfile dispatch is missing.')
+        'Service 0x2047 fixed Cartesian4 LockProfile dispatch is missing.')
     Assert-Match $serviceGroupEnableCaseBlock (
         '(?s)LMCRobot\.LockProfile\(\s*' +
         'Axis1:=groupAxis1Enable\s*,\s*Axis2:=groupAxis2Enable\s*,\s*' +
         'Axis3:=groupAxis3Enable\s*,\s*Axis4:=groupAxis4Enable\s*,\s*' +
         'Axis5:=0\s*,\s*Axis6:=0\s*,\s*Axis7:=0\s*,\s*Axis8:=0\s*,\s*' +
         'Axis9:=0\s*\)') (
-        'Service 0x2047 LockProfile connected-member mask or Axis5..9 zeros are missing.')
+        'Service 0x2047 LockProfile Cartesian4 mask or Axis5..9 zeros are missing.')
+    if ($serviceGroupEnableCaseBlock -match 'ResolveConnectedGroupAxisMask') {
+        throw 'Service 0x2047 still drops Simulation profile axes through physical InputLatch discovery.'
+    }
     if ($serviceGroupEnableCaseBlock -match 'AreResolvedGroupAxesPowered') {
         throw 'Service 0x2047 still blocks LockProfile before native dispatch on member power state.'
     }

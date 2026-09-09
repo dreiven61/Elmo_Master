@@ -758,7 +758,7 @@ END_FUNCTION
 #define LMC_OWNER_AXIS_POWER_ON_MASK 0x00000001
 #define LMC_OWNER_AXIS_IN_POSITION_MASK 0x00000004
 #define LMC_OWNER_AXIS_EMERGENCY_MASK 0x00000200
-#define LMC_OWNER_UNSUPPORTED_AXIS_MASK 0x000001F0
+#define LMC_OWNER_UNSUPPORTED_AXIS_MASK 0x00000000
 #define LMC_OWNER_LATCH_PHYSICAL_FLAG 0x00000001
 #define LMC_OWNER_DS402_OPERATION_ENABLED_MASK 0x00000004
 #define LMC_OWNER_DS402_FAULT_MASK 0x00000008
@@ -7745,6 +7745,51 @@ FUNCTION GLOBAL LMCControlCommandService::ProcessAxisOwnership
 										ds402StatusRaw := startupSnapshot[9];
 										axisErrorRaw := TO_UDINT(
 											latchSnapshot[196]$DINT);
+									5:
+										if IsClientConnected(#LMCAxis5) = 1 then
+											axisStatusRaw := TO_UDINT(
+												LMCAxis5.ReadAxisStatus());
+											axisErrorRaw := TO_UDINT(
+												LMCAxis5.ReadAxisError());
+										else
+											allConnected := FALSE;
+										end_if;
+									6:
+										if IsClientConnected(#LMCAxis6) = 1 then
+											axisStatusRaw := TO_UDINT(
+												LMCAxis6.ReadAxisStatus());
+											axisErrorRaw := TO_UDINT(
+												LMCAxis6.ReadAxisError());
+										else
+											allConnected := FALSE;
+										end_if;
+									7:
+										if IsClientConnected(#LMCAxis7) = 1 then
+											axisStatusRaw := TO_UDINT(
+												LMCAxis7.ReadAxisStatus());
+											axisErrorRaw := TO_UDINT(
+												LMCAxis7.ReadAxisError());
+										else
+											allConnected := FALSE;
+										end_if;
+									8:
+										if IsClientConnected(#LMCAxis8) = 1 then
+											axisStatusRaw := TO_UDINT(
+												LMCAxis8.ReadAxisStatus());
+											axisErrorRaw := TO_UDINT(
+												LMCAxis8.ReadAxisError());
+										else
+											allConnected := FALSE;
+										end_if;
+									9:
+										if IsClientConnected(#LMCAxis9) = 1 then
+											axisStatusRaw := TO_UDINT(
+												LMCAxis9.ReadAxisStatus());
+											axisErrorRaw := TO_UDINT(
+												LMCAxis9.ReadAxisError());
+										else
+											allConnected := FALSE;
+										end_if;
 								else
 									allConnected := FALSE;
 								end_case;
@@ -7755,14 +7800,18 @@ FUNCTION GLOBAL LMCControlCommandService::ProcessAxisOwnership
 								end_if;
 								if ((axisStatusRaw and
 								     LMC_OWNER_AXIS_POWER_ON_MASK) = 0) |
-								   ((ds402StatusRaw and LMC_OWNER_DS402_STATE_MASK) <>
-								    LMC_OWNER_DS402_OPERATION_ENABLED_STATE) then
+								   (((selectedAxisBit and
+								      LMC_OWNER_CONFIGURED_PHYSICAL_AXIS_MASK) <> 0) &
+								    ((ds402StatusRaw and LMC_OWNER_DS402_STATE_MASK) <>
+								     LMC_OWNER_DS402_OPERATION_ENABLED_STATE)) then
 									allPowerOn := FALSE;
 								end_if;
 								if ((axisStatusRaw and
 								     LMC_OWNER_AXIS_POWER_ON_MASK) <> 0) |
-								   ((ds402StatusRaw and
-								     LMC_OWNER_DS402_OPERATION_ENABLED_MASK) <> 0) then
+								   (((selectedAxisBit and
+								      LMC_OWNER_CONFIGURED_PHYSICAL_AXIS_MASK) <> 0) &
+								    ((ds402StatusRaw and
+								      LMC_OWNER_DS402_OPERATION_ENABLED_MASK) <> 0)) then
 									allPowerOff := FALSE;
 								end_if;
 								if selectedAxisIndex = ownerReference then
@@ -7775,8 +7824,10 @@ FUNCTION GLOBAL LMCControlCommandService::ProcessAxisOwnership
 								if (axisErrorRaw <> 0) |
 								   ((axisStatusRaw and
 								     LMC_OWNER_AXIS_EMERGENCY_MASK) <> 0) |
-								   ((ds402StatusRaw and
-								     LMC_OWNER_DS402_FAULT_MASK) <> 0) then
+								   (((selectedAxisBit and
+								      LMC_OWNER_CONFIGURED_PHYSICAL_AXIS_MASK) <> 0) &
+								    ((ds402StatusRaw and
+								      LMC_OWNER_DS402_FAULT_MASK) <> 0)) then
 									allErrorClear := FALSE;
 								end_if;
 								if (axisStatusRaw and
@@ -9379,15 +9430,13 @@ FUNCTION LMCControlCommandService::HandleGroupCommands
 			if groupCommandInputValid = TRUE then
 				if ResponseCapacity < 16 then RETURN; end_if;
 				groupReadErrorId := -2;
-				groupAxisMask := ResolveConnectedGroupAxisMask();
-				if (IsClientConnected(#LMCRobot) = 1) & (groupAxisMask <> 0) then
+				// The Cartesian4 profile always owns Axis 1..4. Physical input
+				// presence must not remove Simulation axes from LockProfile.
+				groupAxisMask := LMC_OWNER_PROFILE_AXIS_MASK;
+				if IsClientConnected(#LMCRobot) = 1 then
 					groupReadErrorId := -6;
-					groupAxis1Enable := 0; groupAxis2Enable := 0;
-					groupAxis3Enable := 0; groupAxis4Enable := 0;
-					if (groupAxisMask and 0x1) <> 0 then groupAxis1Enable := 1; end_if;
-					if (groupAxisMask and 0x2) <> 0 then groupAxis2Enable := 1; end_if;
-					if (groupAxisMask and 0x4) <> 0 then groupAxis3Enable := 1; end_if;
-					if (groupAxisMask and 0x8) <> 0 then groupAxis4Enable := 1; end_if;
+					groupAxis1Enable := 1; groupAxis2Enable := 1;
+					groupAxis3Enable := 1; groupAxis4Enable := 1;
 					OwnershipState[26] := TO_DINT(CommandId);
 					OwnershipState[27] := TO_DINT(Reference);
 					OwnershipState[25] := 1;

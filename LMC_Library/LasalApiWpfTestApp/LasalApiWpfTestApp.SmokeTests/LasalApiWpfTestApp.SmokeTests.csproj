@@ -41,6 +41,7 @@
     <Compile Include="UiLocalizationTests.cs" />
     <Compile Include="RecentRecoveryPanelLocalizationTests.cs" />
     <Compile Include="ApplicationInstanceLeaseTests.cs" />
+    <Compile Include="AsyncCommandGatePolicyTests.cs" />
     <Compile Include="RecoveryRecordRetirementTests.cs" />
     <Compile Include="GroupProfileLockRecoveryJournalTests.cs" />
     <Compile Include="AxisPowerOnRecoveryJournalTests.cs" />

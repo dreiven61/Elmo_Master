@@ -60,6 +60,8 @@ namespace LasalApiWpfTestApp.SmokeTests
                 LasalMotionControlApiExample
                     .ApplicationInstanceLeaseTests.Register(tests);
                 LasalMotionControlApiExample
+                    .AsyncCommandGatePolicyTests.Register(tests);
+                LasalMotionControlApiExample
                     .RecoveryRecordRetirementTests.Register(tests);
                 LasalMotionControlApiExample
                     .GroupProfileLockRecoveryJournalTests.Register(tests);

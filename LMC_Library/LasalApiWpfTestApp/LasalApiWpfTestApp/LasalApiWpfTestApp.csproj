@@ -61,6 +61,9 @@
     <Compile Include="ApplicationInstanceLease.cs">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="AsyncCommandGatePolicy.cs">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="ExecutableRelaunchProbe.cs">
       <DependentUpon>App.xaml</DependentUpon>
       <SubType>Code</SubType>

@@ -48,6 +48,22 @@ fixture와 LASAL IDE-generated `_FileSys` ABI가 확보된 뒤에만 시작한�
   자동 Reset/Home/replay는 하지 않음
 - Group Enable과 Group motion의 adapter-side power/lock/kinematic readiness 선차단도 제거하고
   연결된 native Group API 반환값을 그대로 성공/오류 판정에 사용함
+- 2026-09-09 group membership 정합 수정: `Set Identity(0x20E7)`와 `Profile Lock(0x2047)`은
+  Cartesian4 Axis1~4 고정 범위다. `Profile Lock`은 더 이상 physical InputLatch로 멤버를
+  축소하지 않으므로 Axis3~4가 Simulation이어도 LockProfile에 포함된다. `Group Power On/Off`
+  는 별도 software robot 범위 Axis1~9 전체에 native axis Power 명령을 보낸다. 이 범위의
+  focused source-predicate 검증은 `123/123 PASS`다. WPF Set Identity의 자동 Home 선차단도
+  제거했으며 별도 Home Check는 read-only 진단으로만 유지한다. WPF Release/Debug build는
+  경고/오류 0으로 통과했고 focused smoke는 localization `9/9`, Group Enable `16/16`,
+  Group Power `28/28 PASS`다. 전체 LASAL SourceOnly는 기존 compact identity/preemption
+  fixture header inventory/order drift에서 중단되므로 full static PASS는 아니다.
+- 2026-09-09 Group Power ownership completion 후속 수정: `0x204A/0x204B`의
+  software robot membership은 Axis1~9이다. ownership observer는 Axis1~4에 기존
+  InputLatch/DS402 snapshot을 유지하고, Simulation Axis5~9에는 native
+  `ReadAxisStatus/ReadAxisError`를 사용한다. Axis5~9를 unsupported로 quarantine하던
+  `0x1F0` mask를 제거했다. 따라서 Group Power ACK/status PASS 뒤 owner가
+  Simulation 축 때문에 quarantine되어 Set Identity가 `-9`로 거부되는 경로를 제거했다.
+  이 항목은 source-only이며 C78 build/download와 PLC runtime 확인은 별도다.
 - Power Off가 `PowerOff + Standstill`에 도달하면 alarm-only 상태를 terminal failure로 오분류하지 않음
 - 새 Power On 예약을 Power Off safety-repeat로 오분류해 `ErrorId=-9`와 `RESERVED` 잔류를 만들던
   `HandleAxisOwnershipSafetyRepeat` 경로 수정

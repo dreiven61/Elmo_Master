@@ -979,8 +979,10 @@ public static Task<LMCGroupAxis> CreateAsync(
 
 Group Power/Enable/Reset/Stop/Move의 성공 ACK는 method 호출 접수 결과다. 완료
 상태는 `GroupReadStatusResult`와 필요 시 `GroupReadActualPosition`으로 확인한다.
-현재 SetKin/Lock/Move는 X/Y/Z/U 축 1~4에만 적용된다. 이것은 9축 동시 group
-interpolation API가 아니다.
+현재 SetKin/Lock/Move는 Cartesian4 프로파일의 X/Y/Z/U 축 1~4에만 적용된다.
+축 3~4가 Simulation이어도 Set Identity와 Profile Lock 대상에서 제외하지 않는다.
+Group Power On/Off는 이 프로파일 범위와 다르게 software robot 전체 Axis1~9에 전달한다.
+따라서 이 API는 9축 동시 group interpolation API가 아니다.
 
 ## 4.2 GetGroupMembersInfo
 
@@ -1003,6 +1005,9 @@ public Task<LMCGroupMembersInfoResult> GetGroupMembersInfoResultAsync(
 ## 4.3 GroupPowerOn
 
 Group member axis의 Power On을 요청한다.
+
+현재 PLC 구현은 physical/simulation 구분 없이 software robot member Axis1~9에 각각 native
+axis Power On을 전달한다. 첫 오류를 응답으로 보존하지만 뒤쪽 선택 축의 명령 전송은 계속한다.
 
 ```csharp
 public LMC_Response GroupPowerOn()
@@ -1042,6 +1047,9 @@ connection/session/group의 latest unresolved Power command를 제공한다.
 ## 4.4 GroupPowerOff
 
 Group member axis의 Power Off를 요청한다.
+
+현재 PLC 구현은 physical/simulation 구분 없이 software robot member Axis1~9에 각각 native
+axis Power Off를 전달한다. Profile Lock의 Cartesian4 범위와 무관하게 전체 9축을 끈다.
 
 ```csharp
 public LMC_Response GroupPowerOff()
@@ -1363,7 +1371,13 @@ public Task<LMCGroupReadActualPositionResult> GroupReadActualPositionAsync(
 
 ## 4.11 SetKinTransformCartesian4Axis
 
-4개 axis를 Cartesian X/Y/Z/U로 설정한다.
+4개 axis를 Cartesian X/Y/Z/U로 설정한다. 이 명령은 고정 Axis1~4 identity mapping을
+등록하며 Profile Lock이나 Group Power를 실행하지 않는다. Axis3~4가 Simulation이어도
+연결된 software axis이면 유효한 profile member다.
+
+WPF의 Set Identity 버튼은 Home 상태를 명령 전 인터록으로 사용하지 않는다. 별도 Home Check는
+읽기 전용 진단이며, Set Identity는 선택한 4개 axis를 로드한 뒤 `0x20E7`을 전송하고 실제 응답을
+표시한다.
 
 ```csharp
 public LMC_Response SetKinTransformCartesian4Axis(
@@ -1602,8 +1616,8 @@ MoveLinearAbsolute/Relative의 좌표계와 motion mode를 설정한다.
 | `ErrorId` | `short` | Error ID | Command error |
 
 현재 tracked PLC source는 `_LMCPROF_POS`의 Pos1..Pos9를 response slot 1..9에
-복사하고 slot 10..16을 0으로 유지한다. Move/SetKin/Lock의 physical 4축 제한은
-그대로다.
+복사하고 slot 10..16을 0으로 유지한다. Move/SetKin/Lock은 Cartesian4 profile Axis1~4
+범위이며, 축의 physical/simulation 설정과는 별개다.
 
 ## 5.5 LMCGroupMembersInfoResult
 

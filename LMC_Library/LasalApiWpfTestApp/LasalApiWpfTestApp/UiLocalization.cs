@@ -234,11 +234,8 @@ namespace LasalMotionControlApiExample
                     "다음: Power On 확인을 계속하십시오(상태 읽기만, 0x204A 재전송 없음)."),
                 Pair("Next: Power On.", "다음: Power On."),
                 Pair(
-                    "Next: Home the failed axes, then Set Identity.",
-                    "다음: 실패한 축을 Home한 뒤 Identity를 설정하십시오."),
-                Pair(
-                    "Next: Set Identity (automatic Home Check).",
-                    "다음: Identity를 설정하십시오(자동 Home 확인)."),
+                    "Next: Set Identity. Home Check is optional diagnostics.",
+                    "다음: Identity를 설정하십시오. Home Check는 선택 진단입니다."),
                 Pair(
                     "Next: Disable or complete stable Power Off verification; do not replay Enable.",
                     "다음: Disable을 수행하거나 안정적인 Power Off 확인을 완료하십시오. Enable을 재전송하지 마십시오."),
@@ -525,8 +522,8 @@ namespace LasalMotionControlApiExample
             values["1 Power On"] = "1 전원 켜기";
             values["2 / 5 Read Status (Power Ready / Lock Ready)"] =
                 "2 / 5 상태 읽기 (Power Ready / Lock Ready)";
-            values["3 Set Identity (Auto Home Check + Configure)"] =
-                "3 Identity 설정 (자동 Home Check + Configure)";
+            values["3 Set Identity (Configure)"] =
+                "3 Identity 설정 (Configure)";
             values["4 Enable (Lock Profile)"] = "4 Enable (Profile Lock)";
             values["Disable (Unlock Profile)"] = "Disable (Profile Unlock)";
             values["7 Power Off"] = "7 전원 끄기";
@@ -1154,9 +1151,9 @@ namespace LasalMotionControlApiExample
                 + "완료 timeout은 거리, 속도, 가속도, 감속도로 계산되며 범위는 15~600초입니다.";
             values[
                 "Home Check reads _LMCAXIS_STATUS.IsReferenced for the four identity axes. "
-                + "Set Identity repeats the check automatically and is blocked when any selected axis is not referenced."] =
+                + "Set Identity does not use this read-only diagnostic as a command pre-interlock."] =
                 "Home Check는 네 identity 축의 _LMCAXIS_STATUS.IsReferenced를 읽습니다. "
-                + "Set Identity는 이 확인을 자동으로 반복하며 선택한 축 중 reference되지 않은 축이 있으면 차단됩니다.";
+                + "Set Identity는 이 읽기 전용 진단을 명령 선차단으로 사용하지 않습니다.";
             values[
                 "These tests send real group commands. Group Enable qualification starts powered with identity configured but unlocked/disabled. "
                 + "Buffered and Stop-first qualifications start powered, identity configured, and locked. Keep people and tooling clear. "
@@ -1167,11 +1164,11 @@ namespace LasalMotionControlApiExample
                 + "Group Stop과 Power Off는 계속 사용할 수 있습니다. Buffered A/B는 PASS가 확인된 뒤에만 capture한 시작 위치로 복귀하며, "
                 + "motion이 불확실하면 대신 정지 후 확인합니다.";
             values[
-                "Required order: 1 Power On (automatic three-sample PowerOn=True verification) -> 3 Set Identity (automatic Home Check) -> "
+                "Required order: 1 Power On (automatic three-sample PowerOn=True verification) -> 3 Set Identity (Home Check is optional diagnostics) -> "
                 + "4 Enable (automatic three-sample Locked Standby verification) -> 6 Move -> Disable (Unlock Profile) -> "
                 + "7 Power Off (automatic three-sample PowerOn=False verification). If a verification is interrupted, press the same Power or Enable button "
                 + "to resume status reads without command replay. Read Status observes one sample and does not complete a pending Power On/Off transition."] =
-                "필수 순서: 1 전원 켜기(자동 3회 PowerOn=True 확인) -> 3 Identity 설정(자동 Home Check) -> "
+                "필수 순서: 1 전원 켜기(자동 3회 PowerOn=True 확인) -> 3 Identity 설정(Home Check는 선택 진단) -> "
                 + "4 Enable(자동 3회 Locked Standby 확인) -> 6 이동 -> Disable(Profile Unlock) -> "
                 + "7 전원 끄기(자동 3회 PowerOn=False 확인). 확인이 중단되면 같은 Power 또는 Enable 버튼을 눌러 명령을 재전송하지 않고 상태 읽기만 계속하십시오. "
                 + "Read Status는 한 sample만 확인하며 보류 중인 Power On/Off 전환을 완료하지 않습니다.";

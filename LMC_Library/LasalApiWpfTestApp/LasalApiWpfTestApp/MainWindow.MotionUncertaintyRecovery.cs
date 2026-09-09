@@ -530,7 +530,13 @@ namespace LasalMotionControlApiExample
 
             var expectedSafetyGeneration = safetyRequestGeneration;
             var identityVerified = false;
-            await commandSendGate.WaitAsync();
+            await AsyncCommandGatePolicy.WaitAsync(
+                commandSendGate,
+                reason + " resolution identity",
+                AsyncCommandGatePolicy.OrdinaryGateTimeoutMilliseconds,
+                CancellationToken.None);
+            var gateOwner = RegisterCommandGateOwner(
+                reason + " resolution identity");
             try
             {
                 EnsureNoNewSafetyRequest(
@@ -607,6 +613,7 @@ namespace LasalMotionControlApiExample
             }
             finally
             {
+                ClearCommandGateOwner(gateOwner);
                 commandSendGate.Release();
             }
         }

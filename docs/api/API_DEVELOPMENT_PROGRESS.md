@@ -1,5 +1,24 @@
 # LASAL Motion Control API 개발 진척도
 
+2026-09-09 Group Power ownership completion fix: `0x204A/0x204B` ownership은
+software robot Axis1~9를 같은 범위로 관찰한다. Axis1~4는 InputLatch/DS402 snapshot을
+사용하고, Simulation Axis5~9는 native `_LMCAxis.ReadAxisStatus/ReadAxisError`를
+사용한다. Simulation Axis5~9를 unsupported로 quarantine하던 mask `0x1F0`은 제거했다.
+따라서 PC의 Group Power status proof와 PLC ownership terminal release가 같은 9축
+membership을 사용한다. 이 변경은 LASAL IDE build/download 및 PLC runtime 검증 전의
+source-only 상태다.
+
+2026-09-09 group membership override: `Set Identity(0x20E7)`와 `Profile Lock(0x2047)`은
+Cartesian4 Axis1~4를 고정 사용하고, physical InputLatch 결과로 Simulation profile axis를
+제외하지 않는다. `Group Power On/Off(0x204A/0x204B)`는 software robot Axis1~9 전체에
+각 axis native Power 명령을 전달한다. 최신 focused source-predicate 검증은 `123/123 PASS`다.
+WPF Set Identity는 자동 Home 선차단 없이 실제 `0x20E7` 응답을 받도록 변경했다. 별도 Home
+Check는 read-only 진단이다. 이는 C78 build/download, PLC runtime 또는 실축 Power/Lock 동작을
+증명하지 않는다. Visual Studio 2019 MSBuild의 WPF solution Release/Debug build는 경고/오류
+없이 통과했고, focused WPF smoke는 localization `9/9`, Group Enable `16/16`, Group Power
+`28/28 PASS`다. 전체 LASAL SourceOnly verifier는 기존 compact identity/preemption fixture의
+implementation header inventory/order drift에서 계속 중단되므로 repository-wide PASS로 확대하지 않는다.
+
 2026-09-07 current override: `dev@4821797`은 `1852bd2` Servo Power lifecycle 수정과
 `c6bda1e` testbed EtherCAT 갱신을 포함한다. current source에서 Servo Power
 `133/133`, rebase `39/39`, safety-repeat `31/31`, topology `184/184`, HomeDS402

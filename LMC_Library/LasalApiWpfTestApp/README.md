@@ -319,9 +319,9 @@ Double inventory/adopt/release 송신이나 PLC runtime 증거는 아니다.
     확인 전에는 Set Identity, profile lock과 Move 버튼이 활성화되지 않는다.
 13. 네 축 이름을 확인하고 `Home Check (X/Y/Z/U)`로 각 축의
     `Home/Referenced=True`를 확인한다. 이 버튼은 진단용이며 생략해도 된다.
-14. `3 Set Identity (Auto Home Check + Configure)`를 실행한다. Set Identity는
-    같은 Home Check를 다시 수행하며, 한 축이라도 reference되지 않았으면 PLC에
-    kinematics 설정 명령을 보내지 않는다.
+14. `3 Set Identity (Configure)`를 실행한다. Set Identity는 Home 상태를 선차단 조건으로
+    사용하지 않고 선택한 X/Y/Z/U axis를 로드한 뒤 PLC에 kinematics 설정 명령을 보낸다.
+    미참조 여부는 별도 Home Check에서 진단하거나 native command/status 오류로 판단한다.
 15. `4 Enable (Lock Profile)`을 실행한다. GUI는 `0x2047`을 정확히 한 번 보낸 뒤
     `0x2045`를 자동 poll하고 PowerOn + Locked Standby가 3회 연속일 때만 PASS로 끝낸다.
 16. timeout, status 오류 또는 Stop/Power Off 우선순위 선점 뒤에는 버튼이
@@ -637,9 +637,14 @@ Axis/Group Stop과 Power Off는 app send gate를 기다리기 전에 공용
 `LMCSendPriorityCoordinator`의 safety generation을 선예약한다. WPF가 생성하거나 reconnect하는
 모든 connection은 이 opt-in coordinator를 공유하며, SDK는 각 command를 `stream.Write`하기
 직전에 ordinary scope의 generation을 검사한다. 따라서 아직 쓰지 않은 foreground/diagnostics
-RPC와 compound helper의 후속 RPC는 stale이면 zero-wire로 거부된다. 최종 검사를 이미 통과한
-in-flight RPC는 강제 취소하지 않고 결과/timeout을 확정하며, 그 뒤 safety send가 같은 직렬
-경로를 얻는다. 앞선 RPC가 transport를 fault로 전환하면 safety send 성공도 보장하지 않는다. safety ACK 뒤에는
+RPC와 compound helper의 후속 RPC는 stale이면 zero-wire로 거부된다. 일반 command gate 획득은
+1000 ms로 제한되며 timeout된 queued operation은 zero-wire로 실패한다. Stop/Power Off는 250 ms의
+safety gate grace 뒤에도 gate가 점유돼 있으면 exact gate-owner connection/session을 확인한다.
+일치할 때만 `AbortTransportForSafetyPreemption`으로 old TCP를 폐기하고 old UI generation과 loaded
+handle을 무효화한다. 이 공통 경로는 새 connection에서 safety command를 자동 재전송하지 않는다.
+로그의 지시에 따라 reconnect, exact axis/group lookup 뒤 Stop/Power Off를 명시적으로 한 번 다시
+실행해야 하며 중단된 ordinary mutation은 replay하지 않는다. owner identity를 증명하지 못하면
+transport도 추정 폐기하지 않고 bounded timeout으로 끝난다. safety ACK 뒤에는
 같은 exact generation의 상태 monitor 자리를 미리 예약하므로 ordinary command가 ACK와 monitor
 시작 사이에 진입하지 않는다. 더 새 safety 요청은 이전 monitor의 다음 write를 stale로 만든다.
 qualification의 이 선점은 `ABORTED`로 기록하며, SDO submit이 write 전에 선점되면 tracker는

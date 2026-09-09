@@ -80,9 +80,17 @@ Check ($reserve -notmatch 'OwnershipState\[24\]\s*:=\s*0') 'No force-clear on re
 Check ($reserve -notmatch 'AxisRebaseRequiredState\.Write\(') 'Power admission never clears coordinate barrier'
 
 $groupEnable = [regex]::Match($groupHandler, '(?is)0x2047:.*?0x2048:').Value
+$setIdentity = [regex]::Match($groupHandler, '(?is)0x20E7:.*?end_case;').Value
 $groupHome = $adminHandler.Substring($adminHandler.IndexOf('0x7D22:'))
 Check ($groupEnable -match 'LMCRobot\.LockProfile\(') 'Group Enable reaches native LockProfile'
 Check ($groupEnable -notmatch 'AreResolvedGroupAxesPowered|GroupKinematicReady|_LMCPROF_LockState') 'Group Enable has no local readiness pre-interlock'
+Check ($groupEnable -match 'groupAxisMask\s*:=\s*LMC_OWNER_PROFILE_AXIS_MASK') 'Group Enable selects the fixed Cartesian4 profile mask'
+Check ($groupEnable -notmatch 'ResolveConnectedGroupAxisMask') 'Group Enable does not drop Simulation profile axes from physical InputLatch data'
+Check ($groupEnable -match '(?s)LockProfile\(.*?Axis1:=groupAxis1Enable.*?Axis4:=groupAxis4Enable.*?Axis5:=0.*?Axis9:=0') 'Group Enable locks Axis1..4 and excludes Axis5..9'
+Check ($setIdentity -match 'RequestFrameSize\s*=\s*1328') 'Set Identity preserves the exact Cartesian4 frame size'
+Check ($setIdentity -match '(?s)IsClientConnected\(#LMCRobot\).*?IsClientConnected\(#LMCAxis1\).*?IsClientConnected\(#LMCAxis4\)') 'Set Identity registers the connected Cartesian4 profile'
+Check ($setIdentity -match 'GroupKinematicReady\s*:=\s*TRUE') 'Set Identity marks the validated Cartesian4 mapping ready'
+Check ($setIdentity -notmatch 'LockProfile\(|PowerOn\(|PowerOff\(') 'Set Identity does not implicitly lock or power axes'
 Check ($groupMove -match 'LMCRobot\.MoveLinearCoord\(') 'Group linear motion reaches native MoveLinearCoord'
 Check ($groupMove -notmatch 'AreResolvedGroupAxesPowered|GroupKinematicReady|_LMCPROF_LockState') 'Group linear motion has no local readiness pre-interlock'
 Check ($groupHome -match 'LMCRobot\.MoveRelativeCoord\(') 'Group Home Current reaches native MoveRelativeCoord'
@@ -96,6 +104,12 @@ Check ($groupPowerOn -notmatch 'ResolveConnectedGroupAxisMask') 'Group PowerOn i
 Check ($groupPowerOff -notmatch 'ResolveConnectedGroupAxisMask') 'Group PowerOff is not limited to physical InputLatch axes'
 Check ($setGroupPower -match 'GroupAxisMask\s*>\s*LMC_OWNER_ROBOT_AXIS_MASK') 'Group power helper accepts the nine-axis robot mask'
 Check ($readGroupPower -match 'GroupAxisMask\s*>\s*LMC_OWNER_ROBOT_AXIS_MASK') 'Group power readback accepts the nine-axis robot mask'
+Check ($constants['LMC_OWNER_UNSUPPORTED_AXIS_MASK'] -eq '0x00000000') 'Simulation axes are not quarantined as unsupported ownership targets'
+for ($axis = 5; $axis -le 9; $axis++) {
+    Check ($process -match ('(?s)' + $axis + ':.*?LMCAxis' + $axis + '\.ReadAxisStatus\(\).*?LMCAxis' + $axis + '\.ReadAxisError\(\)')) "Ownership completion reads Simulation Axis$axis status and error"
+}
+Check ($process -match '(?s)LMC_OWNER_CONFIGURED_PHYSICAL_AXIS_MASK\)\s*<>\s*0\).*?LMC_OWNER_DS402_OPERATION_ENABLED_STATE') 'Only physical axes require DS402 operation-enabled proof'
+Check ($process -match '(?s)LMC_OWNER_CONFIGURED_PHYSICAL_AXIS_MASK\)\s*<>\s*0\).*?LMC_OWNER_DS402_FAULT_MASK') 'Only physical axes use DS402 fault evidence'
 for ($axis = 1; $axis -le 9; $axis++) {
     $bit = '0x{0:X8}' -f (1 -shl ($axis - 1))
     $nextBit = if ($axis -lt 9) {
