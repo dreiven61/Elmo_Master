@@ -517,7 +517,7 @@ TO_UDINT(71), "toMaster", TO_UDINT(8), "ClassSvr",
 118$UDINT,
 TO_UDINT(0), "divisor", TO_UDINT(4),//|EtherCAT_Network._base\EtherCAT_PLC1\_SyncMeasureECAT1.divisor;
 TO_UDINT(0), "PhaseRegDamping", TO_UDINT(0),//|EtherCAT_Network._base\EtherCAT_PLC1\_SyncMeasureECAT1.PhaseRegDamping;
-TO_UDINT(1), "SlaveIndex", TO_UDINT(DEACTIVATED_LSL),//|EtherCAT_Network.Elmo_11.SlaveIndex;
+TO_UDINT(1), "SlaveIndex", TO_UDINT(1),//|EtherCAT_Network.Elmo_11.SlaveIndex;
 TO_UDINT(1), "Required", TO_UDINT(1),//|EtherCAT_Network.Elmo_11.Required;
 TO_UDINT(1), "NoSDOBuffer", TO_UDINT(0),//|EtherCAT_Network.Elmo_11.NoSDOBuffer;
 TO_UDINT(1), "NoAsyncBuffer", TO_UDINT(0),//|EtherCAT_Network.Elmo_11.NoAsyncBuffer;
@@ -564,7 +564,7 @@ TO_UDINT(12), "SynchronizationMode", TO_UDINT(0),//|EtherCAT_Network.EtherCAT_PL
 TO_UDINT(12), "PhaseRegDamping", TO_UDINT(0),//|EtherCAT_Network.EtherCAT_PLC1.PhaseRegDamping;
 TO_UDINT(12), "MissingFrameBehaviour", TO_UDINT(3),//|EtherCAT_Network.EtherCAT_PLC1.MissingFrameBehaviour;
 TO_UDINT(13), "SplitterPlace", TO_UDINT(0),//|EtherCAT_Network._base\GL_9086_11\EtherCATSlot_Hub_Base1.SplitterPlace;
-TO_UDINT(24), "SlaveIndex", TO_UDINT(DEACTIVATED_LSL),//|EtherCAT_Network.GL_9086_11.SlaveIndex;
+TO_UDINT(24), "SlaveIndex", TO_UDINT(0),//|EtherCAT_Network.GL_9086_11.SlaveIndex;
 TO_UDINT(24), "Required", TO_UDINT(1),//|EtherCAT_Network.GL_9086_11.Required;
 TO_UDINT(24), "NoSDOBuffer", TO_UDINT(0),//|EtherCAT_Network.GL_9086_11.NoSDOBuffer;
 TO_UDINT(24), "NoAsyncBuffer", TO_UDINT(0),//|EtherCAT_Network.GL_9086_11.NoAsyncBuffer;
@@ -627,7 +627,7 @@ TO_UDINT(67), "SingleRealloc", TO_UDINT(1),//|EtherCAT_Network._base\LMCSdoExecu
 TO_UDINT(68), "SingleRealloc", TO_UDINT(1),//|EtherCAT_Network._base\LMCSdoExecutor6\strSDOParaString.SingleRealloc;
 TO_UDINT(69), "SingleRealloc", TO_UDINT(1),//|EtherCAT_Network._base\_base\WELCON_11\DeviceNameStr.SingleRealloc;
 TO_UDINT(70), "SingleRealloc", TO_UDINT(1),//|EtherCAT_Network._base\_base\WELCON_11\ProductRevStr.SingleRealloc;
-TO_UDINT(71), "SlaveIndex", TO_UDINT(0),//|EtherCAT_Network.WELCON_11.SlaveIndex;
+TO_UDINT(71), "SlaveIndex", TO_UDINT(DEACTIVATED_LSL),//|EtherCAT_Network.WELCON_11.SlaveIndex;
 TO_UDINT(71), "Required", TO_UDINT(1),//|EtherCAT_Network.WELCON_11.Required;
 TO_UDINT(71), "NoSDOBuffer", TO_UDINT(0),//|EtherCAT_Network.WELCON_11.NoSDOBuffer;
 TO_UDINT(71), "NoAsyncBuffer", TO_UDINT(0),//|EtherCAT_Network.WELCON_11.NoAsyncBuffer;

@@ -963,22 +963,20 @@ TO_UDINT(159), "LMCMath_SO3", TO_UDINT(118),
 TO_UDINT(159), "_LMCRobotLog", TO_UDINT(160),
 TO_UDINT(159), "LMCBeltInternal", TO_UDINT(117),
 0$UDINT,
-197$UDINT,
-TO_UDINT(9), "LMCController", TO_UDINT(185), "Signal_Input",
+195$UDINT,
+TO_UDINT(9), "LMCController", TO_UDINT(176), "Signal_Input",
 TO_UDINT(9), "LMCPreRtWorkTrigger", TO_UDINT(174), "ClassSvr",
 TO_UDINT(9), "LMCMath", TO_UDINT(120), "ClassSvr",
 TO_UDINT(9), "LMCSafety", TO_UDINT(161), "ClassSvr",
 TO_UDINT(9), "LMCReference", TO_UDINT(18), "RefInput",
 TO_UDINT(9), "LMCAbsEncoder", TO_UDINT(0), "ClassSvr",
 TO_UDINT(9), "LMCPublisher", TO_UDINT(150), "ClassSvr",
-TO_UDINT(10), "ActPosition", TO_UDINT(173), "ActPos",
-TO_UDINT(10), "LMCController", TO_UDINT(186), "Signal_Input",
+TO_UDINT(10), "LMCController", TO_UDINT(177), "Signal_Input",
 TO_UDINT(10), "LMCMath", TO_UDINT(121), "ClassSvr",
 TO_UDINT(10), "LMCSafety", TO_UDINT(162), "ClassSvr",
 TO_UDINT(10), "LMCReference", TO_UDINT(19), "RefInput",
 TO_UDINT(10), "LMCAbsEncoder", TO_UDINT(1), "ClassSvr",
 TO_UDINT(10), "LMCPublisher", TO_UDINT(151), "ClassSvr",
-TO_UDINT(10), "HWError", TO_UDINT(173), "ActPos",
 TO_UDINT(11), "LMCController", TO_UDINT(178), "Signal_Input",
 TO_UDINT(11), "LMCMath", TO_UDINT(122), "ClassSvr",
 TO_UDINT(11), "LMCSafety", TO_UDINT(163), "ClassSvr",
@@ -1164,7 +1162,7 @@ TO_UDINT(187), "Simul_Axis_9", TO_UDINT(17), "SimulateMode",
 
 //Initialization values
 0$UDINT,
-329$UDINT,
+330$UDINT,
 TO_UDINT(0), "AbsEncoder", TO_UDINT(1),//|Motion_Network._LMCAxis1\_LMCABSEncoder1.AbsEncoder;
 TO_UDINT(1), "AbsEncoder", TO_UDINT(1),//|Motion_Network._LMCAxis2\_LMCABSEncoder1.AbsEncoder;
 TO_UDINT(2), "AbsEncoder", TO_UDINT(0),//|Motion_Network._LMCAxis3\_LMCABSEncoder1.AbsEncoder;
@@ -1430,7 +1428,7 @@ TO_UDINT(159), "JMax", TO_UDINT(50000 mm),//|Motion_Network._LMCRobotBase1.JMax;
 TO_UDINT(170), "No", TO_UDINT(LMCSPLINEBUFF_MINBUFFS),//|Motion_Network._base\_LMCRobotBase1\_LMCSplineBuffer.No;
 TO_UDINT(171), "No", TO_UDINT(2),//|Motion_Network._base\_LMCRobotBase1\_LMCTableBuffer.No;
 TO_UDINT(172), "Axis_1", TO_UDINT(1),//|Motion_Network.AbsEncoderSetup1.Axis_1;
-TO_UDINT(172), "Axis_2", TO_UDINT(1),//|Motion_Network.AbsEncoderSetup1.Axis_2;
+TO_UDINT(172), "Axis_2", TO_UDINT(0),//|Motion_Network.AbsEncoderSetup1.Axis_2;
 TO_UDINT(173), "SetOpMode", TO_UDINT(8),//|Motion_Network.DriveAxisDS4021.SetOpMode;
 TO_UDINT(176), "iHWErrors", TO_UDINT(0),//|Motion_Network.PosController1.iHWErrors;
 TO_UDINT(176), "vHWDelay", TO_UDINT(0),//|Motion_Network.PosController1.vHWDelay;
@@ -1487,6 +1485,7 @@ TO_UDINT(186), "vHWDelay", TO_UDINT(0),//|Motion_Network.PosController_Welcon_02
 TO_UDINT(186), "oActive", TO_UDINT(0),//|Motion_Network.PosController_Welcon_02.oActive;
 TO_UDINT(186), "cDragLimit", TO_UDINT(0),//|Motion_Network.PosController_Welcon_02.cDragLimit;
 TO_UDINT(186), "cDragCalcDelay", TO_UDINT(0),//|Motion_Network.PosController_Welcon_02.cDragCalcDelay;
+TO_UDINT(187), "Axis_2", TO_UDINT(1),//|Motion_Network.SimulationSetup1.Axis_2;
 TO_UDINT(187), "Axis_3", TO_UDINT(1),//|Motion_Network.SimulationSetup1.Axis_3;
 TO_UDINT(187), "Axis_4", TO_UDINT(1),//|Motion_Network.SimulationSetup1.Axis_4;
 TO_UDINT(187), "Axis_5", TO_UDINT(1),//|Motion_Network.SimulationSetup1.Axis_5;
@@ -1546,15 +1545,18 @@ TO_UDINT(143), (500)$UDINT, 4194303$DINT, 	//_LMCROBOTBASE1\_BASE\_LMCPROFILEVIS
 
 //External connections
 0$UDINT,
-53$UDINT,
-TO_UDINT(9), "ActPosition", C_TRY, TO_UDINT(3391823300), "WELCON_11","ActPos",
-TO_UDINT(9), "HWReady", C_TRY, TO_UDINT(3391823300), "WELCON_11","Online",
-TO_UDINT(9), "HWError", C_TRY, TO_UDINT(3391823300), "WELCON_11","AxError",
-TO_UDINT(10), "HWReady", C_TRY, TO_UDINT(3391823300), "WELCON_11","Online",
+56$UDINT,
+TO_UDINT(9), "ActPosition", C_TRY, TO_UDINT(1622340897), "Elmo_11","ActPos",
+TO_UDINT(9), "HWReady", C_TRY, TO_UDINT(1622340897), "Elmo_11","Online",
+TO_UDINT(9), "HWError", C_TRY, TO_UDINT(1622340897), "Elmo_11","AxError",
+TO_UDINT(10), "ActPosition", C_TRY, TO_UDINT(1268754146), "Elmo_21","ActPos",
+TO_UDINT(10), "HWReady", C_TRY, TO_UDINT(1268754146), "Elmo_21","Online",
+TO_UDINT(10), "HWError", C_TRY, TO_UDINT(1268754146), "Elmo_21","AxError",
 TO_UDINT(11), "ActPosition", C_TRY, TO_UDINT(1384421283), "Elmo_31","ActPos",
 TO_UDINT(11), "HWReady", C_TRY, TO_UDINT(1384421283), "Elmo_31","Online",
 TO_UDINT(11), "HWError", C_TRY, TO_UDINT(1384421283), "Elmo_31","AxError",
 TO_UDINT(12), "ActPosition", C_TRY, TO_UDINT(499450212), "Elmo_41","ActPos",
+TO_UDINT(12), "HWReady", C_TRY, TO_UDINT(499450212), "Elmo_41","Online",
 TO_UDINT(12), "HWError", C_TRY, TO_UDINT(499450212), "Elmo_41","AxError",
 TO_UDINT(173), "CiA_ControlWord", C_DIR, TO_UDINT(3391823300), "WELCON_11","RxPDO9_Controlword2",
 TO_UDINT(173), "CiA_StatusWord", C_DIR, TO_UDINT(3391823300), "WELCON_11","TxPDO9_Statusword2",

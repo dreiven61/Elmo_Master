@@ -4385,7 +4385,7 @@
 			Visualized = "false">
 			<Channels>
 				<Server Name="Axis_1" Value="1"/>
-				<Server Name="Axis_2" Value="1"/>
+				<Server Name="Axis_2" Value="0"/>
 				<Server Name="Axis_3"/>
 				<Server Name="Axis_4"/>
 				<Server Name="Axis_5"/>
@@ -4913,7 +4913,7 @@
 			Visualized = "false">
 			<Channels>
 				<Server Name="Axis_1"/>
-				<Server Name="Axis_2"/>
+				<Server Name="Axis_2" Value="1"/>
 				<Server Name="Axis_3" Value="1"/>
 				<Server Name="Axis_4" Value="1"/>
 				<Server Name="Axis_5" Value="1"/>
@@ -4950,21 +4950,21 @@
 		<Connection Source="PosController1.oActive" Destination="Elmo_11.AxEnable"/>
 		<Connection Source="PosController1.oOutputSignal" Destination="Elmo_11.SetPos"/>
 		<Connection Source="PosController1.DriveEnabled" Destination="Elmo_11.AxEnable"/>
-		<Connection Source="_LMCAxis1.ActPosition" Destination="WELCON_11.ActPos"/>
-		<Connection Source="_LMCAxis1.HWError" Destination="WELCON_11.AxError"/>
-		<Connection Source="_LMCAxis1.LMCController" Destination="PosController_Welcon_01.Signal_Input" Vertices="(3090,450),(2440,1200),"/>
-		<Connection Source="_LMCAxis1.HWReady" Destination="WELCON_11.Online"/>
+		<Connection Source="_LMCAxis1.ActPosition" Destination="Elmo_11.ActPos"/>
+		<Connection Source="_LMCAxis1.HWError" Destination="Elmo_11.AxError"/>
+		<Connection Source="_LMCAxis1.LMCController" Destination="PosController1.Signal_Input" Vertices="(3090,450),(2440,450),"/>
+		<Connection Source="_LMCAxis1.HWReady" Destination="Elmo_11.Online"/>
 		<Connection Source="PosController2.iHWErrors" Destination="Elmo_21.AxError"/>
 		<Connection Source="PosController2.HWErrorQuit" Destination="Elmo_21.AxErrorQuit"/>
 		<Connection Source="PosController2.oActive" Destination="Elmo_21.AxEnable"/>
 		<Connection Source="PosController2.oOutputSignal" Destination="Elmo_21.SetPos"/>
 		<Connection Source="PosController2.DriveEnabled" Destination="Elmo_21.AxEnable"/>
-		<Connection Source="_LMCAxis2.ActPosition" Destination="DriveAxisDS4021.ActPos" Vertices="(3090,2310),(1618,3180),"/>
-		<Connection Source="_LMCAxis2.HWError" Destination="DriveAxisDS4021.ActPos" Vertices="(3090,2610),(1618,3180),"/>
-		<Connection Source="_LMCAxis2.HWReady" Destination="WELCON_11.Online"/>
+		<Connection Source="_LMCAxis2.ActPosition" Destination="Elmo_21.ActPos"/>
+		<Connection Source="_LMCAxis2.HWError" Destination="Elmo_21.AxError"/>
+		<Connection Source="_LMCAxis2.HWReady" Destination="Elmo_21.Online"/>
 		<Connection Source="PosController3.iHWErrors" Destination="Elmo_31.AxError"/>
 		<Connection Source="PosController3.HWErrorQuit" Destination="Elmo_31.AxErrorQuit"/>
-		<Connection Source="_LMCAxis2.LMCController" Destination="PosController_Welcon_02.Signal_Input" Vertices="(3090,2370),(2600,3060),"/>
+		<Connection Source="_LMCAxis2.LMCController" Destination="PosController2.Signal_Input" Vertices="(3090,2370),(2440,2370),"/>
 		<Connection Source="PosController3.oActive" Destination="Elmo_31.AxEnable"/>
 		<Connection Source="PosController3.oOutputSignal" Destination="Elmo_31.SetPos"/>
 		<Connection Source="PosController3.DriveEnabled" Destination="Elmo_31.AxEnable"/>
@@ -5040,6 +5040,7 @@
 		<Connection Source="DriveAxisDS4021.TorqueActualValue" Destination="WELCON_11.TxPDO9_TorqueActualValue2"/>
 		<Connection Source="DriveAxisDS4021.VelocityActualValue" Destination="WELCON_11.TxPDO9_VelocityActualValue2"/>
 		<Connection Source="DriveAxisDS4021.Online" Destination="WELCON_11.Online"/>
+		<Connection Source="_LMCAxis4.HWReady" Destination="Elmo_41.Online"/>
 	</Connections>
 	<!-- Headerfiles -->
 	<Options>

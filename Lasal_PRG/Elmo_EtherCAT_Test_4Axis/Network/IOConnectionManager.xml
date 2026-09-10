@@ -13,17 +13,17 @@
 			<IOConnection ObjSrv="Elmo_11" Server="AxEnable" ObjClt="PosController1" Client="oActive" IOI="Output" Type="Digital" SortIndex="2" KeyName="000002" Advanced="0"/>
 			<IOConnection ObjSrv="Elmo_11" Server="SetPos" ObjClt="PosController1" Client="oOutputSignal" IOI="Output" Type="Analog" SortIndex="3" KeyName="000003" Advanced="0"/>
 			<IOConnection ObjSrv="Elmo_11" Server="AxEnable" ObjClt="PosController1" Client="DriveEnabled" IOI="Output" Type="Digital" SortIndex="4" KeyName="000004" Advanced="0"/>
-			<IOConnection ObjSrv="WELCON_11" Server="ActPos" ObjClt="_LMCAxis1" Client="ActPosition" IOI="Input" Type="Analog" SortIndex="5" KeyName="000005" Advanced="0"/>
-			<IOConnection ObjSrv="WELCON_11" Server="AxError" ObjClt="_LMCAxis1" Client="HWError" IOI="Input" Type="Digital" SortIndex="6" KeyName="000006" Advanced="0"/>
-			<IOConnection ObjSrv="WELCON_11" Server="Online" ObjClt="_LMCAxis1" Client="HWReady" IOI="IOState" SortIndex="7" KeyName="000007" Advanced="0"/>
+			<IOConnection ObjSrv="Elmo_11" Server="ActPos" ObjClt="_LMCAxis1" Client="ActPosition" IOI="Input" Type="Analog" SortIndex="5" KeyName="000005" Advanced="0"/>
+			<IOConnection ObjSrv="Elmo_11" Server="AxError" ObjClt="_LMCAxis1" Client="HWError" IOI="Input" Type="Digital" SortIndex="6" KeyName="000006" Advanced="0"/>
+			<IOConnection ObjSrv="Elmo_11" Server="Online" ObjClt="_LMCAxis1" Client="HWReady" IOI="IOState" SortIndex="7" KeyName="000007" Advanced="0"/>
 			<IOConnection ObjSrv="Elmo_21" Server="AxError" ObjClt="PosController2" Client="iHWErrors" IOI="Input" Type="Digital" SortIndex="8" KeyName="000008" Advanced="0"/>
 			<IOConnection ObjSrv="Elmo_21" Server="AxErrorQuit" ObjClt="PosController2" Client="HWErrorQuit" IOI="Output" Type="Digital" SortIndex="9" KeyName="000009" Advanced="0"/>
 			<IOConnection ObjSrv="Elmo_21" Server="AxEnable" ObjClt="PosController2" Client="oActive" IOI="Output" Type="Digital" SortIndex="10" KeyName="000010" Advanced="0"/>
 			<IOConnection ObjSrv="Elmo_21" Server="SetPos" ObjClt="PosController2" Client="oOutputSignal" IOI="Output" Type="Analog" SortIndex="11" KeyName="000011" Advanced="0"/>
 			<IOConnection ObjSrv="Elmo_21" Server="AxEnable" ObjClt="PosController2" Client="DriveEnabled" IOI="Output" Type="Digital" SortIndex="12" KeyName="000012" Advanced="0"/>
-			<IOConnection ObjSrv="DriveAxisDS4021" Server="ActPos" ObjClt="_LMCAxis2" Client="ActPosition" IOI="Input" SortIndex="13" KeyName="000013" Advanced="0"/>
-			<IOConnection ObjSrv="DriveAxisDS4021" Server="ActPos" ObjClt="_LMCAxis2" Client="HWError" IOI="Input" SortIndex="14" KeyName="000014" Advanced="0"/>
-			<IOConnection ObjSrv="WELCON_11" Server="Online" ObjClt="_LMCAxis2" Client="HWReady" IOI="IOState" SortIndex="15" KeyName="000015" Advanced="0"/>
+			<IOConnection ObjSrv="Elmo_21" Server="ActPos" ObjClt="_LMCAxis2" Client="ActPosition" IOI="Input" Type="Analog" SortIndex="13" KeyName="000013" Advanced="0"/>
+			<IOConnection ObjSrv="Elmo_21" Server="AxError" ObjClt="_LMCAxis2" Client="HWError" IOI="Input" Type="Digital" SortIndex="14" KeyName="000014" Advanced="0"/>
+			<IOConnection ObjSrv="Elmo_21" Server="Online" ObjClt="_LMCAxis2" Client="HWReady" IOI="IOState" SortIndex="15" KeyName="000015" Advanced="0"/>
 			<IOConnection ObjSrv="Elmo_31" Server="AxError" ObjClt="PosController3" Client="iHWErrors" IOI="Input" Type="Digital" SortIndex="16" KeyName="000016" Advanced="0"/>
 			<IOConnection ObjSrv="Elmo_31" Server="AxErrorQuit" ObjClt="PosController3" Client="HWErrorQuit" IOI="Output" Type="Digital" SortIndex="17" KeyName="000017" Advanced="0"/>
 			<IOConnection ObjSrv="Elmo_31" Server="AxEnable" ObjClt="PosController3" Client="oActive" IOI="Output" Type="Digital" SortIndex="18" KeyName="000018" Advanced="0"/>
@@ -69,6 +69,7 @@
 			<IOConnection ObjSrv="WELCON_11" Server="Online" ObjClt="DriveAxisDS4021" Client="Online" IOI="IOState" SortIndex="63" KeyName="000058" Advanced="0"/>
 			<IOConnection ObjSrv="WELCON_11" Server="ClassState" ObjClt="LMCSdoExecutor5" Client="toSlave" IOI="IOState" SortIndex="64" KeyName="000059" Advanced="0"/>
 			<IOConnection ObjSrv="WELCON_11" Server="ClassState" ObjClt="LMCSdoExecutor6" Client="toSlave" IOI="IOState" SortIndex="65" KeyName="000060" Advanced="0"/>
+			<IOConnection ObjSrv="Elmo_41" Server="Online" ObjClt="_LMCAxis4" Client="HWReady" IOI="IOState" SortIndex="66" KeyName="000061" Advanced="0"/>
 		</IOConnections>
 	</Entry>
 	<!-- List of Folders -->

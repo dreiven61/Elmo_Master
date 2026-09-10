@@ -165,7 +165,7 @@ END_FUNCTION
 FUNCTION GLOBAL TAB _IO_ELEMENTS_TAB
 0001$UINT, 0001$UINT, 
 "**IOCONN_EMPTY**", "Elmo_11.AxError", 
-0061$UINT, 
+0062$UINT, 
 "**IOCONN_EMPTY**", "PosController1.iHWErrors", 
 "**IOCONN_EMPTY**", "PosController1.HWErrorQuit", 
 "**IOCONN_EMPTY**", "PosController1.oActive", 
@@ -227,6 +227,7 @@ FUNCTION GLOBAL TAB _IO_ELEMENTS_TAB
 "**IOCONN_EMPTY**", "DriveAxisDS4021.Online", 
 "**IOCONN_EMPTY**", "LMCSdoExecutor5.toSlave", 
 "**IOCONN_EMPTY**", "LMCSdoExecutor6.toSlave", 
+"**IOCONN_EMPTY**", "_LMCAxis4.HWReady", 
 END_FUNCTION
 #endif //__LSLLDR_IOELEMENTS__
 
