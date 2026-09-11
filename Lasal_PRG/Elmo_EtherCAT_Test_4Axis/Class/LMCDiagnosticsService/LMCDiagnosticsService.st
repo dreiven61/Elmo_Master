@@ -649,6 +649,8 @@ END_FUNCTION
 #define LMC_DIAG_MAX_BULK_SIGNALS     24
 #define LMC_DIAG_SDO_LOCAL_ERROR_ID    -32001
 #define LMC_DIAG_SDO_ABORT_TIMEOUT     0x05040000
+#define LMC_DIAG_DS402_HOME_POSITION_TOLERANCE 1
+#define LMC_DIAG_DS402_CLEANUP_TIMEOUT_MS 5000
 #define LMC_DIAG_SDO_STATE_QUEUED      1
 #define LMC_DIAG_SDO_STATE_RUNNING     2
 #define LMC_DIAG_SDO_STATE_COMPLETED   3
@@ -668,7 +670,7 @@ END_FUNCTION
 #define LMC_OWNER_STARTUP_DIAG_ENCODER  0x00000004
 #define LMC_OWNER_STARTUP_DIAG_GENERIC  0x00000008
 #define LMC_OWNER_STARTUP_DIAG_EXECUTOR 0x00000010
-#define LMC_DIAG_CONFIGURED_PHYSICAL_DRIVE_MASK 0x00000003
+#define LMC_DIAG_CONFIGURED_PHYSICAL_DRIVE_MASK 0x00000001
 
 
 #define LMC_DIAG_MODE_RECORD_STRIDE 32
@@ -6279,6 +6281,7 @@ FUNCTION LMCDiagnosticsService::ProcessAxisDs402Home
 		terminalRecordState : DINT;
 		startResult : iprStates;
 		snapshotValid, newCycle, executorConnected, executorReusable : BOOL;
+		homePositionValid, homeCompletionStatusValid : BOOL;
 		startSdo, waitSdo, sdoIsWrite, failure : BOOL;
 		preemptionSnapshotValid, preemptionCleanup, cleanupExpired : BOOL;
 	END_VAR
@@ -6478,6 +6481,20 @@ FUNCTION LMCDiagnosticsService::ProcessAxisDs402Home
 			Ds402HomeState[110] := currentCycle$DINT;
 		end_if;
 	end_if;
+	homePositionValid :=
+		actualPosition = Ds402HomeState[recordBase + 10];
+	if (Ds402HomeState[recordBase + 9] = 37) &
+	   (Ds402HomeState[recordBase + 10] = 0) then
+		homePositionValid :=
+			(actualPosition >=
+			 (0 - LMC_DIAG_DS402_HOME_POSITION_TOLERANCE)) &
+			(actualPosition <= LMC_DIAG_DS402_HOME_POSITION_TOLERANCE);
+	end_if;
+	homeCompletionStatusValid := (statusWord and 0x0400) <> 0;
+	if (Ds402HomeState[recordBase + 9] = 37) &
+	   (baseState = 0x0040) then
+		homeCompletionStatusValid := TRUE;
+	end_if;
 
 	failure := FALSE;
 	failureDetail := 30;
@@ -6622,8 +6639,11 @@ FUNCTION LMCDiagnosticsService::ProcessAxisDs402Home
 						failureNative := statusWord;
 					elsif (Ds402HomeState[111] <> 0) &
 						((statusWord and 0x1000) <> 0) &
-						((statusWord and 0x0400) <> 0) then
-						if actualPosition = Ds402HomeState[recordBase + 10] then
+						homeCompletionStatusValid then
+						// Method 37 may report attained without target-reached while
+						// Switch On Disabled. Accept only the observed one-count zero
+						// quantization and keep every other Home method exact.
+						if homePositionValid then
 							if actualPosition = Ds402HomeState[102] then
 								Ds402HomeState[103] += 1;
 							else
@@ -6733,7 +6753,7 @@ FUNCTION LMCDiagnosticsService::ProcessAxisDs402Home
 						((statusWord and 0x2000) <> 0) |
 						((baseState <> 0x0040) & (baseState <> 0x0021) &
 						 (baseState <> 0x0023) & (baseState <> 0x0027)) |
-						(actualPosition <> 0) then
+						(homePositionValid = FALSE) then
 						failure := TRUE;
 						failureNative := 24;
 					else
@@ -6906,9 +6926,9 @@ FUNCTION LMCDiagnosticsService::ProcessAxisDs402Home
 			if sdoIsWrite then
 				Ds402HomeState[95] := 1;
 			end_if;
-			Ds402HomeState[96] := sdoIndex$DINT;
-			Ds402HomeState[97] := homeSdoSubIndex$DINT;
-			Ds402HomeState[98] := sdoLength$DINT;
+			Ds402HomeState[96] := TO_DINT(sdoIndex);
+			Ds402HomeState[97] := TO_DINT(homeSdoSubIndex);
+			Ds402HomeState[98] := TO_DINT(sdoLength);
 			Ds402HomeState[100] := sdoData$DINT;
 			startCycle := Ds402HomeState[recordBase + 19]$UDINT;
 			timeoutMs := Ds402HomeState[recordBase + 13]$UDINT;
@@ -7613,7 +7633,7 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeCleanupStages
 	recordBase := TO_DINT(AxisReference - 1) * 23;
 	cleanupStart := Ds402HomeState[119]$UDINT;
 	cleanupExpired := (cleanupStart <> 0) & (stage >= 90) & (stage <= 99) &
-		((serviceNow - cleanupStart) >= 1000);
+		((serviceNow - cleanupStart) >= LMC_DIAG_DS402_CLEANUP_TIMEOUT_MS);
 	if cleanupExpired then
 		if Ds402HomeState[94] <> 0 then
 			orphanResult := -1;
@@ -7703,7 +7723,9 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeCleanupStages
 					Ds402HomeState[92] := 92;
 				elsif mailboxResult <> 1 then
 					// Stay in bounded cleanup until timeout; never infer LOW.
-					Ds402HomeState[108] := TO_DINT(0 - mailboxResult);
+					if Ds402HomeState[108] = 0 then
+						Ds402HomeState[108] := TO_DINT(0 - mailboxResult);
+					end_if;
 				end_if;
 			end_if;
 		91:
@@ -7723,7 +7745,9 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeCleanupStages
 				elsif mailboxResult = 1 then
 					Ds402HomeState[92] := 93;
 				else
-					Ds402HomeState[108] := TO_DINT(0 - mailboxResult);
+					if Ds402HomeState[108] = 0 then
+						Ds402HomeState[108] := TO_DINT(0 - mailboxResult);
+					end_if;
 					Ds402HomeState[92] := 98;
 				end_if;
 			end_if;
@@ -7734,7 +7758,9 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeCleanupStages
 				if mailboxResult = 0 then
 					Ds402HomeState[92] := 94;
 				elsif mailboxResult <> 1 then
-					Ds402HomeState[108] := TO_DINT(0 - mailboxResult);
+					if Ds402HomeState[108] = 0 then
+						Ds402HomeState[108] := TO_DINT(0 - mailboxResult);
+					end_if;
 					Ds402HomeState[92] := 98;
 				end_if;
 			end_if;
@@ -7827,7 +7853,9 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeCleanupStages
 							RequiredPhase:=LMC_DIAG_OWNER_PHASE_ACTIVE);
 					end_if;
 					if ownerResult <> 0 then
-						Ds402HomeState[108] := TO_DINT(0 - ownerResult);
+						if Ds402HomeState[108] = 0 then
+							Ds402HomeState[108] := TO_DINT(0 - ownerResult);
+						end_if;
 						Ds402HomeState[92] := 98;
 					else
 						sdoToken := Ds402HomeState[99]$UDINT + 1;
@@ -7933,7 +7961,9 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeCleanupStages
 						RequiredPhase:=LMC_DIAG_OWNER_PHASE_ACTIVE);
 				end_if;
 				if ownerResult <> 0 then
-					Ds402HomeState[108] := TO_DINT(0 - ownerResult);
+					if Ds402HomeState[108] = 0 then
+						Ds402HomeState[108] := TO_DINT(0 - ownerResult);
+					end_if;
 					Ds402HomeState[92] := 98;
 				else
 					sdoToken := Ds402HomeState[99]$UDINT + 1;

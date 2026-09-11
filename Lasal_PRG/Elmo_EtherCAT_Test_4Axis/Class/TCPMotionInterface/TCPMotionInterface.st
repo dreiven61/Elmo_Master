@@ -329,6 +329,7 @@ END_FUNCTION
 // or robot returns the operational error; retained adapter ownership must not
 // reject the command before dispatch.
 #define LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED FALSE
+#define LMC_HOME_CONFIGURED_PHYSICAL_AXIS_MASK 0x00000001
 #define LMC_OWNER_PROFILE_AXIS_MASK 0x0000000F
 #define LMC_OWNER_ROBOT_AXIS_MASK 0x000001FF
 #define LMC_OWNER_KIND_DIRECT 1
@@ -2965,6 +2966,23 @@ case CommandID of
       else
       end_case;
       if (controlAxisMask <> 0) &
+         ((controlAxisMask and
+           LMC_HOME_CONFIGURED_PHYSICAL_AXIS_MASK) = 0) then
+        // Reject a configured nonphysical Home target before ownership,
+        // retained-record, or RT-mailbox mutation.
+        _memset(dest:=#Sendbuf, usByte:=0, cntr:=24);
+        Sendbuf[0]$UINT := 0;
+        Sendbuf[2]$UINT := 16;
+        Sendbuf[4]$UDINT := 0;
+        Sendbuf[8]$UINT := 1;
+        Sendbuf[10]$UINT := 0;
+        Sendbuf[12]$UINT := 1;
+        Sendbuf[14]$INT := -31000;
+        Sendbuf[16]$UDINT := RequestBuf[12]$UDINT;
+        Sendbuf[20]$UDINT := 4;
+        controlResponseSize := 24;
+        controlInvokeService := FALSE;
+      elsif (controlAxisMask <> 0) &
          IsClientConnected(#ControlCommands) then
         controlAdmissionResult := ControlCommands.ReserveAxisOwnership(
           CommandId:=0x7D13,

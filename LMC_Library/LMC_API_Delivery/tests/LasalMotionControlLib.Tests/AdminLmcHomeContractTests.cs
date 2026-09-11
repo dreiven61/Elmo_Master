@@ -67,6 +67,48 @@ namespace LasalMotionControlLib.Tests
             tests.Add(
                 "Rpc.Admin.LMC_Home.ResponseLossUncertainNoReplay",
                 ResponseLossUncertainNoReplay);
+            tests.Add(
+                "Rpc.Admin.Home.OnePhysicalAxisRejectsAxis2BeforeStart",
+                OnePhysicalAxisRejectsAxis2BeforeStart);
+        }
+
+        private static void OnePhysicalAxisRejectsAxis2BeforeStart()
+        {
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                AxisLookupStep(2),
+                AxisInfoStep(2),
+                CapabilitiesStep(
+                    1,
+                    LMCAdminFeature.AxisHome
+                    | LMCAdminFeature.AxisDs402Home),
+                DiagnosticsCapabilitiesStep(),
+                CloseStep()))
+            using (var connection = new LMCConnection())
+            {
+                Connect(connection, server.Port);
+                var axis = new LMCSingleAxis(connection, "_LMCAxis2");
+                var capabilities = connection.Admin.GetCapabilities();
+                var diagnosticCapabilities = connection.Diagnostics
+                    .GetCapabilities();
+
+                AssertEx.Throws<NotSupportedException>(
+                    () => axis.PrepareLMC_Home(
+                        ExpectedActualPosition,
+                        TimeoutMilliseconds,
+                        capabilities,
+                        diagnosticCapabilities,
+                        LMCHomeExecuteToken.Create()));
+                AssertEx.Throws<NotSupportedException>(
+                    () => axis.PrepareDs402Home(
+                        new LMCAxisDs402HomeParameters(60000),
+                        capabilities,
+                        diagnosticCapabilities,
+                        LMCAxisDs402HomeExecuteToken.Create()));
+
+                connection.CloseConnection();
+            }
         }
 
         private static void StartRequestGolden()
@@ -876,19 +918,22 @@ namespace LasalMotionControlLib.Tests
             return payload;
         }
 
-        private static byte[] CapabilitiesPayload(uint requestId)
+        private static byte[] CapabilitiesPayload(
+            uint requestId,
+            ushort physicalAxisCount = 4,
+            LMCAdminFeature features = LMCAdminFeature.AxisHome)
         {
             var payload = CommonAdminPayload(requestId, 40);
             TestFrame.WriteUInt32(
                 payload,
                 16,
-                (uint)LMCAdminFeature.AxisHome);
+                (uint)features);
             TestFrame.WriteUInt32(payload, 20, 0x0000003Fu);
             TestFrame.WriteUInt32(
                 payload,
                 24,
                 (uint)LMCGroupParameterSelection.None);
-            TestFrame.WriteUInt16(payload, 28, 4);
+            TestFrame.WriteUInt16(payload, 28, physicalAxisCount);
             TestFrame.WriteUInt16(payload, 30, 1);
             TestFrame.WriteUInt16(payload, 32, 0);
             TestFrame.WriteUInt16(payload, 34, 0);
@@ -911,13 +956,18 @@ namespace LasalMotionControlLib.Tests
             return payload;
         }
 
-        private static FakeRpcStep CapabilitiesStep()
+        private static FakeRpcStep CapabilitiesStep(
+            ushort physicalAxisCount = 4,
+            LMCAdminFeature features = LMCAdminFeature.AxisHome)
         {
             return new FakeRpcStep(0x7D00, new byte[0])
             {
                 ResponseFactory = request => TestFrame.Response(
                     0,
-                    CapabilitiesPayload(TestFrame.ReadUInt32(request, 12)))
+                    CapabilitiesPayload(
+                        TestFrame.ReadUInt32(request, 12),
+                        physicalAxisCount,
+                        features))
             };
         }
 

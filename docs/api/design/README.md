@@ -1,5 +1,28 @@
 # 최우선 API 개발 설계
 
+## 2026-09-11 Home 구현 current entrypoint
+
+`LMC_Home`과 기본 `DS402Home(Method 37)` 구현/정합 작업은
+`LMC_HOME_AND_DS402_HOME_IMPLEMENTATION_DESIGN_20260911.md`를 current 정본으로 사용한다.
+
+이 문서는 2026-09-11의 CREVIS + Elmo 1-drive/Axis1 physical topology를 반영하며 다음을
+기존 문서보다 우선한다.
+
+- Home/Referenced는 Servo On의 선행조건이 아님
+- `LMC_Home`과 Method 37은 non-moving current-position-zero 기능
+- switch/index를 탐색하는 moving Home은 별도 `HomeDS402Ex`
+- Home specialized reservation은 global ordinary ownership gate와 독립
+- current physical Home target은 Axis1 only; Axis2는 simulation/deactivated
+- source/PC, LASAL build, PLC image, runtime, physical proof를 분리
+
+아래의 2026-09-07 two-drive 설명과 과거 five-value activation 설명은 historical evidence다.
+current 구현 판정에는 새 문서를 우선한다.
+
+2026-09-11 first changeset의 source/static entrypoint는
+`../../../tools/Verify-HomeOneAxisImplementation.ps1`이며, H37 통합 회귀 entrypoint는
+`../../../tools/Verify-HomeDs402H37CurrentDevRegression.ps1`이다. 아래 2026-09-07
+two-drive `Verify-CurrentPhysicalTopology.ps1` 결과는 current one-drive Home 판정에 사용하지 않는다.
+
 - 기준일: 2026-09-07
 - current integration / qualification source: `dev`
 - current source baseline: `dev@4821797d9279770ba4e3ff396eae4dbb73d421d1`
@@ -12,15 +35,16 @@
 
 **2026-09-07 Servo Power 수정과 testbed EtherCAT 변경 이후 신규 구현은 다음 문서를 정본으로 사용한다.**
 
-1. `ASYNC_OPERATION_WATCHDOG_AND_TRANSPORT_RECOVERY_DESIGN_20260909.md` — WPF 무기한 async/gate 대기 제거, post-write transport 폐기, safety takeover 설계
-2. `CURRENT_IMPLEMENTATION_HANDOFF_20260907.md` — current HEAD 판정, 즉시 재검증 순서, 다음 코드 구현 시작점
-3. `REMAINING_IMPLEMENTATION_DESIGN_20260902.md` — 남은 기능 구현 순서/의존성 master
-4. `CURRENT_IMPLEMENTATION_HANDOFF_20260902.md` — 2 physical drives + SimulationSetup 도입 당시 historical handoff
-5. `HOME_DS402_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md` — HomeDS402 frozen lifecycle + completion handoff
-6. `SET_POSITION_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md` — SetPosition durable runtime handoff
-7. `SET_POSITION_CURRENT_SOURCE_INVENTORY_20260902.md` — SP-C0 current source inventory evidence
-8. `TOPOLOGY_STATIC_QUALIFICATION_RESULT_20260902.md` — TOPO-C0 source/network/generated-table static tranche evidence
-9. `HOME_DS402_H37_OPERATOR_ACTIVATION_IMPLEMENTATION_20260902.md` — Method 37 UI/source activation과 당시 operator procedure
+1. `LMC_HOME_AND_DS402_HOME_IMPLEMENTATION_DESIGN_20260911.md` — current 1-axis LMC Home/DS402Home 구현 정본
+2. `ASYNC_OPERATION_WATCHDOG_AND_TRANSPORT_RECOVERY_DESIGN_20260909.md` — WPF 무기한 async/gate 대기 제거, post-write transport 폐기, safety takeover 설계
+3. `CURRENT_IMPLEMENTATION_HANDOFF_20260907.md` — 2026-09-07 historical HEAD 판정과 당시 재검증 순서
+4. `REMAINING_IMPLEMENTATION_DESIGN_20260902.md` — 남은 기능 구현 순서/의존성 master
+5. `CURRENT_IMPLEMENTATION_HANDOFF_20260902.md` — 2 physical drives + SimulationSetup 도입 당시 historical handoff
+6. `HOME_DS402_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md` — HomeDS402 frozen lifecycle + historical completion handoff
+7. `SET_POSITION_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md` — SetPosition durable runtime handoff
+8. `SET_POSITION_CURRENT_SOURCE_INVENTORY_20260902.md` — SP-C0 current source inventory evidence
+9. `TOPOLOGY_STATIC_QUALIFICATION_RESULT_20260902.md` — TOPO-C0 source/network/generated-table static tranche evidence
+10. `HOME_DS402_H37_OPERATOR_ACTIVATION_IMPLEMENTATION_20260902.md` — Method 37 UI/source activation의 historical evidence
 
 기존 상세 문서는 frozen wire/state-machine 또는 historical evidence로 계속 참조한다.
 

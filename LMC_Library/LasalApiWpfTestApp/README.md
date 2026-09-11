@@ -1222,7 +1222,12 @@ Axis1 source gate와 fresh LASAL IDE Rebuild/Link는 반영됐지만 PLC downloa
 - `TEST ONLY - Encoder Maintenance`의 `0x7E53/0x7E54/0x7E55` source는 활성이다.
   TW[20]은 `0x20FC:0x02 <- UInt16 1`, TW[19]는 `0x20FC:0x01 <- UInt16 1`로 고정된다.
   start ACK, terminal outcome과 retirement는 분리되며 terminal RPC 결과만으로 drive의 정확한
-  error/warning 또는 multi-turn position 변화가 증명되지는 않는다.
+  error/warning 또는 multi-turn position 변화가 증명되지는 않는다. `0x7E53`이 write boundary를
+  지난 뒤 Start 응답 parsing이 실패하면 WPF는 `0x7E53`을 재전송하지 않고, 사전에 durable하게
+  저장한 exact recovery key로 읽기 전용 `0x7E54`를 한 번 조회한다. Running 또는 terminal
+  record가 확인되면 해당 상태를 표시하고 기존 결과 읽기/retirement 절차를 계속한다.
+  PLC가 detail `43` 또는 `44`로 Start를 거부하면 PC parser는 이를 malformed 응답으로
+  격상하지 않고 명시적 rejection으로 표시하며, pre-dispatch recovery record를 해제한다.
 - 이전 BootId의 Axis1 raw `8028436 -> 8028440`은 downloaded raw gate에서 `-7` quarantine을
   만들었고 후속 축 admission도 막았다. 그 checkpoint는 현재 runtime 판정으로 사용하지 않는다.
   `0x3B` 임시 mode는 C78 `0 errors / 55 warnings`, canonical download와 새 BootId `0x1B`에서

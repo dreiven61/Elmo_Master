@@ -328,9 +328,11 @@ source는 아직 C78 Rebuild/Download되지 않았다.
 
 별도 DS402 method 37 current-position-zero source는 `0x7D15/0x7D16/0x7D17`에 있으나
 `LMC_DIAG_DS402_HOME_ENABLED=FALSE`, Admin bit 6 OFF다. Diagnostics encoder-maintenance
-`0x7E53/0x7E54/0x7E55`는 source-on이며 TW[20] `0x20FC:0x02 <- UInt16 1`, TW[19]
-`0x20FC:0x01 <- UInt16 1`만 허용한다. 두 경로 모두 terminal protocol evidence와 실제 drive
-효과를 구분한다. 최신 Home ownership receipt 수정 뒤 C78 Rebuild/Download, 새 BootId와
+  `0x7E53/0x7E54/0x7E55`는 source-on이며 TW[20] `0x20FC:0x02 <- UInt16 1`, TW[19]
+  `0x20FC:0x01 <- UInt16 1`만 허용한다. 두 경로 모두 terminal protocol evidence와 실제 drive
+  효과를 구분한다. one-shot `0x7E53`이 write boundary를 지난 뒤 Start response parsing이
+  실패하면 WPF는 replay하지 않고 durable exact recovery key로 read-only `0x7E54`를 한 번
+  조회하여 Running/terminal record를 복구한다. 최신 Home ownership receipt 수정 뒤 C78 Rebuild/Download, 새 BootId와
 한 축 단독 runtime proof는 아직 남아 있다. Admin `0x7D00/10/20`은 LASAL IDE
 build/download가 일치해야 한다. 화면은 2026-07-23 happy-path PASS와 아직 남은
 invalid/stale/fault 검증 경계를 함께 명시한다.

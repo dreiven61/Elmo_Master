@@ -69,13 +69,6 @@ function Get-AdminCapabilityMask {
     return [Convert]::ToUInt32($maskMatch.Groups[1].Value.Substring(2), 16)
 }
 
-function Test-AtomicVector {
-    param([bool[]]$Values)
-
-    $trueCount = @($Values | Where-Object { $_ }).Count
-    return ($trueCount -eq 0) -or ($trueCount -eq $Values.Count)
-}
-
 $tcpPath = 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st'
 $controlPath = 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'
 $diagnosticsPath = 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'
@@ -88,46 +81,23 @@ $latch = Read-SourceText $latchPath
 
 $tcpOrdinary = Get-BooleanDefine $tcp 'LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED' 'TCPMotionInterface'
 $controlOrdinary = Get-BooleanDefine $control 'LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED' 'LMCControlCommandService'
+$lmcHomeRuntime = Get-BooleanDefine $control 'LMC_ADMIN_AXIS_HOME_ENABLED' 'LMCControlCommandService'
 $homeRuntime = Get-BooleanDefine $diagnostics 'LMC_DIAG_DS402_HOME_ENABLED' 'LMCDiagnosticsService'
 $startupSweep = Get-BooleanDefine $latch 'LMC_DS402_HOME_STARTUP_SWEEP_ENABLED' 'LMCEcatInputLatch'
 $diagnosticCapabilityMask = Get-OperationalCapabilityMask $diagnostics
 $adminCapabilityMask = Get-AdminCapabilityMask $control
-$homeCapability = ($adminCapabilityMask -band 0x00000040) -ne 0
+$lmcHomeCapability = ($adminCapabilityMask -band 0x00000010) -ne 0
+$ds402HomeCapability = ($adminCapabilityMask -band 0x00000040) -ne 0
 
-$nonHomeAdminMask = $adminCapabilityMask -band (-bnot [uint32]0x00000040)
-Assert-True ($nonHomeAdminMask -eq [uint32]0x00000717) 'non-Home Admin capability baseline is 0x00000717'
-Assert-True (($adminCapabilityMask -eq [uint32]0x00000717) -or ($adminCapabilityMask -eq [uint32]0x00000757)) 'Admin capability mask is exact HomeDS402 OFF/ON candidate'
+Assert-True ($adminCapabilityMask -eq [uint32]0x00000757) 'Admin capability mask is the current feature-specific 0x00000757 set'
+Assert-True $lmcHomeCapability 'Admin AxisHome capability bit 4 is ON'
+Assert-True $ds402HomeCapability 'Admin AxisDs402Home capability bit 6 is ON'
 Assert-True ($diagnosticCapabilityMask -eq [uint32]0x0000613F) 'Diagnostics capability mask remains 0x0000613F; its bit 6 is RecorderDoubleBank, not HomeDS402'
-Assert-True ([regex]::IsMatch($control, '\(pResponseFrame\s*\+\s*36\)\^\$UINT\s*:=\s*2\s*;')) 'Admin PhysicalAxisCount matches the two-drive topology'
+Assert-True ([regex]::IsMatch($control, '\(pResponseFrame\s*\+\s*36\)\^\$UINT\s*:=\s*1\s*;')) 'Admin PhysicalAxisCount matches the one-drive topology'
+Assert-True (-not $tcpOrdinary) 'TCP ordinary ownership gate remains FALSE and is not a Home activation input'
+Assert-True (-not $controlOrdinary) 'Control ordinary ownership gate remains FALSE and is not a Home activation input'
+Assert-True $lmcHomeRuntime 'LMC Home runtime gate is ON'
+Assert-True $homeRuntime 'DS402 Home runtime gate is ON'
+Assert-True $startupSweep 'DS402 Home startup sweep is ON'
 
-$current = @(
-    $tcpOrdinary,
-    $controlOrdinary,
-    $homeRuntime,
-    $startupSweep,
-    $homeCapability)
-Assert-True (Test-AtomicVector $current) 'five tracked HomeDS402 activation values are all-OFF or all-ON'
-
-$accepted = 0
-$rejected = 0
-for ($vector = 0; $vector -lt 32; $vector++) {
-    $values = @()
-    for ($bit = 0; $bit -lt 5; $bit++) {
-        $values += (($vector -band (1 -shl $bit)) -ne 0)
-    }
-
-    $actual = Test-AtomicVector $values
-    $expected = ($vector -eq 0) -or ($vector -eq 31)
-    Assert-True ($actual -eq $expected) ("mixed-state truth table vector {0:D2} is {1}" -f $vector, $(if ($expected) { 'accepted' } else { 'rejected' }))
-    if ($actual) {
-        $accepted++
-    }
-    else {
-        $rejected++
-    }
-}
-
-Assert-True ($accepted -eq 2) 'truth table accepts exactly all-OFF and all-ON'
-Assert-True ($rejected -eq 30) 'truth table rejects all 30 mixed activation states'
-
-Write-Host ("H37 activation verifier PASS: {0} checks; Admin capability mask 0x{1:X8}" -f $script:CheckCount, $adminCapabilityMask)
+Write-Host ("Home feature-specific activation verifier PASS: {0} checks; Admin capability mask 0x{1:X8}" -f $script:CheckCount, $adminCapabilityMask)

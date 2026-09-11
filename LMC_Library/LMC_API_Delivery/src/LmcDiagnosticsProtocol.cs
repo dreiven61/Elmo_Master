@@ -39,7 +39,7 @@ namespace LasalMotionControlLib
         private const ushort KnownResponseFlagsMask = 0x0003;
         private const uint MaximumDefinedDetailCode =
             (uint)LMCDiagnosticsDetailCode
-                .EncoderMaintenanceSemanticVerificationFailed;
+                .EncoderMaintenancePhysicalDriveUnavailable;
         private const uint StatefulCapabilityMask =
             (uint)(LMCDiagnosticCapability.BulkSnapshot
                 | LMCDiagnosticCapability.RecorderSingleBank
@@ -381,7 +381,23 @@ namespace LasalMotionControlLib
                         || detailCode > MaximumDefinedDetailCode)))
             {
                 throw new InvalidDataException(
-                    "Diagnostics response contains an invalid CommandStatus/ErrorId pair.");
+                    "Diagnostics response contains an invalid CommandStatus/ErrorId pair. "
+                    + "CommandStatus="
+                    + commandStatus
+                    + ", ErrorId="
+                    + errorId
+                    + ", DetailCode="
+                    + detailCode
+                    + ", RequestId="
+                    + requestId
+                    + ", PayloadLength="
+                    + payload.Length
+                    + ", CommonEnvelope="
+                    + BitConverter.ToString(
+                        payload,
+                        0,
+                        Math.Min(payload.Length, CommonResponsePayloadLength))
+                    + ".");
             }
 
             return new LMCDiagnosticsResponse(

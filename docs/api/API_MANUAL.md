@@ -2056,6 +2056,30 @@ Admin feature bit 6도 OFF다. 따라서 current PLC의 지원 API로 실행하�
 `LMCTw19MultiturnPositionResetExecuteToken.Create()`. current source는 diagnostics capability
 bit 18/19를 ON으로 광고한다. 그러나 ACK나 terminal outcome은 정확한 drive error/warning
 reset 또는 multi-turn position 변화의 물리 증거가 아니므로 선택 축에서 별도 확인한다.
+Start가 write boundary를 지난 뒤 응답 envelope parsing이 실패하면 prepared command는 이미
+소비된 것으로 유지하며 `0x7E53`을 재전송하지 않는다. WPF는 dispatch 전에 저장한 exact
+recovery key로 read-only `0x7E54`를 한 번 실행하여 durable outcome을 복구하고, 이후 기존
+결과 읽기와 exact `0x7E55` retirement 절차를 따른다.
+PLC의 encoder-maintenance detail `43`(ownership admission unavailable)과
+`44`(physical drive unavailable)는 유효한 명시적 실패 응답이다. PC parser는 detail `44`까지
+허용하며 이 두 응답을 `OutcomeUncertain`으로 오분류하지 않는다.
+Detail `43`은 SDO 또는 EtherCAT node 선택 실패가 아니라 SDO 전 common ownership admission
+실패다. `DriveReference=1`은 첫 EtherCAT node가 아니라 `_LMCAxis1`과 그에 연결된 `SdoAxis1`을
+뜻한다. 2026-09-11 PLC 수정 source는 ordinary ownership 비활성화 전에 같은 BootId에 남은
+direct/group owner와 quarantine만 기존 physical/group/diagnostics idle proof 후 정리한다.
+이때 physical proof는 stale 레코드에 기록된 축으로 한정한다. 단축 direct 레코드를 정리하기
+위해 관계없는 다른 physical axis까지 Power Off할 필요는 없으며, Group 레코드는 기록된 모든
+member의 안전 증명을 그대로 요구한다.
+Home/DS402/SetPosition/SetOperationMode/encoder-maintenance owner는 이 자동 migration에서 제외한다.
+
+`OwnershipStartupState[4]=5`이고 configured axis status가 Standstill/clear인데
+`OwnershipState[28]=0`인 경우는 stale owner가 아니라 ownership table bootstrap이 완료되지 않은
+상태다. 2026-09-11 수정은 이 bootstrap에서 모든 configured physical drive의 EtherCAT health와
+모든 SDO executor availability를 전역 필수 조건으로 사용하지 않는다. Ledger는 axis
+standstill/금지 상태 및 Home/DS402/owner/start-low mailbox와 diagnostics engine drain을
+증명한다. 선택 drive의 EtherCAT snapshot과 physical membership은 encoder-maintenance 본체가
+별도로 검사하여 실패 시 detail `11` 또는 `44`를 반환하므로 선택 drive 안전 조건은 완화되지
+않는다.
 
 ## 6.13 Axis SetPosition
 

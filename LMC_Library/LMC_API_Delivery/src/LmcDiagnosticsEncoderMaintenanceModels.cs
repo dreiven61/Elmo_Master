@@ -985,11 +985,20 @@ namespace LasalMotionControlLib
             if (diagnosticsException != null
                 && diagnosticsException.Response != null)
             {
-                return "The PLC explicitly rejected the encoder maintenance start command. DetailCode="
+                var message = "The PLC explicitly rejected the encoder maintenance start command. DetailCode="
                     + diagnosticsException.Response.DetailCode
                     + " ("
                     + diagnosticsException.Response.Detail
                     + "). The one-shot prepared command remains consumed.";
+                if (diagnosticsException.Response.Detail
+                    == LMCDiagnosticsDetailCode
+                        .EncoderMaintenanceOwnershipAdmissionUnavailable)
+                {
+                    message +=
+                        " The request stopped before LMCSdoExecutor dispatch; DriveReference is an LMC axis reference, not an EtherCAT node index. Verify that the PLC contains the current same-boot ordinary-owner reconciliation fix and that the selected axis is Power Off/Standstill and the robot profile is passive/unlocked.";
+                }
+
+                return message;
             }
 
             return "The PLC explicitly rejected the encoder maintenance start command. The one-shot prepared command remains consumed.";

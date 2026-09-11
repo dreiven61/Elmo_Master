@@ -1,5 +1,11 @@
 # HomeDS402 Method 37 operator activation implementation — 2026-09-02
 
+> **2026-09-11 current override:** 이 문서는 당시 two-drive activation evidence다. current
+> 1-drive/Axis1 topology와 구현 절차는
+> `LMC_HOME_AND_DS402_HOME_IMPLEMENTATION_DESIGN_20260911.md`를 따른다. 이 문서의
+> ordinary ownership gate ON, `PhysicalAxisCount=2`, Axis1/2 physical 전제는 current HEAD에
+> 적용하지 않는다. Home/Referenced는 Servo On의 선행조건이 아니다.
+
 ## Conclusion
 
 The WPF screen was not usable for DS402 Home because the connected PLC image did

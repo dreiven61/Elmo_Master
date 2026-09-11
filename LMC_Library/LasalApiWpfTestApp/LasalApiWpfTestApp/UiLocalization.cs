@@ -1740,6 +1740,15 @@ namespace LasalMotionControlApiExample
             values[
                 "Use Read Encoder Maintenance Outcome. Start acceptance is not completion proof and the prepared command must never be replayed."] =
                 "Encoder 유지보수 결과 읽기를 사용하십시오. 시작 수락은 완료 증거가 아니며 준비된 명령을 절대 재전송하면 안 됩니다.";
+            values[
+                "Encoder Maintenance Start response was invalid; the exact durable outcome was recovered with one read-only 0x7E54 query and 0x7E53 was not replayed."] =
+                "Encoder 유지보수 Start 응답이 비정상이었지만 읽기 전용 0x7E54를 한 번 조회하여 정확한 durable outcome을 복구했습니다. 0x7E53은 재전송하지 않았습니다.";
+            values[
+                "The outcome is terminal. Use Read Encoder Maintenance Outcome once to verify the exact retirement snapshot and resolve the no-replay record."] =
+                "결과가 terminal입니다. Encoder 유지보수 결과 읽기를 한 번 실행하여 정확한 retirement snapshot을 확인하고 no-replay record를 해제하십시오.";
+            values[
+                "The outcome is still running. Wait, then use Read Encoder Maintenance Outcome. The durable record remains active and no command is replayed."] =
+                "결과가 아직 실행 중입니다. 잠시 기다린 뒤 Encoder 유지보수 결과 읽기를 실행하십시오. Durable record는 유지되며 명령을 재전송하지 않습니다.";
             values["Encoder Maintenance Outcome"] =
                 "Encoder 유지보수 결과";
             values[

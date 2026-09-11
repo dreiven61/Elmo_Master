@@ -30,6 +30,9 @@ namespace LasalMotionControlLib.Tests
                 "Response.EncoderMaintenance.StartStrictParser",
                 StartStrictParser);
             tests.Add(
+                "Response.EncoderMaintenance.LatestFailureDetailsAreValid",
+                LatestFailureDetailsAreValid);
+            tests.Add(
                 "Response.EncoderMaintenance.OutcomeStates",
                 OutcomeStates);
             tests.Add(
@@ -193,6 +196,51 @@ namespace LasalMotionControlLib.Tests
                 () => LMC_DiagnosticsParser.ParseStartEncoderMaintenance(
                     TestFrame.Response(0, zeroGeneration),
                     key));
+        }
+
+        private static void LatestFailureDetailsAreValid()
+        {
+            AssertDefinedFailureDetail(
+                LMCDiagnosticsDetailCode
+                    .EncoderMaintenanceOwnershipAdmissionUnavailable);
+            AssertDefinedFailureDetail(
+                LMCDiagnosticsDetailCode
+                    .EncoderMaintenancePhysicalDriveUnavailable);
+
+            var undefinedPayload = FailurePayload(OriginalRequestId, 45u);
+            AssertEx.Throws<InvalidDataException>(
+                () => LMC_DiagnosticsParser.ParseCommonResponse(
+                    LMCConnection.Parse(TestFrame.Response(0, undefinedPayload)),
+                    OriginalRequestId));
+        }
+
+        private static void AssertDefinedFailureDetail(
+            LMCDiagnosticsDetailCode detailCode)
+        {
+            var response = LMC_DiagnosticsParser.ParseCommonResponse(
+                LMCConnection.Parse(
+                    TestFrame.Response(
+                        0,
+                        FailurePayload(
+                            OriginalRequestId,
+                            (uint)detailCode))),
+                OriginalRequestId);
+
+            AssertEx.False(response.IsSuccess);
+            AssertEx.Equal((uint)detailCode, response.DetailCode);
+            AssertEx.Equal((short)-32000, response.ErrorId);
+        }
+
+        private static byte[] FailurePayload(uint requestId, uint detailCode)
+        {
+            var payload = new byte[16];
+            TestFrame.WriteUInt16(payload, 0, 1);
+            TestFrame.WriteUInt16(payload, 2, 0);
+            TestFrame.WriteUInt16(payload, 4, 1);
+            TestFrame.WriteInt16(payload, 6, -32000);
+            TestFrame.WriteUInt32(payload, 8, requestId);
+            TestFrame.WriteUInt32(payload, 12, detailCode);
+            return payload;
         }
 
         private static void OutcomeStates()

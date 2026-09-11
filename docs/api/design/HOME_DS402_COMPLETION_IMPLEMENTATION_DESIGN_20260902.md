@@ -1,5 +1,11 @@
 # HomeDS402 완료 구현 설계 — 2026-09-02
 
+> **2026-09-11 current override:** 이 문서는 2026-09-02의 historical completion handoff다.
+> current one-drive topology, Servo/Home 독립성, specialized ownership와 구현 순서는
+> `LMC_HOME_AND_DS402_HOME_IMPLEMENTATION_DESIGN_20260911.md`를 따른다. 이 문서의
+> "five source gates all ON" 요구는 current HEAD에 적용하지 않는다. global ordinary ownership
+> gates는 FALSE가 current 의도이며 Home 전용 reservation 경로와 독립이다.
+
 - 대상: No.19 `MMC_HomeDS402Cmd`
 - 기준 branch: `dev`
 - source baseline: `dev@90a86a795773d5f8eca211368aac3f0d64944a32` (`dev : SDO Write Func Complete`)
@@ -76,23 +82,24 @@ Admission / OwnerReserve
 -> Write 0x6060 = 6
 -> Verify 0x6061 = 6
 -> Raise controlword bit4
--> Observe Home attained / Target reached / no error / ActualPosition=0
+-> Observe Home attained / no error / method-37 completion status / ActualPosition=0 +/- 1 count
 -> Lower bit4
 -> Align LASAL setpoint
 -> Write 0x6060 = 8
 -> Verify 0x6061 = 8
 -> Release RT owner
--> Fresh post-release ActualPosition=0
+-> Fresh post-release ActualPosition=0 +/- 1 count
 -> Commit terminal outcome
 ```
 
 성공 조건은 모두 AND다.
 
 - Homing attained bit12 fresh 3 samples
-- Target reached bit10 fresh 3 samples
+- Target reached bit10 fresh 3 samples, except method 37 in Switch On Disabled
+  where fresh Homing attained without Homing error is the accepted drive result
 - Homing error bit13 clear
 - Fault bit3 clear
-- ActualPosition = 0
+- ActualPosition = 0 +/- 1 raw drive count for method 37 only
 - controlword start bit low
 - mode 8 restored
 - LASAL setpoint aligned

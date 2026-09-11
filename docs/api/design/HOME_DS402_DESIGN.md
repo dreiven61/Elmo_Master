@@ -1,5 +1,12 @@
 # HomeDS402 최우선 개발 설계
 
+> **2026-09-11 current override:** 이 문서의 frozen wire/state-machine 설명은 유효하지만
+> `dev@1f741bfd...`, two-drive topology와 five-value atomic activation 설명은 historical이다.
+> current 구현은 `LMC_HOME_AND_DS402_HOME_IMPLEMENTATION_DESIGN_20260911.md`를 우선한다.
+> 현재 Home specialized reservation은 global ordinary ownership gate와 독립이며, Home 구현을
+> 위해 `LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED`를 TRUE로 바꾸면 안 된다. current physical Home
+> target은 Axis1 only다. Home/Referenced는 Servo On의 선행조건이 아니다.
+
 - 대상: No.19 `MMC_HomeDS402Cmd`
 - 현재 진행도: 50%
 - current 상태: source implemented, deployment `Dormant`
@@ -77,7 +84,11 @@ offset을 변경하지 않는다.
 - `0x7D17` request 48 bytes, exact key + nonzero generation
 - exact retire retry는 idempotent이며 Start를 replay하지 않는다.
 
-## 4. activation 원자성
+## 4. historical activation 원자성
+
+아래 five-value 묶음은 당시 two-drive source의 historical activation 모델이다. current HEAD의
+구현 기준으로 사용하지 않는다. current Home activation set은 specialized reservation,
+feature-specific runtime/startup gates, one-axis physical mask/count와 Admin capability의 정합이다.
 
 다음 5개 값은 하나의 activation changeset에서 모두 OFF 또는 모두 ON이어야 한다.
 
@@ -107,20 +118,21 @@ Admission/OwnerReserve
   -> Acquire RT control owner
   -> Write 0x6060=6 and verify 0x6061=6
   -> Raise controlword bit 4
-  -> Observe attained/target/no-error/ActualPosition=0 on 3 fresh cycles
+  -> Observe attained/no-error/method-37 completion status and ActualPosition=0 +/- 1 count on 3 fresh cycles
   -> Lower bit 4
   -> Align LASAL setpoint
   -> Write 0x6060=8 and verify 0x6061=8
   -> Release RT owner
-  -> Fresh post-release ActualPosition=0 proof
+  -> Fresh post-release ActualPosition=0 +/- 1 count proof
   -> Commit terminal outcome
 ```
 
 Success는 다음을 모두 만족해야 한다.
 
-- Homing attained bit 12와 target reached bit 10을 homing mode에서 fresh 3회 확인
+- Homing attained bit 12를 fresh 3회 확인한다. Method 37이 Switch On Disabled에서
+  attained를 보고한 경우 target reached bit 10은 필수로 강제하지 않는다.
 - Homing error bit 13과 Fault bit 3 clear
-- ActualPosition = 0
+- Method 37의 ActualPosition은 raw drive count 기준 0 +/- 1만 허용한다.
 - start bit low, CSP 8 복원, setpoint alignment와 RT owner release 완료
 - pending SDO, callback/orphan drain, uncertainty flag 없음
 - terminal record commit/readback 완료

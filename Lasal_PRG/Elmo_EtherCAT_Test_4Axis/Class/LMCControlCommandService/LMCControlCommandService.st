@@ -732,9 +732,14 @@ END_FUNCTION
 #define LMC_OWNER_STARTUP_STATE_MAGIC 0x4F575350
 #define LMC_OWNER_STARTUP_SNAPSHOT_MAGIC 0x4C4D4353
 #define LMC_OWNER_STARTUP_LATCH_PHYSICAL 0x00000001
-#define LMC_OWNER_CONFIGURED_PHYSICAL_AXIS_MASK 0x00000003
+#define LMC_OWNER_CONFIGURED_PHYSICAL_AXIS_MASK 0x00000001
 #define LMC_OWNER_STARTUP_LATCH_REQUIRED 0x0000001F
 #define LMC_OWNER_STARTUP_DIAG_REQUIRED 0x0000001F
+// Ownership ledger bootstrap proves stopped software state and drained
+// mutating engines. Physical EtherCAT health and SDO executor availability
+// are command-specific and are checked by the selected lifecycle handler.
+#define LMC_OWNER_STARTUP_LATCH_LEDGER_REQUIRED 0x0000001E
+#define LMC_OWNER_STARTUP_DIAG_LEDGER_REQUIRED 0x0000000F
 #define LMC_OWNER_STARTUP_STABLE_SAMPLES 3
 #define LMC_OWNER_STARTUP_STABLE_MS 100
 #define LMC_OWNER_STARTUP_AXIS_CLEAR_MASK 0x05028890
@@ -3194,6 +3199,16 @@ FUNCTION GLOBAL LMCControlCommandService::ReserveAxisOwnership
         RETURN;
     end_if;
 	else
+		RETURN;
+	end_if;
+	if ((ResourceKind = LMC_OWNER_RESOURCE_LMC_HOME_ENGINE) |
+	    (ResourceKind = LMC_OWNER_RESOURCE_DS402_HOME_ENGINE)) &
+	   ((RequestedAxisMask and
+	     LMC_OWNER_CONFIGURED_PHYSICAL_AXIS_MASK) <>
+	    RequestedAxisMask) then
+		// Specialized Home reservations are physical-axis-only. Reject before
+		// any token, identity, lease, observer, or axis-record mutation.
+		Result := -3;
 		RETURN;
 	end_if;
 	if (OwnershipState[0]$UDINT <> LMC_OWNER_TABLE_MAGIC) |
@@ -7027,6 +7042,17 @@ FUNCTION GLOBAL LMCControlCommandService::ReconcileAxisOwnershipStartup
 		freshObservation : BOOL;
 		auxiliaryIdle : BOOL;
 		priorBootOwnerTable : BOOL;
+		sameBootOrdinaryMigration : BOOL;
+		ordinaryRecordSeen : BOOL;
+		ordinaryRecordValid : BOOL;
+		ordinaryCommandValid : BOOL;
+		recordState : DINT;
+		recordOwnerKind : DINT;
+		recordCommandId : DINT;
+		recordResourceKind : DINT;
+		recordAxisBit : UDINT;
+		ordinaryAxisMask : UDINT;
+		migrationPhysicalAxisMask : UDINT;
 	END_VAR
 
 	Result := -1;
@@ -7036,18 +7062,89 @@ FUNCTION GLOBAL LMCControlCommandService::ReconcileAxisOwnershipStartup
 	end_if;
 
 	// Normal operations may make a completed same-boot table non-idle. Do not
-	// reinterpret those transient states as startup failures.
+	// reinterpret those transient states as startup failures. When ordinary
+	// ownership is disabled, however, an older direct/group owner can no longer
+	// be completed by ProcessAxisOwnership. Retire only that obsolete surface
+	// after the complete physical/group/diagnostics idle proof below.
+	sameBootOrdinaryMigration := FALSE;
+	ordinaryRecordSeen := FALSE;
+	ordinaryRecordValid := TRUE;
+	ordinaryAxisMask := 0;
 	if (OwnershipState[0]$UDINT = LMC_OWNER_TABLE_MAGIC) &
 		(OwnershipState[3]$UDINT = DiagnosticsBootId) then
+		if LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED = FALSE then
+			axisIndex := 1;
+			while axisIndex <= LMC_OWNER_AXIS_COUNT do
+				case axisIndex of
+					1: recordAxisBit := 0x00000001;
+					2: recordAxisBit := 0x00000002;
+					3: recordAxisBit := 0x00000004;
+					4: recordAxisBit := 0x00000008;
+					5: recordAxisBit := 0x00000010;
+					6: recordAxisBit := 0x00000020;
+					7: recordAxisBit := 0x00000040;
+					8: recordAxisBit := 0x00000080;
+					9: recordAxisBit := 0x00000100;
+				else
+					recordAxisBit := 0;
+				end_case;
+				recordBase := LMC_OWNER_GLOBAL_SLOTS +
+					((axisIndex - 1) * LMC_OWNER_AXIS_STRIDE);
+				if (OwnershipState[recordBase] <> axisIndex) |
+				   (OwnershipState[recordBase + 35]$UDINT <>
+				    (LMC_OWNER_AXIS_RECORD_MAGIC + TO_UDINT(axisIndex))) then
+					ordinaryRecordValid := FALSE;
+				else
+					recordState := OwnershipState[recordBase + 1];
+					recordOwnerKind := OwnershipState[recordBase + 2];
+					recordCommandId := OwnershipState[recordBase + 3];
+					recordResourceKind := OwnershipState[recordBase + 13];
+					if (recordState <> LMC_OWNER_STATE_IDLE) |
+					   (recordCommandId <> 0) then
+						ordinaryRecordSeen := TRUE;
+						ordinaryAxisMask := ordinaryAxisMask or recordAxisBit;
+						ordinaryCommandValid := FALSE;
+						case recordCommandId of
+							0x2022, 0x2023, 0x2024, 0x209F, 0x20A0, 0x20A2:
+								ordinaryCommandValid :=
+									(recordOwnerKind = LMC_OWNER_KIND_DIRECT) |
+									((recordOwnerKind = 0) &
+									 (recordState = LMC_OWNER_STATE_QUARANTINED));
+							0x2047, 0x2048, 0x2049, 0x204A, 0x204B,
+							0x2085, 0x20A4, 0x20E7, 0x7D22:
+								ordinaryCommandValid :=
+									(recordOwnerKind = LMC_OWNER_KIND_GROUP) |
+									((recordOwnerKind = 0) &
+									 (recordState = LMC_OWNER_STATE_QUARANTINED));
+						else
+						end_case;
+						if (ordinaryCommandValid = FALSE) |
+						   ((recordResourceKind <> 0) &
+						    (recordResourceKind <> LMC_OWNER_RESOURCE_AXIS)) then
+							ordinaryRecordValid := FALSE;
+						end_if;
+					end_if;
+				end_if;
+				axisIndex += 1;
+			end_while;
+			sameBootOrdinaryMigration := ordinaryRecordValid &
+				ordinaryRecordSeen & (ordinaryAxisMask <> 0) &
+				(OwnershipState[7] = 0) & (OwnershipState[8] = 0) &
+				(OwnershipState[9] = 0) & (OwnershipState[10] = 0) &
+				(OwnershipState[11] = 0) & (OwnershipState[12] = 0) &
+				(OwnershipState[13] = 0) & (OwnershipState[14] = 0) &
+				(OwnershipState[15] = 0);
+		end_if;
 		if (OwnershipState[4]$UDINT <> 0) &
 			(OwnershipState[5]$UDINT = LMC_OWNER_STARTUP_PROOF_REQUIRED) &
 			(OwnershipState[6] = 0) &
-			(OwnershipState[24] = 0) then
+			(OwnershipState[24] = 0) &
+			(sameBootOrdinaryMigration = FALSE) then
 			Result := 0;
-		else
+		elsif sameBootOrdinaryMigration = FALSE then
 			Result := -3;
+			RETURN;
 		end_if;
-		RETURN;
 	end_if;
 
 	priorBootOwnerTable :=
@@ -7081,7 +7178,8 @@ FUNCTION GLOBAL LMCControlCommandService::ReconcileAxisOwnershipStartup
 	// immutable identity banks are retired only after the complete startup
 	// physical/group/drain proof below is stable. Same-boot owners and damaged
 	// tables remain fail-closed.
-	if (auxiliaryIdle = FALSE) & (priorBootOwnerTable = FALSE) then
+	if (auxiliaryIdle = FALSE) & (priorBootOwnerTable = FALSE) &
+	   (sameBootOrdinaryMigration = FALSE) then
 		Result := -3;
 		RETURN;
 	end_if;
@@ -7103,7 +7201,7 @@ FUNCTION GLOBAL LMCControlCommandService::ReconcileAxisOwnershipStartup
 			RETURN;
 		end_if;
 	elsif OwnershipState[0]$UDINT = LMC_OWNER_TABLE_MAGIC then
-		tableIdle := priorBootOwnerTable;
+		tableIdle := priorBootOwnerTable | sameBootOrdinaryMigration;
 		axisIndex := 1;
 		while axisIndex <= LMC_OWNER_AXIS_COUNT do
 			recordBase := LMC_OWNER_GLOBAL_SLOTS +
@@ -7159,18 +7257,25 @@ FUNCTION GLOBAL LMCControlCommandService::ReconcileAxisOwnershipStartup
 		RETURN;
 	end_if;
 
+	migrationPhysicalAxisMask := LMC_OWNER_CONFIGURED_PHYSICAL_AXIS_MASK;
+	if sameBootOrdinaryMigration then
+		// A stale single-axis ordinary owner must not require an unrelated
+		// physical axis to be powered off. A stale Group tuple still contributes
+		// every recorded member bit and therefore keeps the full relevant proof.
+		migrationPhysicalAxisMask := ordinaryAxisMask and
+			LMC_OWNER_CONFIGURED_PHYSICAL_AXIS_MASK;
+	end_if;
 	physicalIdle :=
-		((startupSnapshot[10] and LMC_OWNER_STARTUP_LATCH_PHYSICAL) <> 0) &
-		(((LMC_OWNER_CONFIGURED_PHYSICAL_AXIS_MASK and 0x00000001) = 0) |
+		(((migrationPhysicalAxisMask and 0x00000001) = 0) |
 		 (((startupSnapshot[2] and LMC_AXIS_STATUS_STANDSTILL) <> 0) &
 		  ((startupSnapshot[2] and LMC_OWNER_STARTUP_AXIS_CLEAR_MASK) = 0))) &
-		(((LMC_OWNER_CONFIGURED_PHYSICAL_AXIS_MASK and 0x00000002) = 0) |
+		(((migrationPhysicalAxisMask and 0x00000002) = 0) |
 		 (((startupSnapshot[3] and LMC_AXIS_STATUS_STANDSTILL) <> 0) &
 		  ((startupSnapshot[3] and LMC_OWNER_STARTUP_AXIS_CLEAR_MASK) = 0))) &
-		(((LMC_OWNER_CONFIGURED_PHYSICAL_AXIS_MASK and 0x00000004) = 0) |
+		(((migrationPhysicalAxisMask and 0x00000004) = 0) |
 		 (((startupSnapshot[4] and LMC_AXIS_STATUS_STANDSTILL) <> 0) &
 		  ((startupSnapshot[4] and LMC_OWNER_STARTUP_AXIS_CLEAR_MASK) = 0))) &
-		(((LMC_OWNER_CONFIGURED_PHYSICAL_AXIS_MASK and 0x00000008) = 0) |
+		(((migrationPhysicalAxisMask and 0x00000008) = 0) |
 		 (((startupSnapshot[5] and LMC_AXIS_STATUS_STANDSTILL) <> 0) &
 		  ((startupSnapshot[5] and LMC_OWNER_STARTUP_AXIS_CLEAR_MASK) = 0)));
 
@@ -7201,8 +7306,17 @@ FUNCTION GLOBAL LMCControlCommandService::ReconcileAxisOwnershipStartup
 			 ((robotState = _ROBOT_DIRECT$DINT) & (profileFinished <> 0)));
 	end_if;
 
-	drained := (startupSnapshot[10] = LMC_OWNER_STARTUP_LATCH_REQUIRED) &
-		(DiagnosticsDrainFlags = LMC_OWNER_STARTUP_DIAG_REQUIRED) &
+	// Do not make the global ownership ledger depend on every configured
+	// physical drive or every SDO executor being online. The selected command
+	// performs those checks before native dispatch. Keep mailbox, lifecycle
+	// engine and start-low drain proof fail-closed here.
+	drained :=
+		((startupSnapshot[10] and
+		  LMC_OWNER_STARTUP_LATCH_LEDGER_REQUIRED) =
+		 LMC_OWNER_STARTUP_LATCH_LEDGER_REQUIRED) &
+		((DiagnosticsDrainFlags and
+		  LMC_OWNER_STARTUP_DIAG_LEDGER_REQUIRED) =
+		 LMC_OWNER_STARTUP_DIAG_LEDGER_REQUIRED) &
 		(ZeroHomeState[0] <> LMC_HOME_RECORD_RUNNING) &
 		(ZeroHomeState[0] <> LMC_HOME_RECORD_QUARANTINED) &
 		((ZeroHomeState[39] = LMC_HOME_ENGINE_IDLE) |
@@ -9991,7 +10105,7 @@ FUNCTION LMCControlCommandService::HandleAdminCommands
 			(pResponseFrame + 24)^$UDINT := 0x00000757;
 			(pResponseFrame + 28)^$UDINT := 0x0000003F;
 			(pResponseFrame + 32)^$UDINT := 0x00000007;
-			(pResponseFrame + 36)^$UINT := 2;
+			(pResponseFrame + 36)^$UINT := 1;
 			(pResponseFrame + 38)^$UINT := 1;
 			(pResponseFrame + 40)^$UINT := 0x0100;
 			(pResponseFrame + 42)^$UINT := 3;
@@ -11750,6 +11864,10 @@ FUNCTION LMCControlCommandService::HandleAxisZeroHomeCommands
 			if RequestSize <> 56 then
 				adminDetailCode := 5;
 			elsif (Reference < 1) | (Reference > 4) then
+				adminDetailCode := 4;
+			elsif (adminHomeAxisMask and
+			      LMC_OWNER_CONFIGURED_PHYSICAL_AXIS_MASK) = 0 then
+				// Defense in depth for callers that bypass TCP pre-admission.
 				adminDetailCode := 4;
 			elsif adminSchemaVersion <> 1 then
 				adminDetailCode := 1;

@@ -614,7 +614,31 @@ Diagnostics `0x7E53/0x7E54/0x7E55` encoder-maintenance 경로는 TW[20]
 `0x20FC:0x02 <- UInt16 1`과 TW[19] `0x20FC:0x01 <- UInt16 1`만 허용하고 source
 capability bit 18/19를 광고한다. start ACK, terminal outcome, exact retirement는 각각
 구분하며 drive error/warning 또는 multi-turn position의 실제 변화는 별도 실기 readback으로
-확인한다.
+확인한다. Start common envelope가 비정상이면 parser는 실제 CommandStatus, ErrorId,
+DetailCode, RequestId, payload length와 첫 16-byte envelope를 예외에 보존한다. WPF는 소비된
+one-shot Start를 replay하지 않고 exact recovery key의 read-only `0x7E54`로 복구한다.
+공통 응답 parser의 정의 범위는 encoder-maintenance 최신 detail `44`까지이며, PLC의
+`43`(ownership admission unavailable)과 `44`(physical drive unavailable)는 malformed
+envelope가 아니라 명시적 command rejection으로 반환한다.
+
+2026-09-11 수정 source는 ordinary Axis/Group ownership이 비활성화된 뒤 같은 PLC BootId에
+남은 구형 direct/group owner 또는 quarantine 레코드가 `0x7E53` lifecycle admission을 계속
+차단하던 경로를 보완한다. 레코드 footer, 명령 종류와 resource가 구형 ordinary surface임을
+확인하고, 레코드가 실제 포함한 physical axis의 Power Off/standstill,
+passive/unlocked Group, diagnostics drain의 기존 startup proof가 모두 안정된 경우에만
+ownership table을 재초기화한다. 단축 direct 레코드는 관계없는 다른 physical axis의
+Power Off를 요구하지 않으며, Group 레코드는 기록된 모든 member의 안전 증명을 유지한다.
+Home, DS402 Home, SetPosition,
+SetOperationMode 및 encoder-maintenance owner는 이 migration 대상이 아니며 자동 폐기되지 않는다.
+`DriveReference=1`은 `_LMCAxis1`/`SdoAxis1` 선택이지 EtherCAT 첫 번째 node 선택이 아니다.
+
+2026-09-11 추가 수정은 빈 ownership table의 bootstrap을 모든 configured physical drive의
+EtherCAT health와 모든 SDO executor availability에 결합하던 전역 gate를 분리한다. Ledger
+bootstrap은 configured axis의 standstill/금지 상태와 Home/DS402/owner/start-low mailbox 및
+diagnostics engine drain을 검사한다. 선택 drive의 EtherCAT snapshot과 physical membership은
+`HandleEncoderMaintenanceStart`가 검증하며, 실패 시 SDO dispatch 전에 detail `11` 또는 `44`를
+반환한다. 따라서 관계없는 drive 또는 executor unavailable은 drive 1의 ledger 생성 자체를
+막지 않지만, 선택 drive의 실제 준비 상태는 우회되지 않는다.
 
 위 Home/encoder-maintenance source는 최신 ownership receipt 수정 이후 C78 Rebuild/Download와
 새 BootId의 한 축 단독 시험이 아직 남아 있다. 상세 구현과 시험 순서는

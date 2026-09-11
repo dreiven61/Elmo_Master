@@ -1,4 +1,14 @@
 LMC DINT packet map
+2026-09-11 Home contract correction (wire offsets unchanged):
+- LMC_Home successful EvidenceFlags is exactly 0x0000003B. This matches
+  LmcAdminHomeModels.RequiredEvidenceFlags and the PLC InputLatch/Control source;
+  the older 0x3F sentence was incorrect.
+- DS402 Home method 37 source gates/capability are currently ON, but the current
+  one-drive topology is not aligned with the remaining 0x03 physical masks and
+  PhysicalAxisCount=2. Source availability is not current PLC/hardware proof.
+- Current implementation planning is in
+  ../../../docs/api/design/LMC_HOME_AND_DS402_HOME_IMPLEMENTATION_DESIGN_20260911.md.
+
 2026-09-03 scoped Power semantics update (wire bytes unchanged):
 - Single-axis 0x2023 Power On is admitted before Home/coordinate rebase completion.
   Exact payload/owner checks, quarantine and drive interlocks remain enforced.
@@ -30,7 +40,8 @@ Current status 2026-08-20:
   former RETAIN allocation failure. This does not activate SetPosition or prove any
   coordinate mutation, restart replay, durable query, retirement or hardware effect.
 - 0x7D13/0x7D18/0x7D19 is project-local LMC_Home CurrentPositionZero, not switch
-  search. 0x7D15/0x7D16/0x7D17 DS402 method 37 remains capability/gate OFF.
+  search. 0x7D15/0x7D16/0x7D17 is DS402 method 37; current source gate/capability
+  is ON but build/download/runtime/physical qualification remains separate.
 - Diagnostics availability must be read from fresh 0x7E00 capabilities and bound to
   the current BootId/MapRevision. Capability bits 15 and 16 remain zero. Bit 17
   remains zero. PI Write remains disabled. D4 Double remains disabled and
@@ -350,7 +361,7 @@ or 0xFFFFFFFE (-2 counts).
 The two raw fields are physical-feedback evidence snapshots, not a promise of
 bit-identical stationary samples; a delta of +/-3 counts or more fails closed.
 All six application/internal actual, set, destination,
-and master positions at P92..P112 are zero; EvidenceFlags is exactly 0x3F;
+and master positions at P92..P112 are zero; EvidenceFlags is exactly 0x3B;
 StartMilliseconds, CompletionMilliseconds, and RecordGeneration are nonzero.
 RuntimePhase remains an opaque diagnostic value because this wire version does
 not define its numeric states; the PC parser must not invent a terminal value.
@@ -487,14 +498,15 @@ implementation must change bit 6 atomically with the method-37-only parser,
 fresh-latch watchdog and owner interlock. F9 build, download and live DS402/pcap
 proof remain separate qualification gates even when the source bit is enabled.
 Earlier method-35 or switch-search results are not evidence for this contract.
-The current source gate remains FALSE. Admission and final-evidence hardening
-alone do not activate the command. Prepared-stage warm reconciliation, the
+The current source gate and Admin capability bit are TRUE, but source activation
+alone does not prove the downloaded PLC image or physical command. Prepared-stage warm reconciliation, the
 one-second fail-closed bound for cleanup stages 90..99, the staged
 owner-release/rollback-complete warm receipt, and the exact DS402 bit-4 safety
 drain/tombstone are source-implemented. These are source/static-contract facts,
 not C78 build, download, live-axis or packet proof. The remaining qualification
 gates are the paired activation matrix, C78 Rebuild/Link and IDE smoke, PLC
-download, and the Axis1..4 hardware/packet test matrix.
+download, and the current Axis1 hardware/packet test matrix. Axis2 must reject
+without mutation while its drive is deactivated and SimulationSetup selects simulation.
 
 0x7D20 ReadGroupParameters, request payload 12 bytes, Reference=0x0100:
 P8 SelectionMask U32, nonzero subset of 0x07. Bits select path velocity limit,

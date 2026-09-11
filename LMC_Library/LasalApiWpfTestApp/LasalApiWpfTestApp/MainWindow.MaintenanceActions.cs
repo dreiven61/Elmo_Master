@@ -1743,6 +1743,74 @@ namespace LasalMotionControlApiExample
                         latestEncoderMaintenanceRecoveryKey = null;
                         throw;
                     }
+                    catch (LMCEncoderMaintenanceOutcomeUncertainException exception)
+                    {
+                        // The one-shot start crossed the write boundary. Never
+                        // replay 0x7E53. Recover only through the exact durable
+                        // outcome key that was persisted before dispatch.
+                        latestEncoderMaintenanceRecoveryKey = key;
+                        PromoteMaintenanceRecovery(
+                            recovery,
+                            key.OriginalRequestId);
+
+                        LMCEncoderMaintenanceOutcomeResult recoveredOutcome;
+                        try
+                        {
+                            recoveredOutcome = await currentConnection
+                                .Diagnostics
+                                .ReadEncoderMaintenanceOutcomeAsync(
+                                    key,
+                                    CancellationToken.None);
+                        }
+                        catch (Exception queryException)
+                        {
+                            var recoveryFailure =
+                                "Encoder maintenance start response was invalid and the read-only 0x7E54 recovery query also failed. The durable recovery record remains active; do not replay 0x7E53. StartFailure="
+                                + (exception.InnerException == null
+                                    ? exception.Message
+                                    : exception.InnerException.Message)
+                                + Environment.NewLine
+                                + "RecoveryQueryFailure="
+                                + queryException.Message
+                                + (queryException.InnerException == null
+                                    ? string.Empty
+                                    : Environment.NewLine
+                                      + "RecoveryQueryInnerFailure="
+                                      + queryException.InnerException.Message);
+                            TextTestResetResult.Text =
+                                TranslateUiText(recoveryFailure);
+                            throw new InvalidOperationException(
+                                recoveryFailure,
+                                queryException);
+                        }
+
+                        TextTestResetResult.Text =
+                            TranslateUiText(
+                                "Encoder Maintenance Start response was invalid; the exact durable outcome was recovered with one read-only 0x7E54 query and 0x7E53 was not replayed.")
+                            + Environment.NewLine
+                            + "RequestId="
+                            + key.OriginalRequestId
+                            + ", Kind="
+                            + recoveredOutcome.Kind
+                            + ", State="
+                            + recoveredOutcome.RecordState
+                            + ", OriginalStatus="
+                            + recoveredOutcome.OriginalCommandStatus
+                            + ", OriginalErrorId="
+                            + recoveredOutcome.OriginalErrorId
+                            + ", OriginalDetail="
+                            + recoveredOutcome.OriginalDetailCode
+                            + Environment.NewLine
+                            + "StartFailure="
+                            + (exception.InnerException == null
+                                ? exception.Message
+                                : exception.InnerException.Message)
+                            + Environment.NewLine
+                            + TranslateUiText(
+                                recoveredOutcome.IsTerminal
+                                    ? "The outcome is terminal. Use Read Encoder Maintenance Outcome once to verify the exact retirement snapshot and resolve the no-replay record."
+                                    : "The outcome is still running. Wait, then use Read Encoder Maintenance Outcome. The durable record remains active and no command is replayed.");
+                    }
                     catch
                     {
                         latestEncoderMaintenanceRecoveryKey = key;
