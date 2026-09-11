@@ -6039,25 +6039,31 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeOutcome
 					(Ds402HomeState[recordBase + 15] = 0) &
 					(Ds402HomeState[recordBase + 16] = 0) &
 					(Ds402HomeState[recordBase + 21] = 0);
-			elsif baseOutcomeState = 2 then
-				recordValid := recordValid & (completionCycle >= startCycle) &
-					(Ds402HomeState[recordBase + 14] = 0) &
-					(Ds402HomeState[recordBase + 15] = 0) &
-					(Ds402HomeState[recordBase + 16] = 0) &
-					(Ds402HomeState[recordBase + 21] = 0) &
-					(Ds402HomeState[recordBase + 18] = 0) &
-					((Ds402HomeState[recordBase + 17]$UDINT and
-					  0x0008) = 0) &
-					((Ds402HomeState[recordBase + 17]$UDINT and
-					  0x2000) = 0) &
-					(((Ds402HomeState[recordBase + 17]$UDINT and
-					   0x006F) = 0x0040) |
-					 ((Ds402HomeState[recordBase + 17]$UDINT and
-					   0x006F) = 0x0021) |
-					 ((Ds402HomeState[recordBase + 17]$UDINT and
-					   0x006F) = 0x0023) |
-					 ((Ds402HomeState[recordBase + 17]$UDINT and
-					   0x006F) = 0x0027));
+      elsif baseOutcomeState = 2 then
+          recordValid := recordValid & (completionCycle >= startCycle) &
+              (Ds402HomeState[recordBase + 14] = 0) &
+              (Ds402HomeState[recordBase + 15] = 0) &
+              (Ds402HomeState[recordBase + 16] = 0) &
+              (Ds402HomeState[recordBase + 21] = 0) &
+
+              // Method 37 successful zero position is 0 +/- 1 count.
+              (Ds402HomeState[recordBase + 18] >=
+                  (0 - LMC_DIAG_DS402_HOME_POSITION_TOLERANCE)) &
+              (Ds402HomeState[recordBase + 18] <=
+                  LMC_DIAG_DS402_HOME_POSITION_TOLERANCE) &
+
+              ((Ds402HomeState[recordBase + 17]$UDINT and
+                0x0008) = 0) &
+              ((Ds402HomeState[recordBase + 17]$UDINT and
+                0x2000) = 0) &
+              (((Ds402HomeState[recordBase + 17]$UDINT and
+                 0x006F) = 0x0040) |
+               ((Ds402HomeState[recordBase + 17]$UDINT and
+                 0x006F) = 0x0021) |
+               ((Ds402HomeState[recordBase + 17]$UDINT and
+                 0x006F) = 0x0023) |
+               ((Ds402HomeState[recordBase + 17]$UDINT and
+                 0x006F) = 0x0027));
 			elsif baseOutcomeState = 3 then
 				recordValid := recordValid & (completionCycle >= startCycle) &
 					(Ds402HomeState[recordBase + 14] = 1) &
@@ -6588,15 +6594,19 @@ FUNCTION LMCDiagnosticsService::ProcessAxisDs402Home
 				end_if;
 
 			20:
-				if newCycle then
-					if (statusWord and 0x3000) = 0 then
-						Ds402HomeState[111] := 1;
-						Ds402HomeState[92] := 21;
-					else
-						failure := TRUE;
-						failureNative := statusWord;
-					end_if;
-				end_if;
+        if newCycle then
+            // Method 37 may enter Homing mode with HomingAttained(bit12)
+            // already set from the previous drive state.
+            // Pre-start validation rejects HomingError only.
+            // Fresh completion evidence is evaluated after bit4 HIGH.
+            if (statusWord and 0x2000) = 0 then
+                Ds402HomeState[111] := 1;
+                Ds402HomeState[92] := 21;
+            else
+                failure := TRUE;
+                failureNative := statusWord;
+            end_if;
+        end_if;
 
 			21:
 				mailboxResult := InputLatch.SubmitDs402HomeControl(
