@@ -5,9 +5,10 @@
 현재 `dev`의 DS402 Home 설계 정본은 다음 순서로 본다.
 
 1. `DS402_HOME_IMPLEMENTATION_DESIGN_20260914.md` - current DS402 Home public API, parameter, PLC sequence, completion/recovery 계약
-2. `LMC_HOME_AND_DS402_HOME_IMPLEMENTATION_DESIGN_20260911.md` - LMC Home과 2026-09-11 시점 DS402 Home 통합 설계의 historical baseline
-3. `HOME_DS402_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md` - frozen Start/Outcome/Retire lifecycle과 qualification history
-4. `HOME_DS402_DESIGN.md` - 초기 HomeDS402 wire/state-machine 설계와 과거 qualification history
+2. `DS402_HOME_MOVING_METHOD_QUALIFICATION_20260914.md` - moving method별 실축 qualification 기록 양식과 PASS 기준
+3. `LMC_HOME_AND_DS402_HOME_IMPLEMENTATION_DESIGN_20260911.md` - LMC Home과 2026-09-11 시점 DS402 Home 통합 설계의 historical baseline
+4. `HOME_DS402_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md` - frozen Start/Outcome/Retire lifecycle과 qualification history
+5. `HOME_DS402_DESIGN.md` - 초기 HomeDS402 wire/state-machine 설계와 과거 qualification history
 
 문서 간 설명이 충돌하면 current `dev` source와
 `DS402_HOME_IMPLEMENTATION_DESIGN_20260914.md`를 우선한다.
