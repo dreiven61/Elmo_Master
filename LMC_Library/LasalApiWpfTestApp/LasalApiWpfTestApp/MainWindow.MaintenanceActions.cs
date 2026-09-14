@@ -83,8 +83,9 @@ namespace LasalMotionControlApiExample
         {
             ComboDs402HomeMethod.ItemsSource = new[]
             {
-                LMCAxisDs402HomeParameters
-                    .CurrentPositionZeroHomingMethod
+                1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
+                17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28,
+                29, 30, 33, 34, 37
             };
             ComboDs402HomeMethod.SelectedItem =
                 LMCAxisDs402HomeParameters
@@ -292,6 +293,10 @@ namespace LasalMotionControlApiExample
             TextLmcHomeTimeout.IsEnabled = homeInputEnabled;
             TextDs402HomeTimeout.IsEnabled = homeInputEnabled;
             ComboDs402HomeMethod.IsEnabled = homeInputEnabled;
+            TextDs402HomeOffset.IsEnabled = homeInputEnabled;
+            TextDs402HomeVelocity1.IsEnabled = homeInputEnabled;
+            TextDs402HomeVelocity2.IsEnabled = homeInputEnabled;
+            TextDs402HomeAcceleration.IsEnabled = homeInputEnabled;
             CheckHomeOneShotConfirmed.IsEnabled = homeInputEnabled;
             ButtonLmcHome.IsEnabled = axisReady
                 && liveCommandAllowed
@@ -325,12 +330,12 @@ namespace LasalMotionControlApiExample
             else if (CheckHomeOneShotConfirmed.IsChecked != true)
             {
                 TextDs402HomeAvailability.Text = TranslateUiText(
-                    "DS402 Home available for qualified Method 37. Select the physical axis and complete the one-shot confirmation.");
+                    "DS402 Home available. Verify method direction, switch/index wiring, travel clearance, and raw parameter units before confirmation.");
             }
             else
             {
                 TextDs402HomeAvailability.Text = TranslateUiText(
-                    "DS402 Home Method 37 is armed when all other live admission checks pass.");
+                    "DS402 Home is armed with the displayed raw 0x6098/0x607C/0x6099/0x609A values when all other live admission checks pass.");
             }
 
             CheckMaintenanceRecoveryPhysicallyVerified.IsEnabled =
@@ -720,7 +725,7 @@ namespace LasalMotionControlApiExample
                         LMCDiagnosticCapability.None);
 
                     var parameters = ReadDs402HomeParameters();
-                    var prepared = currentAxis.PrepareDs402Home(
+                    var prepared = currentAxis.PrepareLMC_HomeDS402(
                         parameters,
                         adminCapabilities,
                         diagnosticCapabilities,
@@ -747,7 +752,7 @@ namespace LasalMotionControlApiExample
                             DateTime.UtcNow);
                     try
                     {
-                        var acknowledgement = await currentAxis.Ds402HomeAsync(
+                        var acknowledgement = await currentAxis.LMC_HomeDS402Async(
                             prepared,
                             CancellationToken.None);
                         PromoteMaintenanceRecovery(recovery, key.RequestId);
@@ -1207,24 +1212,30 @@ namespace LasalMotionControlApiExample
 
             var values = ParseMaintenanceParameters(
                 record.ActionParameters);
-            if (ReadParameterInt(values, "Method")
-                    != LMCAxisDs402HomeParameters
-                        .CurrentPositionZeroHomingMethod
-                || ReadParameterInt(values, "HomeOffset") != 0
-                || ReadParameterInt(values, "Velocity") != 0
-                || ReadParameterInt(values, "Acceleration") != 0
-                || ReadParameterInt(values, "DistanceLimit") != 0
-                || ReadParameterInt(values, "TorqueLimit") != 0
+            if (ReadParameterInt(values, "TorqueLimit") != 0
                 || !string.Equals(
                     ReadParameter(values, "BufferMode"),
                     LMCDs402HomeBufferMode.Aborting.ToString(),
                     StringComparison.Ordinal))
             {
                 throw new InvalidOperationException(
-                    "The durable DS402 Home record is not the exact non-moving method 37/current-position-zero semantic.");
+                    "The durable DS402 Home record has an unsupported buffer mode or torque limit.");
             }
 
+            var homeVelocity1 = values.ContainsKey("HomeVelocity1")
+                ? ReadParameterInt(values, "HomeVelocity1")
+                : ReadParameterInt(values, "Velocity");
+            var homeVelocity2 = values.ContainsKey("HomeVelocity2")
+                ? ReadParameterInt(values, "HomeVelocity2")
+                : ReadParameterInt(values, "DistanceLimit");
             var parameters = new LMCAxisDs402HomeParameters(
+                ReadParameterInt(values, "Method"),
+                ReadParameterInt(values, "HomeOffset"),
+                homeVelocity1,
+                ReadParameterInt(values, "Acceleration"),
+                homeVelocity2,
+                0,
+                LMCDs402HomeBufferMode.Aborting,
                 ReadParameterUInt(values, "TimeoutMs"));
             return new LMCAxisDs402HomeRecoveryKey(
                 checked((ushort)ReadParameterUInt(values, "Schema")),
@@ -2301,20 +2312,23 @@ namespace LasalMotionControlApiExample
 
         internal LMCAxisDs402HomeParameters ReadDs402HomeParameters()
         {
-            if (!(ComboDs402HomeMethod.SelectedItem is int))
-            {
-                throw new InvalidOperationException(
-                    "A qualified DS402 homing method is required.");
-            }
-
-            var homingMethod = (int)ComboDs402HomeMethod.SelectedItem;
+            var homingMethod = ParseMaintenanceInt(
+                ComboDs402HomeMethod.Text,
+                "DS402 Homing Method");
             return new LMCAxisDs402HomeParameters(
                 homingMethod,
-                LMCAxisDs402HomeParameters
-                    .CurrentPositionZeroHomeOffset,
-                0,
-                0,
-                0,
+                ParseMaintenanceInt(
+                    TextDs402HomeOffset.Text,
+                    "DS402 Home Offset"),
+                ParseMaintenanceInt(
+                    TextDs402HomeVelocity1.Text,
+                    "DS402 Home Velocity1"),
+                ParseMaintenanceInt(
+                    TextDs402HomeAcceleration.Text,
+                    "DS402 Home Acceleration"),
+                ParseMaintenanceInt(
+                    TextDs402HomeVelocity2.Text,
+                    "DS402 Home Velocity2"),
                 0,
                 LMCDs402HomeBufferMode.Aborting,
                 ParseMaintenanceUInt(
@@ -2391,11 +2405,13 @@ namespace LasalMotionControlApiExample
                 + value.HomingMethod.ToString(CultureInfo.InvariantCulture)
                 + ";HomeOffset="
                 + value.Position.ToString(CultureInfo.InvariantCulture)
-                + ";Velocity="
-                + value.Velocity.ToString(CultureInfo.InvariantCulture)
+                + ";HomeVelocity1="
+                + value.HomeVelocity1.ToString(CultureInfo.InvariantCulture)
                 + ";Acceleration="
                 + value.Acceleration.ToString(CultureInfo.InvariantCulture)
-                + ";DistanceLimit=0;TorqueLimit=0;BufferMode=Aborting;TimeoutMs="
+                + ";HomeVelocity2="
+                + value.HomeVelocity2.ToString(CultureInfo.InvariantCulture)
+                + ";TorqueLimit=0;BufferMode=Aborting;TimeoutMs="
                 + value.TimeoutMilliseconds.ToString(
                     CultureInfo.InvariantCulture);
         }

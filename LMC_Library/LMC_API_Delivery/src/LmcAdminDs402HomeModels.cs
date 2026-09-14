@@ -15,9 +15,9 @@ namespace LasalMotionControlLib
     }
 
     /// <summary>
-    /// Typed LMC_HomeDS402 inputs expressed as LASAL application-unit DINTs.
-    /// This product surface implements only the non-moving DS402 method 37
-    /// current-position-zero operation.
+    /// Typed LMC_HomeDS402 inputs expressed as raw drive-unit DINTs.
+    /// Velocity maps to 0x6099:01 and DistanceLimit is retained as the
+    /// wire-compatible storage for HomeVelocity2 (0x6099:02).
     /// </summary>
     public sealed class LMCAxisDs402HomeParameters
     {
@@ -25,9 +25,8 @@ namespace LasalMotionControlLib
         public const int CurrentPositionZeroHomeOffset = 0;
 
         /// <summary>
-        /// Creates the only supported LMC_HomeDS402 operation: take the
-        /// sensor-reported current position as Home and expose it as zero.
-        /// Method 37 does not seek a Home or limit switch.
+        /// Creates the compatibility current-position Home operation. Method
+        /// 37 does not seek a Home or limit switch.
         /// </summary>
         public LMCAxisDs402HomeParameters(uint timeoutMilliseconds)
             : this(
@@ -43,9 +42,9 @@ namespace LasalMotionControlLib
         }
 
         /// <summary>
-        /// Compatibility overload. Method 37 is non-moving, so all legacy
-        /// dynamics and limit inputs must be zero and buffer mode must be
-        /// Aborting.
+        /// Legacy method-37 compatibility overload. Its motion parameters must
+        /// remain zero; use the explicit homing-method constructor for moving
+        /// standard methods.
         /// </summary>
         public LMCAxisDs402HomeParameters(
             int velocity,
@@ -59,7 +58,7 @@ namespace LasalMotionControlLib
                 CurrentPositionZeroHomeOffset,
                 velocity,
                 acceleration,
-                distanceLimit,
+                velocity,
                 torqueLimit,
                 bufferMode,
                 timeoutMilliseconds)
@@ -67,8 +66,8 @@ namespace LasalMotionControlLib
         }
 
         /// <summary>
-        /// Compatibility overload. It fails closed unless homingMethod is 37
-        /// and position, the DS402 0x607C Home offset, is zero.
+        /// Creates a DS402 homing request. For schema compatibility,
+        /// distanceLimit carries HomeVelocity2 and torqueLimit remains zero.
         /// </summary>
         public LMCAxisDs402HomeParameters(
             int homingMethod,
@@ -102,13 +101,15 @@ namespace LasalMotionControlLib
         public int HomingMethod { get; private set; }
         /// <summary>
         /// DS402 object 0x607C Home offset. Method 37 defines the completed
-        /// position actual value (0x6064) as this value. This surface fixes it
-        /// to zero.
+        /// position actual value (0x6064) as this value. Moving standard
+        /// methods complete at the negated Home offset under this contract.
         /// </summary>
         public int Position { get; private set; }
         public int Velocity { get; private set; }
+        public int HomeVelocity1 { get { return Velocity; } }
         public int Acceleration { get; private set; }
         public int DistanceLimit { get; private set; }
+        public int HomeVelocity2 { get { return DistanceLimit; } }
         public int TorqueLimit { get; private set; }
         public LMCDs402HomeBufferMode BufferMode { get; private set; }
         /// <summary>

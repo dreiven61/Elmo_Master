@@ -137,10 +137,10 @@ Admin start command는 `0x7D15`, read-only outcome query는 `0x7D16`이다. basi
 입력 의미는 Maestro manual을 그대로 유지한다.
 
 - `Position`: home offset이다. homing 완료 뒤 absolute position은 `-Position`이다.
-- `Velocity`: basic API의 단일 속도다. PLC는 `0x6099:01`과 `0x6099:02`에 같은 값을 쓴다.
+- `Velocity`/`HomeVelocity1`: `0x6099:01`에 쓰는 첫 번째 Home 속도다.
 - `Acceleration`: `0x609A:00`에 쓴다.
-- `HomingMethod`: Elmo Gold는 `1..14`, `17..30`, `33..35`만 허용한다. `15`, `16`, `31`, `32`, `36`은 허용하지 않는다.
-- `DistanceLimit`: method `-1/-2` 전용인데 v1 method 범위에 없으므로 반드시 `0`이다.
+- `HomingMethod`: `1..14`, `17..30`, `33`, `34`, `37`을 허용한다. method 35는 obsolete이며 reserved/vendor-specific method는 허용하지 않는다.
+- `DistanceLimit`/`HomeVelocity2`: 기존 wire field를 호환 저장소로 사용하여 `0x6099:02`에 쓴다. distance-limit 의미는 지원하지 않는다.
 - `TorqueLimit`: v1에서 구현하지 않으므로 반드시 `0`이다.
 - `BufferMode`: PLC queue/blending을 구현하지 않으므로 `MC_ABORTING_MODE(1)`만 받는다.
 - `TimeoutMs`: PLC state machine의 필수 elapsed-time bound다.
@@ -160,9 +160,9 @@ Admin start command는 `0x7D15`, read-only outcome query는 `0x7D16`이다. basi
 | `P+20..32` | 4 x U32 | 128-bit ClientIntentId |
 | `P+36` | I32 | HomingMethod |
 | `P+40` | I32 | Position/home offset |
-| `P+44` | I32 | Velocity |
+| `P+44` | I32 | Velocity / HomeVelocity1 (`0x6099:01`) |
 | `P+48` | I32 | Acceleration |
-| `P+52` | I32 | DistanceLimit = 0 |
+| `P+52` | I32 | DistanceLimit / HomeVelocity2 (`0x6099:02`) |
 | `P+56` | I32 | TorqueLimit = 0 |
 | `P+60` | U16 | BufferMode = 1 |
 | `P+62` | U16 | Reserved = 0 |
@@ -258,7 +258,16 @@ drive별 SDO executor는 한 번에 하나의 operation만 소유한다. 다음 
     RT scan에서 `SETPOS_APPUNIT`, `ACTPOS_APPUNIT`, `SETPOS_INTUNIT`, `ACTPOS_INTUNIT`,
     `DESTPOS_INTUNIT`, `MASTERPOS_INTUNIT`를 다시 읽고 저장한 application/internal 값과 모두
     exact-match할 때만 alignment 성공을 publish한다.
-18. `0x6060:00=8`을 쓰고 `0x6061:00=8`을 확인한다.
+
+2026-09-14 runtime evidence에 따른 override: method 37의 raw ActualPosition은 정렬 전후
+`0 +/- 32` 범위 안에서 변할 수 있다. `LMCAXIS_SET_SETPOS_APPUNIT_DEST`가 변경을 보장하는
+`SETPOS_APPUNIT`, `SETPOS_INTUNIT`, `DESTPOS_INTUNIT`만 exact-match한다. 실제 위치와 이 mode가
+변경하지 않는 `MASTERPOS_INTUNIT`는 동일 count 성공 조건에서 제외한다.
+추가 override: bit 4 HIGH 이후 fresh StatusWord의 HomingAttained(bit 12)와 HomingError
+clear(bit 13)를 드라이브 완료 판정으로 사용한다. TargetReached(bit 10)는 진단값으로만
+보존한다. 단계 4에서 읽은 지원 mode PP(1), PV(3), IP(7), CSP(8)를 저장하고, 완료와 실패
+cleanup에서 그 exact mode를 `0x6060:00`에 복귀한 뒤 `0x6061:00`으로 확인한다.
+18. 저장한 pre-Home mode를 `0x6060:00`에 쓰고 `0x6061:00` exact readback을 확인한다.
 19. exact terminal outcome을 storage에 commit/readback한 다음 RPC에서 조회 가능하게
     만든다.
 
@@ -267,7 +276,7 @@ drive별 SDO executor는 한 번에 하나의 operation만 소유한다. 다음 
 read-modify-write하는 것도 금지한다. bit 4 변경과 setpoint alignment는 axis realtime task와
 같은 core에서 실행되는 mailbox consumer를 통한다.
 
-timeout, SDO abort, homing-error bit, connection loss, identity change 또는 CSP restore 실패는
+timeout, SDO abort, homing-error bit, connection loss, identity change 또는 saved-mode restore 실패는
 성공으로 추정하지 않는다. 가능한 경우 bit 4 clear와 controlled PowerOff를 수행하고 terminal
 failure/indeterminate record를 남긴다.
 
@@ -281,7 +290,7 @@ failure/indeterminate record를 남긴다.
 - `Ds402HomeState[0..127]`가 축별 durable outcome과 실행 중 SDO/mailbox/cleanup state를
   보존한다.
 - `ProcessAxisDs402Home()`가 SDO 설정, ControlWord bit 4 edge, StatusWord bit 12/13,
-  CSP 복귀와 terminal commit을 비동기 cyclic state machine으로 처리한다.
+  saved-mode 복귀와 terminal commit을 비동기 cyclic state machine으로 처리한다.
 - `LMCEcatInputLatch.RtWork()`의 command 5가 LMC actual position capture, mode 10
   `SetPosition()`과 다음 scan의 application/internal set/actual/destination/master readback을
   수행한다.
@@ -289,9 +298,9 @@ failure/indeterminate record를 남긴다.
 - session close는 완료를 추정하거나 자동 replay하지 않으며, 동일 boot/identity의 read-only
   outcome query만 허용한다.
 
-그러나 `#define LMC_DIAG_DS402_HOME_ENABLED FALSE`이고 diagnostics capability 값
-`0x0000613F`의 bit 6은 OFF다. 즉 구현은 존재하지만 현재 PLC build에서는 `0x7D15` 실행을
-허용하거나 광고하지 않는다. PLC/실축 bench proof 없이 gate를 켜면 안 된다.
+2026-09-14 current source는 `LMC_DIAG_DS402_HOME_ENABLED=TRUE`이고 Admin capability bit 6을
+광고한다. Method 37의 PLC/실축 동작은 사용자 확인이 있었지만, 새 parameter editor와 이동
+method 각각의 IDE build/download 및 switch/index/방향/이동거리 실축 증거는 별도다.
 
 ### 3.5 realtime mailbox 및 Network 상태
 

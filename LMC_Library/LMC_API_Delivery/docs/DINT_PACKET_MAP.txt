@@ -3,7 +3,7 @@ LMC DINT packet map
 - LMC_Home successful EvidenceFlags is exactly 0x0000003B. This matches
   LmcAdminHomeModels.RequiredEvidenceFlags and the PLC InputLatch/Control source;
   the older 0x3F sentence was incorrect.
-- DS402 Home method 37 source gates/capability are currently ON, but the current
+- DS402 Home standard-method source gates/capability are currently ON, but the current
   one-drive topology is not aligned with the remaining 0x03 physical masks and
   PhysicalAxisCount=2. Source availability is not current PLC/hardware proof.
 - Current implementation planning is in
@@ -40,8 +40,9 @@ Current status 2026-08-20:
   former RETAIN allocation failure. This does not activate SetPosition or prove any
   coordinate mutation, restart replay, durable query, retirement or hardware effect.
 - 0x7D13/0x7D18/0x7D19 is project-local LMC_Home CurrentPositionZero, not switch
-  search. 0x7D15/0x7D16/0x7D17 is DS402 method 37; current source gate/capability
-  is ON but build/download/runtime/physical qualification remains separate.
+  search. 0x7D15/0x7D16/0x7D17 supports standard methods 1..14, 17..30, 33, 34
+  and current-position method 37; current source gate/capability is ON but
+  build/download/runtime/physical qualification remains separate.
 - Diagnostics availability must be read from fresh 0x7E00 capabilities and bound to
   the current BootId/MapRevision. Capability bits 15 and 16 remain zero. Bit 17
   remains zero. PI Write remains disabled. D4 Double remains disabled and
@@ -407,11 +408,12 @@ P8  ExpectedDiagnosticsBuild U32, nonzero
 P12 ExpectedDiagnosticsBootId U32, nonzero
 P16 ExpectedMapRevision U32, nonzero
 P20/P24/P28/P32 ClientIntentId0..3 U32, not all zero
-P36 HomingMethod DINT = 37, Homing on current position
-P40 Position DINT = 0, DS402 0x607C Home Offset
-P44 Velocity DINT = 0; method 37 performs no search motion
-P48 Acceleration DINT = 0
-P52 DistanceLimit DINT = 0; method -1/-2 distance-limit homing is not v1
+P36 HomingMethod DINT = 1..14, 17..30, 33, 34, or 37
+P40 Position DINT, DS402 0x607C Home Offset, -2000000000..2000000000
+P44 Velocity/HomeVelocity1 DINT, DS402 0x6099:01
+P48 Acceleration DINT, DS402 0x609A:00
+P52 DistanceLimit/HomeVelocity2 DINT, DS402 0x6099:02. The wire field keeps
+    its legacy name, but distance-limit homing semantics are not supported.
 P56 TorqueLimit DINT = 0; torque-limit homing is not v1
 P60 BufferMode U16 = 1 Aborting, P62 Reserved U16 = 0
 P64 TimeoutMilliseconds U32, nonzero overall PLC-side homing watchdog. It is
@@ -429,9 +431,10 @@ P16 EchoedHomingMethod DINT, P20 NativeCommandState U32.
 Success and pre-native failures require NativeCommandState=0. Detail 11 requires
 ErrorId=-6 and nonzero NativeCommandState. A success is only start acceptance;
 it does not prove HomingAttained, final zero position or safe motion readiness.
-The public project name is LMC_HomeDS402. Method 35, arbitrary offsets and every
-switch-seeking method fail closed. Method 37 uses no Home or limit switch and
-does not require Operation Enabled as an admission precondition. The SDK faults
+The public project name is LMC_HomeDS402. Method 35 is obsolete; reserved and
+vendor-specific methods fail closed. Moving methods require positive
+HomeVelocity1, HomeVelocity2, and Acceleration. Method 37 requires all three to
+be zero and uses no Home or limit switch. The SDK faults
 an outcome-uncertain session after a post-write transport or parser failure.
 The PLC stores `ops.tAbsolute` service time at DS402 runtime slot 118 and cleanup
 start time at slot 119. Overall timeout and cleanup timeout use unsigned
@@ -457,18 +460,30 @@ P64 OriginalDetailCode U32, P68 DS402StatusWord U16, P70 Reserved U16 = 0
 P72 ActualPosition DINT, P76 StartCycle U32, P80 CompletionCycle U32
 P84 NativeCommandState U32, P88 RecordGeneration U32
 Running has CompletionCycle=0 and is not recovery resolution. Terminal records
-require CompletionCycle>=StartCycle. The PLC may commit Succeeded only after it
-has observed three fresh method-37 samples with homing attained (bit 12), target
-reached (bit 10), homing error clear (bit 13), and ActualPosition=0 before
-cleanup. P68 is the last StatusWord after restoring CSP mode 8, so bits 10 and
-12 no longer carry the homing-mode meaning and the PC parser must not require
-them in that post-cleanup snapshot. A Succeeded record still requires original
-status/error/detail/native state all zero, ActualPosition=0, StatusWord bit 3
+require CompletionCycle>=StartCycle. After bit 4 HIGH, one fresh drive snapshot
+must prove homing attained (bit 12), homing error clear (bit 13), and
+ActualPosition within expected position +/- 32 raw counts before cleanup. The
+expected position is HomeOffset for method 37 and -HomeOffset for moving
+methods. Target reached (bit 10) is retained in the captured StatusWord for
+diagnosis but is not a completion predicate. Setpoint alignment keeps the same
+raw expected-position band across
+RT scans while setpoint and destination readbacks remain exact; actual position
+need not remain one exact count inside that band. Master position is not a
+success predicate because LMCAXIS_SET_SETPOS_APPUNIT_DEST does not set it.
+Before entering mode 6, the PLC captures the current supported operating mode
+from 0x6061 (PP 1, PV 3, IP 7, or CSP 8). Cleanup writes that exact saved mode to
+0x6060 and verifies the same value through 0x6061. P68 is the last StatusWord
+after that restore, so bits 10 and 12 no longer carry the homing-mode meaning and
+the PC parser must not require them in that post-cleanup snapshot. A Succeeded
+record still requires original status/error/detail/native
+state all zero, ActualPosition within expected position +/- 32 raw counts, StatusWord bit 3
 Fault clear, bit 13 clear, and a DS402 base state of 0x0040, 0x0021, 0x0023, or
 0x0027. The final success snapshot must be a fresh latch cycle observed after
 the RT control-word owner has been released, with no pending SDO, drain,
 mode-restore, RT-owner, or uncertainty flag. Stage 101 is indeterminate detail
-26, not Running success. Failed and Aborted preserve the terminal error/status snapshot; they do
+26, not Running success. The terminal ownership receipt uses the same expected +/- 32
+raw-count predicate and must not reintroduce an exact-zero check. Failed and
+Aborted preserve the terminal error/status snapshot; they do
 not authorize automatic replay. Query failures admit only identity details
 16..18 and DS402 Home outcome details 25..29; they return only the 16-byte
 common envelope and leave recovery unresolved.

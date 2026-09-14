@@ -1160,3 +1160,1022 @@ end_if;
 검증은 조건 검사 **133/133**, 안전 재요청 회귀 **31/31**, rebase 회귀 **39/39 PASS**입니다. **이번 추가 수정의 PLC 빌드·실제 Servo On은 아직 미검증**입니다.
 
 장비를 안전하게 정지한 상태에서 수정 PLC 소스를 Rebuild/Download하고, 새 BootId와 `OwnershipState[29]=0`을 확인한 뒤 시험해야 합니다. 현재 예약값은 강제로 지우지 않았으며, 이번 수정에는 WPF 재빌드가 필요 없습니다.
+
+> 이제 정상적으로 동작되는건 확인했어. 지금까지 진행된 내용 정리해서 개발 진행도 파일을 업데이트해줘.
+> 오늘날짜로 새로운 파일 만들어서 퍼센트만 갱신 시켜
+>
+> User context
+>
+> Attachments:
+> - Motion_Controller_API_정리_개발진행반영_260902.xlsx: `./docs/Motion_Controller_API_정리_개발진행반영_260902.xlsx`
+
+<details><summary>13 previous messages</summary>
+
+> 스프레드시트 편집 작업이므로 `Spreadsheets` 스킬을 사용하겠습니다. 기존 파일의 양식과 수식은 그대로 복사하고, 오늘 날짜(260911)의 새 파일에서 진행률 퍼센트 셀만 갱신하겠습니다. 먼저 시트 구조와 현재 진행률 항목을 확인하겠습니다.
+>
+> <details><summary>Created a file, ran 3 commands</summary>
+>
+> - Ran `Get-Content -Raw -LiteralPath 'C:/Users/dreiv/.codex/plugins/cache/openai-primary-runtime/spreadsheets/26.909.12148/skills/spreadsheets/SKILL.md'; rg -n "Motion_Controller_API|개발 진행|진행도|퍼센트|260902" C:/Users/dreiv/.codex/memories/MEMORY.md | Select-Object -First 20`
+> - Ran `$base='C:/Users/dreiv/.codex/plugins/cache/openai-primary-runtime/spreadsheets/26.909.12148/skills/spreadsheets'; Get-Content -Raw -LiteralPath "$base/workflows/edit_workflows.md"; Get-Content -Raw -LiteralPath "$base/workflows/create_workflows.md"; Get-Content -Raw -LiteralPath "$base/artifact_tool_docs/API_QUICK_START.md"; Get-Content -Raw -LiteralPath "$base/style_guidelines.md"`
+> - Wrote `C:/Users/dreiv/.codex/tmp/motion-progress-260911/inspect.mjs` (+32 -0)
+> - Ran `$taskDir='C:/Users/dreiv/.codex/tmp/motion-progress-260911'; $junction=Join-Path $taskDir 'node_modules'; $target='C:/Users/dreiv/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules'; if (-not (Test-Path -LiteralPath $junction)) { New-Item -ItemType Junction -Path $junction -Target $target | Out-Null }; & 'C:/Users/dreiv/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node.exe' "$taskDir/inspect.mjs"`
+>
+> </details>
+>
+> 원본은 `API 목록` 1개 시트, 68행이며 진행도는 H열의 숫자형 퍼센트입니다. 전체 시트를 한 장으로 렌더링하기에는 높이가 커서, 범위를 나눠서 원본 양식과 각 항목의 현재 진행률을 확인하겠습니다.
+>
+> <details><summary>Edited a file, ran a command</summary>
+>
+> - Wrote `C:/Users/dreiv/.codex/tmp/motion-progress-260911/inspect.mjs` (+19 -22)
+> - Ran `& 'C:/Users/dreiv/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node.exe' 'C:/Users/dreiv/.codex/tmp/motion-progress-260911/inspect.mjs'`
+>
+> </details>
+>
+> Viewed 3 images
+>
+> 양식은 그대로 유지되고 진행도 값만 변경되는 구조입니다. 어떤 항목을 올릴지 임의로 넓히지 않기 위해, 9월 2일 이후 저장소 기록과 현재 개발 진척 문서를 대조하겠습니다. 특히 실제 확인된 단축 `PowerOn/PowerOff`와 PC·정적 검사만 끝난 항목을 구분하겠습니다.
+>
+> <details><summary>Ran 4 commands</summary>
+>
+> - Ran `git branch --show-current; git rev-parse HEAD; git status --short; git log --since='2026-09-02 00:00' --date=iso --pretty=format:'%h %ad %s' --all -n 80; rg -n "PowerOn|PowerOff|Servo|실축|physical|PLC runtime|PASS|완료|progress|진행" docs/api/API_DEVELOPMENT_PROGRESS.md docs/api/design/CURRENT_IMPLEMENTATION_HANDOFF_20260907.md docs/architecture/LASAL_SERVO_POWER_LIFECYCLE_FIX_2026-09-03.md | Select-Object -First 240`
+> - Ran `git show --stat --oneline b840008; git show --stat --oneline 420c20f; git show --format=fuller --no-ext-diff --name-status b840008; git show --format=fuller --no-ext-diff --name-status 420c20f; rg -n "Power On|PowerOn|Power Off|PowerOff|Servo|정상|완료|PASS|100%|진행도|Group|HomeDS402|SDO" docs/history/Elmo_Master_history_260911_*.md | Select-Object -Last 280`
+> - Ran `rg -n -g 'Elmo_Master_history_260911_*.md' "Power On|PowerOn|Power Off|PowerOff|Servo|정상|완료|PASS|100%|진행도|Group|HomeDS402|SDO" docs/history | Select-Object -Last 360; git show b840008:docs/api/API_DEVELOPMENT_PROGRESS.md | Select-Object -First 80`
+> - Ran `Get-Item docs/history/Elmo_Master_history_260911_*.md | Select-Object Name,Length,LastWriteTime; foreach($p in Get-ChildItem docs/history/Elmo_Master_history_260911_*.md){ "--- $($p.Name) HEAD ---"; Get-Content -LiteralPath $p.FullName -First 45; "--- $($p.Name) TAIL ---"; Get-Content -LiteralPath $p.FullName -Tail 160 }`
+>
+> </details>
+>
+> Context compaction
+>
+> Source: automatic
+> Status: completed
+>
+> 확인된 실제 동작 범위에 맞춰 `Power On`과 `Power Off` 진행도만 90%에서 100%로 올리고, 나머지 셀·서식은 그대로 둔 오늘 날짜 사본을 만들겠습니다. 원본은 변경하지 않습니다.
+>
+> <details><summary>Created a file, explored a file, ran 4 commands</summary>
+>
+> - Ran `$mark = 'C:\Users\dreiv\.codex\plugins\cache\openai-primary-runtime\spreadsheets\26.909.12148\skills\spreadsheets\container_tools\mark_artifact_operation_started.mjs'; $out = 'C:\work\Elmo\Elmo_Master\docs\Motion_Controller_API_정리_개발진행반영_260911.xlsx'; Write-Output ('MARK_EXISTS=' + (Test-Path -LiteralPath $mark)); Write-Output ('OUTPUT_EXISTS=' + (Test-Path -LiteralPath $out)); Write-Output $mark`
+>
+> - Ran `& 'C:\Users\dreiv\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' 'C:\Users\dreiv\.codex\plugins\cache\openai-primary-runtime\spreadsheets\26.909.12148\skills\spreadsheets\container_tools\mark_artifact_operation_started.mjs' --operation-kind edit --expected-output-count 1 --output-format xlsx`
+>
+> <details><summary>Explored a file</summary>
+>
+> - Read `./inspect.mjs`
+>
+> </details>
+>
+> - Ran `rg -n "exportXlsx|computedStyle|render\(" 'C:\Users\dreiv\.codex\plugins\cache\openai-primary-runtime\spreadsheets\26.909.12148\skills\spreadsheets\artifact_tool_docs\API_QUICK_START.md'`
+>
+> - Wrote `C:/Users/dreiv/.codex/tmp/motion-progress-260911/build.mjs` (+84 -0)
+>
+> - Ran `& 'C:\Users\dreiv\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' 'C:\Users\dreiv\.codex\tmp\motion-progress-260911\build.mjs'`
+>
+> </details>
+>
+> 진행도 셀 두 곳만 변경된 것을 재검증했습니다. 현재 출력본의 해당 구간을 렌더링해 원본 레이아웃과 색상 표시가 유지됐는지 마지막으로 확인하고 있습니다.
+>
+> Viewed an image
+>
+> <details><summary>Ran 2 commands</summary>
+>
+> - Ran `Get-ChildItem -LiteralPath 'C:\work\Elmo\Elmo_Master\docs' -Filter 'Motion_Controller_API_정리_개발진행반영_260911.xlsx*' | Select-Object FullName,Length,LastWriteTime; git status --short -- 'docs/Motion_Controller_API_정리_개발진행반영_260911.xlsx*'`
+>
+> - Ran `Remove-Item -LiteralPath 'C:\work\Elmo\Elmo_Master\docs\Motion_Controller_API_정리_개발진행반영_260911.xlsx.inspect.ndjson'; Write-Output ('SIDECAR_EXISTS=' + (Test-Path -LiteralPath 'C:\work\Elmo\Elmo_Master\docs\Motion_Controller_API_정리_개발진행반영_260911.xlsx.inspect.ndjson')); Write-Output ('OUTPUT_EXISTS=' + (Test-Path -LiteralPath 'C:\work\Elmo\Elmo_Master\docs\Motion_Controller_API_정리_개발진행반영_260911.xlsx'))`
+>
+> Tool call
+>
+> Tool: open_in_codex
+> Status: completed
+>
+> </details>
+</details>
+
+오늘 날짜 기준 새 파일을 생성했습니다.
+
+- `Power Off`: 90% → 100%
+- `Power On`: 90% → 100%
+- 그 외 셀, 문구, 서식은 변경하지 않았습니다.
+- 원본 파일은 유지했습니다.
+
+:codex-file-citation{path="C:/work/Elmo/Elmo_Master/docs/Motion_Controller_API_정리_개발진행반영_260911.xlsx" purpose="output"}
+
+- 남은 90% 항목 검토
+- 비고 문구 별도 갱신
+- 두 버전 변경점 비교
+
+> LMC\_Home이랑 DS402Home 구현할 수 있게 설계문서 보완해줘
+
+<details><summary>15 previous messages</summary>
+
+> 현재 `LMC_Home`·`DS402 Home`의 실제 코드 경로와 기존 설계문서를 대조해, 구현자가 바로 작업할 수 있도록 명령 흐름·상태 판정·오류/소유권 처리·검증 기준까지 보완하겠습니다. 문서만 수정하고 PLC/C# 구현은 건드리지 않겠습니다.
+>
+> <details><summary>Explored 5 files, ran 5 commands</summary>
+>
+> - Ran `rg -n -i "LMC_Home|DS402.?Home|HomeDS402|0x7D13|0x7D15|0x7D18|homing|Elmo_Master" 'C:\Users\dreiv\.codex\memories\MEMORY.md'`
+>
+> - Ran `$p='C:\Users\dreiv\.codex\memories\rollout_summaries\2026-09-02T23-06-29-x7Al-elmo_master_github_status_and_servo_power_reservation_fix.md'; rg -n -i "HomeDS402|Home|0x7D1|dormant|PowerOn|ownership" $p`
+>
+> - Ran `Get-Item 'docs\architecture\SIGMATEK_LASAL_coding_rules.md','docs\architecture\SIGMATEK_LASAL_programming_method_study.md','docs\architecture\SIGMATEK_LASAL_programming_error_prevention_guide.md' | Select-Object Name,Length; git status --short; rg --files docs Lasal_PRG LMC_Library | rg -i "home|homing|ds402|design|progress|handoff|DINT_PACKET_MAP|LmcProtocol|LMCControlCommandService"`
+>
+> - Ran `Get-Content -LiteralPath 'docs\architecture\SIGMATEK_LASAL_coding_rules.md' -Raw; Get-Content -LiteralPath 'docs\architecture\SIGMATEK_LASAL_programming_method_study.md' -Raw; Get-Content -LiteralPath 'docs\architecture\SIGMATEK_LASAL_programming_error_prevention_guide.md' -Raw`
+>
+> <details><summary>Explored 2 files</summary>
+>
+> - Read `./docs/architecture/SIGMATEK_LASAL_programming_method_study.md`
+> - Read `./docs/architecture/SIGMATEK_LASAL_programming_error_prevention_guide.md`
+>
+> </details>
+>
+> - Ran `Get-Item 'docs\api\design\HOME_DS402_DESIGN.md','docs\api\design\HOME_DS402_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md','docs\architecture\AXIS_HOME_AND_TEST_ENDAT22_ID30_ERROR_WARNING_RESET_IMPLEMENTATION_2026-07-31.md','docs\architecture\LMC_HOME_CURRENT_POSITION_ZERO_AND_ENCODER_MAINTENANCE_IDE_HANDOFF_2026-08-03.md','docs\api\design\HOME_DS402_EX_DESIGN.md' | Select-Object Name,Length; rg -n -i "class LmcHome|HomeDS402|0x7D13|0x7D15|0x7D18|LMC_Home|Home\(" LMC_Library\LMC_API_Delivery\src Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCControlCommandService\LMCControlCommandService.st LMC_Library\LMC_API_Delivery\docs\DINT_PACKET_MAP.txt | Select-Object -First 300`
+>
+> <details><summary>Explored 3 files</summary>
+>
+> - Read `./docs/api/design/HOME_DS402_DESIGN.md`
+> - Read `./docs/api/design/HOME_DS402_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md`
+> - Read `./docs/api/design/HOME_DS402_H37_OPERATOR_ACTIVATION_IMPLEMENTATION_20260902.md`
+>
+> </details>
+>
+> </details>
+>
+> 기존 문서는 두 기능의 의미와 현재 구현 상태가 분산돼 있습니다. 특히 `LMC_Home`은 좌표 재설정, `DS402 Home`은 드라이브 Homing mode라는 차이가 있으므로, 둘을 같은 “Home”으로 묶지 않고 공통 선행조건과 각기 다른 실행 상태기를 분리해서 정리하겠습니다.
+>
+> <details><summary>Ran 19 commands</summary>
+>
+> - Ran `rg -n "^#|^##|^###|current 상태|현재 상태|미완료|pending|Dormant|Active|NO-GO|0x7D13|0x7D15" 'docs\architecture\LMC_HOME_CURRENT_POSITION_ZERO_AND_ENCODER_MAINTENANCE_IDE_HANDOFF_2026-08-03.md' 'docs\architecture\AXIS_HOME_AND_TEST_ENDAT22_ID30_ERROR_WARNING_RESET_IMPLEMENTATION_2026-07-31.md' 'docs\api\design\HOME_DS402_EX_DESIGN.md'; git log --oneline --decorate --all --since='2026-08-01' --grep='Home\|home\|DS402' -n 80`
+> - Ran `git branch --show-current; git rev-parse HEAD; git branch --contains 1a7a1c5; git show --stat --oneline --decorate 1a7a1c5; git show --stat --oneline --decorate 497757c; git log --oneline -20`
+> - Ran `rg -n "HandleAxisDs402Home|ProcessAxisDs402Home|0x7D15|0x7D16|0x7D17|LMC_DIAG_DS402_HOME_ENABLED|LMC_DS402_HOME_STARTUP_SWEEP_ENABLED|StartAxisZeroHome|CopyAxisZeroHomeResult|CancelAxisZeroHome|SetPosition0" 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st' 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCEcatInputLatch\LMCEcatInputLatch.st' 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\TCPMotionInterface\TCPMotionInterface.st' 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCControlCommandService\LMCControlCommandService.st'`
+> - Ran `rg -n "LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED|0x000007|PhysicalAxisCount|ADMIN_FEATURE|AxisHome|AxisDs402Home|LMC_HOME_RECORD|LMC_DIAG_DS402_HOME_ENABLED|LMC_DS402_HOME_STARTUP_SWEEP_ENABLED" 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\TCPMotionInterface\TCPMotionInterface.st' 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCControlCommandService\LMCControlCommandService.st' 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st' 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCEcatInputLatch\LMCEcatInputLatch.st' 'LMC_Library\LMC_API_Delivery\src\LmcAdminCapabilities*.cs' 'LMC_Library\LMC_API_Delivery\src\LmcProtocol.cs'`
+> - Ran `git blame -L 325,335 -- 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st'; git blame -L 617,627 -- 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'; git blame -L 527,537 -- 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'; git blame -L 339,349 -- 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCEcatInputLatch/LMCEcatInputLatch.st'; git blame -L 10088,10108 -- 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'`
+> - Ran ``$p='Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\TCPMotionInterface\TCPMotionInterface.st'; $a=Get-Content -LiteralPath $p; $a[2465..3065] -join "`n"``
+> - Ran `git show --stat --oneline 420c20f; git show --stat --oneline b840008; rg -n "PhysicalAxisCount|physical axis|Elmo_11|Elmo_21|Axis1|Axis2|0x96FC|TopologyRevision|LMC_TOPOLOGY|PHYSICAL.*MASK|0x0000000[13]" 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCControlCommandService\LMCControlCommandService.st' 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st' 'docs\api\design\CURRENT_IMPLEMENTATION_HANDOFF_20260907.md' 'docs\api\design\TOPOLOGY_STATIC_QUALIFICATION_RESULT_20260902.md' 'docs\api\API_DEVELOPMENT_PROGRESS.md'`
+> - Ran `Get-Content -LiteralPath 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Network\EtherCAT_Network\ONE_EtherCAT_Network_Table.st' -Raw; rg -n "Elmo_11|Elmo_21|_LMCAxis1|_LMCAxis2|LMCSdoExecutor|LMCEcatInputLatch|SimulateMode" 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Network\Motion_Network\ONE_Motion_Network_Table.st' 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Network\ConfigObjects.st' | Select-Object -First 300`
+> - Ran `git show --unified=20 420c20f -- 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/ConfigObjects.st' 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/Motion_Network/ONE_Motion_Network_Table.st' | Select-Object -First 500`
+> - Ran `rg -n -C 2 'Elmo_11\.SlaveIndex|Elmo_21\.SlaveIndex|Elmo_31\.SlaveIndex|Elmo_41\.SlaveIndex|GL_9086_11\.SlaveIndex|WELCON_11\.SlaveIndex' 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Network\EtherCAT_Network\ONE_EtherCAT_Network_Table.st'; rg -n -C 2 'toSlave.*Elmo_11|toSlave.*Elmo_21|LMCSDOEXECUTOR1.*toSlave|LMCSDOEXECUTOR2.*toSlave' 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Network\EtherCAT_Network\ONE_EtherCAT_Network_Table.st' 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Network\Motion_Network\ONE_Motion_Network_Table.st'`
+> - Ran `Get-Content -LiteralPath 'LMC_Library\LMC_API_Delivery\src\LmcHome.cs','LMC_Library\LMC_API_Delivery\src\LmcAxisHome.cs','LMC_Library\LMC_API_Delivery\src\LmcAdminHome.cs','LMC_Library\LMC_API_Delivery\src\LmcAxisDs402Home.cs' -Raw`
+> - Ran `rg -n -C 4 "LMC Home|HomeDS402|StartAxisHome|StartAxisDs402Home|HomeAsync|Read.*Home|Retire.*Home" 'LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp\*.cs' 'LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp\*.xaml'`
+> - Ran `rg -n "AdminLmcHome|Ds402Home|AxisHome|HomeDS402|StartAxisHome|0x7D13|0x7D15" 'LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests' 'LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests' | Select-Object -First 500`
+> - Ran ``$p='LMC_Library\LMC_API_Delivery\docs\DINT_PACKET_MAP.txt'; $a=Get-Content -LiteralPath $p; $a[270..500] -join "`n"``
+> - Ran ``$p='Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCControlCommandService\LMCControlCommandService.st'; $a=Get-Content -LiteralPath $p; $a[11760..12390] -join "`n"``
+> - Ran `rg -n -C 3 "LMC_ADMIN_AXIS_HOME_ENABLED|LMC_OWNER_CONFIGURED_PHYSICAL_AXIS_MASK|CONFIGURED_PHYSICAL" 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCControlCommandService\LMCControlCommandService.st' 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCEcatInputLatch\LMCEcatInputLatch.st' 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\TCPMotionInterface\TCPMotionInterface.st'`
+> - Ran `rg -n -C 5 "LMC Home|LMC_Home|HomeDS402|AxisDs402Home|Execute.*Home|Read.*Home|Retire.*Home" 'LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp' | Select-Object -First 700`
+> - Ran `rg -n -i -C 5 "lmc home|lmc_home|ds402 home|home status|homing method|axisds402home(?!ex)" 'LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp\MainWindow.MaintenanceActions.cs' 'LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp\MainWindow.xaml' 'LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp\UiLocalization.cs' --pcre2`
+> - Ran `rg -n "FUNCTION GLOBAL LMCEcatInputLatch::SubmitAxisZeroHome|FUNCTION GLOBAL LMCEcatInputLatch::CopyAxisZeroHomeResult|FUNCTION GLOBAL LMCEcatInputLatch::CancelAxisZeroHome|FUNCTION GLOBAL LMCEcatInputLatch::SubmitAxisDs402Home|StartAxisDs402Home|SetPosition\(" 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCEcatInputLatch\LMCEcatInputLatch.st'`
+>
+> </details>
+>
+> Context compaction
+>
+> Source: automatic
+> Status: completed
+>
+> 현재 소스를 다시 대조해 보니 두 기능의 핵심 상태 머신은 이미 존재하고, 실제 구현을 막는 핵심은 문서의 오래된 활성화 조건과 현재 1축 물리 토폴로지 불일치입니다. 이를 기준으로 새 통합 설계서를 만들고 기존 Home 설계서의 낡은 조건도 바로잡겠습니다.
+>
+> <details><summary>Ran 6 commands</summary>
+>
+> - Ran `$p='Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCEcatInputLatch/LMCEcatInputLatch.st'; Get-Content -LiteralPath $p | Select-Object -Skip 700 -First 190; Get-Content -LiteralPath $p | Select-Object -Skip 1310 -First 210; Get-Content -LiteralPath $p | Select-Object -Skip 2560 -First 280; Get-Content -LiteralPath 'docs/api/design/README.md'`
+> - Ran `git status --short; git rev-parse --abbrev-ref HEAD; git rev-parse HEAD; git log -5 --oneline; rg -n "LMC_(AXIS_OWNERSHIP_ORDINARY_ENABLED|OWNER_CONFIGURED_PHYSICAL_AXIS_MASK|CONFIGURED_PHYSICAL_DRIVE_MASK|DIAG_CONFIGURED_PHYSICAL_DRIVE_MASK|DIAG_DS402_HOME_ENABLED|DS402_HOME_STARTUP_SWEEP_ENABLED|ADMIN_AXIS_HOME_ENABLED)|PhysicalAxisCount|0x00000757|0x957F101E|0x96FC461C" Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class LMC_Library -g '*.st' -g '*.cs'; rg -n "0x7D13|0x7D15|0x7D16|0x7D17|0x7D18|0x7D19" LMC_Library/LMC_API_Delivery/docs/DINT_PACKET_MAP.txt`
+> - Ran `$files=@('docs/api/design/HOME_DS402_DESIGN.md','docs/api/design/HOME_DS402_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md','docs/api/design/HOME_DS402_H37_OPERATOR_ACTIVATION_IMPLEMENTATION_20260902.md'); foreach($f in $files){ Write-Output "FILE $f"; Get-Content -LiteralPath $f -TotalCount 90 }; $p='Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'; Get-Content -LiteralPath $p | Select-Object -Skip 10070 -First 50; rg -n "ReserveAxisOwnership|SubmitAxisZeroHome|HandleAxisDs402HomeStart|StartLmcHome|StartAxisDs402Home" Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st`
+> - Ran `$p='Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st'; Get-Content -LiteralPath $p | Select-Object -Skip 2615 -First 95; Get-Content -LiteralPath $p | Select-Object -Skip 3135 -First 115; $d='Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'; Get-Content -LiteralPath $d | Select-Object -Skip 5310 -First 300`
+> - Ran `$p='Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st'; Get-Content -LiteralPath $p | Select-Object -Skip 2920 -First 115; $c='Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'; Get-Content -LiteralPath $c | Select-Object -Skip 10970 -First 250`
+> - Ran `rg -n "PrepareLMC_Home|LMC_Home|ReadLMC_HomeOutcome|RetireLMC_HomeOutcome|PrepareAxisDs402Home|StartAxisDs402Home|ReadAxisDs402HomeOutcome|RetireAxisDs402HomeOutcome|Method 37|CurrentPositionZero" LMC_Library/LMC_API_Delivery/src LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp -g '*.cs'; rg -n "Elmo_11|Elmo_21|SlaveIndex|SimulateMode" Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network -g '*.st' | Select-Object -First 120; rg -n "HomeDS402Ex|moving|switch|index|method" docs/api/design/HOME_DS402_EX_DESIGN.md | Select-Object -First 80`
+>
+> </details>
+>
+> 설계서에는 `LMC_Home`, 기본 `DS402Home(Method 37)`, 이동형 `HomeDS402Ex`를 명확히 분리하겠습니다. 특히 Home/Referenced 상태는 Servo On의 선행조건이 아니며, 이동형 Homing은 오히려 먼저 Servo On이 필요한 별도 경로라는 점을 구현 규칙으로 고정합니다.
+>
+> <details><summary>Created a file, edited 3 files, ran a command</summary>
+>
+> - Wrote `./docs/api/design/HOME_DS402_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md` (+6 -0)
+> - Wrote `./docs/api/design/HOME_DS402_DESIGN.md` (+12 -1)
+> - Wrote `./docs/api/design/LMC_HOME_AND_DS402_HOME_IMPLEMENTATION_DESIGN_20260911.md` (+641 -0)
+> - Wrote `./docs/api/design/README.md` (+28 -9)
+> - Ran `git status --short -- docs/api/design; Get-Content -LiteralPath 'docs/api/design/LMC_HOME_AND_DS402_HOME_IMPLEMENTATION_DESIGN_20260911.md' -TotalCount 40; git diff --stat -- docs/api/design; git diff --check -- docs/api/design`
+>
+> </details>
+>
+> 초안 검증 중 한 가지 더 확인됐습니다. EtherCAT에서 Elmo 2번은 비활성화됐지만 Motion generated table의 `_LMCAxis2.SimulateMode` 초기값은 여전히 0으로 남아 있습니다. first-scan SimulationSetup 값과 생성 테이블을 구분해 문서가 실제 상태를 과장하지 않도록 이 부분을 다시 대조하겠습니다.
+>
+> <details><summary>Edited 2 files, ran 6 commands</summary>
+>
+> - Ran `rg -n -C 4 "SimulationSetup1|Simul_Axis_2|Axis_2" Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/Motion_Network/ONE_Motion_Network_Table.st Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/Motion_Network/Motion_Network.lcn Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/SimulationSetup/SimulationSetup.st; git show --stat --oneline 420c20f; git show --format=fuller --no-ext-diff --unified=5 420c20f -- Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/Motion_Network/ONE_Motion_Network_Table.st Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/EtherCAT_Network/ONE_EtherCAT_Network_Table.st | Select-Object -First 260`
+> - Wrote `./docs/api/design/HOME_DS402_H37_OPERATOR_ACTIVATION_IMPLEMENTATION_20260902.md` (+6 -0)
+> - Wrote `./docs/api/design/LMC_HOME_AND_DS402_HOME_IMPLEMENTATION_DESIGN_20260911.md` (+10 -5)
+> - Ran `Get-Content -LiteralPath 'LMC_Library/LMC_API_Delivery/docs/DINT_PACKET_MAP.txt' | Select-Object -Skip 280 -First 210; rg -n "StartLmcHomeExecuteToken|ExecuteTokenValue|HOME" LMC_Library/LMC_API_Delivery/src/LmcAdminHomeProtocol.cs Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st`
+> - Ran `rg -n -C 3 "LMC_HOME_EVIDENCE_COMPLETE|homeLatchResult\[7\]|EvidenceFlags" Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCEcatInputLatch/LMCEcatInputLatch.st`
+> - Ran `rg -n "LMC_ZERO_HOME_EVIDENCE" Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCEcatInputLatch/LMCEcatInputLatch.st; Get-Content -LiteralPath 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCEcatInputLatch/LMCEcatInputLatch.st' | Select-Object -Skip 310 -First 60; Get-Content -LiteralPath 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st' | Select-Object -Skip 11530 -First 70`
+> - Ran `rg -n "0x3F|0x3B|evidence" docs/api/design/LMC_HOME_AND_DS402_HOME_IMPLEMENTATION_DESIGN_20260911.md`
+> - Ran `rg -n "0000003F|EvidenceFlags|0x3B|0x3F" LMC_Library/LMC_API_Delivery/src/LmcAdminHome* LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests -g '*.cs' | Select-Object -First 120`
+>
+> </details>
+>
+> 추가 대조에서 문서 결함도 하나 확인했습니다. `DINT_PACKET_MAP.txt`는 LMC Home 성공 EvidenceFlags를 `0x3F`로 적었지만 PLC와 SDK 테스트의 실제 계약은 `0x3B`입니다. 또 DS402 Home gate가 FALSE라는 과거 문구도 현재 source의 TRUE와 충돌합니다. 구현자가 잘못 따라가지 않도록 이 두 항목도 함께 정정하겠습니다.
+>
+> <details><summary>Edited 2 files, ran 4 commands</summary>
+>
+> - Ran `Get-Content -LiteralPath 'LMC_Library/LMC_API_Delivery/docs/DINT_PACKET_MAP.txt' -TotalCount 45; Get-Content -LiteralPath 'LMC_Library/LMC_API_Delivery/docs/DINT_PACKET_MAP.txt' | Select-Object -Skip 475 -First 35; rg -n "RequiredEvidenceFlags|0x0000003B" LMC_Library/LMC_API_Delivery/src -g '*.cs'`
+> - Wrote `./LMC_Library/LMC_API_Delivery/docs/DINT_PACKET_MAP.txt` (+17 -5)
+> - Wrote `./docs/api/design/LMC_HOME_AND_DS402_HOME_IMPLEMENTATION_DESIGN_20260911.md` (+15 -2)
+> - Ran `$doc='docs/api/design/LMC_HOME_AND_DS402_HOME_IMPLEMENTATION_DESIGN_20260911.md'; $refs=@('LMC_Library/LMC_API_Delivery/src/LmcHome.cs','LMC_Library/LMC_API_Delivery/src/LmcAxisHome.cs','LMC_Library/LMC_API_Delivery/src/LmcAdminHome.cs','LMC_Library/LMC_API_Delivery/src/LmcAdminHomeProtocol.cs','LMC_Library/LMC_API_Delivery/src/LmcAxisDs402Home.cs','LMC_Library/LMC_API_Delivery/docs/DINT_PACKET_MAP.txt','Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st','Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st','Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st','Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCEcatInputLatch/LMCEcatInputLatch.st'); $refs | ForEach-Object { "{0} {1}" -f (Test-Path -LiteralPath $_), $_ }; git diff --check -- docs/api/design LMC_Library/LMC_API_Delivery/docs/DINT_PACKET_MAP.txt; rg -n "Home/Referenced|ordinary ownership|0x0000003B|0x00000003|0x00000001|Axis1 only|HomeDS402Ex" $doc; git diff --stat -- docs/api/design LMC_Library/LMC_API_Delivery/docs/DINT_PACKET_MAP.txt; git diff --name-only -- docs/api/design LMC_Library/LMC_API_Delivery/docs/DINT_PACKET_MAP.txt`
+> - Ran `rg -n "FUNCTION LMCControlCommandService::HandleAxisZeroHomeStart|detailCode :=|LMC_HOME" Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st | Select-Object -Skip 80 -First 160; rg -n "DetailCode|detail 4|Unsupported|Unavailable|Physical" LMC_Library/LMC_API_Delivery/src/LmcAdminHomeProtocol.cs LMC_Library/LMC_API_Delivery/src/LmcErrorCatalog.cs | Select-Object -First 140`
+> - Ran `rg -n "FUNCTION .*Home|0x7D13:" Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st | Select-Object -First 80; Get-Content -LiteralPath 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st' | Select-Object -Skip 11840 -First 160`
+> - Wrote `./docs/api/design/LMC_HOME_AND_DS402_HOME_IMPLEMENTATION_DESIGN_20260911.md` (+38 -0)
+>
+> </details>
+>
+> 설계 정합은 끝났습니다. 마지막으로 문서가 source의 실제 상수(`0x3B`, Axis1 물리 mask 목표, Home 전용 ownership 경로)와 맞는지 확인하고, 다른 사용자의 작업 파일을 건드리지 않았는지 diff 범위를 점검하겠습니다.
+>
+> <details><summary>Ran 2 commands</summary>
+>
+> - Ran `$ErrorActionPreference='Continue'; Write-Output 'DIFF_CHECK_ALL'; git diff --check; Write-Output 'CACHED_CHECK'; git diff --cached --check; Write-Output 'HOME_CONTRACT_ASSERTIONS'; $checks=@(@('PLC LMC evidence 0x3B',(Select-String -LiteralPath 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st' -SimpleMatch '#define LMC_HOME_EVIDENCE_COMPLETE 0x0000003B').Count -eq 1),@('RT LMC evidence 0x3B',(Select-String -LiteralPath 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCEcatInputLatch/LMCEcatInputLatch.st' -SimpleMatch '#define LMC_ZERO_HOME_EVIDENCE_COMPLETE   0x0000003B').Count -eq 1),@('SDK LMC evidence 0x3B',(Select-String -LiteralPath 'LMC_Library/LMC_API_Delivery/src/LmcAdminHomeModels.cs' -SimpleMatch 'RequiredEvidenceFlags = 0x0000003Bu').Count -eq 1),@('TCP ordinary gate false',(Select-String -LiteralPath 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st' -SimpleMatch '#define LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED FALSE').Count -eq 1),@('Control ordinary gate false',(Select-String -LiteralPath 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st' -SimpleMatch '#define LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED FALSE').Count -eq 1),@('DS402 gate true',(Select-String -LiteralPath 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st' -SimpleMatch '#define LMC_DIAG_DS402_HOME_ENABLED TRUE').Count -eq 1),@('DS402 startup sweep true',(Select-String -LiteralPath 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCEcatInputLatch/LMCEcatInputLatch.st' -SimpleMatch '#define LMC_DS402_HOME_STARTUP_SWEEP_ENABLED TRUE').Count -eq 1)); $checks | ForEach-Object { '{0}: {1}' -f $_[1],$_[0] }; Write-Output 'PACKET_MAP_HOME_LINES'; rg -n "EvidenceFlags is exactly|current source gate remains FALSE|DS402 Home method 37 source gates" LMC_Library/LMC_API_Delivery/docs/DINT_PACKET_MAP.txt; Write-Output 'DOCUMENT_HEADINGS'; rg -n "^#|^## " docs/api/design/LMC_HOME_AND_DS402_HOME_IMPLEMENTATION_DESIGN_20260911.md; Write-Output 'TOUCHED_DOCS'; git status --short -- LMC_Library/LMC_API_Delivery/docs/DINT_PACKET_MAP.txt docs/api/design`
+>
+> - Ran `git diff -- LMC_Library/LMC_API_Delivery/docs/DINT_PACKET_MAP.txt docs/api/design/README.md docs/api/design/HOME_DS402_DESIGN.md docs/api/design/HOME_DS402_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md docs/api/design/HOME_DS402_H37_OPERATOR_ACTIVATION_IMPLEMENTATION_20260902.md; $doc='docs/api/design/LMC_HOME_AND_DS402_HOME_IMPLEMENTATION_DESIGN_20260911.md'; $lines=(Get-Content -LiteralPath $doc).Count; $bytes=(Get-Item -LiteralPath $doc).Length; "NEW_DOC_LINES=$lines BYTES=$bytes"`
+>
+> Tool call
+>
+> Tool: open_in_codex
+> Status: completed
+>
+> </details>
+</details>
+
+설계문서 보완을 완료했습니다.
+
+핵심 변경:
+
+- [통합 구현 설계서](/C:/work/Elmo/Elmo_Master/docs/api/design/LMC_HOME_AND_DS402_HOME_IMPLEMENTATION_DESIGN_20260911.md:1) 신규 작성
+  - `LMC_Home`, `DS402Home Method 37`, 이동형 `HomeDS402Ex` 경계 정의
+  - Home/Referenced는 Servo On 선행조건이 아님을 명시
+  - 현재 1축 토폴로지에서 Axis1만 물리 Home 대상으로 설계
+  - specialized Home ownership은 ordinary ownership gate와 독립
+  - 파일별 구현 순서, 오류 처리, no-replay, PLC/물리 검증 기준 작성
+- [설계 인덱스](/C:/work/Elmo/Elmo_Master/docs/api/design/README.md:3)에 새 문서를 current 정본으로 등록
+- 기존 DS402 Home 문서 3개에 2026-09-11 override 추가
+- [DINT_PACKET_MAP.txt](/C:/work/Elmo/Elmo_Master/LMC_Library/LMC_API_Delivery/docs/DINT_PACKET_MAP.txt:1) 오류 수정
+  - LMC Home 성공 `EvidenceFlags`: 잘못된 `0x3F` → 실제 계약 `0x3B`
+  - DS402 Home gate FALSE라는 과거 설명 → 현재 source TRUE로 정정
+
+현재 확인된 구현 선행 과제는 물리축 mask 3곳과 `PhysicalAxisCount=2`를 현재 Axis1-only 구성에 맞추는 것입니다. 소스 구현, LASAL 빌드, PLC 다운로드, 물리축 테스트는 이번 요청 범위에서 수행하지 않았습니다.
+
+`git diff --check`와 staged diff 검사는 통과했습니다. 기존 사용자 작업 파일은 변경하지 않았습니다.
+
+> 수정된 설계문서대로 구현 진행해줘
+>
+> User context
+>
+> Attachments:
+> - HOME_DS402_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md: `./docs/api/design/HOME_DS402_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md`
+> - HOME_DS402_DESIGN.md: `./docs/api/design/HOME_DS402_DESIGN.md`
+> - README.md: `./docs/api/design/README.md`
+> - LMC_HOME_AND_DS402_HOME_IMPLEMENTATION_DESIGN_20260911.md: `./docs/api/design/LMC_HOME_AND_DS402_HOME_IMPLEMENTATION_DESIGN_20260911.md`
+> - HOME_DS402_H37_OPERATOR_ACTIVATION_IMPLEMENTATION_20260902.md: `./docs/api/design/HOME_DS402_H37_OPERATOR_ACTIVATION_IMPLEMENTATION_20260902.md`
+
+<details><summary>15 previous messages</summary>
+
+> 설계서의 구현 순서대로 진행하겠습니다. 먼저 현재 작업 트리의 기존 변경과 겹치는 부분을 분리해 확인한 뒤, Axis1-only 물리축 계약·Home 전용 admission·Admin capability/count를 수정하고 관련 정적 검증과 C# 계약 테스트까지 갱신하겠습니다. LASAL IDE 빌드와 PLC 다운로드/물리축 검증은 이 환경에서 별도 단계로 남깁니다.
+>
+> <details><summary>Ran 9 commands</summary>
+>
+> - Ran `git status --short; git diff --numstat; git diff -- Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st; rg -n "FUNCTION GLOBAL LMCControlCommandService::ReserveAxisOwnership|FUNCTION LMCControlCommandService::ReserveAxisOwnership|RequestedAxisMask|LMC_OWNER_CONFIGURED_PHYSICAL_AXIS_MASK" Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st | Select-Object -First 120; rg -n "LMC_CONFIGURED_PHYSICAL|PHYSICAL_AXIS|PhysicalAxisCount|0x00000003|0x00000001" tools LMC_Library/LMC_API_Delivery/tests -g '*.ps1' -g '*.cs' | Select-Object -First 300`
+> - Ran `$c='Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'; Get-Content -LiteralPath $c | Select-Object -Skip 2790 -First 580; Get-Content -LiteralPath $c | Select-Object -Skip 11710 -First 330; $d='Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'; Get-Content -LiteralPath $d | Select-Object -Skip 500 -First 220; Get-Content -LiteralPath $d | Select-Object -Skip 8500 -First 260`
+> - Ran `rg -n "PhysicalAxisCount|ConfiguredSlaveCount|ConfiguredNodeCount|LMC_DIAG_TOPOLOGY|0x7E40|0x7E41|Topology" Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st | Select-Object -First 260; Get-Content -LiteralPath 'tools/Verify-CurrentPhysicalTopology.ps1' -TotalCount 330; Get-Content -LiteralPath 'tools/Verify-HomeDs402H37Activation.ps1' -TotalCount 180`
+> - Ran `Get-Content -LiteralPath 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st' | Select-Object -Skip 780 -First 150; Get-Content -LiteralPath 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st' | Select-Object -Skip 2490 -First 260; [xml]$x=Get-Content -LiteralPath 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/Eni.xml' -Raw; $x.EtherCATConfig.Config.Slave | ForEach-Object { [pscustomobject]@{Name=$_.Info.Name;PhysAddr=$_.Info.PhysAddr;AutoIncAddr=$_.Info.AutoIncAddr;Vendor=$_.Info.VendorId;Product=$_.Info.ProductCode;Revision=$_.Info.RevisionNo} } | Format-Table -AutoSize; [xml]$n=Get-Content -LiteralPath 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/EtherCAT_Network/EtherCAT_Network.lcn' -Raw; $n.SelectNodes("/Network/Components/Object[Channels/Client[@Name='SlaveIndex' and @Value!='DEACTIVATED_LSL']]") | ForEach-Object { $idx=$_.Channels.Client | Where-Object Name -eq 'SlaveIndex'; [pscustomobject]@{Name=$_.Name;Class=$_.Class;Index=$idx.Value} } | Format-Table -AutoSize`
+> - Ran `Get-Content -LiteralPath 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/DiagnosticsTopologyIoContractTests.cs' | Select-Object -Skip 150 -First 145; rg -n "CREVIS|GL_9086|0xEC|PhysicalAxisReference|NodeKind" LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/DiagnosticsTopologyIoContractTests.cs LMC_Library/LMC_API_Delivery/src/LmcDiagnosticsTopologyIoModels.cs LMC_Library/LMC_API_Delivery/docs/DINT_PACKET_MAP.txt | Select-Object -First 260; rg -n "CopyTopologyIoSnapshot|TopologyIoSnapshot|Drive1|GL_9086|Crevis" Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCEcatInputLatch/LMCEcatInputLatch.st | Select-Object -First 200`
+> - Ran `rg -n "Drive2|LMCAxis2|Coupler|InputSlot|OutputSlot" Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCEcatInputLatch/LMCEcatInputLatch.st | Select-Object -First 140; Get-Content -LiteralPath 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/DiagnosticsTopologyIoContractTests.cs' | Select-Object -Skip 2380 -First 110; Get-Content -LiteralPath 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/DiagnosticsTopologyIoContractTests.cs' | Select-Object -Skip 2860 -First 150`
+> - Ran `Get-Content -LiteralPath 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st' | Select-Object -Skip 300 -First 65; Get-Content -LiteralPath 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st' | Select-Object -Skip 11760 -First 120; rg -n "adminHomeAxisMask :=|case Reference of" Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st | Select-Object -Last 40; Get-Content -LiteralPath 'tools/Verify-CurrentPhysicalTopology.ps1' | Select-Object -Skip 210 -First 100`
+> - Ran `Get-Content -LiteralPath 'LMC_Library/LMC_API_Delivery/src/LmcDiagnosticsTopologyIoModels.cs' | Select-Object -Skip 360 -First 190; Get-Content -LiteralPath 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/DiagnosticsTopologyIoContractTests.cs' | Select-Object -Skip 2620 -First 125; rg -n "0x000100|GL_9086_11|Slot00|Slot01|CREVIS" LMC_Library/LasalApiWpfTestApp LMC_Library/LMC_API_Delivery/src LMC_Library/LMC_API_Delivery/tests -g '*.cs' | Select-Object -First 300`
+> - Ran `Get-Content -LiteralPath 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/TopologyIoQualificationTool.cs' | Select-Object -Skip 1620 -First 115; rg -n "TopologyRevision|15867EEC|96FC461C|ComputeEtherCATTopologyRevision" LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/TopologyIoQualificationTool.cs LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/DiagnosticsTopologyIoContractTests.cs | Select-Object -First 100; Get-Content -LiteralPath 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/TopologyIoQualificationTool.cs' | Select-Object -Skip 1540 -First 105`
+>
+> </details>
+>
+> 구현 범위를 확정했습니다. Home Start는 Axis2에서 owner·retained record·RT mailbox를 만들기 전에 detail 4로 거부하고, Outcome/Retire는 과거 retained record 복구를 위해 막지 않습니다. ordinary ownership 두 gate는 FALSE를 유지합니다.
+>
+> <details><summary>Edited 4 files, ran 2 commands</summary>
+>
+> - Wrote `./Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st` (+26 -12)
+> - Wrote `./Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st` (+1 -1)
+> - Wrote `./Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCEcatInputLatch/LMCEcatInputLatch.st` (+1 -1)
+> - Wrote `./Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st` (+18 -0)
+> - Ran `rg -n "Verify-HomeDs402H37Activation|five tracked HomeDS402|five-value activation|HomeDS402 activation" .github tools LMC_Library -g '*.ps1' -g '*.cs' -g '*.yml' -g '*.yaml' | Select-Object -First 200; rg -n "PhysicalAxisCount matches the two-drive|InputLatch physical drive mask is 0x00000003|current two-drive" tools -g '*.ps1'`
+> - Ran `Get-Content -LiteralPath 'tools/Verify-HomeDs402H37CurrentDevRegression.ps1' -TotalCount 130; rg -n "Verify-CurrentPhysicalTopology" tools .github -g '*.ps1' -g '*.yml' | Select-Object -First 80`
+>
+> </details>
+>
+> Context compaction
+>
+> Source: automatic
+> Status: completed
+>
+> 핵심 소스 변경은 적용된 상태입니다. 지금부터 LASAL 문법과 분기 순서를 다시 확인하고, 1축 구성·Home 전용 admission·Servo On 독립성을 검증하는 정적 검사기를 추가한 뒤 가능한 PC 테스트까지 실행하겠습니다.
+>
+> <details><summary>Ran 8 commands</summary>
+>
+> - Ran `git diff --check -- "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st" "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st" "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCEcatInputLatch/LMCEcatInputLatch.st" "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st"
+>
+> git diff --unified=5 -- "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st" "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCEcatInputLatch/LMCEcatInputLatch.st" "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st"
+>
+> rg -n "LMC_HOME_CONFIGURED_PHYSICAL_AXIS_MASK|Specialized Home reservations|configured nonphysical|LMC_OWNER_CONFIGURED_PHYSICAL_AXIS_MASK|PhysicalAxisCount|pResponseFrame \+ 36|LMC_ADMIN_AXIS_HOME_ENABLED" "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st" "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st"`
+> - Ran `$p='Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'; $lines=Get-Content -LiteralPath $p; foreach($range in @(@(3170,3235),@(10080,10120),@(11835,11925))){ $s=$range[0];$e=$range[1]; for($i=$s;$i -le $e;$i++){ '{0,6}: {1}' -f $i,$lines[$i-1] } }
+>
+> Get-Content -LiteralPath 'tools/Verify-HomeDs402H37Activation.ps1' -Raw
+>
+> Get-Content -LiteralPath 'tools/Verify-HomeDs402H37CurrentDevRegression.ps1' -Raw`
+> - Ran `rg --files "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network" | sort
+> rg -n "Axis_[1-4]|Elmo_1|Elmo_2|GL_9086|Deactivated|SimulateMode" "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network" -g "*.lcn" -g "*.table"
+> rg -n "FUNCTION LMCControlCommandService::HandleAxisZeroHomeCommands|RequestKind = 0|RequestKind = 1|RequestKind = 2|SubmitAxisZeroHome" "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st"
+> rg -n "FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeStart|LMC_DIAG_DS402_STAGE_RESERVE_INTENT|journalEligible" "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st"`
+> - Ran `Get-Content -LiteralPath 'tools/Verify-CurrentPhysicalTopology.ps1' -TotalCount 260
+>
+> $p='Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'; $l=Get-Content $p; for($i=5324;$i -le 5650;$i++){ '{0,6}: {1}' -f $i,$l[$i-1] }`
+> - Ran `rg -n "H-CFG|PhysicalAxisCount|0x00000001|TOPO|검증|구현 순서|구현 체크|Diagnostics|Axis2|Servo|Power|완료 기준|수정 대상" "docs/api/design/LMC_HOME_AND_DS402_HOME_IMPLEMENTATION_DESIGN_20260911.md"
+>
+> $p='docs/api/design/LMC_HOME_AND_DS402_HOME_IMPLEMENTATION_DESIGN_20260911.md'; $l=Get-Content -LiteralPath $p; foreach($range in @(@(1,120),@(300,460),@(560,697))){ for($i=$range[0];$i -le [Math]::Min($range[1],$l.Count);$i++){ '{0,5}: {1}' -f $i,$l[$i-1] } }`
+> - Ran `$eni=[xml](Get-Content -Raw 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/Eni.xml'); $eni.EtherCATConfig.Config.Slave | ForEach-Object { [pscustomobject]@{Name=$_.Info.Name;Phys=$_.Info.PhysAddr;Auto=$_.Info.AutoIncAddr;Vendor=$_.Info.VendorId;Product=$_.Info.ProductCode;Revision=$_.Info.RevisionNo} } | Format-Table -AutoSize
+> $net=[xml](Get-Content -Raw 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/EtherCAT_Network/EtherCAT_Network.lcn'); $net.SelectNodes("/Network/Components/Object[Channels/Client[@Name='SlaveIndex']]") | ForEach-Object { $c=$_.Channels.Client | Where-Object Name -eq 'SlaveIndex'; [pscustomobject]@{Name=$_.Name;Class=$_.Class;Index=$c.Value} } | Format-Table -AutoSize
+> rg -n 'EtherCAT_Network\.(GL_9086_11|Elmo_11|Elmo_21)\.SlaveIndex' 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/EtherCAT_Network/ONE_EtherCAT_Network_Table.st'
+> rg -n 'SimulationSetup1\.Axis_[1-9]|_LMCAxis[1-9]\.SimulateMode' 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/Motion_Network/ONE_Motion_Network_Table.st'`
+> - Ran `rg -n "Axis Power|AXIS_POWER|HandleAxisPower|PowerOn|Power On|Referenced|Home" "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st" | Select-Object -First 120
+> rg -n "0x2023|LMC_OWNER_COMMAND_AXIS_POWER|AxisPower" "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st" | Select-Object -First 100`
+> - Ran `$p='Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'; $l=Get-Content $p; for($i=1700;$i -le 1970;$i++){ '{0,6}: {1}' -f $i,$l[$i-1] }
+> $p2='Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st'; $l2=Get-Content $p2; for($i=1425;$i -le 1495;$i++){ '{0,6}: {1}' -f $i,$l2[$i-1] }`
+>
+> </details>
+>
+> 현재 설계의 “첫 changeset” 범위에 맞춰 진행합니다. 즉 기존 Home 상태 머신을 재작성하지 않고, Axis1만 물리축으로 인정하고 Axis2 요청을 소유권·저널·RT 실행 전에 거부하는 계약을 고정합니다. 이동형 HomeDS402Ex와 Servo Power 정책 변경은 이번 변경에 포함하지 않습니다.
+>
+> <details><summary>Created a file, edited 3 files, ran 9 commands</summary>
+>
+> - Wrote `./tools/Verify-HomeDs402H37Activation.ps1` (+16 -46)
+> - Wrote `./tools/Verify-HomeDs402H37CurrentDevRegression.ps1` (+4 -4)
+> - Wrote `./tools/Verify-HomeOneAxisImplementation.ps1` (+164 -0)
+> - Ran `Test-Path -LiteralPath 'tools/Verify-HomeOneAxisImplementation.ps1'
+> git diff --check -- tools/Verify-HomeOneAxisImplementation.ps1 tools/Verify-HomeDs402H37Activation.ps1 tools/Verify-HomeDs402H37CurrentDevRegression.ps1
+> & 'tools/Verify-HomeOneAxisImplementation.ps1'`
+> - Ran `$p='Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st'; $l=Get-Content $p; for($i=2890;$i -le 3035;$i++){ '{0,6}: {1}' -f $i,$l[$i-1] }`
+> - Wrote `./tools/Verify-HomeOneAxisImplementation.ps1` (+2 -2)
+> - Ran `& 'tools/Verify-HomeOneAxisImplementation.ps1'`
+> - Ran `& 'tools/Verify-HomeDs402H37Activation.ps1'
+> & 'tools/Verify-HomeDs402H37CurrentDevRegression.ps1'`
+> - Ran `rg -n -C 5 "rebase admission exceptions|encoder maintenance and Axis/Group Reset" tools/Verify-HomeDs402H37Ownership.ps1
+> rg -n -C 8 "ENCODER|REBASE|AxisRebase|Rebase|0x2024|0x2049" "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st" | Select-Object -Last 160`
+> - Ran `rg -n -C 15 "rebaseAdmissionAllowed :=" "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st"`
+> - Ran `rg -n "rebaseAdmission|RebaseRequired|REBASE" "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st" | Select-Object -First 120`
+> - Ran `git diff --unified=3 -- 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st' | Select-String -Pattern 'rebaseAdmission|REBASE|Startup|terminalCandidate|safeFailure' -Context 4,8
+> $p='Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'; $l=Get-Content $p; for($i=3060;$i -le 3160;$i++){ '{0,6}: {1}' -f $i,$l[$i-1] }; for($i=3520;$i -le 3700;$i++){ '{0,6}: {1}' -f $i,$l[$i-1] }`
+> - Ran `git show HEAD:Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st | Select-String -Pattern 'rebaseAdmissionAllowed|AxisRebaseRequired' -Context 3,3 | Select-Object -First 80
+>
+> git diff -- tools/Verify-HomeDs402H37Ownership.ps1`
+>
+> </details>
+>
+> 통합 검사에서 기존 H37 ownership 검사기의 오래된 가정 하나가 발견됐습니다. 현 HEAD에도 이미 존재하지 않는 `rebaseAdmissionAllowed` 변수를 요구하고 있어 실패한 것이며, 이번 Home 변경 실패는 아닙니다. 현재 소스 계약인 “SetPosition 후 rebase 필요 설정, LMC Home 성공 후 해제”를 검사하도록 해당 항목을 갱신하겠습니다.
+>
+> <details><summary>Edited a file, ran 4 commands</summary>
+>
+> - Wrote `./tools/Verify-HomeDs402H37Ownership.ps1` (+2 -1)
+> - Ran `& 'tools/Verify-HomeDs402H37CurrentDevRegression.ps1'`
+> - Ran `rg --files "LMC_Library/LMC_API_Delivery" -g "*.sln" -g "*.csproj" -g "*.vcxproj"
+> rg --files "LMC_Library/LasalApiWpfTestApp" -g "*.sln" -g "*.csproj"
+> rg -n "Home|Ds402Home|PhysicalAxisCount|Axis2" "LMC_Library/LMC_API_Delivery/tests" -g "*.cs" | Select-Object -First 160`
+> - Ran `Get-Content 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/LasalMotionControlLib.Tests.csproj'
+> Get-Content 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Program.cs' -TotalCount 160
+> Get-Content 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/LasalApiWpfTestApp.SmokeTests.csproj'
+> Get-Content 'LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/Program.cs' -TotalCount 120`
+> - Ran `$candidates=@("${env:ProgramFiles}\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe","${env:ProgramFiles}\Microsoft Visual Studio\2022\Professional\MSBuild\Current\Bin\MSBuild.exe","${env:ProgramFiles}\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\MSBuild.exe","${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\MSBuild.exe"); $candidates | Where-Object { Test-Path -LiteralPath $_ }
+> where.exe msbuild 2>$null
+> where.exe dotnet 2>$null`
+>
+> </details>
+>
+> 정적 통합 검사는 현재까지 통과했습니다. 다음 PC 검증은 실제 PLC를 건드리지 않는 SDK/WPF 테스트만 실행하며, LASAL IDE 빌드·다운로드와 물리축 검증은 별도 단계로 남깁니다.
+>
+> <details><summary>Edited a file, ran 17 commands</summary>
+>
+> - Ran `dotnet msbuild "LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/LasalMotionControlLib.Tests.csproj" /t:RunPcTests /p:Configuration=Debug /p:Platform=AnyCPU /v:minimal`
+> - Ran `& 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/bin/Debug/LasalMotionControlLib.Tests.exe' 2>&1 | Select-String -Pattern '^(FAIL|TOTAL) '`
+> - Ran `rg -n -C 4 "PhysicalAxisCount|physical axis|Axis2|_LMCAxis2|reference" "LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/AdminLmcHomeContractTests.cs" "LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/AdminDs402HomeH37QualificationTests.cs" "LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/AdminDs402HomeOutcomeRetirementContractTests.cs" "LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/AdminDs402HomeCurrentPositionZeroContractTests.cs"`
+> - Ran `$p='LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/AdminLmcHomeContractTests.cs'; $l=Get-Content $p; for($i=600;$i -le 665;$i++){ '{0,5}: {1}' -f $i,$l[$i-1] }
+> $p2='LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/AdminDs402HomeH37QualificationTests.cs'; $l2=Get-Content $p2; for($i=1;$i -le [Math]::Min(240,$l2.Count);$i++){ '{0,5}: {1}' -f $i,$l2[$i-1] }`
+> - Ran `Get-Content 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/AdminLmcHomeContractTests.cs' -TotalCount 100
+> rg -n "private static FakeRpcStep CapabilitiesStep|CapabilitiesStep\(" 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/AdminLmcHomeContractTests.cs'
+> rg -n "PrepareDs402Home|PhysicalAxis|CapabilityOff|ZeroWire" 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/AdminDs402HomeOutcomeRetirementContractTests.cs' | Select-Object -First 100`
+> - Ran `$p='LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/AdminLmcHomeContractTests.cs'; $l=Get-Content $p; for($i=900;$i -le 960;$i++){ '{0,5}: {1}' -f $i,$l[$i-1] }
+> rg -n "PrepareLMC_Home|PrepareDs402|PhysicalAxisCount" "LMC_Library/LMC_API_Delivery/src" -g "*.cs"`
+> - Ran `rg -n "byte\[\] CapabilitiesPayload|CapabilitiesPayload\(" 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/AdminLmcHomeContractTests.cs'
+> $p='LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/AdminLmcHomeContractTests.cs'; $l=Get-Content $p; for($i=840;$i -le 915;$i++){ '{0,5}: {1}' -f $i,$l[$i-1] }
+> Get-Content 'LMC_Library/LMC_API_Delivery/src/LmcAxisDs402Home.cs' -TotalCount 100
+> Get-Content 'LMC_Library/LMC_API_Delivery/src/LmcAxisHome.cs' -TotalCount 90`
+> - Ran `$p='LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/AdminDs402HomeOutcomeRetirementContractTests.cs'; $l=Get-Content $p; for($i=480;$i -le 540;$i++){ '{0,5}: {1}' -f $i,$l[$i-1] }
+> rg -n "private static FakeRpcStep AdminCapabilitiesStep|AdminCapabilitiesStep\(" $p | Select-Object -Last 30`
+> - Ran `rg -n -C 6 "PrepareDs402Home\(" "LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests" -g "*.cs" | Select-Object -First 180`
+> - Ran `rg -n -C 5 "PrepareLMC_HomeDS402|PrepareAxisDs402Home" "LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests" -g "*.cs" | Select-Object -First 180`
+> - Ran `$p='LMC_Library/LMC_API_Delivery/src/LmcAdminDs402Home.cs'; $l=Get-Content $p; for($i=350;$i -le 430;$i++){ '{0,5}: {1}' -f $i,$l[$i-1] }
+> $p2='LMC_Library/LMC_API_Delivery/src/LmcAdminHome.cs'; $l2=Get-Content $p2; for($i=570;$i -le 630;$i++){ '{0,5}: {1}' -f $i,$l2[$i-1] }`
+> - Wrote `./LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/AdminLmcHomeContractTests.cs` (+56 -5)
+> - Ran `Get-Content 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/AdminLmcHomeContractTests.cs' -TotalCount 150
+> git diff --check -- 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/AdminLmcHomeContractTests.cs'`
+> - Ran `dotnet msbuild "LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/LasalMotionControlLib.Tests.csproj" /t:Build /p:Configuration=Debug /p:Platform=AnyCPU /v:minimal
+> if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+> & 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/bin/Debug/LasalMotionControlLib.Tests.exe' 2>&1 | Select-String -Pattern '^(PASS Rpc.Admin.Home.OnePhysicalAxisRejectsAxis2BeforeStart|FAIL|TOTAL) '`
+> - Wrote `./LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/AdminLmcHomeContractTests.cs` (+0 -1)
+> - Ran `dotnet msbuild "LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/LasalMotionControlLib.Tests.csproj" /t:Build /p:Configuration=Debug /p:Platform=AnyCPU /v:minimal
+> if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+> & 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/bin/Debug/LasalMotionControlLib.Tests.exe' 2>&1 | Select-String -Pattern '^(PASS Rpc.Admin.Home.OnePhysicalAxisRejectsAxis2BeforeStart|FAIL|TOTAL) '`
+> - Ran `& 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/bin/Debug/LasalMotionControlLib.Tests.exe' 2>&1 | Select-String -Pattern 'OnePhysicalAxis|^(FAIL|TOTAL) '`
+> - Ran `dotnet msbuild "LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp.SmokeTests/LasalApiWpfTestApp.SmokeTests.csproj" /t:RunWpfSmokeTests /p:Configuration=Debug /p:Platform=AnyCPU /v:minimal`
+> - Ran `rg --files tools | rg "Servo|Power|Ownership|Home"
+> git status --short
+>
+> git diff --stat
+>
+> git diff --check
+> git diff --cached --check`
+>
+> </details>
+>
+> PC 쪽에서는 새 Axis2 선차단 테스트가 통과했습니다. 전체 SDK 회귀는 1203개 중 1199개 통과했고, Home과 무관한 Diagnostics parser 항목 4개가 실패했습니다. WPF는 이 PC에 Visual Studio MSBuild가 없고 `dotnet msbuild`가 구형 WPF XAML 생성 단계를 수행하지 못해 빌드 단계에서 막혔습니다. 이 경계를 설계문서에 그대로 기록하겠습니다.
+>
+> <details><summary>Edited 2 files, ran 8 commands</summary>
+>
+> - Ran `dotnet msbuild "LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/LasalMotionControlLib.Tests.csproj" /t:Build /p:Configuration=Release /p:Platform=AnyCPU /v:minimal
+> if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+> & 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/bin/Release/LasalMotionControlLib.Tests.exe' 2>&1 | Select-String -Pattern 'OnePhysicalAxis|^(FAIL|TOTAL) '`
+> - Ran `rg -n "LMC_DIAG_TOPOLOGY_REVISION|CatalogIndex = 0x0200|0x7E12:|pTopologyEntry|requestedNodeId|0xEC00010|GL_9086|Elmo_11|Elmo_21|healthOffset" "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st" | Select-Object -First 240`
+> - Ran `git log --oneline --all -S 'GL_9086_11' -- 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st' | Select-Object -First 20
+> $p='Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'; $l=Get-Content $p; for($i=800;$i -le 910;$i++){ '{0,5}: {1}' -f $i,$l[$i-1] }; for($i=1980;$i -le 2050;$i++){ '{0,5}: {1}' -f $i,$l[$i-1] }`
+> - Ran `git show ba39d41:Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st | Select-String -Pattern 'LMC_DIAG_TOPOLOGY_REVISION|FUNCTION LMCDiagnosticsService::BuildCatalogEntry' -Context 0,130 | Select-Object -First 180`
+> - Ran `rg -n "96FC461C|15867EEC|topology revision|TopologyRevision" docs LMC_Library tools -g "*.md" -g "*.cs" -g "*.ps1" -g "*.txt" | Select-Object -First 200`
+> - Wrote `./docs/api/design/LMC_HOME_AND_DS402_HOME_IMPLEMENTATION_DESIGN_20260911.md` (+35 -0)
+> - Ran `Get-Content 'docs/api/design/README.md' -TotalCount 160
+>
+> git diff --unified=4 -- 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/AdminLmcHomeContractTests.cs' 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st' 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCEcatInputLatch/LMCEcatInputLatch.st' 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st' 'tools/Verify-HomeDs402H37Activation.ps1' 'tools/Verify-HomeDs402H37CurrentDevRegression.ps1' 'tools/Verify-HomeDs402H37Ownership.ps1' 'tools/Verify-HomeOneAxisImplementation.ps1' 'docs/api/design/LMC_HOME_AND_DS402_HOME_IMPLEMENTATION_DESIGN_20260911.md'`
+> - Wrote `./docs/api/design/README.md` (+5 -0)
+> - Ran `& 'tools/Verify-HomeDs402H37CurrentDevRegression.ps1' | Select-String -Pattern 'static verifier PASS|activation verifier PASS|ownership verifier PASS|method-size verifier PASS|qualification PASSED|current-dev regression PASS'
+> if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+> git diff --check
+> if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+> git diff --cached --check
+> if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+> rg -n "LMC_HOME_CONFIGURED_PHYSICAL_AXIS_MASK|Reject a configured nonphysical|LMC_OWNER_CONFIGURED_PHYSICAL_AXIS_MASK|Specialized Home reservations|Defense in depth|pResponseFrame \+ 36\)\^\$UINT := 1" "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st" "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st"
+> rg -n "LMC_DIAG_CONFIGURED_PHYSICAL_DRIVE_MASK|LMC_CONFIGURED_PHYSICAL_DRIVE_MASK" "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st" "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCEcatInputLatch/LMCEcatInputLatch.st"
+> rg -n "OnePhysicalAxisRejectsAxis2BeforeStart|first changeset 구현 상태|Verify-HomeOneAxisImplementation" "LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/AdminLmcHomeContractTests.cs" "docs/api/design/LMC_HOME_AND_DS402_HOME_IMPLEMENTATION_DESIGN_20260911.md" "docs/api/design/README.md"`
+> - Ran `$m='C:\Users\dreiv\.codex\memories\MEMORY.md'; $l=Get-Content -LiteralPath $m; for($i=70;$i -le 78;$i++){ '{0}: {1}' -f $i,$l[$i-1] }
+> $rp='C:\Users\dreiv\.codex\memories\rollout_summaries\2026-09-02T23-06-29-x7Al-elmo_master_github_status_and_servo_power_reservation_fix.md'; $rl=Get-Content -LiteralPath $rp; for($i=15;$i -le 22;$i++){ '{0}: {1}' -f $i,$rl[$i-1] }`
+>
+> </details>
+</details>
+
+설계문서의 첫 구현 범위인 H-CFG와 Axis2 deterministic rejection을 반영했습니다.
+
+주요 변경:
+
+- physical axis mask를 Axis1 전용 `0x00000001`로 통일
+  - [TCPMotionInterface.st](./Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st:332)
+  - [LMCControlCommandService.st](./Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st:735)
+  - [LMCDiagnosticsService.st](./Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st:671)
+  - [LMCEcatInputLatch.st](./Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCEcatInputLatch/LMCEcatInputLatch.st:337)
+- Admin `PhysicalAxisCount`를 1로 변경했습니다.
+- Axis2~4 LMC Home은 owner reservation 전에 detail 4로 거부하며 service/RT mailbox를 호출하지 않습니다.
+- 공통 ownership에서도 LMC Home과 DS402 Home의 물리축 subset을 재검증합니다.
+- DS402 Home은 기존 preflight에서 Axis2~4를 intent stage 87 생성 전에 거부합니다.
+- Servo Power에는 Home/Referenced 조건을 추가하지 않았습니다. 현재 dispatch에도 해당 조건이 없으며 이를 정적 검사로 고정했습니다.
+- ordinary ownership gate는 `FALSE` 상태를 유지했습니다.
+- SDK에 Axis2 LMC Home/DS402 Home이 Start 송신 전에 차단되는 테스트를 추가했습니다: [AdminLmcHomeContractTests.cs](./LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/AdminLmcHomeContractTests.cs:75)
+
+검증 결과:
+
+- 신규 one-axis 정적 검사: 71/71 PASS
+- H37 activation: 18/18 PASS
+- ownership: 22/22 PASS
+- method-size: 10/10 PASS
+- WPF durable recovery source 검사: 36/36 PASS
+- H37 current-dev 통합 검사: PASS
+- `git diff --check`, `git diff --cached --check`: PASS
+- SDK Debug/Release 빌드: PASS
+- 신규 Axis2 선차단 테스트: Debug/Release PASS
+- SDK 전체 회귀: 1203개 중 1199개 PASS, 4개 FAIL
+  실패 4개는 Home 경로가 아닌 기존 Diagnostics capability/parser fuzz 항목입니다. 따라서 전체 회귀는 PASS로 판정하지 않았습니다.
+
+설계문서에도 구현·검증 결과와 남은 경계를 기록했습니다: [LMC_HOME_AND_DS402_HOME_IMPLEMENTATION_DESIGN_20260911.md](./docs/api/design/LMC_HOME_AND_DS402_HOME_IMPLEMENTATION_DESIGN_20260911.md:49)
+
+아직 완료되지 않은 증거는 다음입니다.
+
+- LASAL IDE Compile/Rebuild
+- tracked `.st`와 C78/`Classes.lcb` 동기화
+- PLC 다운로드와 fresh BootId
+- Axis1 LMC Home/DS402 Home 실기 동작
+- 물리축 무이동 확인
+- 기존 two-Elmo Diagnostics topology serializer의 CREVIS+Elmo one-drive 재생성
+- WPF smoke build: 현재 PC에는 Visual Studio MSBuild가 없고 `dotnet msbuild`에서 XAML generated partial class 생성이 되지 않아 실패했습니다.
+
+기존 사용자 작업과 생성물 변경은 덮어쓰지 않았습니다.
+
+> ds402 home이 실패했는데 왜 실패한건지 내용 확인해줘
+>
+> User context
+>
+> Attachments:
+> - [15:38:45.530] Executable identity: Path=C:\work\Elmo\Elmo_Master\LMC_Library\L…: `C:/Users/dreiv/.codex/attachments/94cba45a-0ead-4468-8666-ab79202e5786/pasted-text.txt`
+
+<details><summary>7 previous messages</summary>
+
+> 첨부 로그에서 DS402 Home의 Start ACK, terminal outcome, 실패 detail, mode/controlword 복구 순서를 먼저 분리해 확인하겠습니다. 그다음 현재 PLC/C# 소스의 해당 detail 코드와 대조해서 실패 지점을 특정하겠습니다.
+>
+> <details><summary>Ran a command</summary>
+>
+> - Ran `rg -n "DS402|Home|FAILED|failed|Error|Detail|Status|0x7D1[567]|6060|6061|607C|6098|6040|BootId|quarantine|owner|ACK|Outcome|Retire" "C:\Users\dreiv\.codex\attachments\94cba45a-0ead-4468-8666-ab79202e5786\pasted-text.txt"
+>
+> Get-Content -LiteralPath "C:\Users\dreiv\.codex\attachments\94cba45a-0ead-4468-8666-ab79202e5786\pasted-text.txt" -Raw`
+>
+> </details>
+>
+> Context compaction
+>
+> Source: automatic
+> Status: completed
+>
+> 로그상 실패는 “DS402 Home 시작 거부”가 아니라, 시작 승인 뒤 완료 결과를 읽는 단계에서 발생했습니다. `DetailCode=26`의 정확한 정의와 어떤 식별자 비교에서 반환되는지 현재 소스에 대조하겠습니다.
+>
+> <details><summary>Ran 3 commands</summary>
+>
+> - Ran `rg -n -C 4 "DetailCode.?=.?26|DetailCode.*26|= 26[,;)]|26.*Detail|TopologyRevisionMismatch|Ds402HomeOutcome|DS402.*Outcome|0x7D16" LMC_Library Lasal_PRG docs C:\Users\dreiv\.codex\memories\MEMORY.md`
+> - Ran `rg -n -C 3 "Ds402HomeOutcomeKeyMismatch|enum LMCAdminDetailCode|LMCAdminDetailCode" LMC_Library/LMC_API_Delivery/src LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class --glob '!**/bin/**' --glob '!**/obj/**'
+> rg -n -C 5 "LMC_ADMIN_DETAIL_.*26|DETAIL.*26|:= 26;|= 26," Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class LMC_Library/LMC_API_Delivery/src --glob '*.st' --glob '*.cs'`
+> - Ran `$p='Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'; Get-Content -LiteralPath $p | Select-Object -Skip 5960 -First 115
+> Get-Content -LiteralPath 'LMC_Library/LMC_API_Delivery/src/LmcErrorCatalog.cs' | Select-Object -Skip 270 -First 38
+> Get-Content -LiteralPath 'LMC_Library/LMC_API_Delivery/src/LmcAdminModels.cs' | Select-Object -Skip 80 -First 35
+> rg -n -C 4 "DS402 Home started|DS402 Home PASS|Read Home Status|DetailCode=26|Capabilities refreshed|BootId=|MapRevision=" 'C:\Users\dreiv\.codex\attachments\94cba45a-0ead-4468-8666-ab79202e5786\pasted-text.txt'`
+>
+> </details>
+>
+> `26`은 이 Admin 응답에서는 topology 오류가 아니라 `Ds402HomeOutcomeIndeterminate`입니다. PLC가 retained record를 아직 실행 중(`state=1`)으로 유지하면서 내부 실행 stage가 `101`에 머문 경우에만 이 응답이 나오는 경로가 확인됐습니다. 이제 stage 101이 무엇을 기다리는지 추적하겠습니다.
+>
+> <details><summary>Ran 16 commands</summary>
+>
+> - Ran `$p='Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'; rg -n -C 7 "Ds402HomeState\[92\].*101|101:|Ds402HomeState\[92\].*:=|HandleAxisDs402HomeStart|ProcessDs402Home" $p
+> rg -n -C 5 "SubmitDs402Home|GetDs402Home.*State|Ds402HomeControl" Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class --glob '*.st'`
+> - Ran `$p='Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'; Get-Content -LiteralPath $p | Select-Object -Skip 6235 -First 310
+> $p2='Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCEcatInputLatch/LMCEcatInputLatch.st'; Get-Content -LiteralPath $p2 | Select-Object -Skip 2290 -First 220`
+> - Ran `rg -n -C 6 "FUNCTION GLOBAL .*CopyAxisOwnershipPreemption|CopyAxisOwnershipPreemption|LMC_DIAG_PREEMPT_" Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st
+> rg -n -C 3 "ProcessAxisDs402Home\(" Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st
+> rg -n -C 4 "Ds402HomeState\[92\]" docs/api/design/*.md`
+> - Ran `$p='Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'; Get-Content -LiteralPath $p | Select-Object -Skip 12918 -First 230
+> rg -n "DS402 Home|Ds402HomeState|stage 101|quarantin|indeterminate" docs/api/design --glob '*.md'`
+> - Ran `$p='Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'; $lines=Get-Content -LiteralPath $p; $start=12918; $end=13380; for($i=$start;$i -le $end;$i++){ if($lines[$i-1] -match 'Result :=|LMC_OWNER_PREEMPT_STATUS_NONE|oldFound|tupleValid'){ '{0}:{1}' -f $i,$lines[$i-1] } }
+> Get-Content -LiteralPath $p | Select-Object -Skip 13270 -First 120`
+> - Ran `$p='Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'; Get-Content -LiteralPath $p | Select-Object -Skip 13380 -First 260`
+> - Ran `$p='Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st'; Get-Content -LiteralPath $p | Select-Object -Skip 13635 -First 245`
+> - Ran `rg -n -i "DS402 Home|Ds402Home|HomeDS402|DetailCode=26|outcome indeterminate|stage 101" C:\Users\dreiv\.codex\memories\MEMORY.md`
+> - Ran `$f='C:\Users\dreiv\.codex\attachments\94cba45a-0ead-4468-8666-ab79202e5786\pasted-text.txt'; $lines=Get-Content -LiteralPath $f; 250..300 | ForEach-Object { if($_ -le $lines.Count){ '{0}:{1}' -f $_,$lines[$_-1] } }
+> $p='Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'; $lines2=Get-Content -LiteralPath $p; foreach($i in 6024..6029 + 6282..6338){ if($i -le $lines2.Count){'{0}:{1}' -f $i,$lines2[$i-1]}}`
+> - Ran `git status --short
+> git diff -- Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st
+> rg -n -C 4 "LMC_OWNER_PREEMPT_HEADER_BASE|OwnershipPreemptedIdentityState\[.*\] := 0|_memset\(dest:=#OwnershipPreempted" Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st`
+> - Ran `$p='Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'; Get-Content -LiteralPath $p | Select-Object -Skip 5323 -First 530`
+> - Ran `$p='Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'; $lines=Get-Content -LiteralPath $p; foreach($range in @(@(7040,7095),@(7650,7805),@(7820,7890))){for($i=$range[0];$i -le $range[1];$i++){'{0}:{1}' -f $i,$lines[$i-1]}}`
+> - Ran `$p='Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'; $lines=Get-Content -LiteralPath $p; for($i=7575;$i -le 7695;$i++){'{0}:{1}' -f $i,$lines[$i-1]}`
+> - Ran `rg -n -C 4 "method 37|method37|Power Off|PowerOn|Servo|Operation Enabled|0x0027|0x6041|bit 12|bit12" docs/api/design/HOME_DS402_DESIGN.md docs/api/design/HOME_DS402_H37_OPERATOR_ACTIVATION_IMPLEMENTATION_20260902.md docs/api/design/LMC_HOME_AND_DS402_HOME_IMPLEMENTATION_DESIGN_20260911.md LMC_Library/LasalApiWpfTestApp/README.md`
+> - Ran `rg -n -C 8 "Ds402HomeMailbox\[|Ds402HomeRequestSequence|Command = 1|Command:=1" Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCEcatInputLatch/LMCEcatInputLatch.st | Select-Object -First 260`
+> - Ran `rg -n "LMC_DIAG_DS402_PUBLISH_FAILURE_MAGIC|Ds402HomeState\[107\]|Ds402HomeState\[108\]|Ds402HomeState\[118\]|Ds402HomeState\[119\]" Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st | Select-Object -First 100`
+>
+> </details>
+</details>
+
+결론부터 말하면, 이번 로그는 **DS402 Home 동작 자체가 실패한 것이 아니라, Start 승인 후 PLC 내부 완료 판정이 격리 상태로 들어간 경우**입니다.
+
+- `15:40:15.107 DS402 Home PASS`는 Home 완료가 아니라 `0x7D15 Start` 접수 성공입니다.
+- 이후 `0x7D16 ReadOutcome`에서 `ErrorId=-31000, DetailCode=26`이 반환됐습니다.
+- 이 조합의 `26`은 topology 오류가 아니라 `Ds402HomeOutcomeIndeterminate`입니다. [LmcAdminModels.cs](/C:/work/Elmo/Elmo_Master/LMC_Library/LMC_API_Delivery/src/LmcAdminModels.cs:91)
+- PLC 코드는 다음 조건에서만 이 값을 반환합니다.
+  - retained record 상태가 `Running=1`
+  - 내부 실행 stage가 `101`
+  - 요청 축이 일치함
+  [LMCDiagnosticsService.st](/C:/work/Elmo/Elmo_Master/Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st:6026)
+
+`stage 101`은 정상 진행 대기가 아니라 fail-closed 격리 상태입니다. 진입 원인은 다음 범주입니다.
+
+- ownership/preemption 정보 조회 실패
+- admission token, owner generation, session/sequence 등 runtime tuple 불일치
+- safety preemption이 1초 이상 해소되지 않음
+- 실패 후 bit 4 LOW, CSP 복원, SDO drain 등의 cleanup을 1초 안에 증명하지 못함
+- terminal 결과를 ownership service에 게시하지 못함
+
+이번 로그에서는 BootId와 MapRevision이 전후 동일합니다.
+
+- `BootId=0x36`
+- `MapRevision=0x957F101E`
+
+따라서 PLC 재부팅이나 MapRevision 변경은 원인이 아닙니다. 또한 실제 DS402 실행 실패라면 `DetailCode=30` terminal failure가 나와야 하는데, 현재는 `26`이라서 drive가 Home을 거부했다고도 확정할 수 없습니다.
+
+시간상 가장 가능성이 높은 경로는 **내부 실행 중 어떤 오류가 발생해 cleanup으로 들어갔지만, 1초 cleanup deadline 내에 owner/SDO/RT mailbox 정리를 증명하지 못해 stage 101로 격리된 경우**입니다. 다만 현재 로그에는 stage 101로 들어가기 직전 원인 값이 출력되지 않아 정확한 세부 원인은 아직 특정할 수 없습니다.
+
+LASAL Watch에서 다음 값을 보존해 주면 바로 세부 원인을 판별할 수 있습니다.
+
+- `Ds402HomeState[0..22]`
+- `Ds402HomeState[92..127]`
+  - 특히 `[92], [93], [107], [108], [118], [119], [120..125]`
+- `OwnershipState[24]`
+- `OwnershipState[28..63]`
+- `OwnershipPreemptedState[0..35]`
+- `OwnershipPreemptedIdentityState[422..431]`
+
+판독 기준은 다음과 같습니다.
+
+- `[107]`: 최초 실패 detail
+- `[108]`: 최초 native/mailbox/SDO 오류
+- `[118] = 0x50424631`: terminal ownership 결과 게시 실패
+- `[119]`: 해당 ownership 함수 반환값
+- `[120..125]`: session, sequence, token, generation, axis mask, receipt 상태
+
+현재 retained record가 unresolved이므로 **DS402 Home Start를 다시 누르거나 ownership 값을 강제로 지우면 안 됩니다.** 먼저 위 Watch 값을 캡처해야 최초 실패 원인이 보존됩니다.
+
+> User context
+>
+> Images:
+> - `C:/Users/dreiv/AppData/Local/Temp/codex-clipboard-ca03f83d-0de5-478c-87a2-906f483fc021.png`
+> - `C:/Users/dreiv/AppData/Local/Temp/codex-clipboard-b4fe3e7f-28c5-449b-84b7-9010ba401971.png`
+> - `C:/Users/dreiv/AppData/Local/Temp/codex-clipboard-4a929b54-9343-4eb5-94b6-0f6f1a216947.png`
+> - `C:/Users/dreiv/AppData/Local/Temp/codex-clipboard-ab978898-e211-4c4e-aba9-ce148ea6b089.png`
+> - `C:/Users/dreiv/AppData/Local/Temp/codex-clipboard-927233d2-c087-45e7-8fb1-29425aaaca6f.png`
+> - `C:/Users/dreiv/AppData/Local/Temp/codex-clipboard-f98681a5-821a-4e5b-8ab5-2a3e2cf8cfd5.png`
+
+<details><summary>2 previous messages</summary>
+
+> Watch 값으로 범위가 좁혀졌습니다. 이번에는 ownership/preemption 문제가 아닙니다. `Ds402HomeState[106]=3`, `[107]=30`, `[108]=0`이므로 일반 실행 경로에서 실패했고, 이후 cleanup이 1초 내 완료되지 않아 `[92]=101` 격리로 전환됐습니다. 최초 실패를 만든 `native=0` 분기를 소스에서 정확히 찾겠습니다.
+>
+> <details><summary>Ran 3 commands</summary>
+>
+> - Ran `$p='Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'; $lines=Get-Content -LiteralPath $p; for($i=6340;$i -le 7048;$i++){ if($lines[$i-1] -match 'failure := TRUE|failureNative :=|failureDetail :=|case stage|^[\s]*[0-9]+:'){ '{0}:{1}' -f $i,$lines[$i-1] } }`
+> - Ran `$p='Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'; $lines=Get-Content -LiteralPath $p; for($i=6795;$i -le 7046;$i++){'{0}:{1}' -f $i,$lines[$i-1]}`
+> - Ran `$vals=90209,1280131840,1124073473,1343789012,1343789010,424479,424539,1380078366; foreach($v in $vals){'{0} = 0x{1:X8}' -f $v,([uint32]$v)}; '{0} = 0x{1:X8}' -f -1786834914,([uint32](-1786834914))`
+>
+> </details>
+</details>
+
+원인이 확인됐습니다. **SDO 통신이나 드라이브 거부가 아니라 PLC 코드의 잘못된 형변환으로 SDO 완료 검증이 실패했습니다.**
+
+Watch 값이 정확히 증명합니다.
+
+- `[96] = 90209 = 0x00016061`
+- `[97] = 1280131840 = 0x4C4D4300`
+- `[98] = 1124073473 = 0x43000001`
+
+첫 번째 SDO는 `0x6061` 1바이트 Read이므로 원래 저장값은 다음이어야 합니다.
+
+```text
+[96] ObjectIndex = 0x6061
+[97] SubIndex    = 0
+[98] Length      = 1
+```
+
+그런데 현재 코드는 다음처럼 저장합니다.
+
+```objectivec
+Ds402HomeState[96] := sdoIndex$DINT;
+Ds402HomeState[97] := homeSdoSubIndex$DINT;
+Ds402HomeState[98] := sdoLength$DINT;
+```
+
+[LMC Diagnostics SDO 상태 저장](/C:/work/Elmo/Elmo_Master/Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st:6909)
+
+여기서 `$DINT`는 숫자 변환이 아니라 작은 변수의 메모리를 DINT 크기로 재해석합니다.
+
+- `sdoIndex`는 `UINT`
+- `homeSdoSubIndex`는 `USINT`
+- `sdoLength`는 `UINT`
+
+따라서 인접한 로컬 변수의 바이트까지 같이 읽혀 `[98]`이 `1`이 아니라 `0x43000001`로 오염됐습니다.
+
+SDO 응답 자체는 정상이어도 다음 비교에서 실패합니다.
+
+```objectivec
+completion.ActualLength <> Ds402HomeState[98]$UDINT
+```
+
+[SDO 완료 검증](/C:/work/Elmo/Elmo_Master/Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st:7002)
+
+실제 비교는 다음과 같습니다.
+
+```text
+ActualLength = 1
+ExpectedLength = 0x43000001
+결과 = 불일치
+```
+
+AbortCode, OsResult, ValidationCode는 모두 정상 `0`이므로 실패 기록도 그대로 다음처럼 남았습니다.
+
+- `Ds402HomeState[106]=3`: 일반 실행 실패
+- `[107]=30`: `Ds402HomeExecutionFailed`
+- `[108]=0`: SDO 자체 오류 없음
+- `OwnershipState[29]=11`: Axis1 owner quarantined
+- `OwnershipState[61]=30`, `[62]=0`: 동일한 실패 detail/native
+- Preempted state 전체 `0`: safety preemption 아님
+
+이후 실패 cleanup이 1초 안에 완결되지 않아 `[92]=101`로 격리됐고, API에는 terminal failure `30` 대신 unresolved `DetailCode=26`이 반환된 것입니다.
+
+필요한 소스 수정은 최소한 다음과 같습니다.
+
+```objectivec
+Ds402HomeState[96] := TO_DINT(sdoIndex);
+Ds402HomeState[97] := TO_DINT(homeSdoSubIndex);
+Ds402HomeState[98] := TO_DINT(sdoLength);
+```
+
+현재 PLC에는 unresolved/quarantined owner가 남아 있으므로 값을 강제로 지우고 재시도하면 안 됩니다. 수정 후 LASAL Rebuild/Link 및 PLC 다운로드로 새 이미지가 시작되면서 정상적인 startup reconciliation을 거친 뒤 다시 시험해야 합니다.
+
+> 해당 소스코드 수정해줘. IDE는 종료할께
+
+<details><summary>2 previous messages</summary>
+
+> IDE 종료 후 추적 대상 `LMCDiagnosticsService.st`에서 잘못된 `$DINT` 재해석 3곳만 `TO_DINT(...)` 숫자 변환으로 수정하겠습니다. LASAL 규칙 문서를 확인한 뒤 좁은 범위로 반영하고 diff만 검토하겠습니다.
+>
+> <details><summary>Edited a file, ran 2 commands</summary>
+>
+> - Ran `Get-Content -Raw -LiteralPath 'docs/architecture/SIGMATEK_LASAL_coding_rules.md'
+> Get-Content -Raw -LiteralPath 'docs/architecture/SIGMATEK_LASAL_programming_method_study.md'
+> Get-Content -Raw -LiteralPath 'docs/architecture/SIGMATEK_LASAL_programming_error_prevention_guide.md'`
+> - Wrote `./Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st` (+3 -3)
+> - Ran `git diff --unified=4 -- 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st' | Select-String -Pattern 'Ds402HomeState\[9[678]\]|^@@' -Context 4,4
+> rg -n "Ds402HomeState\[96\] :=|Ds402HomeState\[97\] :=|Ds402HomeState\[98\] :=" 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'`
+>
+> </details>
+</details>
+
+수정 완료했습니다.
+
+[LMCDiagnosticsService.st](/C:/work/Elmo/Elmo_Master/Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st:6909)에서 다음 3개를 숫자 변환으로 교체했습니다.
+
+```objectivec
+Ds402HomeState[96] := TO_DINT(sdoIndex);
+Ds402HomeState[97] := TO_DINT(homeSdoSubIndex);
+Ds402HomeState[98] := TO_DINT(sdoLength);
+```
+
+소스 diff만 확인했으며, LASAL IDE 빌드·PLC 다운로드·실기 테스트는 수행하지 않았습니다. 새 이미지 다운로드 후 기존 격리 상태가 정상적으로 초기화/reconcile됐는지 확인하고 DS402 Home을 다시 시험해야 합니다.
+
+> [16:02:19.369] Executable identity: Path=C:\work\Elmo\Elmo\_Master\LMC\_Library\LasalApiWpfTestApp\LasalApiWpfTestApp\bin\Debug\LasalMotionControlApiExample.exe, Version=0.9.1.0, BuildUtc=2026-09-11 06:33:56 UTC, Feature=GENERIC\_SDO\_WRITE\_DIRECT\_MANUAL\_V1, ReconnectPolicy=RPC\_INIT\_FRESH\_TCP\_ONCE\_V2, SdkPath=C:\work\Elmo\Elmo\_Master\LMC\_Library\LasalApiWpfTestApp\LasalApiWpfTestApp\bin\Debug\LasalMotionControlLib.dll, SdkBuildUtc=2026-09-11 06:33:54 UTC.
+> [16:02:19.370] Example ready. Connect, load \_LMCAxis1, and start with Read Status. Connect automatically attempts only the read-only CREVIS topology load; no motion or mutation command is sent automatically.
+> [16:02:30.268] Connect started. UiOperationGeneration=1, SessionGeneration=0.
+> [16:02:30.302] Connection state Disconnected -> Connecting
+> [16:02:30.326] RPC initialized. Callback endpoint=10.10.150.13:5000, EventMask=0x00000001
+> [16:02:30.332] Connection state Connecting -> Connected
+> [16:02:30.379] EtherCAT topology loaded (automatic post-connect load). Revision=0x96FC461C, Nodes=2, CREVIS=0, ConfiguredComparison=INITIAL, SHA256=24B5CA5BACBD02ACB37F6C0B0FCCD47E713FBCFB58AA2F173349546EE9A881E1.
+> [16:02:30.386] Connect PASS. ElapsedMs=123.
+> [16:02:31.144] Load Axis started. UiOperationGeneration=2, SessionGeneration=1.
+> [16:02:31.164] Axis loaded. Name=\_LMCAxis1, Ref=1
+> [16:02:31.164] Load Axis PASS. ElapsedMs=21.
+> [16:02:33.347] Read Actual Position started. UiOperationGeneration=3, SessionGeneration=1.
+> [16:02:33.356] Read Actual Position PASS. ElapsedMs=10.
+> [16:02:38.679] Refresh Home/Encoder Maintenance Capabilities started. UiOperationGeneration=4, SessionGeneration=1.
+> [16:02:38.699] Home/Encoder capabilities: DiagnosticsBits=0x000C633F; DiagnosticsBuild=1; BootId=0x00000037; MapRevision=0x957F101E; TW20=True; TW19=True; AdminFeatures=0x00000757
+> [16:02:38.699] Refresh Home/Encoder Maintenance Capabilities PASS. ElapsedMs=23.
+> [16:02:40.136] DS402 Home started. UiOperationGeneration=5, SessionGeneration=1.
+> [16:02:40.193] DS402 Home PASS. ElapsedMs=59.
+> [16:02:41.455] Read Home Status started. UiOperationGeneration=6, SessionGeneration=1.
+> [16:02:41.475] Read Home Status PASS. ElapsedMs=22.
+> [16:02:43.934] Read Actual Position started. UiOperationGeneration=7, SessionGeneration=1.
+> [16:02:43.942] Read Actual Position PASS. ElapsedMs=10.
+> [16:02:45.287] Read Actual Position started. UiOperationGeneration=8, SessionGeneration=1.
+> [16:02:45.295] Read Actual Position PASS. ElapsedMs=10.
+> [16:02:45.808] Read Actual Position started. UiOperationGeneration=9, SessionGeneration=1.
+> [16:02:45.816] Read Actual Position PASS. ElapsedMs=12.
+> [16:02:49.791] Read Actual Position started. UiOperationGeneration=10, SessionGeneration=1.
+> [16:02:49.798] Read Actual Position PASS. ElapsedMs=9.
+> [16:02:50.303] Read Actual Position started. UiOperationGeneration=11, SessionGeneration=1.
+> [16:02:50.310] Read Actual Position PASS. ElapsedMs=9.
+> [16:02:51.941] Load Axis started. UiOperationGeneration=12, SessionGeneration=1.
+> [16:02:51.952] Axis loaded. Name=\_LMCAxis1, Ref=1
+> [16:02:51.952] Load Axis PASS. ElapsedMs=12.
+> [16:02:53.057] Refresh Home/Encoder Maintenance Capabilities started. UiOperationGeneration=13, SessionGeneration=1.
+> [16:02:53.072] Home/Encoder capabilities: DiagnosticsBits=0x000C633F; DiagnosticsBuild=1; BootId=0x00000037; MapRevision=0x957F101E; TW20=True; TW19=True; AdminFeatures=0x00000757
+> [16:02:53.073] Refresh Home/Encoder Maintenance Capabilities PASS. ElapsedMs=20.
+> [16:02:54.639] Read Home Status started. UiOperationGeneration=14, SessionGeneration=1.
+> [16:02:54.654] Read Home Status PASS. ElapsedMs=16.
+>
+> 이번에는 위치값이 바꼈는데 아직 시스템이 정상화 안됐어. 왜그런건지 체크해봐
+>
+> User context
+>
+> Images:
+> - `C:/Users/dreiv/AppData/Local/Temp/codex-clipboard-1c2d575c-cef8-4d34-8da5-3361fd655d4a.png`
+
+<details><summary>2 previous messages</summary>
+
+> 이번 로그는 직전 결함과 양상이 다릅니다. 이번에는 `Read Home Status`가 약 1초·14초 시점에는 정상 조회됐지만, Start 후 약 76초에 `DetailCode=26`으로 바뀌었습니다. 60초 Home timeout과 1초 cleanup 격리 시점이 일치하는지, 그리고 PowerOn 없이 method 37을 시작한 경로를 소스와 대조하겠습니다.
+>
+> <details><summary>Ran a command</summary>
+>
+> - Ran `rg -n -C 8 "DS402 Home outcome|ReadAxisDs402HomeOutcome|Read Home Status PASS|Ds402HomeOutcome" LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.MaintenanceActions.cs
+> $p='Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'; $lines=Get-Content -LiteralPath $p; for($i=6570;$i -le 6795;$i++){'{0}:{1}' -f $i,$lines[$i-1]}
+> rg -n -C 5 "PowerOff \+ Standstill|Power On 0x2023|stable PowerOn proof|Home Status|Running" docs/api/design/LMC_HOME_AND_DS402_HOME_IMPLEMENTATION_DESIGN_20260911.md docs/api/design/HOME_DS402_H37_OPERATOR_ACTIVATION_IMPLEMENTATION_20260902.md`
+>
+> </details>
+</details>
+
+이번 결과는 **앞서 수정한 SDO 길이 오염 문제는 해결됐지만, DS402 Home이 완료 조건을 만들지 못하고 60초 timeout된 상황**으로 보입니다.
+
+근거는 시간입니다.
+
+- Start 승인: `16:02:40.193`
+- 1.2초 후 Outcome 조회: PASS
+- 14초 후 Outcome 조회: PASS
+- 약 76초 후 조회: `DetailCode=26`
+
+초기 두 번의 `Read Home Status PASS`는 Home 성공이 아니라, **Running 상태를 정상적으로 읽었다는 뜻**입니다. WPF도 Running이면 완료로 처리하지 않습니다. [MainWindow.MaintenanceActions.cs](/C:/work/Elmo/Elmo_Master/LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.MaintenanceActions.cs:1057)
+
+DS402 Home 성공에는 다음 조건이 3회 연속 필요합니다.
+
+```text
+StatusWord bit 12 = Homing attained
+StatusWord bit 10 = Target reached
+StatusWord bit 13 = Homing error clear
+ActualPosition = 0
+```
+
+[LMCDiagnosticsService.st](/C:/work/Elmo/Elmo_Master/Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st:6618)
+
+이번에는 위치가 0으로 변경됐지만, `Homing attained/Target reached` 조건이 충족되지 않아 Running 상태가 계속된 것입니다. 위치 변경만으로는 terminal success가 아닙니다.
+
+가장 유력한 원인은 **PowerOn/Operation Enabled 없이 DS402 Home을 실행한 것**입니다. 이번 로그에는 다음 순서만 있고 Power On이 없습니다.
+
+```text
+Connect
+Load Axis
+Read Position
+Capability refresh
+DS402 Home
+```
+
+현재 PLC Start 검사는 DS402 base state `0x40`, `0x21`, `0x23`, `0x27`을 모두 허용합니다. 즉 PowerOff/Ready/SwitchedOn 상태에서도 Start가 접수될 수 있습니다. 하지만 실제 드라이브가 method 37의 bit 12를 완료 상태로 올리려면 `Operation Enabled(0x27)`가 필요한 것으로 이번 물리 결과가 나타냅니다.
+
+따라서 현재 현상은 다음 흐름입니다.
+
+```text
+Start accepted
+→ 0x607C/0x6098/0x6060 처리
+→ 위치 0 변경
+→ Homing attained가 올라오지 않음
+→ 60초 timeout
+→ cleanup
+→ unresolved/quarantine stage 101
+→ DetailCode 26
+```
+
+정확히 확정하려면 현재 Watch에서 다음 값만 추가로 확인하면 됩니다.
+
+- `Ds402HomeState[92]`
+- `[106]`, `[107]`, `[108]`
+- `[114]` — 마지막 StatusWord
+- `[17]` — retained StatusWord
+
+예상값은 다음과 같습니다.
+
+- `[92]=101`
+- `[107]=30`
+- `[108]=0x05040000`에 해당하는 timeout 값
+- `[114]`의 `0x006F` base state가 `0x27`이 아님
+- `[114]`의 bit 12 또는 bit 10이 미설정
+
+현재 설계의 `PowerOff + Standstill에서 DS402 Home` 정책은 실제 드라이브 동작과 맞지 않는 것으로 보입니다. 다음 수정 방향은 DS402 Home Start를 **stable PowerOn + DS402 Operation Enabled 상태에서만 허용**하도록 PLC admission과 WPF 안내를 함께 바꾸는 것입니다. 현재 unresolved record는 위치가 0이 됐다는 이유만으로 수동 resolve하거나 Start를 재전송하면 안 됩니다.
+
+> User context
+>
+> Images:
+> - `C:/Users/dreiv/AppData/Local/Temp/codex-clipboard-6f06541f-c987-48be-909a-dff5726fb5ca.png`
+
+<details><summary>6 previous messages</summary>
+
+> 추가 Watch로 원인이 확정됐습니다. `$DINT` 수정은 정상 반영되어 `[96]=24673(0x6061)`, `[97]=0`, `[98]=1`입니다. 이번 실패는 60초 동안 `Homing attained`는 올라왔지만 `Target reached`와 정확한 위치 0이 충족되지 않은 timeout이며, 뒤이어 CSP 복구가 ownership 검증 `-6`으로 막힌 상태입니다. `-6`의 정확한 의미를 확인하겠습니다.
+>
+> <details><summary>Ran a command</summary>
+>
+> - Ran `rg -n -C 8 "FUNCTION GLOBAL LMCControlCommandService::ValidateAxisOwnership|FUNCTION.*ValidateAxisOwnership|Result := -6|return.*-6" Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st
+> $p='Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'; $lines=Get-Content -LiteralPath $p; for($i=7798;$i -le 7990;$i++){'{0}:{1}' -f $i,$lines[$i-1]}`
+>
+> </details>
+>
+> Context compaction
+>
+> Source: automatic
+> Status: completed
+>
+> <details><summary>Ran 9 commands</summary>
+>
+> - Ran `$p='Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCControlCommandService\LMCControlCommandService.st'; $c=Get-Content -LiteralPath $p; for($i=5010;$i -le 5270;$i++){ if($i -le $c.Count){ '{0,5}: {1}' -f $i,$c[$i-1] } }`
+> - Ran `$p='Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCControlCommandService\LMCControlCommandService.st'; $c=Get-Content -LiteralPath $p; for($i=5260;$i -le 5355;$i++){ if($i -le $c.Count){ '{0,5}: {1}' -f $i,$c[$i-1] } }; rg -n --fixed-strings 'Result := -6' 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class'`
+> - Ran `$p='Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st'; $c=Get-Content -LiteralPath $p; foreach($range in @(@(6535,6650),@(7770,7850),@(7880,7960))){ for($i=$range[0];$i -le $range[1];$i++){ if($i -le $c.Count){ '{0,5}: {1}' -f $i,$c[$i-1] } } }`
+> - Ran `rg -n "Ds402HomeState\[(9[2-9]|10[0-9]|11[0-9]|12[0-7])\]" 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st' | Select-String -Pattern '\[108\]|\[106\]|\[107\]|\[114\]|\[115\]|\[116\]|\[117\]|\[118\]|\[119\]|\[120\]|\[121\]|\[122\]|\[123\]|\[124\]|\[125\]|\[126\]|\[127\]'`
+> - Ran `$p='Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st'; $c=Get-Content -LiteralPath $p; for($i=6260;$i -le 6350;$i++){ '{0,5}: {1}' -f $i,$c[$i-1] }; for($i=7060;$i -le 7110;$i++){ '{0,5}: {1}' -f $i,$c[$i-1] }`
+> - Ran `rg -n "Ds402HomeState\[9[2-9]\]|Ds402HomeState\[10[0-9]\]|Ds402HomeState\[11[0-9]\]" 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st' | Select-Object -First 180`
+> - Ran `$p='Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st'; $c=Get-Content -LiteralPath $p; for($i=6370;$i -le 6485;$i++){ '{0,5}: {1}' -f $i,$c[$i-1] }; for($i=6788;$i -le 7092;$i++){ '{0,5}: {1}' -f $i,$c[$i-1] }`
+> - Ran `$p='Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st'; $c=Get-Content -LiteralPath $p; for($i=6480;$i -le 6538;$i++){ '{0,5}: {1}' -f $i,$c[$i-1] }`
+> - Ran `$p='Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st'; $c=Get-Content -LiteralPath $p; for($i=7580;$i -le 7770;$i++){ '{0,5}: {1}' -f $i,$c[$i-1] }`
+>
+> </details>
+>
+> Watch상 핵심은 `StatusWord=0x12D0`입니다. 드라이브는 `Homing attained`를 세웠고 Homing error는 없지만, 구현이 요구하는 `Target reached`가 없고 실제 위치가 목표 0이 아니라 `+1 count`라 완료 조건을 통과하지 못했습니다. 이후 복구 단계의 `-6` 출처도 소스에서 추적 중입니다.
+>
+> <details><summary>Ran 10 commands</summary>
+>
+> - Ran `rg -n "FUNCTION .*RequestDs402HomeSafetyDrain|RequestDs402HomeSafetyDrain|Result := -6" 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCEcatInputLatch/LMCEcatInputLatch.st'`
+> - Ran `$p='Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCEcatInputLatch\LMCEcatInputLatch.st'; $c=Get-Content -LiteralPath $p; for($i=2890;$i -le 2995;$i++){ '{0,5}: {1}' -f $i,$c[$i-1] }`
+> - Ran `$p='Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCEcatInputLatch\LMCEcatInputLatch.st'; $c=Get-Content -LiteralPath $p; for($i=2995;$i -le 3125;$i++){ '{0,5}: {1}' -f $i,$c[$i-1] }`
+> - Ran `rg -n "Ds402HomeDrainMailbox\[7\]|receiptResult := -6|:= -6" 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCEcatInputLatch/LMCEcatInputLatch.st'`
+> - Ran `$p='Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCEcatInputLatch\LMCEcatInputLatch.st'; $c=Get-Content -LiteralPath $p; for($i=1460;$i -le 1560;$i++){ '{0,5}: {1}' -f $i,$c[$i-1] }`
+> - Ran `rg -n "homeDrainResult" 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCEcatInputLatch/LMCEcatInputLatch.st'`
+> - Ran `$p='Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCEcatInputLatch\LMCEcatInputLatch.st'; $c=Get-Content -LiteralPath $p; for($i=1280;$i -le 1360;$i++){ '{0,5}: {1}' -f $i,$c[$i-1] }`
+> - Ran `rg -n "homeControlApplyResult :=" 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCEcatInputLatch/LMCEcatInputLatch.st'`
+> - Ran `rg -n "LMC_DS402_HOME_DISPATCH_EXHAUSTED" 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis'`
+> - Ran `rg -n "#define LMC_DIAG_SDO_ABORT_TIMEOUT|LMC_DIAG_SDO_ABORT_TIMEOUT" 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'`
+>
+> </details>
+</details>
+
+원인은 확인됐습니다. 이전 `$DINT` 변환 문제는 정상적으로 수정·반영됐습니다.
+
+이번 실패는 DS402 Home 자체가 완전히 실패한 것이 아니라, 현재 PLC의 완료 판정 조건이 실제 드라이브 결과보다 지나치게 엄격해서 발생했습니다.
+
+- `[96]=24673 = 0x6061`, `[97]=0`, `[98]=1`
+  - 이전 SDO 인덱스 손상 문제는 해결됐습니다.
+- `[114]=4816 = 0x12D0`
+  - `Homing attained(bit12)=1`
+  - `Homing error(bit13)=0`
+  - `Target reached(bit10)=0`
+  - DS402 기본 상태는 `0x0040`, 즉 Switch On Disabled입니다.
+- `[115]=1`
+  - 실제 위치가 목표 HomePosition `0`이 아니라 `+1 count`입니다.
+
+현재 구현은 다음 조건을 전부 만족해야 완료 처리합니다.
+
+1. Homing attained
+2. Target reached
+3. ActualPosition이 HomePosition과 정확히 동일
+4. 같은 위치가 3회 연속 유지
+
+해당 조건은 [LMCDiagnosticsService.st](./Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st:6618)에 있습니다.
+
+이번 결과는 Homing attained까지 올라왔지만:
+
+- `Target reached=0`
+- `ActualPosition=1`, 목표값은 `0`
+
+이므로 완료 단계로 넘어가지 못하고 계속 대기했습니다. `[118]=39495`, `[119]=99495` 차이가 정확히 `60000`이므로 설정된 60초 후 timeout이 발생한 것도 확인됩니다. Timeout 판정은 [LMCDiagnosticsService.st](./Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st:6516)입니다.
+
+그 뒤 복구도 완료되지 않았습니다.
+
+- `[92]=101`: 미해결/격리 상태
+- `[106]=3`, `[107]=30`: 일반 실행 실패
+- `[116]=1`: Homing mode `0x6060=6`에서 CSP `0x6060=8` 복귀가 증명되지 않음
+- `[117]=0`: RT Home control-word 소유권은 LOW로 내려감
+- `[99]=6`: CSP 복귀용 다음 SDO가 시작되지 않음
+- `[108]=6`: 원래 timeout 코드가 복구 과정의 하위 반환값 `-6`에 의해 덮어써진 상태
+
+따라서 위치값은 변경됐지만 시스템은 정상화되지 않은 것이 맞습니다. 핵심 수정 대상은 다음 두 가지입니다.
+
+- Method 37 완료 판정을 `Target reached 필수 + 위치 정확히 0`으로 고정하지 말고, `Homing attained + Homing error 없음 + 허용 오차 내 위치 안정` 조건으로 조정
+- 실패 복구 중 원래 timeout 원인을 덮어쓰지 않고 별도 cleanup 오류로 보존하며, CSP mode 8 복귀가 실행되도록 복구 경로 수정
+
+현재 상태에서는 Record Resolve로 강제 해제하거나 DS402 Home을 재실행하지 않는 것이 맞습니다. 먼저 PLC를 정상 상태로 복구한 뒤 위 완료·복구 로직을 수정해야 합니다.
+
+> IDE 종료했다. 코드 수정 진행해봐
+
+<details><summary>5 previous messages</summary>
+
+> 확인된 두 문제를 함께 수정하겠습니다. Method 37의 완료 판정을 실제 드라이브 상태에 맞추고, timeout 후 CSP 복귀가 1초 복구창 안에서 중단되면서 원인 코드까지 덮어쓰는 경로를 바로잡겠습니다. LASAL 코딩 규칙과 현재 변경 상태부터 확인한 뒤 구현만 진행하겠습니다.
+>
+> <details><summary>Ran 11 commands</summary>
+>
+> - Ran `Get-Content -Raw -LiteralPath 'docs\architecture\SIGMATEK_LASAL_coding_rules.md'; Get-Content -Raw -LiteralPath 'docs\architecture\SIGMATEK_LASAL_programming_method_study.md'; Get-Content -Raw -LiteralPath 'docs\architecture\SIGMATEK_LASAL_programming_error_prevention_guide.md'; git status --short --branch`
+> - Ran `$files=@('docs\architecture\SIGMATEK_LASAL_programming_method_study.md','docs\architecture\SIGMATEK_LASAL_programming_error_prevention_guide.md'); foreach($p in $files){ $c=Get-Content -LiteralPath $p; "FILE=$p LINES=$($c.Count)"; for($s=0;$s -lt $c.Count;$s+=220){ "CHUNK=$($s+1)-$([Math]::Min($s+220,$c.Count))"; $c | Select-Object -Skip $s -First 220 } }`
+> - Ran `rg -n -i "target reached|tolerance|허용|0x0400|method 37|cleanup|1000|CSP" docs/api/design/HOME_DS402*.md docs/api/design/LMC_HOME_AND_DS402_HOME_IMPLEMENTATION_DESIGN_20260911.md; git diff -- 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st' | Select-Object -First 500`
+> - Ran `$p='docs\api\design\LMC_HOME_AND_DS402_HOME_IMPLEMENTATION_DESIGN_20260911.md'; $c=Get-Content -LiteralPath $p; foreach($range in @(@(75,130),@(480,530),@(540,570))){ for($i=$range[0];$i -le $range[1];$i++){ '{0,4}: {1}' -f $i,$c[$i-1] } }`
+> - Ran `rg -n "CLEANUP.*TIMEOUT|cleanupExpired|>= 1000|1000\);" 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st' | Select-Object -First 160; $p='Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st'; $c=Get-Content -LiteralPath $p; for($i=620;$i -le 690;$i++){ '{0,5}: {1}' -f $i,$c[$i-1] }`
+> - Ran `$p='Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCEcatInputLatch\LMCEcatInputLatch.st'; $c=Get-Content -LiteralPath $p; for($i=1000;$i -le 1110;$i++){ '{0,5}: {1}' -f $i,$c[$i-1] }; for($i=1205;$i -le 1250;$i++){ '{0,5}: {1}' -f $i,$c[$i-1] }`
+> - Ran `$p='Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st'; $c=Get-Content -LiteralPath $p; for($i=6640;$i -le 6795;$i++){ '{0,5}: {1}' -f $i,$c[$i-1] }; rg -n "ActualPosition.*0|TargetReached|EvidenceFlags|0x7D16|DS402.*evidence|Ds402Home" 'LMC_Library/LMC_API_Delivery/src' 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests' | Select-Object -First 200`
+> - Ran `Get-ChildItem -LiteralPath 'docs\api\design' -Filter '*.md' | ForEach-Object { rg -n "attained.*target|Target reached|ActualPosition = 0|ActualPosition 0|cleanup.*1" -- $_.FullName }`
+> - Ran `Get-ChildItem -LiteralPath 'docs\api\design' -Filter '*.md' | ForEach-Object { $hits=rg -n "attained.*target|Target reached|ActualPosition = 0|ActualPosition 0" -- $_.FullName; if($LASTEXITCODE -eq 0){ "FILE=$($_.Name)"; $hits } }`
+> - Ran `rg -n "0x0400|actualPosition = Ds402HomeState|actualPosition <> 0|cleanupStart.*1000|>= 1000|Ds402HomeState\[108\]" tools/Verify-Home*.ps1`
+> - Ran `Get-ChildItem -LiteralPath 'tools' -Filter 'Verify-Home*.ps1' | ForEach-Object { $h=rg -n "0x0400|actualPosition = Ds402HomeState|actualPosition <> 0|>= 1000|Ds402HomeState\[108\]" -- $_.FullName; if($LASTEXITCODE -eq 0){ "FILE=$($_.Name)"; $h } }`
+>
+> </details>
+>
+> 수정 방향을 좁혔습니다. 기본 DS402 Method 37에만 `Homing attained + no error`를 완료 근거로 인정하고, Switch On Disabled에서는 `Target reached`를 강제하지 않겠습니다. 위치는 실측된 양자화 오차만 반영해 `0±1 count`로 제한하며, 일반 이동형 Home에는 이 완화를 적용하지 않습니다. 실패 복구창은 5초로 늘리고 원래 timeout 코드가 cleanup 오류로 덮이지 않게 보존합니다.
+>
+> <details><summary>Edited 4 files, ran 4 commands</summary>
+>
+> - Wrote `./Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st` (+35 -9)
+> - Ran `git diff -- 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'; rg -n "DS402_HOME_POSITION_TOLERANCE|DS402_CLEANUP_TIMEOUT_MS|Method 37 may" 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st'`
+> - Wrote `./Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st` (+9 -4)
+> - Wrote `./Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st` (+18 -19)
+> - Ran `$files=@('docs\api\design\HOME_DS402_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md','docs\api\design\HOME_DS402_DESIGN.md'); foreach($p in $files){ "FILE=$p"; $c=Get-Content -LiteralPath $p; foreach($i in 75..145){ if($i -le $c.Count -and ($c[$i-1] -match 'attained|Target|ActualPosition|완료|cleanup|CSP')){ '{0,4}: {1}' -f $i,$c[$i-1] } } }`
+> - Wrote `./docs/api/design/HOME_DS402_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md` (+5 -4)
+> - Wrote `./docs/api/design/HOME_DS402_DESIGN.md` (+5 -4)
+> - Wrote `./docs/api/design/LMC_HOME_AND_DS402_HOME_IMPLEMENTATION_DESIGN_20260911.md` (+11 -6)
+> - Ran `git diff --stat; git diff --unified=5 -- 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st' 'docs/api/design/HOME_DS402_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md' 'docs/api/design/HOME_DS402_DESIGN.md' 'docs/api/design/LMC_HOME_AND_DS402_HOME_IMPLEMENTATION_DESIGN_20260911.md'`
+> - Ran `Get-Content -Raw -LiteralPath 'tools\Verify-HomeDs402H37CurrentDevRegression.ps1'; Get-Content -Raw -LiteralPath 'tools\Verify-HomeDs402H37Activation.ps1'`
+>
+> </details>
+>
+> System error
+>
+> You've hit your usage limit. Upgrade to Pro (https://chatgpt.com/explore/pro), visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again at 6:03 PM.
+</details>

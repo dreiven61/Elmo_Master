@@ -772,6 +772,7 @@ END_FUNCTION
 #define LMC_OWNER_DS402_STATE_MASK 0x0000006F
 #define LMC_OWNER_DS402_OPERATION_ENABLED_STATE 0x00000027
 #define LMC_OWNER_DS402_TARGET_REACHED_MASK 0x00000400
+#define LMC_OWNER_DS402_HOME_POSITION_TOLERANCE 32
 #define LMC_OWNER_IDENTITY_PREFIX_BYTES 0x00000040
 #define LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES 52
 #define LMC_OWNER_IDENTITY_SUFFIX_DINTS 314
@@ -14877,7 +14878,10 @@ FUNCTION GLOBAL LMCControlCommandService::PublishAxisOwnershipDs402Receipt
 						 (((pState + 456)^$UDINT and 0x006F) = 0x0021) |
 						 (((pState + 456)^$UDINT and 0x006F) = 0x0023) |
 						 (((pState + 456)^$UDINT and 0x006F) = 0x0027)) &
-						((pState + 460)^$DINT = 0) &
+						((pState + 460)^$DINT >=
+						 (0 - LMC_OWNER_DS402_HOME_POSITION_TOLERANCE)) &
+						((pState + 460)^$DINT <=
+						 LMC_OWNER_DS402_HOME_POSITION_TOLERANCE) &
 						((pState + recordByteBase + 56)^$DINT = 0) &
 						((pState + recordByteBase + 60)^$DINT = 0) &
 						((pState + recordByteBase + 64)^$DINT = 0) &

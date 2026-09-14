@@ -113,12 +113,14 @@ inventory를 유지한다. 이번 첫 changeset은 Home physical eligibility를 
 - velocity, acceleration, distance limit, torque limit = 0
 - DS402 mode `0x6060 = 6` 진입
 - controlword bit 4 rising edge
-- Home attained, no error, method-37 completion status 확인
-- Switch On Disabled에서 method 37 attained가 확인되면 Target reached는 필수로 강제하지 않음
-- ActualPosition은 raw drive count 기준 0 +/- 1을 fresh stable sample로 확인
+- bit 4 HIGH 후 fresh drive snapshot에서 Home attained와 no error 확인
+- Target reached는 StatusWord 진단값으로만 보존하고 method-37 완료 gate로 사용하지 않음
+- ActualPosition은 raw drive count 기준 0 +/- 32를 확인
 - bit 4 low 복구
-- LASAL setpoint alignment
-- CSP mode `0x6060 = 8` 복귀와 readback
+- LASAL setpoint alignment 전후 raw ActualPosition은 0 +/- 32 범위를 유지
+- 정렬 후 setpoint/destination readback은 exact-match하며 실제 위치의 범위 내 미세 변화는 허용
+- `LMCAXIS_SET_SETPOS_APPUNIT_DEST`가 변경을 보장하지 않는 master position은 성공 조건으로 사용하지 않음
+- Home 전 `0x6061`에서 저장한 PP(1)/PV(3)/IP(7)/CSP(8) mode 복귀와 readback
 
 method 37은 switch search motion을 수행하지 않는다. Start ACK는 접수 증거일 뿐이며
 `0x7D16` terminal outcome과 exact retirement 전에는 완료로 처리하지 않는다.
@@ -504,18 +506,21 @@ Validate request + identity + Axis1 eligibility
 -> publish pre-reservation intent
 -> reserve specialized owner
 -> promote exact intent to durable RESERVED
--> read 0x6061 baseline
+-> read and save supported 0x6061 baseline mode (1/3/7/8)
 -> write 0x607C = 0
 -> write 0x6098 = 37
 -> acquire RT control owner
 -> write 0x6060 = 6 and verify 0x6061 = 6
 -> raise controlword bit4 once
--> verify attained + no error + method-37 completion status + ActualPosition 0 +/- 1 count
+-> accept a fresh attained + no-error + ActualPosition 0 +/- 32-count drive snapshot
+-> retain TargetReached in StatusWord for diagnosis only
 -> lower bit4
--> align LASAL setpoint
--> write 0x6060 = 8 and verify 0x6061 = 8
+-> align LASAL setpoint while raw ActualPosition remains within 0 +/- 32 counts
+-> verify setpoint/destination exactly; do not require actual position to remain one exact raw count
+-> do not require master position because APPUNIT_DEST does not set it
+-> restore the pre-Home 0x6061 mode through 0x6060 and verify exact 0x6061 readback
 -> release RT control owner
--> fresh post-release ActualPosition 0 +/- 1 count
+-> fresh post-release ActualPosition 0 +/- 32 counts
 -> publish terminal and preserve until exact retire
 ```
 
@@ -558,11 +563,13 @@ Admin feature bits 4/6, feature-specific runtime gates와 startup gate는 함께
 2. unavailable Axis2는 intent stage 87도 남기지 않고 reject한다.
 3. `0x607C`, `0x6098`, `0x6060` write/readback 순서를 유지한다.
 4. controlword bit4는 exact request당 한 번만 rising edge를 만든다.
-5. attained/no-error와 method-37 completion status를 fresh stable sample로 검증한다.
-   Switch On Disabled에서는 target reached를 강제하지 않으며 ActualPosition은 raw count
-   기준 0 +/- 1만 허용한다.
-6. bit4 low, CSP mode 8, setpoint alignment, RT owner release를 terminal 전에 확인한다.
-7. startup sweep가 Axis1만 drain하고 deactivated Axis2 때문에 quarantine하지 않게 한다.
+5. bit 4 HIGH 후 fresh snapshot의 attained/no-error와 raw ActualPosition 0 +/- 32를 검증한다.
+   target reached는 진단용 StatusWord에 남기되 완료 조건으로 사용하지 않는다.
+6. bit4 low, 저장한 pre-Home mode의 exact 복귀, setpoint alignment, RT owner release를
+   terminal 전에 확인한다.
+7. terminal ownership receipt도 동일한 raw ActualPosition 0 +/- 32 범위를 사용하며 exact 0을
+   다시 요구하지 않는다.
+8. startup sweep가 Axis1만 drain하고 deactivated Axis2 때문에 quarantine하지 않게 한다.
 
 ### H-PC: SDK/WPF 정합
 
@@ -599,7 +606,7 @@ wire layout 자체는 변경하지 않는다.
 | startup drain incomplete | unavailable/quarantine | capability-ready 판정 |
 | Start ACK lost | Outcome query only | original Start retransmission |
 | safety PowerOff preemption | cancel/drain/final outcome | Home success 추정 |
-| mode 8 restore 실패 | terminal failure/quarantine | DS402 Home success |
+| saved pre-Home mode restore 실패 | terminal failure/quarantine | DS402 Home success |
 
 ---
 
@@ -657,8 +664,8 @@ wire layout 자체는 변경하지 않는다.
 2. baseline `0x6060/0x6061/0x607C/0x6098`, Statusword, ActualPosition 캡처
 3. `0x7D15` exactly once
 4. SDO/mode/controlword sequence packet 또는 PLC trace 캡처
-5. `0x7D16` terminal과 attained/no-error/method-37 completion/position 0 +/- 1 count 확인
-6. bit4 low, mode 8, setpoint alignment, owner release 확인
+5. `0x7D16` terminal과 attained/no-error/position 0 +/- 32 count 확인
+6. bit4 low, saved pre-Home mode exact restore, setpoint alignment, owner release 확인
 7. `0x7D17` exact retire와 retry idempotence 확인
 8. 실제 축 무이동 여부를 독립적으로 확인
 
@@ -675,7 +682,7 @@ wire layout 자체는 변경하지 않는다.
 - PLC reboot/BootId change
 - mode 6 진입 실패
 - bit4 low 복구 실패
-- mode 8 restore 실패
+- saved pre-Home mode restore 실패
 - startup sweep/drain 실패
 
 각 결과는 `PC`, `wire`, `PLC retained state`, `drive/physical` evidence를 분리해 기록한다.

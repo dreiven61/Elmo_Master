@@ -1553,6 +1553,9 @@ namespace LasalMotionControlApiExample
             values["Home (explicit one-shot actions)"] =
                 "Home (명시적 1회 실행)";
             values[
+                "LMC Home and DS402 Method 37 are non-moving. Other DS402 methods can move toward a Home/limit switch or index. Verify wiring, direction, travel clearance, raw drive units, and the exact axis before one-shot confirmation."] =
+                "LMC Home과 DS402 Method 37은 이동하지 않습니다. 다른 DS402 method는 Home/limit switch 또는 index 방향으로 이동할 수 있습니다. 1회 실행 확인 전에 배선, 방향, 이동 여유, raw drive unit과 정확한 축을 검증하십시오.";
+            values[
                 "Both Home routes set the current coordinate to zero without physical motion, a Home switch, or a limit switch. Refresh capabilities and verify the exact stationary axis before the one-shot confirmation."] =
                 "두 Home 방식 모두 실제 이동, Home switch, limit switch 없이 현재 좌표를 0으로 설정합니다. Capability를 새로고침하고 정확히 정지한 축을 확인한 뒤 1회 실행을 확인하십시오.";
             values["Refresh Home Capabilities"] =
@@ -1566,6 +1569,26 @@ namespace LasalMotionControlApiExample
                 "앱은 정확한 stale-read guard로 현재 actual position을 읽은 뒤 TargetPosition=0을 요청합니다. 시작 수락은 완료가 아니며 Home 상태 읽기는 보존된 0x7D18 결과를 조회하고 terminal record를 0x7D19로 폐기합니다.";
             values["Timeout (ms)"] = "Timeout (ms)";
             values["DS402 Home (0x7D15)"] = "DS402 Home (0x7D15)";
+            values[
+                "Standard methods 1..14, 17..30, 33, 34 and current-position method 37 are accepted. Values are raw drive units: 0x607C Home offset, 0x6099:01/02 speeds, and 0x609A acceleration. Method 37 requires both speeds and acceleration to be 0."] =
+                "표준 method 1..14, 17..30, 33, 34와 현재 위치 method 37을 사용할 수 있습니다. 값은 drive raw unit입니다: 0x607C Home offset, 0x6099:01/02 속도, 0x609A 가속도. Method 37은 두 속도와 가속도가 모두 0이어야 합니다.";
+            values["Homing Method (0x6098)"] = "Homing Method (0x6098)";
+            values["Home Offset (0x607C)"] = "Home Offset (0x607C)";
+            values["Home Velocity1 (0x6099:01)"] =
+                "Home Velocity1 (0x6099:01)";
+            values["Home Velocity2 (0x6099:02)"] =
+                "Home Velocity2 (0x6099:02)";
+            values["Home Acceleration (0x609A)"] =
+                "Home Acceleration (0x609A)";
+            values[
+                "I verified the exact axis, Homing method direction, Home/limit/index wiring, travel clearance, raw drive-unit values, and stopping means. Send Home once only and never replay it after an uncertain result."] =
+                "정확한 축, Homing method 방향, Home/limit/index 배선, 이동 여유, drive raw unit 값과 정지 수단을 확인했습니다. Home은 한 번만 전송하며 결과가 미확정이면 재전송하지 않습니다.";
+            values[
+                "DS402 Home available. Verify method direction, switch/index wiring, travel clearance, and raw parameter units before confirmation."] =
+                "DS402 Home을 사용할 수 있습니다. 확인 전에 method 방향, switch/index 배선, 이동 여유와 parameter raw unit을 검증하십시오.";
+            values[
+                "DS402 Home is armed with the displayed raw 0x6098/0x607C/0x6099/0x609A values when all other live admission checks pass."] =
+                "다른 실시간 허용 조건도 모두 통과하면 표시된 raw 0x6098/0x607C/0x6099/0x609A 값으로 DS402 Home 실행 준비가 완료됩니다.";
             values[
                 "This route is fixed to DS402 method 37 and Home offset 0. Method 37 takes the current position as Home without enabling motion or seeking a switch; offset 0 makes the completed actual position zero."] =
                 "이 방식은 DS402 method 37과 Home offset 0으로 고정됩니다. Method 37은 motion enable이나 switch 탐색 없이 현재 위치를 Home으로 사용하며 offset 0은 완료 actual position을 0으로 만듭니다.";

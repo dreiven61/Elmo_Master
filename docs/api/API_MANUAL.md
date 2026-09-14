@@ -132,7 +132,7 @@ production 승인이나 전체 실제 장비 검증을 뜻하지 않는다.
 | Admin `0x7D00/10/20/22` | `source-active`, 대표 PLC 검증 | semantic read와 Group relative move의 전체 축/UNIT/fault matrix는 미완료 |
 | Axis SetPosition `0x7D12/14/1A` | C#/LASAL P1 source, runtime fail-closed | Store/ownership OFF, volatile backing, bits 3/5/7 OFF, max-jump 0, native call 0; current 지원 API로 사용 금지 |
 | LMC Home `0x7D13/18/19` | `source-active`, Admin bit 4 ON | CurrentPositionZero는 no-motion/no-switch이며 application position reset과 실제 encoder/multi-turn 효과를 구분해야 함 |
-| DS402 Home `0x7D15/16/17` | method 37 source 구현, Admin bit 6/gate OFF | current runtime 실행 금지; source 존재와 terminal proof를 구분 |
+| DS402 Home `0x7D15/16/17` | standard method parameter source 구현, Admin bit 6/gate ON | method 37 실기 확인과 다른 이동 method의 개별 실축 검증을 구분 |
 | TW[20]/TW[19] `0x7E53/54/55` | fixed `0x20FC:2/:1 <- UInt16 1`, source bits 18/19 ON | protocol terminal과 선택 drive의 실제 물리 효과를 별도로 검증 |
 | D1/D2/Recorder/D5 Read | C# facade와 PLC route가 단계별 구현 | capability를 먼저 읽고 fault, reconnect, soak와 physical readback evidence를 추가해야 함 |
 | Static EtherCAT topology `0x7E11/12` | configured 7-entry inventory | topology qualifier durable report와 current PLC identity 확인 필요 |
@@ -2021,20 +2021,43 @@ Axis2의 `8382700 -> 8382701`과 Axis1의 `8027834 -> 8027836`을 이전 raw gat
 PLC/SDK에 동기화했다. current image의 build/download와 별개로 새 BootId에 묶인 한 축 단독
 terminal/physical proof는 기능 적격성 증거로 별도 확보해야 한다.
 
-### DS402 Home method 37
+### DS402 Home parameters
 
-별도 `LMC_HomeDS402`는 method 37, Home offset 0, velocity/acceleration/distance/torque 0의
-non-moving current-position-zero 계약이다.
+`LMC_HomeDS402`는 method `1..14`, `17..30`, `33`, `34`, `37`과 Home Offset,
+Home Velocity1(`0x6099:01`), Home Velocity2(`0x6099:02`), Home Acceleration
+(`0x609A:00`)을 편집할 수 있다. 기존 72-byte wire 호환성을 유지하기 위해 `Velocity`는
+HomeVelocity1, `DistanceLimit`는 HomeVelocity2 저장소로 사용한다. TorqueLimit는 0,
+BufferMode는 Aborting만 허용한다. 이동 method는 두 속도와 가속도가 모두 양수여야 하며,
+method 37은 세 값이 모두 0이어야 한다.
+
+2026-09-14 runtime 계약은 controlword bit 4 HIGH 이후 fresh drive snapshot에서
+HomingAttained(bit 12), HomingError clear(bit 13), raw ActualPosition이 기대 위치의
+`+/- 32` count 범위인지
+확인하면 완료 단계로 진행한다. TargetReached(bit 10)는 StatusWord 진단값으로 보존하지만
+완료 gate로 사용하지 않는다. 기대 위치는 method 37에서 `HomeOffset`, 이동 method에서
+`-HomeOffset`이다. 이후 LASAL setpoint alignment에서도 raw ActualPosition은 같은 범위를
+유지해야 하지만, RT scan 사이 실제 위치가 같은
+단일 count에 고정될 필요는 없다. 정렬된 setpoint/destination readback은 계속 exact-match한다.
+`LMCAXIS_SET_SETPOS_APPUNIT_DEST`가 변경을 보장하지 않는 master position은 판정에서 제외한다.
+
+Home 진입 전 `0x6061`에서 현재 지원 운전 모드 PP(1), PV(3), IP(7), CSP(8)를 저장한다.
+완료와 실패 cleanup 모두 저장한 exact mode를 `0x6060`에 다시 쓰고 `0x6061` readback으로
+확인한다. 따라서 mode 1에서 Home을 시작하면 mode 1로 복귀하며 CSP(8)로 강제하지 않는다.
 
 | 단계 | Public API | Command |
 |---|---|---:|
-| Prepare | `PrepareLMC_HomeDS402` 또는 `PrepareDs402Home` | wire 없음 |
-| Start once | `LMC_HomeDS402[Async]` 또는 `Ds402Home[Async]` | `0x7D15` |
+| Prepare | `PrepareLMC_HomeDS402` | wire 없음 |
+| Start once | `LMC_HomeDS402[Async]` | `0x7D15` |
 | Exact outcome query | `ReadDs402HomeOutcome[Async]` | `0x7D16` |
 | Exact terminal retirement | `RetireDs402HomeOutcome[Async]` | `0x7D17` |
 
-current source에는 protocol/state-machine/API가 있지만 `LMC_DIAG_DS402_HOME_ENABLED=FALSE`이고
-Admin feature bit 6도 OFF다. 따라서 current PLC의 지원 API로 실행하지 않는다.
+WPF sample도 위 public API 이름을 직접 호출한다. `PrepareDs402Home`과
+`Ds402Home[Async]`는 기존 호출자 호환용 이름이며 각각 public API로 위임한다. Prepare 뒤
+durable recovery key를 저장하고 Start를 한 번만 보내야 하므로 Prepare와 Start를 하나의
+재전송 가능한 편의 함수로 합치지 않는다.
+
+current source에는 protocol/state-machine/API와 parameter editor가 구현돼 있다. PLC IDE
+build/download와 각 이동 method의 switch/index 배선 및 실축 terminal 증거는 별도 검증이다.
 
 ### TW[20] / TW[19] Encoder Maintenance
 

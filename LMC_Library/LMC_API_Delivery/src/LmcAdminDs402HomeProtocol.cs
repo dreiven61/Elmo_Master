@@ -67,50 +67,51 @@ namespace LasalMotionControlLib
             LMCDs402HomeBufferMode bufferMode,
             uint timeoutMilliseconds)
         {
+            var standardMovingMethod =
+                (homingMethod >= 1 && homingMethod <= 14)
+                || (homingMethod >= 17 && homingMethod <= 30)
+                || homingMethod == 33
+                || homingMethod == 34;
+            var currentPositionMethod =
+                homingMethod == LMCAxisDs402HomeParameters
+                    .CurrentPositionZeroHomingMethod;
+
             if (homingMethod == 35)
             {
                 throw new NotSupportedException(
-                    "DS402 homing method 35 is obsolete. Use method 37 for the non-moving current-position-zero operation.");
+                    "DS402 homing method 35 is obsolete. Use method 37 for current-position homing.");
             }
 
-            if (homingMethod
-                != LMCAxisDs402HomeParameters
-                    .CurrentPositionZeroHomingMethod)
+            if (!standardMovingMethod && !currentPositionMethod)
             {
                 throw new NotSupportedException(
-                    "This LMC_HomeDS402 surface supports only method 37, the non-moving current-position operation.");
+                    "Supported DS402 homing methods are 1..14, 17..30, 33, 34, and 37.");
             }
 
-            if (position
-                != LMCAxisDs402HomeParameters
-                    .CurrentPositionZeroHomeOffset)
+            if (position < -2000000000 || position > 2000000000)
             {
-                throw new NotSupportedException(
-                    "LMC_HomeDS402 method 37 requires Home offset Position=0 so the completed actual position is zero.");
+                throw new ArgumentOutOfRangeException("position");
             }
 
-            if (velocity != 0)
+            if (currentPositionMethod)
             {
-                throw new NotSupportedException(
-                    "LMC_HomeDS402 method 37 is non-moving and requires Velocity=0.");
+                if (velocity != 0 || distanceLimit != 0 || acceleration != 0)
+                {
+                    throw new NotSupportedException(
+                        "DS402 method 37 is non-moving and requires both homing velocities and acceleration to be zero.");
+                }
             }
-
-            if (acceleration != 0)
+            else if (velocity <= 0 || distanceLimit <= 0 || acceleration <= 0)
             {
-                throw new NotSupportedException(
-                    "LMC_HomeDS402 method 37 is non-moving and requires Acceleration=0.");
-            }
-
-            if (distanceLimit != 0)
-            {
-                throw new NotSupportedException(
-                    "LMC_HomeDS402 method 37 is non-moving and requires DistanceLimit=0.");
+                throw new ArgumentOutOfRangeException(
+                    "velocity",
+                    "Moving DS402 homing methods require positive HomeVelocity1, HomeVelocity2, and acceleration values.");
             }
 
             if (torqueLimit != 0)
             {
                 throw new NotSupportedException(
-                    "LMC_HomeDS402 method 37 is non-moving and requires TorqueLimit=0.");
+                    "The standard DS402 homing surface requires TorqueLimit=0.");
             }
 
             if (bufferMode != LMCDs402HomeBufferMode.Aborting)

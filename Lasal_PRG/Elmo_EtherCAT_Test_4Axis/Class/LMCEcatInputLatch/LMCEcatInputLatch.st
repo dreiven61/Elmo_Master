@@ -343,6 +343,7 @@ END_FUNCTION
 #define LMC_DS402_HOME_DRAIN_DISCARDED    -6
 #define LMC_DS402_HOME_DISPATCH_EXHAUSTED -7
 #define LMC_DS402_HOME_STARTUP_SWEEP_ENABLED TRUE
+#define LMC_DS402_HOME_ALIGNMENT_POSITION_TOLERANCE 32
 
 #define LMC_SET_POSITION_PREFLIGHT_EMPTY       0
 #define LMC_SET_POSITION_PREFLIGHT_READY       1
@@ -524,7 +525,6 @@ FUNCTION VIRTUAL GLOBAL LMCEcatInputLatch::RtWork
 		homeAxisSetAppPosition : DINT;
 		homeAxisSetIntPosition : DINT;
 		homeAxisDestinationPosition : DINT;
-		homeAxisMasterPosition : DINT;
 		homeCommandState : _LMCAXIS_CMDERROR;
 		ownershipAxis1Status : _LMCAXIS_STATUS;
 		ownershipAxis2Status : _LMCAXIS_STATUS;
@@ -1369,7 +1369,6 @@ FUNCTION VIRTUAL GLOBAL LMCEcatInputLatch::RtWork
 						homeAxisSetAppPosition := 0;
 						homeAxisSetIntPosition := 0;
 						homeAxisDestinationPosition := 0;
-						homeAxisMasterPosition := 0;
 						homeCommandState := 0;
 
 						case homeRequestAxis of
@@ -1377,7 +1376,10 @@ FUNCTION VIRTUAL GLOBAL LMCEcatInputLatch::RtWork
 								homeAxisConnected := IsClientConnected(#LMCAxis1) <> 0;
 								if homeAxisConnected then
 									homeDriveActualPosition := Drive1.ActPos.Read();
-									if homeDriveActualPosition = homeRequestAlignPosition then
+									if (homeDriveActualPosition >=
+										(0 - LMC_DS402_HOME_ALIGNMENT_POSITION_TOLERANCE)) &
+										(homeDriveActualPosition <=
+										 LMC_DS402_HOME_ALIGNMENT_POSITION_TOLERANCE) then
 										homeAxisActualAppPosition := LMCAxis1.ReadPosition(
 											Mode:=LMCAXIS_ACTPOS_APPUNIT);
 										homeAxisActualIntPosition := LMCAxis1.ReadPosition(
@@ -1393,8 +1395,6 @@ FUNCTION VIRTUAL GLOBAL LMCEcatInputLatch::RtWork
 												Mode:=LMCAXIS_SETPOS_INTUNIT);
 											homeAxisDestinationPosition := LMCAxis1.ReadPosition(
 												Mode:=LMCAXIS_DESTPOS_INTUNIT);
-											homeAxisMasterPosition := LMCAxis1.ReadPosition(
-												Mode:=LMCAXIS_MASTERPOS_INTUNIT);
 										end_if;
 										homeDriveActualPosition := Drive1.ActPos.Read();
 									end_if;
@@ -1403,7 +1403,10 @@ FUNCTION VIRTUAL GLOBAL LMCEcatInputLatch::RtWork
 								homeAxisConnected := IsClientConnected(#LMCAxis2) <> 0;
 								if homeAxisConnected then
 									homeDriveActualPosition := Drive2.ActPos.Read();
-									if homeDriveActualPosition = homeRequestAlignPosition then
+									if (homeDriveActualPosition >=
+										(0 - LMC_DS402_HOME_ALIGNMENT_POSITION_TOLERANCE)) &
+										(homeDriveActualPosition <=
+										 LMC_DS402_HOME_ALIGNMENT_POSITION_TOLERANCE) then
 										homeAxisActualAppPosition := LMCAxis2.ReadPosition(
 											Mode:=LMCAXIS_ACTPOS_APPUNIT);
 										homeAxisActualIntPosition := LMCAxis2.ReadPosition(
@@ -1419,8 +1422,6 @@ FUNCTION VIRTUAL GLOBAL LMCEcatInputLatch::RtWork
 												Mode:=LMCAXIS_SETPOS_INTUNIT);
 											homeAxisDestinationPosition := LMCAxis2.ReadPosition(
 												Mode:=LMCAXIS_DESTPOS_INTUNIT);
-											homeAxisMasterPosition := LMCAxis2.ReadPosition(
-												Mode:=LMCAXIS_MASTERPOS_INTUNIT);
 										end_if;
 										homeDriveActualPosition := Drive2.ActPos.Read();
 									end_if;
@@ -1429,7 +1430,10 @@ FUNCTION VIRTUAL GLOBAL LMCEcatInputLatch::RtWork
 								homeAxisConnected := IsClientConnected(#LMCAxis3) <> 0;
 								if homeAxisConnected then
 									homeDriveActualPosition := Drive3.ActPos.Read();
-									if homeDriveActualPosition = homeRequestAlignPosition then
+									if (homeDriveActualPosition >=
+										(0 - LMC_DS402_HOME_ALIGNMENT_POSITION_TOLERANCE)) &
+										(homeDriveActualPosition <=
+										 LMC_DS402_HOME_ALIGNMENT_POSITION_TOLERANCE) then
 										homeAxisActualAppPosition := LMCAxis3.ReadPosition(
 											Mode:=LMCAXIS_ACTPOS_APPUNIT);
 										homeAxisActualIntPosition := LMCAxis3.ReadPosition(
@@ -1445,8 +1449,6 @@ FUNCTION VIRTUAL GLOBAL LMCEcatInputLatch::RtWork
 												Mode:=LMCAXIS_SETPOS_INTUNIT);
 											homeAxisDestinationPosition := LMCAxis3.ReadPosition(
 												Mode:=LMCAXIS_DESTPOS_INTUNIT);
-											homeAxisMasterPosition := LMCAxis3.ReadPosition(
-												Mode:=LMCAXIS_MASTERPOS_INTUNIT);
 										end_if;
 										homeDriveActualPosition := Drive3.ActPos.Read();
 									end_if;
@@ -1455,7 +1457,10 @@ FUNCTION VIRTUAL GLOBAL LMCEcatInputLatch::RtWork
 								homeAxisConnected := IsClientConnected(#LMCAxis4) <> 0;
 								if homeAxisConnected then
 									homeDriveActualPosition := Drive4.ActPos.Read();
-									if homeDriveActualPosition = homeRequestAlignPosition then
+									if (homeDriveActualPosition >=
+										(0 - LMC_DS402_HOME_ALIGNMENT_POSITION_TOLERANCE)) &
+										(homeDriveActualPosition <=
+										 LMC_DS402_HOME_ALIGNMENT_POSITION_TOLERANCE) then
 										homeAxisActualAppPosition := LMCAxis4.ReadPosition(
 											Mode:=LMCAXIS_ACTPOS_APPUNIT);
 										homeAxisActualIntPosition := LMCAxis4.ReadPosition(
@@ -1471,8 +1476,6 @@ FUNCTION VIRTUAL GLOBAL LMCEcatInputLatch::RtWork
 												Mode:=LMCAXIS_SETPOS_INTUNIT);
 											homeAxisDestinationPosition := LMCAxis4.ReadPosition(
 												Mode:=LMCAXIS_DESTPOS_INTUNIT);
-											homeAxisMasterPosition := LMCAxis4.ReadPosition(
-												Mode:=LMCAXIS_MASTERPOS_INTUNIT);
 										end_if;
 										homeDriveActualPosition := Drive4.ActPos.Read();
 									end_if;
@@ -1483,7 +1486,16 @@ FUNCTION VIRTUAL GLOBAL LMCEcatInputLatch::RtWork
 						if homeAxisConnected = FALSE then
 							homeResult := -3;
 							Ds402HomeAlignmentState[0] := 0;
-						elsif homeDriveActualPosition <> homeRequestAlignPosition then
+						elsif (homeRequestAlignPosition <
+							(0 - LMC_DS402_HOME_ALIGNMENT_POSITION_TOLERANCE)) |
+							(homeRequestAlignPosition >
+							 LMC_DS402_HOME_ALIGNMENT_POSITION_TOLERANCE) then
+							homeResult := -5;
+							Ds402HomeAlignmentState[0] := 0;
+						elsif (homeDriveActualPosition <
+							(0 - LMC_DS402_HOME_ALIGNMENT_POSITION_TOLERANCE)) |
+							(homeDriveActualPosition >
+							 LMC_DS402_HOME_ALIGNMENT_POSITION_TOLERANCE) then
 							homeResult := -5;
 							Ds402HomeAlignmentState[0] := 0;
 						elsif Ds402HomeAlignmentState[0] = 0 then
@@ -1501,13 +1513,12 @@ FUNCTION VIRTUAL GLOBAL LMCEcatInputLatch::RtWork
 								homePublishResult := FALSE;
 							end_if;
 						else
+							// Actual position may dither inside the qualified zero band.
+							// Mode APPUNIT_DEST guarantees setpoint and destination only.
 							if ((Ds402HomeAlignmentState[6]$UDINT and 0xFFFFFFFC) <> 0) |
 								(homeAxisSetAppPosition <> Ds402HomeAlignmentState[4]) |
-								(homeAxisActualAppPosition <> Ds402HomeAlignmentState[4]) |
 								(homeAxisSetIntPosition <> Ds402HomeAlignmentState[5]) |
-								(homeAxisActualIntPosition <> Ds402HomeAlignmentState[5]) |
-								(homeAxisDestinationPosition <> Ds402HomeAlignmentState[5]) |
-								(homeAxisMasterPosition <> Ds402HomeAlignmentState[5]) then
+								(homeAxisDestinationPosition <> Ds402HomeAlignmentState[5]) then
 								homeResult := -5;
 							else
 								homeResult := 0;

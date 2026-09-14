@@ -6,7 +6,12 @@ namespace LasalMotionControlLib
 {
     public partial class LMCSingleAxis
     {
-        public LMCPreparedAxisDs402Home PrepareDs402Home(
+        /// <summary>
+        /// Prepares one LMC_HomeDS402 call from the typed DS402 homing
+        /// parameters. Preparation performs admission and identity checks but
+        /// does not send the Start command.
+        /// </summary>
+        public LMCPreparedAxisDs402Home PrepareLMC_HomeDS402(
             LMCAxisDs402HomeParameters parameters,
             LMCAdminCapabilities verifiedCapabilities,
             LMCDiagnosticCapabilities verifiedDiagnosticCapabilities,
@@ -22,16 +27,15 @@ namespace LasalMotionControlLib
         }
 
         /// <summary>
-        /// Project-facing LMC_HomeDS402 name for the fixed method 37,
-        /// Home-offset-zero operation.
+        /// Compatibility name for PrepareLMC_HomeDS402.
         /// </summary>
-        public LMCPreparedAxisDs402Home PrepareLMC_HomeDS402(
+        public LMCPreparedAxisDs402Home PrepareDs402Home(
             LMCAxisDs402HomeParameters parameters,
             LMCAdminCapabilities verifiedCapabilities,
             LMCDiagnosticCapabilities verifiedDiagnosticCapabilities,
             LMCAxisDs402HomeExecuteToken executeToken)
         {
-            return PrepareDs402Home(
+            return PrepareLMC_HomeDS402(
                 parameters,
                 verifiedCapabilities,
                 verifiedDiagnosticCapabilities,
@@ -39,10 +43,11 @@ namespace LasalMotionControlLib
         }
 
         /// <summary>
-        /// Sends the separate 0x7D15 LMC_HomeDS402 command. The result is a
-        /// start acknowledgement only, not homing completion evidence.
+        /// Sends one prepared LMC_HomeDS402 call through command 0x7D15. The
+        /// result is a Start acknowledgement only; use
+        /// ReadDs402HomeOutcome for terminal completion evidence.
         /// </summary>
-        public LMCAxisDs402HomeStartAcknowledgement Ds402Home(
+        public LMCAxisDs402HomeStartAcknowledgement LMC_HomeDS402(
             LMCPreparedAxisDs402Home preparedCommand)
         {
             EnsurePreparedDs402HomeOwner(preparedCommand);
@@ -50,20 +55,19 @@ namespace LasalMotionControlLib
         }
 
         /// <summary>
-        /// Project-facing LMC_HomeDS402 name. The return value proves start
-        /// acknowledgement only; use ReadDs402HomeOutcome for completion.
+        /// Compatibility name for LMC_HomeDS402.
         /// </summary>
-        public LMCAxisDs402HomeStartAcknowledgement LMC_HomeDS402(
+        public LMCAxisDs402HomeStartAcknowledgement Ds402Home(
             LMCPreparedAxisDs402Home preparedCommand)
         {
-            return Ds402Home(preparedCommand);
+            return LMC_HomeDS402(preparedCommand);
         }
 
         /// <summary>
-        /// Sends the separate 0x7D15 LMC_HomeDS402 command. The result is a
-        /// start acknowledgement only, not homing completion evidence.
+        /// Asynchronously sends one prepared LMC_HomeDS402 call through
+        /// command 0x7D15. The result is a Start acknowledgement only.
         /// </summary>
-        public Task<LMCAxisDs402HomeStartAcknowledgement> Ds402HomeAsync(
+        public Task<LMCAxisDs402HomeStartAcknowledgement> LMC_HomeDS402Async(
             LMCPreparedAxisDs402Home preparedCommand,
             CancellationToken cancellationToken)
         {
@@ -74,14 +78,13 @@ namespace LasalMotionControlLib
         }
 
         /// <summary>
-        /// Async project-facing LMC_HomeDS402 name. The return value proves
-        /// start acknowledgement only, not successful homing.
+        /// Compatibility name for LMC_HomeDS402Async.
         /// </summary>
-        public Task<LMCAxisDs402HomeStartAcknowledgement> LMC_HomeDS402Async(
+        public Task<LMCAxisDs402HomeStartAcknowledgement> Ds402HomeAsync(
             LMCPreparedAxisDs402Home preparedCommand,
             CancellationToken cancellationToken)
         {
-            return Ds402HomeAsync(preparedCommand, cancellationToken);
+            return LMC_HomeDS402Async(preparedCommand, cancellationToken);
         }
 
         public LMCAxisDs402HomeOutcomeResult ReadDs402HomeOutcome(

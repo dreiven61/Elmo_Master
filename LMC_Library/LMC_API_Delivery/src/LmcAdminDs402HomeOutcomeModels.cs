@@ -16,7 +16,7 @@ namespace LasalMotionControlLib
         private const ushort FaultMask = 0x0008;
         private const ushort HomingErrorMask = 0x2000;
 
-        private const int HomePositionToleranceCounts = 1;
+        private const int HomePositionToleranceCounts = 32;
 
         internal static bool IsSucceeded(
             bool responseSucceeded,
@@ -26,11 +26,17 @@ namespace LasalMotionControlLib
             uint originalDetailCode,
             ushort ds402StatusWord,
             int actualPosition,
+            int homingMethod,
+            int homeOffset,
             uint startCycle,
             uint completionCycle,
             uint nativeCommandState,
             uint recordGeneration)
         {
+            long expectedPosition = homingMethod == 37
+                ? homeOffset
+                : -(long)homeOffset;
+
             return responseSucceeded
                 && recordState
                     == LMCAxisDs402HomeOutcomeRecordState.Succeeded
@@ -41,8 +47,10 @@ namespace LasalMotionControlLib
                 && (ds402StatusWord & FaultMask) == 0
                 && (ds402StatusWord & HomingErrorMask) == 0
 
-                && actualPosition >= -HomePositionToleranceCounts
-                && actualPosition <= HomePositionToleranceCounts
+                && actualPosition
+                    >= expectedPosition - HomePositionToleranceCounts
+                && actualPosition
+                    <= expectedPosition + HomePositionToleranceCounts
 
                 && startCycle != 0
                 && completionCycle >= startCycle
@@ -139,6 +147,8 @@ namespace LasalMotionControlLib
                     OriginalDetailCodeValue,
                     Ds402StatusWord,
                     ActualPosition,
+                    RecoveryKey.Parameters.HomingMethod,
+                    RecoveryKey.Parameters.Position,
                     StartCycle,
                     CompletionCycle,
                     NativeCommandState,

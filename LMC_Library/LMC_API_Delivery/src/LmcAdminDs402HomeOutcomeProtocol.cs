@@ -224,6 +224,8 @@ namespace LasalMotionControlLib
                     originalDetailCode,
                     ds402StatusWord,
                     actualPosition,
+                    expectedRecoveryKey.Parameters.HomingMethod,
+                    expectedRecoveryKey.Parameters.Position,
                     startCycle,
                     completionCycle,
                     nativeCommandState,
@@ -259,6 +261,8 @@ namespace LasalMotionControlLib
             uint originalDetailCode,
             ushort ds402StatusWord,
             int actualPosition,
+            int homingMethod,
+            int homeOffset,
             uint startCycle,
             uint completionCycle,
             uint nativeCommandState,
@@ -277,11 +281,10 @@ namespace LasalMotionControlLib
             if (recordState
                     == LMCAxisDs402HomeOutcomeRecordState.Succeeded)
             {
-                // Succeeded is committed only after the PLC observed fresh
-                // homing-attained and target-reached samples. P68 is the last
-                // StatusWord after CSP cleanup, where bits 10/12 no longer
-                // carry the homing-mode meaning, so validate only invariants
-                // that remain valid after the mode-8 restore.
+                // Succeeded is committed only after the PLC observed a fresh
+                // homing-attained sample and the expected post-home position.
+                // This StatusWord is captured after restoring the saved mode,
+                // where homing-mode bits no longer retain their old meaning.
                 return LMCAxisDs402HomeOutcomeSemantics.IsSucceeded(
                     responseSucceeded,
                     recordState,
@@ -290,6 +293,8 @@ namespace LasalMotionControlLib
                     originalDetailCode,
                     ds402StatusWord,
                     actualPosition,
+                    homingMethod,
+                    homeOffset,
                     startCycle,
                     completionCycle,
                     nativeCommandState,

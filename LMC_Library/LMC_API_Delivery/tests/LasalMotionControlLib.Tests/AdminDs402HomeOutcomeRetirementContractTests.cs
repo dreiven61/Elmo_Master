@@ -32,6 +32,9 @@ namespace LasalMotionControlLib.Tests
                 "Response.Admin.Ds402HomeOutcome.SucceededEvidenceFailsClosed",
                 SucceededEvidenceFailsClosed);
             tests.Add(
+                "Response.Admin.Ds402HomeOutcome.MovingOffsetExpectedPosition",
+                MovingOffsetExpectedPosition);
+            tests.Add(
                 "Response.Admin.Ds402HomeOutcome.PostCleanupStatusBitsOpaque",
                 PostCleanupStatusBitsOpaque);
             tests.Add(
@@ -276,7 +279,7 @@ namespace LasalMotionControlLib.Tests
                 payload => TestFrame.WriteUInt16(payload, 68, 0),
                 payload => TestFrame.WriteUInt16(payload, 68, 0x0068),
                 payload => TestFrame.WriteUInt16(payload, 68, 0x2027),
-                payload => TestFrame.WriteInt32(payload, 72, 1),
+                payload => TestFrame.WriteInt32(payload, 72, 33),
                 payload => TestFrame.WriteUInt32(payload, 76, 0),
                 payload => TestFrame.WriteUInt32(payload, 80, 99),
                 payload => TestFrame.WriteUInt32(payload, 84, 1),
@@ -332,12 +335,56 @@ namespace LasalMotionControlLib.Tests
                 validParsed.OriginalErrorId,
                 validParsed.OriginalDetailCode,
                 validParsed.Ds402StatusWord,
-                1,
+                33,
                 validParsed.StartCycle,
                 validParsed.CompletionCycle,
                 validParsed.NativeCommandState,
                 validParsed.RecordGeneration);
             AssertEx.False(invalidPublicResult.HomingSucceeded);
+        }
+
+        private static void MovingOffsetExpectedPosition()
+        {
+            var key = RecoveryKey(34, 100, 1000, 2000, 3000);
+            var valid = LMC_AdminParser.ParseAxisDs402HomeOutcome(
+                TestFrame.Response(
+                    0,
+                    OutcomePayload(
+                        16,
+                        key,
+                        LMCAxisDs402HomeOutcomeRecordState.Succeeded,
+                        0,
+                        0,
+                        LMCAdminDetailCode.None,
+                        PostCleanupStatusWord,
+                        100,
+                        200,
+                        0,
+                        RecordGeneration,
+                        -100)),
+                16,
+                key);
+            AssertEx.Equal(-100, valid.ActualPosition);
+
+            AssertEx.Throws<InvalidDataException>(
+                () => LMC_AdminParser.ParseAxisDs402HomeOutcome(
+                    TestFrame.Response(
+                        0,
+                        OutcomePayload(
+                            17,
+                            key,
+                            LMCAxisDs402HomeOutcomeRecordState.Succeeded,
+                            0,
+                            0,
+                            LMCAdminDetailCode.None,
+                            PostCleanupStatusWord,
+                            100,
+                            200,
+                            0,
+                            RecordGeneration,
+                            100)),
+                    17,
+                    key));
         }
 
         private static void PostCleanupStatusBitsOpaque()
@@ -931,7 +978,12 @@ namespace LasalMotionControlLib.Tests
                     generation));
         }
 
-        private static LMCAxisDs402HomeRecoveryKey RecoveryKey()
+        private static LMCAxisDs402HomeRecoveryKey RecoveryKey(
+            int homingMethod = HomingMethod,
+            int homeOffset = 0,
+            int homeVelocity1 = 0,
+            int homeVelocity2 = 0,
+            int acceleration = 0)
         {
             return new LMCAxisDs402HomeRecoveryKey(
                 LMCAdmin.ProtocolSchemaVersion,
@@ -946,11 +998,11 @@ namespace LasalMotionControlLib.Tests
                     0x50607080u),
                 2,
                 new LMCAxisDs402HomeParameters(
-                    HomingMethod,
-                    0,
-                    0,
-                    0,
-                    0,
+                    homingMethod,
+                    homeOffset,
+                    homeVelocity1,
+                    acceleration,
+                    homeVelocity2,
                     0,
                     LMCDs402HomeBufferMode.Aborting,
                     60000));
@@ -967,7 +1019,8 @@ namespace LasalMotionControlLib.Tests
             uint startCycle,
             uint completionCycle,
             uint nativeCommandState,
-            uint generation)
+            uint generation,
+            int actualPosition = 0)
         {
             var payload = CommonAdminPayload(requestId, 92);
             TestFrame.WriteUInt16(payload, 16, (ushort)state);
@@ -985,7 +1038,7 @@ namespace LasalMotionControlLib.Tests
             TestFrame.WriteInt16(payload, 62, originalError);
             TestFrame.WriteUInt32(payload, 64, (uint)originalDetail);
             TestFrame.WriteUInt16(payload, 68, ds402StatusWord);
-            TestFrame.WriteInt32(payload, 72, 0);
+            TestFrame.WriteInt32(payload, 72, actualPosition);
             TestFrame.WriteUInt32(payload, 76, startCycle);
             TestFrame.WriteUInt32(payload, 80, completionCycle);
             TestFrame.WriteUInt32(payload, 84, nativeCommandState);

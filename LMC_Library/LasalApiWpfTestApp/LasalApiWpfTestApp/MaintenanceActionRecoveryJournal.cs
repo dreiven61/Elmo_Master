@@ -523,7 +523,7 @@ namespace LasalMotionControlApiExample
                     && !HasExactDs402HomeSemantic(actionParameters))
                 {
                     throw new ArgumentException(
-                        "The DS402 Home recovery record must identify the exact non-moving method 37/current-position-zero semantic.",
+                        "The DS402 Home recovery record must identify an exact supported standard homing parameter set.",
                         "actionParameters");
                 }
 
@@ -1078,7 +1078,7 @@ namespace LasalMotionControlApiExample
                         result.ActionParameters))
                 {
                     throw new InvalidDataException(
-                        "Current maintenance recovery format requires exact non-moving DS402 method 37/current-position-zero semantics.");
+                        "Current maintenance recovery format requires an exact supported DS402 homing parameter set.");
                 }
 
                 if (formatVersion == FormatVersion
@@ -1152,23 +1152,45 @@ namespace LasalMotionControlApiExample
             uint schema;
             int method;
             int homeOffset;
-            int velocity;
+            int velocity1;
             int acceleration;
-            int distanceLimit;
+            int velocity2;
             int torqueLimit;
             uint timeout;
-            return TryReadUInt(values, "Schema", out schema)
-                && schema == 1
-                && TryReadInt(values, "Method", out method)
-                && method == 37
+            if (!TryReadUInt(values, "Schema", out schema)
+                || schema != 1
+                || !TryReadInt(values, "Method", out method))
+            {
+                return false;
+            }
+
+            var methodSupported =
+                (method >= 1 && method <= 14)
+                || (method >= 17 && method <= 30)
+                || method == 33
+                || method == 34
+                || method == 37;
+            var hasVelocity1 = values.ContainsKey("HomeVelocity1")
+                ? TryReadInt(values, "HomeVelocity1", out velocity1)
+                : TryReadInt(values, "Velocity", out velocity1);
+            var hasVelocity2 = values.ContainsKey("HomeVelocity2")
+                ? TryReadInt(values, "HomeVelocity2", out velocity2)
+                : TryReadInt(values, "DistanceLimit", out velocity2);
+            return methodSupported
                 && TryReadInt(values, "HomeOffset", out homeOffset)
-                && homeOffset == 0
-                && TryReadInt(values, "Velocity", out velocity)
-                && velocity == 0
+                && homeOffset >= -2000000000
+                && homeOffset <= 2000000000
+                && hasVelocity1
                 && TryReadInt(values, "Acceleration", out acceleration)
-                && acceleration == 0
-                && TryReadInt(values, "DistanceLimit", out distanceLimit)
-                && distanceLimit == 0
+                && hasVelocity2
+                && ((method == 37
+                        && velocity1 == 0
+                        && velocity2 == 0
+                        && acceleration == 0)
+                    || (method != 37
+                        && velocity1 > 0
+                        && velocity2 > 0
+                        && acceleration > 0))
                 && TryReadInt(values, "TorqueLimit", out torqueLimit)
                 && torqueLimit == 0
                 && HasValue(values, "BufferMode", "Aborting")

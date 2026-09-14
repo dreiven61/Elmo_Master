@@ -19,6 +19,11 @@ function Assert-Match {
     Assert-True ([regex]::IsMatch($Text, $Pattern)) $Message
 }
 
+function Assert-NoMatch {
+    param([string]$Text, [string]$Pattern, [string]$Message)
+    Assert-True (-not [regex]::IsMatch($Text, $Pattern)) $Message
+}
+
 function Read-SourceText {
     param([string]$RelativePath)
     $path = Join-Path $RepositoryRoot $RelativePath
@@ -64,6 +69,9 @@ Assert-Match $reserve '(?s)if\s+safetyPreemption\s*&.*?existingOwnerKind\s*=\s*L
 Assert-Match $reserve '(?s)if\s*\(existingOwnerKind\s*=\s*LMC_OWNER_KIND_LMC_HOME\)\s*\|.*?existingOwnerKind\s*=\s*LMC_OWNER_KIND_DS402_HOME.*?existingOwnerKind\s*=\s*LMC_OWNER_KIND_ENCODER.*?LMC_OWNER_OBSERVER_PREEMPTED_SPECIAL' 'HomeDS402 and encoder maintenance are tagged as special preempted owners'
 Assert-Match $control '(?s)UpdateAxisRebaseRequiredState\(\s*SetAxisMask:=ExpectedAxisMask,\s*ClearAxisMask:=0\)' 'successful SetPosition ownership receipt marks the selected axis as requiring rebase'
 Assert-Match $control '(?s)ReportKind\s*=\s*LMC_OWNER_REPORT_TERMINAL_SUCCESS.*?ReportValue0\s*=\s*LMC_HOME_RECORD_SUCCEEDED.*?UpdateAxisRebaseRequiredState\(\s*SetAxisMask:=0,\s*ClearAxisMask:=AxisMask\)' 'successful LMC Home terminal receipt clears the selected-axis rebase requirement'
+Assert-Match $control '(?m)^\s*#define\s+LMC_OWNER_DS402_HOME_POSITION_TOLERANCE\s+32\s*$' 'HomeDS402 ownership terminal tolerance is 32 raw counts'
+Assert-Match $control '(?s)LMC_OWNER_REPORT_TERMINAL_SUCCESS:.*?\(pState\s*\+\s*460\)\^\$DINT\s*>=\s*\(0\s*-\s*LMC_OWNER_DS402_HOME_POSITION_TOLERANCE\).*?\(pState\s*\+\s*460\)\^\$DINT\s*<=\s*LMC_OWNER_DS402_HOME_POSITION_TOLERANCE' 'HomeDS402 ownership receipt accepts the qualified raw zero band'
+Assert-NoMatch $control '(?s)LMC_OWNER_REPORT_TERMINAL_SUCCESS:.*?\(pState\s*\+\s*460\)\^\$DINT\s*=\s*0' 'HomeDS402 ownership receipt no longer requires exact raw zero'
 
 $managedPattern = '(?s)case\s+CommandId\s+of\s*0x2022,\s*0x2023,\s*0x2024,\s*0x209F,\s*0x20A0,\s*0x20A2,\s*0x2047,\s*0x2048,\s*0x2049,\s*0x204A,\s*0x204B,\s*0x2085,\s*0x20A4,\s*0x20E7,\s*0x7D22:'
 Assert-Match $control $managedPattern 'ordinary ownership dispatcher keeps Axis/Group mutation command inventory together'

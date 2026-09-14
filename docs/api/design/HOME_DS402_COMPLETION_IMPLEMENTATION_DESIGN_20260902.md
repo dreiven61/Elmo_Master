@@ -5,6 +5,11 @@
 > `LMC_HOME_AND_DS402_HOME_IMPLEMENTATION_DESIGN_20260911.md`를 따른다. 이 문서의
 > "five source gates all ON" 요구는 current HEAD에 적용하지 않는다. global ordinary ownership
 > gates는 FALSE가 current 의도이며 Home 전용 reservation 경로와 독립이다.
+>
+> **2026-09-14 completion/mode override:** current implementation은 bit 4 HIGH 뒤 fresh
+> HomingAttained/no-error와 raw ActualPosition 0 +/- 32를 완료 조건으로 사용한다.
+> TargetReached는 진단값일 뿐 완료 gate가 아니다. 또한 Home 전 0x6061의 지원 운전 모드
+> PP(1), PV(3), IP(7), CSP(8)를 저장하고 완료/cleanup 뒤 그 exact mode로 복귀한다.
 
 - 대상: No.19 `MMC_HomeDS402Cmd`
 - 기준 branch: `dev`

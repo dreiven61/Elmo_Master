@@ -188,11 +188,13 @@ if ($null -ne $recover) {
 $recreate = Get-CSharpMethodBlock -Text $main -MethodName 'RecreateDs402RecoveryKey'
 if ($null -ne $recreate) {
     Assert-Regex $recreate 'record\.Action\s*!=\s*MaintenanceActionKind\.Ds402Home' 'recovery-key reconstruction rejects other action kinds' -ExpectedCount 1
-    Assert-Regex $recreate 'CurrentPositionZeroHomingMethod' 'recovery-key reconstruction pins method 37/current-position-zero' -ExpectedCount 1
-    foreach ($field in @('HomeOffset', 'Velocity', 'Acceleration', 'DistanceLimit', 'TorqueLimit')) {
-        $fieldPattern = 'ReadParameterInt\(values,\s*"' + [regex]::Escape($field) + '"\)\s*!=\s*0'
-        Assert-Regex $recreate $fieldPattern "recovery-key reconstruction requires $field zero" -ExpectedCount 1
+    foreach ($field in @('Method', 'HomeOffset', 'Acceleration')) {
+        $fieldPattern = 'ReadParameterInt\(values,\s*"' + [regex]::Escape($field) + '"\)'
+        Assert-Regex $recreate $fieldPattern "recovery-key reconstruction restores $field" -ExpectedCount 1
     }
+    Assert-Regex $recreate 'ContainsKey\("HomeVelocity1"\)[\s\S]{0,160}ReadParameterInt\(values,\s*"Velocity"\)' 'recovery-key reconstruction supports current and legacy Velocity1 journal keys' -ExpectedCount 1
+    Assert-Regex $recreate 'ContainsKey\("HomeVelocity2"\)[\s\S]{0,160}ReadParameterInt\(values,\s*"DistanceLimit"\)' 'recovery-key reconstruction supports current and legacy Velocity2 journal keys' -ExpectedCount 1
+    Assert-Regex $recreate 'ReadParameterInt\(values,\s*"TorqueLimit"\)\s*!=\s*0' 'recovery-key reconstruction still rejects nonzero TorqueLimit' -ExpectedCount 1
     Assert-Regex $recreate 'LMCDs402HomeBufferMode\.Aborting\.ToString\(\)' 'recovery-key reconstruction requires Aborting buffer mode' -ExpectedCount 1
 }
 

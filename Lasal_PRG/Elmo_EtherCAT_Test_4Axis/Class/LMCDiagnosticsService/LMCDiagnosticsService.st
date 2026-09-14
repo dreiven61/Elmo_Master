@@ -649,7 +649,7 @@ END_FUNCTION
 #define LMC_DIAG_MAX_BULK_SIGNALS     24
 #define LMC_DIAG_SDO_LOCAL_ERROR_ID    -32001
 #define LMC_DIAG_SDO_ABORT_TIMEOUT     0x05040000
-#define LMC_DIAG_DS402_HOME_POSITION_TOLERANCE 1
+#define LMC_DIAG_DS402_HOME_POSITION_TOLERANCE 32
 #define LMC_DIAG_DS402_CLEANUP_TIMEOUT_MS 5000
 #define LMC_DIAG_SDO_STATE_QUEUED      1
 #define LMC_DIAG_SDO_STATE_RUNNING     2
@@ -5356,6 +5356,7 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeStart
 		snapshot : ARRAY [0..303] OF USINT;
 		executorConnected, executorReusable : BOOL;
 		journalEligible, journalPrepared, preflightOnly : BOOL;
+		methodCandidate : BOOL;
 		intentMatches : BOOL;
 	END_VAR
 
@@ -5404,6 +5405,11 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeStart
 	reservedValue := (pRequest + 62)^$UINT;
 	timeoutMs := (pRequest + 64)^$UDINT;
 	executeToken := (pRequest + 68)^$UDINT;
+	methodCandidate :=
+		((homingMethod >= 1) & (homingMethod <= 14)) |
+		((homingMethod >= 17) & (homingMethod <= 30)) |
+		(homingMethod = 33) | (homingMethod = 34) |
+		(homingMethod = 37);
 	currentBootId := GetDiagnosticsBootId();
 	rawStartState := 0xFFFFFFFF;
 	baseStartState := 0xFFFFFFFF;
@@ -5426,9 +5432,13 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeStart
 		elsif (Reference < 1) | (Reference > 4) |
 			(schemaVersion <> 1) | (requestFlags <> 0) | (requestId = 0) |
 			((intent0 = 0) & (intent1 = 0) & (intent2 = 0) & (intent3 = 0)) |
-			(homingMethod <> 37) | (homePosition <> 0) |
-			(velocity <> 0) | (acceleration <> 0) |
-			(distanceLimit <> 0) | (torqueLimit <> 0) |
+			(methodCandidate = FALSE) |
+			(homePosition < -2000000000) | (homePosition > 2000000000) |
+			(torqueLimit <> 0) |
+			(((homingMethod = 37) &
+			  ((velocity <> 0) | (distanceLimit <> 0) | (acceleration <> 0))) |
+			 ((homingMethod <> 37) &
+			  ((velocity <= 0) | (distanceLimit <= 0) | (acceleration <= 0)))) |
 			(bufferMode <> 1) | (reservedValue <> 0) | (timeoutMs = 0) |
 			(executeToken <> 0x32303448) then
 			detailCode := 9;
@@ -5538,9 +5548,13 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeStart
 	elsif (Reference < 1) | (Reference > 4) |
 		(schemaVersion <> 1) | (requestFlags <> 0) | (requestId = 0) |
 		((intent0 = 0) & (intent1 = 0) & (intent2 = 0) & (intent3 = 0)) |
-		(homingMethod <> 37) | (homePosition <> 0) |
-		(velocity <> 0) | (acceleration <> 0) |
-		(distanceLimit <> 0) | (torqueLimit <> 0) |
+		(methodCandidate = FALSE) |
+		(homePosition < -2000000000) | (homePosition > 2000000000) |
+		(torqueLimit <> 0) |
+		(((homingMethod = 37) &
+		  ((velocity <> 0) | (distanceLimit <> 0) | (acceleration <> 0))) |
+		 ((homingMethod <> 37) &
+		  ((velocity <= 0) | (distanceLimit <= 0) | (acceleration <= 0)))) |
 		(bufferMode <> 1) | (reservedValue <> 0) | (timeoutMs = 0) |
 		(executeToken <> 0x32303448) then
 		detailCode := 9;
@@ -5580,9 +5594,13 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeStart
 		((axisMask and LMC_DIAG_CONFIGURED_PHYSICAL_DRIVE_MASK) <> 0) &
 		(schemaVersion = 1) & (requestFlags = 0) & (requestId <> 0) &
 		((intent0 <> 0) | (intent1 <> 0) | (intent2 <> 0) | (intent3 <> 0)) &
-		(homingMethod = 37) & (homePosition = 0) &
-		(velocity = 0) & (acceleration = 0) &
-		(distanceLimit = 0) & (torqueLimit = 0) &
+		methodCandidate &
+		(homePosition >= -2000000000) & (homePosition <= 2000000000) &
+		(torqueLimit = 0) &
+		(((homingMethod = 37) &
+		  (velocity = 0) & (distanceLimit = 0) & (acceleration = 0)) |
+		 ((homingMethod <> 37) &
+		  (velocity > 0) & (distanceLimit > 0) & (acceleration > 0))) &
 		(bufferMode = 1) & (reservedValue = 0) & (timeoutMs <> 0) &
 		(executeToken = 0x32303448) &
 		(CallerSessionEpoch <> 0) & (RequestSequence <> 0) &
@@ -5673,9 +5691,12 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeStart
 		Ds402HomeState[99] := nextGeneration$DINT;
 		Ds402HomeState[101] := nextGeneration$DINT;
 		Ds402HomeState[103] := 1;
-		Ds402HomeState[105] := 8;
+		// The current 0x6061 mode is captured before entering Homing mode.
+		Ds402HomeState[105] := 0;
 		Ds402HomeState[109] := nextGeneration$DINT;
 		Ds402HomeState[110] := currentCycle$DINT;
+		// Runtime slot 111 retains HomeVelocity2 until 0x6099:02 is written.
+		Ds402HomeState[111] := distanceLimit;
 		Ds402HomeState[118]$UDINT := serviceStart;
 		// This publication word means rollback-only until all start gates pass.
 		Ds402HomeState[92] := LMC_DIAG_DS402_STAGE_ROLLBACK_PREPARED;
@@ -5990,7 +6011,10 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeOutcome
 	if (schemaVersion <> 1) | (requestFlags <> 0) | (requestId = 0) |
 		(originalRequestId = 0) |
 		((intent0 = 0) & (intent1 = 0) & (intent2 = 0) & (intent3 = 0)) |
-		(homingMethod <> 37) then
+		(((homingMethod < 1) | (homingMethod > 14)) &
+		 ((homingMethod < 17) | (homingMethod > 30)) &
+		 (homingMethod <> 33) & (homingMethod <> 34) &
+		 (homingMethod <> 37)) then
 		detailCode := 28;
 	elsif diagnosticsBuild <> 1 then
 		detailCode := 16;
@@ -6046,11 +6070,20 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeOutcome
               (Ds402HomeState[recordBase + 16] = 0) &
               (Ds402HomeState[recordBase + 21] = 0) &
 
-              // Method 37 successful zero position is 0 +/- 1 count.
-              (Ds402HomeState[recordBase + 18] >=
-                  (0 - LMC_DIAG_DS402_HOME_POSITION_TOLERANCE)) &
-              (Ds402HomeState[recordBase + 18] <=
-                  LMC_DIAG_DS402_HOME_POSITION_TOLERANCE) &
+              (((Ds402HomeState[recordBase + 9] = 37) &
+                (Ds402HomeState[recordBase + 18] >=
+                 (Ds402HomeState[recordBase + 10] -
+                  LMC_DIAG_DS402_HOME_POSITION_TOLERANCE)) &
+                (Ds402HomeState[recordBase + 18] <=
+                 (Ds402HomeState[recordBase + 10] +
+                  LMC_DIAG_DS402_HOME_POSITION_TOLERANCE))) |
+               ((Ds402HomeState[recordBase + 9] <> 37) &
+                (Ds402HomeState[recordBase + 18] >=
+                 ((0 - Ds402HomeState[recordBase + 10]) -
+                  LMC_DIAG_DS402_HOME_POSITION_TOLERANCE)) &
+                (Ds402HomeState[recordBase + 18] <=
+                 ((0 - Ds402HomeState[recordBase + 10]) +
+                  LMC_DIAG_DS402_HOME_POSITION_TOLERANCE)))) &
 
               ((Ds402HomeState[recordBase + 17]$UDINT and
                 0x0008) = 0) &
@@ -6190,7 +6223,10 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeRetire
 	if (schemaVersion <> 1) | (requestFlags <> 0) | (requestId = 0) |
 		(originalRequestId = 0) | (recordGeneration = 0) |
 		((intent0 = 0) & (intent1 = 0) & (intent2 = 0) & (intent3 = 0)) |
-		(homingMethod <> 37) then
+		(((homingMethod < 1) | (homingMethod > 14)) &
+		 ((homingMethod < 17) | (homingMethod > 30)) &
+		 (homingMethod <> 33) & (homingMethod <> 34) &
+		 (homingMethod <> 37)) then
 		detailCode := 28;
 	elsif diagnosticsBuild <> 1 then
 		detailCode := 16;
@@ -6287,7 +6323,7 @@ FUNCTION LMCDiagnosticsService::ProcessAxisDs402Home
 		terminalRecordState : DINT;
 		startResult : iprStates;
 		snapshotValid, newCycle, executorConnected, executorReusable : BOOL;
-		homePositionValid, homeCompletionStatusValid : BOOL;
+		homePositionValid, restoreModeValid : BOOL;
 		startSdo, waitSdo, sdoIsWrite, failure : BOOL;
 		preemptionSnapshotValid, preemptionCleanup, cleanupExpired : BOOL;
 	END_VAR
@@ -6487,20 +6523,28 @@ FUNCTION LMCDiagnosticsService::ProcessAxisDs402Home
 			Ds402HomeState[110] := currentCycle$DINT;
 		end_if;
 	end_if;
-	homePositionValid :=
-		actualPosition = Ds402HomeState[recordBase + 10];
-	if (Ds402HomeState[recordBase + 9] = 37) &
-	   (Ds402HomeState[recordBase + 10] = 0) then
+	if Ds402HomeState[recordBase + 9] = 37 then
+		// Elmo method 37 reports PositionActual = HomeOffset.
 		homePositionValid :=
 			(actualPosition >=
-			 (0 - LMC_DIAG_DS402_HOME_POSITION_TOLERANCE)) &
-			(actualPosition <= LMC_DIAG_DS402_HOME_POSITION_TOLERANCE);
+			 (Ds402HomeState[recordBase + 10] -
+			  LMC_DIAG_DS402_HOME_POSITION_TOLERANCE)) &
+			(actualPosition <=
+			 (Ds402HomeState[recordBase + 10] +
+			  LMC_DIAG_DS402_HOME_POSITION_TOLERANCE));
+	else
+		// Elmo moving standard methods report PositionActual = -HomeOffset.
+		homePositionValid :=
+			(actualPosition >=
+			 ((0 - Ds402HomeState[recordBase + 10]) -
+			  LMC_DIAG_DS402_HOME_POSITION_TOLERANCE)) &
+			(actualPosition <=
+			 ((0 - Ds402HomeState[recordBase + 10]) +
+			  LMC_DIAG_DS402_HOME_POSITION_TOLERANCE));
 	end_if;
-	homeCompletionStatusValid := (statusWord and 0x0400) <> 0;
-	if (Ds402HomeState[recordBase + 9] = 37) &
-	   (baseState = 0x0040) then
-		homeCompletionStatusValid := TRUE;
-	end_if;
+	restoreModeValid :=
+		(Ds402HomeState[105] = 1) | (Ds402HomeState[105] = 3) |
+		(Ds402HomeState[105] = 7) | (Ds402HomeState[105] = 8);
 
 	failure := FALSE;
 	failureDetail := 30;
@@ -6595,10 +6639,6 @@ FUNCTION LMCDiagnosticsService::ProcessAxisDs402Home
 
 			20:
         if newCycle then
-            // Method 37 may enter Homing mode with HomingAttained(bit12)
-            // already set from the previous drive state.
-            // Pre-start validation rejects HomingError only.
-            // Fresh completion evidence is evaluated after bit4 HIGH.
             if (statusWord and 0x2000) = 0 then
                 Ds402HomeState[111] := 1;
                 Ds402HomeState[92] := 21;
@@ -6618,8 +6658,6 @@ FUNCTION LMCDiagnosticsService::ProcessAxisDs402Home
 					Ds402HomeState[103] := 0;
 					Ds402HomeState[92] := 23;
 				elsif mailboxResult = 1 then
-					// Once SetHigh is queued, the drive coordinate may change before
-					// its result is observed. Cleanup must therefore require alignment.
 					Ds402HomeState[104] := currentCycle$DINT;
 					Ds402HomeState[102] := actualPosition;
 					Ds402HomeState[103] := 0;
@@ -6648,21 +6686,11 @@ FUNCTION LMCDiagnosticsService::ProcessAxisDs402Home
 						failure := TRUE;
 						failureNative := statusWord;
 					elsif (Ds402HomeState[111] <> 0) &
-						((statusWord and 0x1000) <> 0) &
-						homeCompletionStatusValid then
-						// Method 37 may report attained without target-reached while
-						// Switch On Disabled. Accept only the observed one-count zero
-						// quantization and keep every other Home method exact.
+						((statusWord and 0x1000) <> 0) then
 						if homePositionValid then
-							if actualPosition = Ds402HomeState[102] then
-								Ds402HomeState[103] += 1;
-							else
-								Ds402HomeState[102] := actualPosition;
-								Ds402HomeState[103] := 1;
-							end_if;
-							if Ds402HomeState[103] >= 3 then
-								Ds402HomeState[92] := 24;
-							end_if;
+							Ds402HomeState[102] := actualPosition;
+							Ds402HomeState[103] := 1;
+							Ds402HomeState[92] := 24;
 						else
 							Ds402HomeState[103] := 0;
 						end_if;
@@ -6822,7 +6850,6 @@ FUNCTION LMCDiagnosticsService::ProcessAxisDs402Home
 		end_case;
 	end_if;
 
-	// SDO start stages use one persistent executor at a time.
 	stage := Ds402HomeState[92];
 	startSdo := FALSE;
 	sdoIsWrite := FALSE;
@@ -6844,6 +6871,21 @@ FUNCTION LMCDiagnosticsService::ProcessAxisDs402Home
 				startSdo := TRUE; sdoIsWrite := TRUE; sdoIndex := 0x6098;
 				sdoLength := 1; sdoData := Ds402HomeState[recordBase + 9]$UDINT;
 				nextStage := 7;
+			8:
+				startSdo := TRUE; sdoIsWrite := TRUE; sdoIndex := 0x6099;
+				homeSdoSubIndex := 1; sdoLength := 4;
+				sdoData := Ds402HomeState[recordBase + 11]$UDINT;
+				nextStage := 9;
+			10:
+				startSdo := TRUE; sdoIsWrite := TRUE; sdoIndex := 0x6099;
+				homeSdoSubIndex := 2; sdoLength := 4;
+				sdoData := Ds402HomeState[111]$UDINT;
+				nextStage := 11;
+			12:
+				startSdo := TRUE; sdoIsWrite := TRUE; sdoIndex := 0x609A;
+				sdoLength := 4;
+				sdoData := Ds402HomeState[recordBase + 12]$UDINT;
+				nextStage := 13;
 			16:
 				startSdo := TRUE; sdoIsWrite := TRUE; sdoIndex := 0x6060;
 				sdoLength := 1; sdoData := 6; nextStage := 17;
@@ -6851,8 +6893,14 @@ FUNCTION LMCDiagnosticsService::ProcessAxisDs402Home
 				startSdo := TRUE; sdoIndex := 0x6061;
 				sdoLength := 1; nextStage := 19;
 			28:
-				startSdo := TRUE; sdoIsWrite := TRUE; sdoIndex := 0x6060;
-				sdoLength := 1; sdoData := 8; nextStage := 29;
+				if restoreModeValid then
+					startSdo := TRUE; sdoIsWrite := TRUE; sdoIndex := 0x6060;
+					sdoLength := 1;
+					sdoData := Ds402HomeState[105]$UDINT;
+					nextStage := 29;
+				else
+					failure := TRUE; failureNative := 43;
+				end_if;
 			30:
 				startSdo := TRUE; sdoIndex := 0x6061;
 				sdoLength := 1; nextStage := 31;
@@ -6986,8 +7034,6 @@ FUNCTION LMCDiagnosticsService::ProcessAxisDs402Home
 					end_if;
 			end_case;
 			if startResult = READY then
-				// Once the mode-6 write is accepted, cleanup must assume it may
-				// have reached the drive even if its callback is later lost.
 				if stage = 16 then
 					Ds402HomeState[116] := 1;
 				end_if;
@@ -7002,6 +7048,7 @@ FUNCTION LMCDiagnosticsService::ProcessAxisDs402Home
 
 	stage := Ds402HomeState[92];
 	waitSdo := (stage = 3) | (stage = 5) | (stage = 7) |
+		(stage = 9) | (stage = 11) | (stage = 13) |
 		(stage = 17) | (stage = 19) | (stage = 29) | (stage = 31);
 	if (failure = FALSE) & waitSdo then
 		completionResult := -2;
@@ -7046,13 +7093,29 @@ FUNCTION LMCDiagnosticsService::ProcessAxisDs402Home
 			else
 				case stage of
 					3:
-						if (completion.Data and 0xFF) <> 8 then
+						Ds402HomeState[105] := TO_DINT(completion.Data and 0xFF);
+						restoreModeValid :=
+							(Ds402HomeState[105] = 1) |
+							(Ds402HomeState[105] = 3) |
+							(Ds402HomeState[105] = 7) |
+							(Ds402HomeState[105] = 8);
+						if restoreModeValid = FALSE then
 							failure := TRUE; failureNative := completion.Data;
 						else
-							Ds402HomeState[105] := 8; Ds402HomeState[92] := 4;
+							Ds402HomeState[92] := 4;
 						end_if;
 					5: Ds402HomeState[92] := 6;
-					7: Ds402HomeState[92] := 14;
+					7:
+						if Ds402HomeState[recordBase + 9] = 37 then
+							Ds402HomeState[92] := 14;
+						else
+							Ds402HomeState[92] := 8;
+						end_if;
+					9: Ds402HomeState[92] := 10;
+					11: Ds402HomeState[92] := 12;
+					13:
+						Ds402HomeState[111] := 0;
+						Ds402HomeState[92] := 14;
 					17:
 						Ds402HomeState[116] := 1; Ds402HomeState[92] := 18;
 					19:
@@ -7063,7 +7126,8 @@ FUNCTION LMCDiagnosticsService::ProcessAxisDs402Home
 						end_if;
 					29: Ds402HomeState[92] := 30;
 					31:
-						if (completion.Data and 0xFF) <> 8 then
+						if (completion.Data and 0xFF) <>
+							Ds402HomeState[105]$UDINT then
 							failure := TRUE; failureNative := completion.Data;
 						else
 							Ds402HomeState[116] := 0; Ds402HomeState[92] := 32;
@@ -7121,7 +7185,7 @@ FUNCTION LMCDiagnosticsService::ProcessAxisDs402Home
 		RETURN;
 	end_if;
 
-	// Failure cleanup attempts bit 4 low, setpoint alignment, CSP restore and RT
+	// Failure cleanup attempts bit 4 low, setpoint alignment, saved-mode restore and RT
 	// release. Timeout never claims that any of those cleanup steps completed.
 	stage := Ds402HomeState[92];
 	if stage < 90 then
@@ -7452,10 +7516,24 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeReceiptStages
 			 (Ds402HomeState[recordBase + 6] = 0) &
 			 (Ds402HomeState[recordBase + 7] = 0) &
 			 (Ds402HomeState[recordBase + 8] = 0)) |
-			(Ds402HomeState[recordBase + 9] <> 37) |
-			(Ds402HomeState[recordBase + 10] <> 0) |
-			(Ds402HomeState[recordBase + 11] <> 0) |
-			(Ds402HomeState[recordBase + 12] <> 0) |
+			(Ds402HomeState[recordBase + 9] < 1) |
+			(Ds402HomeState[recordBase + 9] > 37) |
+			(Ds402HomeState[recordBase + 9] = 15) |
+			(Ds402HomeState[recordBase + 9] = 16) |
+			(Ds402HomeState[recordBase + 9] = 31) |
+			(Ds402HomeState[recordBase + 9] = 32) |
+			(Ds402HomeState[recordBase + 9] = 35) |
+			(Ds402HomeState[recordBase + 9] = 36) |
+			(Ds402HomeState[recordBase + 10] < -2000000000) |
+			(Ds402HomeState[recordBase + 10] > 2000000000) |
+			(((Ds402HomeState[recordBase + 9] = 37) &
+			  ((Ds402HomeState[recordBase + 11] <> 0) |
+			   (Ds402HomeState[111] <> 0) |
+			   (Ds402HomeState[recordBase + 12] <> 0))) |
+			 ((Ds402HomeState[recordBase + 9] <> 37) &
+			  ((Ds402HomeState[recordBase + 11] <= 0) |
+			   (Ds402HomeState[111] <= 0) |
+			   (Ds402HomeState[recordBase + 12] <= 0)))) |
 			(Ds402HomeState[recordBase + 13] = 0) |
 			(Ds402HomeState[recordBase + 14] <> 0) |
 			(Ds402HomeState[recordBase + 15] <> 0) |
@@ -7480,13 +7558,12 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeReceiptStages
 			 Ds402HomeState[recordBase + 18]) |
 			(Ds402HomeState[103] <> 1) |
 			(Ds402HomeState[104] <> 0) |
-			(Ds402HomeState[105] <> 8) |
+			(Ds402HomeState[105] <> 0) |
 			(Ds402HomeState[106] <> 0) |
 			(Ds402HomeState[107] <> 0) |
 			(Ds402HomeState[108] <> 0) |
 			(Ds402HomeState[110] <>
 			 Ds402HomeState[recordBase + 19]) |
-			(Ds402HomeState[111] <> 0) |
 			(Ds402HomeState[112] <> 0) |
 			(Ds402HomeState[113] <> 0) |
 			(Ds402HomeState[114] <>
@@ -7637,6 +7714,7 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeCleanupStages
 		completionResult, mailboxResult, orphanResult, ownerResult : DINT;
 		startResult : iprStates;
 		executorConnected, executorReusable, cleanupExpired : BOOL;
+		restoreModeValid : BOOL;
 	END_VAR
 
 	currentCycle := InitialCurrentCycle;
@@ -7644,6 +7722,9 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeCleanupStages
 	cleanupStart := Ds402HomeState[119]$UDINT;
 	cleanupExpired := (cleanupStart <> 0) & (stage >= 90) & (stage <= 99) &
 		((serviceNow - cleanupStart) >= LMC_DIAG_DS402_CLEANUP_TIMEOUT_MS);
+	restoreModeValid :=
+		(Ds402HomeState[105] = 1) | (Ds402HomeState[105] = 3) |
+		(Ds402HomeState[105] = 7) | (Ds402HomeState[105] = 8);
 	if cleanupExpired then
 		if Ds402HomeState[94] <> 0 then
 			orphanResult := -1;
@@ -7776,7 +7857,7 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeCleanupStages
 			end_if;
 		94:
 			// MarkOrphan returns -2 when completion may already be ready. Drain
-			// that exact token before waiting for IsReusable and restoring CSP.
+			// that exact token before waiting for IsReusable and restoring the saved mode.
 			if Ds402HomeState[113] <> 0 then
 				completionResult := -2;
 				case axisReference of
@@ -7841,6 +7922,11 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeCleanupStages
 				Ds402HomeState[113] := 0;
 				if Ds402HomeState[116] = 0 then
 					Ds402HomeState[92] := 98;
+				elsif restoreModeValid = FALSE then
+					if Ds402HomeState[108] = 0 then
+						Ds402HomeState[108] := 43;
+					end_if;
+					Ds402HomeState[92] := 98;
 				else
 					ownerResult := -3;
 					if preemptionCleanup then
@@ -7873,7 +7959,7 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeCleanupStages
 							sdoToken := 1;
 						end_if;
 						Ds402HomeState[99] := sdoToken$DINT;
-						sdoData := 8;
+						sdoData := Ds402HomeState[105]$UDINT;
 						startResult := ERROR;
 						case axisReference of
 							1: startResult := SdoAxis1.TryStartWrite(sdoToken, 0x6060, 0, (#sdoData)$^USINT, 1, 1000);
@@ -8026,7 +8112,8 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeCleanupStages
 				if (completion.ValidationCode = 0) & (completion.OsResult = 0) &
 					(completion.AbortCode = 0) & (completion.ObjectIndex = 0x6061) &
 					(completion.IsWrite = 0) & (completion.ActualLength = 1) &
-					((completion.Data and 0xFF) = 8) then
+					((completion.Data and 0xFF) =
+					 Ds402HomeState[105]$UDINT) then
 					Ds402HomeState[116] := 0;
 				end_if;
 				Ds402HomeState[92] := 98;
@@ -8045,7 +8132,7 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeCleanupStages
 			Ds402HomeState[92] := 90;
 		100:
 			if preemptionCleanup then
-				// SAFE requires bit 4 low, CSP readback, RT release and an idle
+				// SAFE requires bit 4 low, saved-mode readback, RT release and an idle
 				// exact SDO executor. Every weaker outcome stays quarantined.
 				executorConnected := FALSE;
 				executorReusable := FALSE;
@@ -8127,7 +8214,7 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeCleanupStages
 				(Ds402HomeState[113] <> 0) |
 				(Ds402HomeState[116] <> 0) |
 				(Ds402HomeState[127] <> 0) then
-				// A non-reusable executor or unverified CSP mode is quarantined.
+				// A non-reusable executor or unverified saved mode is quarantined.
 				Ds402HomeState[92] := 101;
 			else
 				ownerResult := -1;

@@ -55,8 +55,8 @@ namespace LasalApiWpfTestApp.SmokeTests
                 "Wpf.MaintenanceUi.EncoderRecoveryKeyRoundTrip",
                 EncoderMaintenanceRecoveryKeyRoundTrips);
             tests.Add(
-                "Wpf.MaintenanceUi.Ds402HomeFixedMethod37ZeroOffset",
-                Ds402HomeUsesFixedMethod37ZeroOffset);
+                "Wpf.MaintenanceUi.Ds402HomeEditableStandardParameters",
+                Ds402HomeUsesEditableStandardParameters);
             tests.Add(
                 "Wpf.MaintenanceUi.Ds402HomeRestartRestoresRecoveryKeyImmediately",
                 Ds402HomeRestartRestoresRecoveryKeyImmediately);
@@ -720,14 +720,14 @@ namespace LasalApiWpfTestApp.SmokeTests
                 recreated.CompatibilityEvidenceId.Word2);
         }
 
-        private static void Ds402HomeUsesFixedMethod37ZeroOffset()
+        private static void Ds402HomeUsesEditableStandardParameters()
         {
             WithTemporaryWindow(
                 LasalMotionControlApiExample.UiLanguage.English,
                 null,
                 window =>
                 {
-                    AssertEx.Equal(1, window.ComboDs402HomeMethod.Items.Count);
+                    AssertEx.Equal(31, window.ComboDs402HomeMethod.Items.Count);
                     AssertEx.Equal(
                         LMCAxisDs402HomeParameters
                             .CurrentPositionZeroHomingMethod,
@@ -744,6 +744,19 @@ namespace LasalApiWpfTestApp.SmokeTests
                     AssertEx.Equal(0, parameters.Velocity);
                     AssertEx.Equal(0, parameters.Acceleration);
                     AssertEx.Equal(0, parameters.DistanceLimit);
+                    AssertEx.Equal(0, parameters.TorqueLimit);
+
+                    window.ComboDs402HomeMethod.Text = "34";
+                    window.TextDs402HomeOffset.Text = "123";
+                    window.TextDs402HomeVelocity1.Text = "1000";
+                    window.TextDs402HomeVelocity2.Text = "2000";
+                    window.TextDs402HomeAcceleration.Text = "3000";
+                    parameters = window.ReadDs402HomeParameters();
+                    AssertEx.Equal(34, parameters.HomingMethod);
+                    AssertEx.Equal(123, parameters.Position);
+                    AssertEx.Equal(1000, parameters.HomeVelocity1);
+                    AssertEx.Equal(2000, parameters.HomeVelocity2);
+                    AssertEx.Equal(3000, parameters.Acceleration);
                     AssertEx.Equal(0, parameters.TorqueLimit);
 
                     window.TextLmcHomeTimeout.Text = "100";
