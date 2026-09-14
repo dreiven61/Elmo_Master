@@ -1,9 +1,9 @@
 # LASAL Motion Control API 설명서
 
-문서 버전: 2.6-development
+문서 버전: 2.7-development
 적용 API: LasalMotionControlLib 0.9.1-preview
 대상 환경: Windows, .NET Framework 4.8
-기준일: 2026-09-01
+기준일: 2026-09-14
 
 \pagebreak
 
@@ -28,6 +28,7 @@
 | 2.4-development | 2026-08-20 | current API 문서 위치 통합, SetPosition P1/volatile backing/fail-closed 계약과 최신 PLC image load 경계 반영 |
 | 2.5-development | 2026-08-31 | SetOperationMode PP/PV/IP/CSP qualification-active 계약, Generic SDO R03~R05, branch cleanup, 17:28 capability freshness ordering blocker와 current 실기 절차 반영 |
 | 2.6-development | 2026-09-01 | SetOperationMode 구현 완료 상태, exact requested-mode ACK, one-shot 0x6060/read-only settling, bounded owner publish, durable outcome/retire 및 남은 기능 로드맵 정렬 |
+| 2.7-development | 2026-09-14 | DS402 Home 정식 public API 호출, standard Homing Method/Offset/Velocity1/Velocity2/Acceleration 편집, HomingAttained 완료 판정, pre-Home exact mode 복귀와 Method 37 사용자 실기 확인 상태 반영 |
 
 이 문서는 `LasalMotionControlLib.dll`의 API 기능, 호출 인자, UNIT, 반환값과 안전 제약을
 설명하는 current 기준 문서다. 구현률, 시험 수치, artifact identity와 다음 작업은

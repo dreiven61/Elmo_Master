@@ -1,99 +1,353 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>LASAL Motion Control API 설명서</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      white-space: pre-wrap;
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <style>
+    @page { size: A4; margin: 18mm 16mm 18mm 16mm; }
+    body { font-family: "Malgun Gothic", "Noto Sans CJK KR", Arial, sans-serif; color: #1f2937; line-height: 1.55; max-width: 1120px; margin: 32px auto; padding: 0 28px; }
+    h1 { color: #17365d; border-bottom: 2px solid #9fbad0; padding-bottom: 0.25em; }
+    h2 { color: #1f4e79; margin-top: 1.6em; }
+    h3 { color: #365f91; }
+    table { border-collapse: collapse; width: 100%; margin: 0.8em 0 1.2em; font-size: 0.92em; }
+    th, td { border: 1px solid #b8c5d1; padding: 6px 8px; vertical-align: top; }
+    th { background: #d9eaf7; color: #17365d; }
+    tr:nth-child(even) td { background: #f7f9fb; }
+    code { font-family: Consolas, monospace; background: #f2f4f7; padding: 0.08em 0.25em; }
+    pre { background: #f4f6f8; border: 1px solid #d3dbe3; padding: 10px; overflow-wrap: anywhere; white-space: pre-wrap; }
+    blockquote { border-left: 4px solid #5b9bd5; margin-left: 0; padding: 0.3em 1em; background: #eef5fb; }
+    a { color: #0563c1; }
+    @media print { body { max-width: none; margin: 0; padding: 0; font-size: 9.5pt; } h1, h2, h3 { break-after: avoid; } table, pre, blockquote { break-inside: avoid; } }
+  </style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">LASAL Motion Control API 설명서</h1>
+</header>
 <h1 id="lasal-motion-control-api-설명서">LASAL Motion Control API
 설명서</h1>
-<p>문서 버전: 2.6-development 적용 API: LasalMotionControlLib
+<p>문서 버전: 2.7-development 적용 API: LasalMotionControlLib
 0.9.1-preview 대상 환경: Windows, .NET Framework 4.8 기준일:
-2026-09-01</p>
+2026-09-14</p>
+<p>\pagebreak</p>
 <h1 id="개정-이력">개정 이력</h1>
 <table>
-<colgroup>
-<col style="width: 33%" />
-<col style="width: 33%" />
-<col style="width: 33%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>문서 버전</th>
 <th>날짜</th>
 <th>내용</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>1.0</td>
 <td>2026-07-15</td>
 <td>최초 작성</td>
 </tr>
-<tr class="even">
+<tr>
 <td>1.1</td>
 <td>2026-07-16</td>
 <td>공개 API 레퍼런스 작성</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>1.2</td>
 <td>2026-07-16</td>
 <td>API 기능, 인자 UNIT과 반환값 중심으로 간소화</td>
 </tr>
-<tr class="even">
+<tr>
 <td>1.3</td>
 <td>2026-07-16</td>
 <td>preview 안전 경고, 응답 판정과 4축 group 제한 보완</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>1.4</td>
 <td>2026-07-16</td>
 <td>group position read 계약 불일치와 static identity 제한 명시</td>
 </tr>
-<tr class="even">
+<tr>
 <td>1.5</td>
 <td>2026-07-22</td>
 <td>read-only Admin, typed drive status, PI/Bulk facade와 local error
 catalog 추가</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>1.6</td>
 <td>2026-07-23</td>
 <td><code>0x7D22</code> GroupMoveLinearRelative API, wire/state 제한과
 runtime 검증 경계 추가</td>
 </tr>
-<tr class="even">
+<tr>
 <td>1.7</td>
 <td>2026-07-29</td>
 <td>Axis Power/Reset/Stop과 Group Stop accepted-once stable wait,
 deadline evidence 추가</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>1.8</td>
 <td>2026-07-29</td>
 <td>Axis Stop/Reset process-local mutation 귀속, Reset Begin/Resume와
 WPF no-replay 정책 추가</td>
 </tr>
-<tr class="even">
+<tr>
 <td>1.9</td>
 <td>2026-07-30</td>
 <td>신규 wait/resume, drive error read와 D0~D5/Recorder/Topology API를
 반영하고 current 지원 상태와 완료 판정 경계 추가</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>2.0-candidate</td>
 <td>2026-07-31</td>
 <td>Axis1-only SDO Write identity-pinned four-ticket gate, stale
 recovery retirement, single-instance 실행과 transactional Distribution
 candidate 경계 추가</td>
 </tr>
-<tr class="even">
+<tr>
 <td>2.1-candidate</td>
 <td>2026-08-04</td>
 <td>LMC Home current-position-zero start/outcome/retirement, DS402 Home
 gate 상태와 TW19/TW20 encoder maintenance 계약 추가</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>2.2-candidate</td>
 <td>2026-08-11</td>
 <td><code>14ccf58</code> exact canonical <code>-1</code> bounded
 fresh-TCP reconnect, complete local cleanup, startup identity와 PC 검증
 경계 추가</td>
 </tr>
-<tr class="even">
+<tr>
 <td>2.3-candidate</td>
 <td>2026-08-12</td>
 <td><code>cbf2548</code> actual EXE X 종료/재실행과 binary identity
@@ -102,25 +356,33 @@ gate, <code>3c63dea</code> 13-role active Python dependency closure,
 <code>RPC_INIT_FRESH_TCP_ONCE_V2</code> bounded pre-response transport
 recovery와 canonical tracked release-input 경계 추가</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>2.4-development</td>
 <td>2026-08-20</td>
 <td>current API 문서 위치 통합, SetPosition P1/volatile
 backing/fail-closed 계약과 최신 PLC image load 경계 반영</td>
 </tr>
-<tr class="even">
+<tr>
 <td>2.5-development</td>
 <td>2026-08-31</td>
 <td>SetOperationMode PP/PV/IP/CSP qualification-active 계약, Generic SDO
 R03~R05, branch cleanup, 17:28 capability freshness ordering blocker와
 current 실기 절차 반영</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>2.6-development</td>
 <td>2026-09-01</td>
 <td>SetOperationMode 구현 완료 상태, exact requested-mode ACK, one-shot
 0x6060/read-only settling, bounded owner publish, durable outcome/retire
 및 남은 기능 로드맵 정렬</td>
+</tr>
+<tr>
+<td>2.7-development</td>
+<td>2026-09-14</td>
+<td>DS402 Home 정식 public API 호출, standard Homing
+Method/Offset/Velocity1/Velocity2/Acceleration 편집, HomingAttained 완료
+판정, pre-Home exact mode 복귀와 Method 37 사용자 실기 확인 상태
+반영</td>
 </tr>
 </tbody>
 </table>
@@ -154,75 +416,71 @@ ordinary <code>VAR_GLOBAL</code>이며 restart/power-loss durability가
 durable query 또는 retirement를 사용하면 안 된다. exact request는
 storage unavailable/detail 24로 fail-closed되는 것이 정상이다.</p>
 </blockquote>
-<h1 id="공통-사항">1. 공통 사항</h1>
-<h2 id="assembly">1.1 Assembly</h2>
+<p>\toc</p>
+<h1 id="1-공통-사항">1. 공통 사항</h1>
+<h2 id="11-assembly">1.1 Assembly</h2>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>항목</th>
 <th>값</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>DLL</td>
 <td><code>LasalMotionControlLib.dll</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td>Namespace</td>
 <td><code>LasalMotionControlLib</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Framework</td>
 <td><code>.NET Framework 4.8</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td>API version</td>
 <td><code>0.9.1-preview</code></td>
 </tr>
 </tbody>
 </table>
-<h2 id="unit-변환">1.2 UNIT 변환</h2>
+<h2 id="12-unit-변환">1.2 UNIT 변환</h2>
 <p>API의 motion 인자는 <code>Int32</code> DINT다. API는 UNIT을 자동으로
 곱하거나 나누지 않는다.</p>
 <pre class="text"><code>송신 DINT = 물리값 x PLC application UNIT
 수신 물리값 = 수신 DINT / PLC application UNIT
 Jerk 송신 DINT = (물리 jerk / 1000) x PLC application UNIT</code></pre>
 <table>
-<colgroup>
-<col style="width: 33%" />
-<col style="width: 33%" />
-<col style="width: 33%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>값</th>
 <th>API 인자 UNIT</th>
 <th>설명</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>Position / Distance</td>
 <td>PLC application UNIT DINT</td>
 <td>예: mm UNIT이 10000이면 1 mm는 10000</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Velocity</td>
 <td>PLC application UNIT/s DINT</td>
 <td>예: 1 mm/s는 UNIT 10000 기준 10000</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Acceleration / Deceleration</td>
 <td>PLC application UNIT/s² DINT</td>
 <td>PLC에 설정된 application UNIT 사용</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Jerk</td>
 <td>PLC application UNIT/s³/1000 DINT</td>
 <td>1000 mm/s³는 입력값 1에 UNIT을 곱함</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Actual position</td>
 <td>PLC application UNIT DINT</td>
 <td>반환값을 UNIT으로 나누어 물리값 계산</td>
@@ -233,103 +491,98 @@ Jerk 송신 DINT = (물리 jerk / 1000) x PLC application UNIT</code></pre>
 사용한다.</p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Constant</th>
 <th style="text-align: right;">값</th>
 <th>의미</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>LMC_Units.MM</code></td>
 <td style="text-align: right;">10000</td>
 <td>Millimeter</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>LMC_Units.M</code></td>
 <td style="text-align: right;">10000000</td>
 <td>Meter</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>LMC_Units.DEG</code></td>
 <td style="text-align: right;">10000</td>
 <td>Degree</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>LMC_Units.MMPSEC</code></td>
 <td style="text-align: right;">10000</td>
 <td>Millimeter/second</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>LMC_Units.RPM</code></td>
 <td style="text-align: right;">1000</td>
 <td>Revolution/minute</td>
 </tr>
 </tbody>
 </table>
-<h2 id="공통-반환값">1.3 공통 반환값</h2>
+<h2 id="13-공통-반환값">1.3 공통 반환값</h2>
 <p>제어와 motion 명령은 <code>LMC_Response</code>를 반환한다.</p>
 <table>
-<colgroup>
-<col style="width: 33%" />
-<col style="width: 33%" />
-<col style="width: 33%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>Property</th>
 <th>Type</th>
 <th>설명</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>IsSuccess</code></td>
 <td><code>bool</code></td>
 <td>frame과 command 결과 성공 여부; motion/power/stop 완료를 뜻하지
 않음</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>Raw</code> / <code>Payload</code></td>
 <td><code>byte[]</code></td>
 <td>방어 복사된 원본 frame/payload</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>HeaderStatus</code></td>
 <td><code>ushort</code></td>
 <td>response envelope 상태</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>PayloadLength</code></td>
 <td><code>ushort</code></td>
 <td>header에 선언된 payload 길이</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>HeaderReserved</code></td>
 <td><code>uint</code></td>
 <td>header reserved 값</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>IsFrameValid</code></td>
 <td><code>bool</code></td>
 <td>header와 command별 payload shape 검증 결과</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>HasCommandResult</code></td>
 <td><code>bool</code></td>
 <td>command status/error field 존재 여부</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>CommandStatus</code></td>
 <td><code>ushort</code></td>
 <td>command/function status</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>Status</code></td>
 <td><code>ushort</code></td>
 <td>command result가 있으면 CommandStatus, 없으면 HeaderStatus</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>ErrorId</code></td>
 <td><code>short</code></td>
 <td>반환된 error ID, 정상은 0</td>
@@ -338,135 +591,126 @@ Jerk 송신 DINT = (물리 jerk / 1000) x PLC application UNIT</code></pre>
 </table>
 <p>비동기 메서드는 동일한 결과를 <code>Task&lt;LMC_Response&gt;</code>로
 반환한다.</p>
-<h2 id="enum-값">1.4 Enum 값</h2>
+<h2 id="14-enum-값">1.4 Enum 값</h2>
 <table>
-<colgroup>
-<col style="width: 33%" />
-<col style="width: 33%" />
-<col style="width: 33%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>Enum</th>
 <th>사용 값</th>
 <th>설명</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>LMC_DIRECTION</code></td>
 <td><code>Shortest</code></td>
 <td>Absolute / Relative motion</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>LMC_DIRECTION</code></td>
 <td><code>Positive</code>, <code>Negative</code></td>
 <td>Velocity motion 방향</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>LMC_COORD_SYSTEM</code></td>
 <td><code>None</code>, <code>Acs</code>, <code>Mcs</code>,
 <code>Pcs</code></td>
 <td>Group 좌표계</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>LMC_BUFFER_MODE</code></td>
 <td><code>Aborting</code>, <code>Buffered</code></td>
 <td>현재 배포 PLC에서 사용하는 buffer mode</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>LMC_GROUP_TRANSITION_MODE</code></td>
 <td><code>ExactStop</code>, <code>ContinuousDirect</code></td>
 <td>현재 배포 PLC에서 사용하는 transition mode</td>
 </tr>
 </tbody>
 </table>
-<h2 id="현재-지원-상태와-완료-판정">1.5 현재 지원 상태와 완료 판정</h2>
+<h2 id="15-현재-지원-상태와-완료-판정">1.5 현재 지원 상태와 완료
+판정</h2>
 <p>아래의 <code>source-active</code>는 C# API와 LASAL route가 current
 source에 있다는 뜻이다. production 승인이나 전체 실제 장비 검증을 뜻하지
 않는다.</p>
 <table>
-<colgroup>
-<col style="width: 33%" />
-<col style="width: 33%" />
-<col style="width: 33%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>영역</th>
 <th>Current 상태</th>
 <th>사용 범위와 남은 확인</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>Connection / Axis / Group core</td>
 <td><code>source-active</code>, PLC 검증 부분</td>
 <td>대표 lookup, power, move, stop/read 경로가 있으나 전체
 command/fault/race matrix는 미완료</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Axis/Group accepted-once wait/resume</td>
 <td>PC public API, 기존 opcode 재사용</td>
 <td>ACK 뒤 status-only polling과 no-replay recovery를 제공하며 current
 same-hash/실장비 전체 회귀가 필요</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Admin <code>0x7D00/10/20/22</code></td>
 <td><code>source-active</code>, 대표 PLC 검증</td>
 <td>semantic read와 Group relative move의 전체 축/UNIT/fault matrix는
 미완료</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Axis SetPosition <code>0x7D12/14/1A</code></td>
 <td>C#/LASAL P1 source, runtime fail-closed</td>
 <td>Store/ownership OFF, volatile backing, bits 3/5/7 OFF, max-jump 0,
 native call 0; current 지원 API로 사용 금지</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>LMC Home <code>0x7D13/18/19</code></td>
 <td><code>source-active</code>, Admin bit 4 ON</td>
 <td>CurrentPositionZero는 no-motion/no-switch이며 application position
 reset과 실제 encoder/multi-turn 효과를 구분해야 함</td>
 </tr>
-<tr class="even">
+<tr>
 <td>DS402 Home <code>0x7D15/16/17</code></td>
-<td>method 37 source 구현, Admin bit 6/gate OFF</td>
-<td>current runtime 실행 금지; source 존재와 terminal proof를 구분</td>
+<td>standard method parameter source 구현, Admin bit 6/gate ON</td>
+<td>method 37 실기 확인과 다른 이동 method의 개별 실축 검증을 구분</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>TW[20]/TW[19] <code>0x7E53/54/55</code></td>
 <td>fixed <code>0x20FC:2/:1 &lt;- UInt16 1</code>, source bits 18/19
 ON</td>
 <td>protocol terminal과 선택 drive의 실제 물리 효과를 별도로 검증</td>
 </tr>
-<tr class="even">
+<tr>
 <td>D1/D2/Recorder/D5 Read</td>
 <td>C# facade와 PLC route가 단계별 구현</td>
 <td>capability를 먼저 읽고 fault, reconnect, soak와 physical readback
 evidence를 추가해야 함</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Static EtherCAT topology <code>0x7E11/12</code></td>
 <td>configured 7-entry inventory</td>
 <td>topology qualifier durable report와 current PLC identity 확인
 필요</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Node Health / Digital I/O <code>0x7E13/22/23</code></td>
 <td><code>0x7E13/22</code> LASAL source 구현, capability OFF;
 <code>0x7E23</code> 없음</td>
 <td>capability activation과 runtime/hardware proof 전에는 정상
 UI/API에서 호출하지 않음</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>SDO Write</td>
 <td>Generic scalar policy source-active / qualification-active</td>
 <td>physical axis 1..4의 safe non-semantic 1/2/4-byte Write 계약이
 구현됐으나 hardware PASS는 미완료; semantic/dedicated-owner raw object는
 계속 차단</td>
 </tr>
-<tr class="even">
+<tr>
 <td>PI Write / Recorder Double</td>
 <td>gate 또는 allowlist OFF</td>
 <td>별도 승인과 실제 장비 mutation evidence 전까지 사용하지 않음</td>
@@ -477,50 +721,46 @@ UI/API에서 호출하지 않음</td>
 <code>ACK -&gt; typed status polling -&gt; stable sample -&gt; final readback</code>
 순서로 한다. timeout/cancellation/connection close는 장비 정지나 command
 취소를 자동 보장하지 않는다.</p>
-<h2 id="accepted-once-waitresume-공통-모델">1.6 accepted-once
+<h2 id="16-accepted-once-waitresume-공통-모델">1.6 accepted-once
 wait/resume 공통 모델</h2>
 <p>Power, Stop, Reset과 일부 Group command는 ACK와 완료 상태를 분리하고,
 한 번 수락된 command를 다시 보내지 않은 채 status-only polling을
 재개하는 API를 제공한다.</p>
 <table>
-<colgroup>
-<col style="width: 50%" />
-<col style="width: 50%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>구성</th>
 <th>기본값 / 의미</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>...WaitOptions.TotalTimeoutMilliseconds</code></td>
 <td>5000 ms, 허용 1~600000 ms</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>...WaitOptions.PollIntervalMilliseconds</code></td>
 <td>50 ms</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>...WaitOptions.StableSampleCount</code></td>
 <td>3회, 허용 1~100회</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>...SubmissionOutcome</code></td>
 <td><code>NotAttempted</code>, <code>Rejected</code>,
 <code>OutcomeUncertain</code>, <code>Accepted</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>...WaitContinuation</code></td>
 <td>같은 connection/session/object에 묶인 pending ACK와 polling
 evidence</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>...WaitResult</code></td>
 <td>final status, continuation과 submission/polling evidence</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>Pending...WaitContinuation</code></td>
 <td>현재 handle에서 아직 완료되지 않은 latest accepted continuation;
 없으면 <code>null</code></td>
@@ -554,8 +794,8 @@ durable recovery record/attach 계약을 명시한 Axis/Group operation은 old
 continuation을 복원하는 대신 exact endpoint/PLC/target identity를
 재검증해 새 session-bound status-only continuation을 만든다. 이 경로도
 원 command를 replay하지 않는다.</p>
-<h2 id="wpf-recovery-identity-mismatch-해소">1.7 WPF recovery identity
-mismatch 해소</h2>
+<h2 id="17-wpf-recovery-identity-mismatch-해소">1.7 WPF recovery
+identity mismatch 해소</h2>
 <p>개발 WPF가 저장된 recovery record와 현재 PLC의 <code>BootId</code>
 또는 <code>MapRevision</code> 불일치를 표시하면 Motion, Power, Group
 control, D5/SDO Write와 qualification은 모두 차단된다. 이 상태에서 현재
@@ -579,15 +819,15 @@ SDO Write admission이 재평가된다. ledger 또는 journal fault, endpoint
 Build-bearing Group Reset record에 대해서는 current
 <code>DiagnosticsBuild</code>까지 confirmation 전후 두 번 다시 읽고,
 기존 Build-less record는 이전 BootId/MapRevision 계약을 유지한다.</p>
-<h1 id="connection-api">2. Connection API</h1>
-<h2 id="lmcconnection">2.1 LMCConnection</h2>
+<h1 id="2-connection-api">2. Connection API</h1>
+<h2 id="21-lmcconnection">2.1 LMCConnection</h2>
 <p>Connection 객체를 생성한다. 생성만으로 PLC에 연결되지는 않는다.</p>
 <div class="sourceCode" id="cb3"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="fu">LMCConnection</span><span class="op">()</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="fu">LMCConnection</span><span class="op">(</span>LMCConnectionOptions options<span class="op">)</span></span></code></pre></div>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Parameter</th>
 <th>Type</th>
 <th>UNIT</th>
@@ -595,7 +835,7 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb3-1"><a href="
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>options</code></td>
 <td><code>LMCConnectionOptions</code></td>
 <td>-</td>
@@ -605,29 +845,23 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb3-1"><a href="
 </table>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Return</th>
 <th>설명</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>LMCConnection</code></td>
 <td>생성된 connection 객체</td>
 </tr>
 </tbody>
 </table>
-<h2 id="lmcconnectionoptions">2.2 LMCConnectionOptions</h2>
+<h2 id="22-lmcconnectionoptions">2.2 LMCConnectionOptions</h2>
 <p>Connection timeout과 callback 검증 값을 설정한다.</p>
 <table>
-<colgroup>
-<col style="width: 23%" />
-<col style="width: 23%" />
-<col style="width: 23%" />
-<col style="width: 30%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>Property</th>
 <th>Type</th>
 <th>UNIT</th>
@@ -635,49 +869,49 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb3-1"><a href="
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>ConnectTimeoutMilliseconds</code></td>
 <td><code>int</code></td>
 <td>ms</td>
 <td style="text-align: right;">3000</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>ReceiveTimeoutMilliseconds</code></td>
 <td><code>int</code></td>
 <td>ms</td>
 <td style="text-align: right;">3000</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>SendTimeoutMilliseconds</code></td>
 <td><code>int</code></td>
 <td>ms</td>
 <td style="text-align: right;">3000</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>CallbackThreadJoinTimeoutMilliseconds</code></td>
 <td><code>int</code></td>
 <td>ms</td>
 <td style="text-align: right;">500</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>ValidateCallbackSourceAddress</code></td>
 <td><code>bool</code></td>
 <td>-</td>
 <td style="text-align: right;"><code>true</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>CallbackRegistrationMode</code></td>
 <td><code>LMCCallbackRegistrationMode</code></td>
 <td>-</td>
 <td style="text-align: right;"><code>LegacyRaw</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>CallbackRequestedMaxDatagramBytes</code></td>
 <td><code>int</code></td>
 <td>bytes</td>
 <td style="text-align: right;">512</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>SendPriorityCoordinator</code></td>
 <td><code>LMCSendPriorityCoordinator</code></td>
 <td>-</td>
@@ -686,7 +920,7 @@ coordination</td>
 </tr>
 </tbody>
 </table>
-<h2 id="rpcinitconnection">2.3 RpcInitConnection</h2>
+<h2 id="23-rpcinitconnection">2.3 RpcInitConnection</h2>
 <p>PLC TCP 연결, RPC 초기화와 callback 등록을 수행한다.</p>
 <div class="sourceCode" id="cb4"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="dt">void</span> <span class="fu">RpcInitConnection</span><span class="op">(</span></span>
@@ -715,14 +949,8 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb4-1"><a href="
 <span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a>    <span class="dt">uint</span> eventMask<span class="op">,</span></span>
 <span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span></code></pre></div>
 <table>
-<colgroup>
-<col style="width: 25%" />
-<col style="width: 25%" />
-<col style="width: 25%" />
-<col style="width: 25%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>Parameter</th>
 <th>Type</th>
 <th>UNIT / 범위</th>
@@ -730,37 +958,37 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb4-1"><a href="
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>remoteAddress</code></td>
 <td><code>string</code></td>
 <td>IPv4</td>
 <td>PLC IP address</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>remotePort</code></td>
 <td><code>int</code></td>
 <td>1~65535</td>
 <td>PLC TCP port</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>localAddress</code></td>
 <td><code>string</code></td>
 <td>IPv4</td>
 <td>PLC와 연결되는 PC NIC address</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>callbackPort</code></td>
 <td><code>int</code></td>
 <td>0~65535</td>
 <td>PC UDP callback port, 기본값 5003</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>eventMask</code></td>
 <td><code>uint</code></td>
 <td>Bit mask</td>
 <td>Callback event mask, 기본값 <code>0xFFFFFFFF</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>cancellationToken</code></td>
 <td><code>CancellationToken</code></td>
 <td>-</td>
@@ -770,17 +998,17 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb4-1"><a href="
 </table>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Return</th>
 <th>설명</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>void</code></td>
 <td>동기 초기화 완료</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>Task</code></td>
 <td>비동기 초기화 작업</td>
 </tr>
@@ -826,21 +1054,15 @@ canonical wire <code>-1</code>만으로 내부 disarm
 아니다. PC cleanup은 PLC disarm 성공을 뜻하지 않으며 private PLC state를
 force-clear하지 않는다. Same-window Close -&gt; Connect live reconnect
 is not verified.</p>
-<h2 id="closeconnection">2.4 CloseConnection</h2>
+<h2 id="24-closeconnection">2.4 CloseConnection</h2>
 <p>RPC connection과 local TCP/UDP resource를 닫는다.</p>
 <div class="sourceCode" id="cb5"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="dt">void</span> <span class="fu">CloseConnection</span><span class="op">()</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task <span class="fu">CloseConnectionAsync</span><span class="op">(</span>CancellationToken cancellationToken<span class="op">)</span></span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="dt">void</span> <span class="fu">Dispose</span><span class="op">()</span></span></code></pre></div>
 <table>
-<colgroup>
-<col style="width: 25%" />
-<col style="width: 25%" />
-<col style="width: 25%" />
-<col style="width: 25%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>Parameter</th>
 <th>Type</th>
 <th>UNIT</th>
@@ -848,7 +1070,7 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb5-1"><a href="
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>cancellationToken</code></td>
 <td><code>CancellationToken</code></td>
 <td>-</td>
@@ -858,17 +1080,17 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb5-1"><a href="
 </table>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Return</th>
 <th>설명</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>void</code></td>
 <td>동기 종료 완료</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>Task</code></td>
 <td>비동기 종료 작업</td>
 </tr>
@@ -907,7 +1129,7 @@ PLC readiness, MotionLib 상태 또는 실제 장비 재접속을 증명하지 �
 검사를 별도로 통과해야 한다. 최신 수치, artifact identity와 배포 상태는
 <a href="API_DEVELOPMENT_PROGRESS.md">API 개발 진척도</a>에서
 관리한다.</p>
-<h2 id="safety-transport-preemption">2.5 Safety transport
+<h2 id="25-safety-transport-preemption">2.5 Safety transport
 preemption</h2>
 <p>일반 command가 transport를 점유하거나 결과 publication 대기 중일 때,
 상위 safety owner가 local TCP transport를 폐기하고 새 session에서 safety
@@ -927,8 +1149,8 @@ session을 잘못 폐기하지 않기 위한 guard다.</p>
 <p><code>LMCSendPriorityCoordinator</code>는 ordinary/preemptible send와
 priority send의 순서를 PC process 안에서 조정한다. 이미 wire에 들어간
 RPC를 물리적으로 취소하지 않으며 PLC E-stop/STO를 대체하지 않는다.</p>
-<h1 id="single-axis-api">3. Single Axis API</h1>
-<h2 id="lmcsingleaxis-생성">3.1 LMCSingleAxis 생성</h2>
+<h1 id="3-single-axis-api">3. Single Axis API</h1>
+<h2 id="31-lmcsingleaxis-생성">3.1 LMCSingleAxis 생성</h2>
 <p>LASAL axis object name으로 axis reference를 가져온다.</p>
 <div class="sourceCode" id="cb7"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="fu">LMCSingleAxis</span><span class="op">(</span></span>
@@ -940,14 +1162,8 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb7-1"><a href="
 <span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    <span class="dt">string</span> axisName<span class="op">,</span></span>
 <span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span></code></pre></div>
 <table>
-<colgroup>
-<col style="width: 25%" />
-<col style="width: 25%" />
-<col style="width: 25%" />
-<col style="width: 25%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>Parameter</th>
 <th>Type</th>
 <th>UNIT</th>
@@ -955,19 +1171,19 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb7-1"><a href="
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>connection</code></td>
 <td><code>LMCConnection</code></td>
 <td>-</td>
 <td>초기화된 RPC connection</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>axisName</code></td>
 <td><code>string</code></td>
 <td>ASCII string</td>
 <td>PLC에 등록된 axis object name</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>cancellationToken</code></td>
 <td><code>CancellationToken</code></td>
 <td>-</td>
@@ -977,17 +1193,17 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb7-1"><a href="
 </table>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Return</th>
 <th>설명</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>LMCSingleAxis</code></td>
 <td>조회된 axis 객체</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>Task&lt;LMCSingleAxis&gt;</code></td>
 <td>비동기로 조회된 axis 객체</td>
 </tr>
@@ -995,8 +1211,29 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb7-1"><a href="
 </table>
 <p><code>LMCAxis</code>는 <code>LMCSingleAxis</code>의 호환
 이름이다.</p>
-<h2 id="poweron">3.2 PowerOn</h2>
+<h2 id="32-poweron">3.2 PowerOn</h2>
 <p>Axis Power On을 요청한다.</p>
+<p>2026-09-03 수정 PLC 소스 기준: 단축 Power On은 Home 완료나 retained
+좌표 rebase 해제를 요구하지 않는다. 프레임 검증, 축 소유권 충돌/격리와
+실제 드라이브 인터록은 그대로 적용하며, Power On으로 Home 상태나 좌표
+rebase 플래그를 변경하지 않는다. 2026-09-08 수정 PLC 소스 기준으로
+direct single-axis MoveAbsolute/MoveRelative/MoveVelocity도 retained
+rebase bit로 선차단하지 않고 native LMC 축까지 전달한다. Home 필요
+여부는 native 호출 결과로 반환한다. 같은 운영 원칙을 Group
+Enable/GroupPowerOn/motion/SetKin에도 적용한다. Group Enable과 Group
+motion은 adapter가 power/lock/kinematic readiness를 먼저 판정해 차단하지
+않고 native Group API를 호출하며, 그 반환값을 실제 Group 오류로
+전달한다. TW19/Home 상태는 명령 전송을 막지 않으며, 실제 axis/Group
+오류를 반환하면 사용자가 Reset 또는 명시적인 복구 절차를 수행한다. 자동
+Reset, 자동 Home, 명령 replay는 수행하지 않는다. <code>-9</code>는 단순
+busy 외에 초기화/소유권 격리도 포함하므로 무조건 기다리거나 재전송하지
+않는다. 동일 날짜의 후속 수정에는 safety-repeat helper가 새 Power On을
+잘못 거절하고 RESERVED로 남기는 결함 수정도 포함된다. 새 Power On은
+exact RESERVED identity를 ORDINARY mode로 검증한 후 정상 실행 경로로
+전달하며, 재요청 병합 대상으로 취급하지 않는다. 상세 변경 및 PLC 재검증
+기준은 <a
+href="../architecture/LASAL_SERVO_POWER_LIFECYCLE_FIX_2026-09-03.md">Servo
+Power 수정 기록</a>을 따른다.</p>
 <div class="sourceCode" id="cb8"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMC_Response <span class="fu">PowerOn</span><span class="op">()</span></span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMC_Response<span class="op">&gt;</span> <span class="fu">PowerOnAsync</span><span class="op">(</span></span>
@@ -1019,14 +1256,8 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb8-1"><a href="
 <span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="dt">void</span> <span class="fu">ResolvePowerOnWaitAfterStablePowerOff</span><span class="op">(</span></span>
 <span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a>    LMCAxisPowerOnWaitContinuation continuation<span class="op">)</span></span></code></pre></div>
 <table>
-<colgroup>
-<col style="width: 25%" />
-<col style="width: 25%" />
-<col style="width: 25%" />
-<col style="width: 25%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>Parameter</th>
 <th>Type</th>
 <th>UNIT</th>
@@ -1034,7 +1265,7 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb8-1"><a href="
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>cancellationToken</code></td>
 <td><code>CancellationToken</code></td>
 <td>-</td>
@@ -1043,26 +1274,22 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb8-1"><a href="
 </tbody>
 </table>
 <table>
-<colgroup>
-<col style="width: 50%" />
-<col style="width: 50%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>Return</th>
 <th>설명</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>LMC_Response</code></td>
 <td>Power On command 결과</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>Task&lt;LMC_Response&gt;</code></td>
 <td>비동기 Power On command 결과</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>Task&lt;LMCAxisPowerStateWaitResult&gt;</code></td>
 <td>Power On ACK와 안정 상태 확인 evidence</td>
 </tr>
@@ -1085,7 +1312,7 @@ deadline은 connection을 <code>Faulted</code>로 만들 수 있으므로
 필요는 없다. 따라서 성공 결과에서도
 <code>FinalStatus.HasAxisError</code>, DS402 상태와 drive error를 별도로
 확인한다.</p>
-<h2 id="poweroff">3.3 PowerOff</h2>
+<h2 id="33-poweroff">3.3 PowerOff</h2>
 <p>Axis Power Off를 요청한다.</p>
 <div class="sourceCode" id="cb9"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMC_Response <span class="fu">PowerOff</span><span class="op">()</span></span>
@@ -1107,30 +1334,26 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb9-1"><a href="
 <span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMCAxisPowerOffWaitContinuation PendingPowerOffWaitContinuation <span class="op">{</span> <span class="kw">get</span><span class="op">;</span> <span class="op">}</span></span></code></pre></div>
 <table>
-<colgroup>
-<col style="width: 50%" />
-<col style="width: 50%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>Return</th>
 <th>설명</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>LMC_Response</code></td>
 <td>Power Off command 결과</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>Task&lt;LMC_Response&gt;</code></td>
 <td>비동기 Power Off command 결과</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>Task&lt;LMCAxisPowerOffWaitContinuation&gt;</code></td>
 <td>한 번 accept된 Power Off의 status-only 재개 정보</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>Task&lt;LMCAxisPowerOffWaitResult&gt;</code></td>
 <td><code>PowerOn=false &amp;&amp; Standstill=true</code> 안정
 evidence</td>
@@ -1149,7 +1372,7 @@ cancel/deadline/generation change는 pending을 보존하고 proof commit 뒤
 late cancel/deadline은 성공을 뒤집지 않는다. compound API는 두 단계를
 같은 total deadline으로 조합한다. 외부 PLC/client/direct SDO/group은 이
 귀속 범위 밖이며 성공 ACK만으로 전원 차단 완료를 판정하지 않는다.</p>
-<h2 id="reset">3.4 Reset</h2>
+<h2 id="34-reset">3.4 Reset</h2>
 <p>Axis error reset을 요청한다.</p>
 <div class="sourceCode" id="cb10"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMC_Response <span class="fu">Reset</span><span class="op">()</span></span>
@@ -1175,30 +1398,26 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb10-1"><a href=
 <span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMCAxisResetWaitContinuation PendingResetWaitContinuation <span class="op">{</span> <span class="kw">get</span><span class="op">;</span> <span class="op">}</span></span></code></pre></div>
 <table>
-<colgroup>
-<col style="width: 50%" />
-<col style="width: 50%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>Return</th>
 <th>설명</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>LMC_Response</code></td>
 <td>Reset command 결과</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>Task&lt;LMC_Response&gt;</code></td>
 <td>비동기 Reset command 결과</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>Task&lt;LMCAxisResetWaitContinuation&gt;</code></td>
 <td>한 번 accept된 Reset의 status-only 재개 정보</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>Task&lt;LMCAxisResetWaitResult&gt;</code></td>
 <td>Reset ACK와 native axis error 0 안정 evidence</td>
 </tr>
@@ -1222,7 +1441,7 @@ Power On을 포함해 간섭이 확인된 뒤에는 명시적인 새 Reset이 �
 process-local 귀속 범위 밖이다. 현재 reserved <code>StatusWord</code>를
 DS402 Fault 해제 증거로 해석하지 말고, 실제 장비에서는 DS402 Fault,
 <code>AxError</code>와 drive error register를 별도로 확인한다.</p>
-<h2 id="stop">3.5 Stop</h2>
+<h2 id="35-stop">3.5 Stop</h2>
 <p>현재 axis motion의 정지를 요청한다.</p>
 <div class="sourceCode" id="cb11"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMC_Response <span class="fu">Stop</span><span class="op">(</span></span>
@@ -1274,14 +1493,8 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb11-1"><a href=
 <span id="cb11-47"><a href="#cb11-47" aria-hidden="true" tabindex="-1"></a>        Action<span class="op">&lt;</span>LMCAxisStopWaitContinuation<span class="op">&gt;</span> acceptedContinuationObserver<span class="op">,</span></span>
 <span id="cb11-48"><a href="#cb11-48" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span></code></pre></div>
 <table>
-<colgroup>
-<col style="width: 25%" />
-<col style="width: 25%" />
-<col style="width: 25%" />
-<col style="width: 25%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>Parameter</th>
 <th>Type</th>
 <th>UNIT</th>
@@ -1289,19 +1502,19 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb11-1"><a href=
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>deceleration</code></td>
 <td><code>int</code></td>
 <td>PLC application UNIT/s² DINT</td>
 <td>양수인 정지 감속도. 0/음수는 송신 전에 거부</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>jerk</code></td>
 <td><code>int</code></td>
 <td>PLC application UNIT/s³/1000 DINT</td>
 <td>0 이상인 정지 jerk. 음수는 송신 전에 거부</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>cancellationToken</code></td>
 <td><code>CancellationToken</code></td>
 <td>-</td>
@@ -1310,30 +1523,26 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb11-1"><a href=
 </tbody>
 </table>
 <table>
-<colgroup>
-<col style="width: 50%" />
-<col style="width: 50%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>Return</th>
 <th>설명</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>LMC_Response</code></td>
 <td>Stop command 결과</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>Task&lt;LMC_Response&gt;</code></td>
 <td>비동기 Stop command 결과</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>Task&lt;LMCAxisStopWaitContinuation&gt;</code></td>
 <td>한 번 accept된 Stop의 status-only 재개 정보</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>Task&lt;LMCAxisStopWaitResult&gt;</code></td>
 <td>안정 Standstill 확인 evidence</td>
 </tr>
@@ -1362,7 +1571,7 @@ Stop을 wire traffic 없이 superseded 처리할 수 있다.
 pending Reset의 소유권을 새 Stop에 원자적으로 넘기는 고급 recovery
 API다. 임의의 stale/foreign Reset continuation에는 사용할 수 없으며 Stop
 ACK가 불명확하면 Reset이나 Stop을 blind retry하지 않는다.</p>
-<h2 id="readstatus">3.6 ReadStatus</h2>
+<h2 id="36-readstatus">3.6 ReadStatus</h2>
 <p>Axis 상태를 읽는다.</p>
 <div class="sourceCode" id="cb12"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="dt">uint</span> <span class="fu">ReadStatus</span><span class="op">()</span></span>
@@ -1373,27 +1582,27 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb12-1"><a href=
 <span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span></code></pre></div>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Return</th>
 <th>설명</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>uint</code></td>
 <td>Raw axis state</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>LMCReadStatusResult</code></td>
 <td>Axis 상태와 error 정보</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>Task&lt;LMCReadStatusResult&gt;</code></td>
 <td>비동기 axis 상태와 error 정보</td>
 </tr>
 </tbody>
 </table>
-<h2 id="getactualposition">3.7 GetActualPosition</h2>
+<h2 id="37-getactualposition">3.7 GetActualPosition</h2>
 <p>Axis actual position을 읽는다.</p>
 <div class="sourceCode" id="cb13"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="dt">int</span> <span class="fu">GetActualPosition</span><span class="op">()</span></span>
@@ -1403,37 +1612,32 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb13-1"><a href=
 <span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCReadActualPositionResult<span class="op">&gt;</span> <span class="fu">GetActualPositionResultAsync</span><span class="op">(</span></span>
 <span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span></code></pre></div>
 <table>
-<colgroup>
-<col style="width: 33%" />
-<col style="width: 33%" />
-<col style="width: 33%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>Return</th>
 <th>UNIT</th>
 <th>설명</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>int</code></td>
 <td>PLC application UNIT DINT</td>
 <td>Raw actual position</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>LMCReadActualPositionResult</code></td>
 <td>PLC application UNIT DINT</td>
 <td>Actual position과 error 정보</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>Task&lt;LMCReadActualPositionResult&gt;</code></td>
 <td>PLC application UNIT DINT</td>
 <td>비동기 actual position 결과</td>
 </tr>
 </tbody>
 </table>
-<h2 id="moveabsoluteex">3.8 MoveAbsoluteEx</h2>
+<h2 id="38-moveabsoluteex">3.8 MoveAbsoluteEx</h2>
 <p>Axis를 absolute position으로 이동시킨다.</p>
 <div class="sourceCode" id="cb14"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMC_Response <span class="fu">MoveAbsoluteEx</span><span class="op">(</span></span>
@@ -1453,14 +1657,8 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb14-1"><a href=
 <span id="cb14-15"><a href="#cb14-15" aria-hidden="true" tabindex="-1"></a>    LMC_DIRECTION direction<span class="op">,</span></span>
 <span id="cb14-16"><a href="#cb14-16" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span></code></pre></div>
 <table>
-<colgroup>
-<col style="width: 25%" />
-<col style="width: 25%" />
-<col style="width: 25%" />
-<col style="width: 25%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>Parameter</th>
 <th>Type</th>
 <th>UNIT</th>
@@ -1468,43 +1666,43 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb14-1"><a href=
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>position</code></td>
 <td><code>int</code></td>
 <td>PLC application UNIT DINT</td>
 <td>Absolute target position</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>velocity</code></td>
 <td><code>int</code></td>
 <td>PLC application UNIT/s DINT</td>
 <td>Velocity</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>acceleration</code></td>
 <td><code>int</code></td>
 <td>PLC application UNIT/s² DINT</td>
 <td>Acceleration</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>deceleration</code></td>
 <td><code>int</code></td>
 <td>PLC application UNIT/s² DINT</td>
 <td>Deceleration</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>jerk</code></td>
 <td><code>int</code></td>
 <td>PLC application UNIT/s³/1000 DINT</td>
 <td>Jerk</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>direction</code></td>
 <td><code>LMC_DIRECTION</code></td>
 <td><code>Shortest</code></td>
 <td>이동 방향</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>cancellationToken</code></td>
 <td><code>CancellationToken</code></td>
 <td>-</td>
@@ -1514,23 +1712,23 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb14-1"><a href=
 </table>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Return</th>
 <th>설명</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>LMC_Response</code></td>
 <td>MoveAbsolute command 결과</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>Task&lt;LMC_Response&gt;</code></td>
 <td>비동기 MoveAbsolute command 결과</td>
 </tr>
 </tbody>
 </table>
-<h2 id="moverelativeex">3.9 MoveRelativeEx</h2>
+<h2 id="39-moverelativeex">3.9 MoveRelativeEx</h2>
 <p>현재 위치에서 지정한 distance만큼 이동시킨다.</p>
 <div class="sourceCode" id="cb15"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMC_Response <span class="fu">MoveRelativeEx</span><span class="op">(</span></span>
@@ -1550,14 +1748,8 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb15-1"><a href=
 <span id="cb15-15"><a href="#cb15-15" aria-hidden="true" tabindex="-1"></a>    LMC_DIRECTION direction<span class="op">,</span></span>
 <span id="cb15-16"><a href="#cb15-16" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span></code></pre></div>
 <table>
-<colgroup>
-<col style="width: 25%" />
-<col style="width: 25%" />
-<col style="width: 25%" />
-<col style="width: 25%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>Parameter</th>
 <th>Type</th>
 <th>UNIT</th>
@@ -1565,43 +1757,43 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb15-1"><a href=
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>distance</code></td>
 <td><code>int</code></td>
 <td>PLC application UNIT DINT</td>
 <td>Signed relative distance</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>velocity</code></td>
 <td><code>int</code></td>
 <td>PLC application UNIT/s DINT</td>
 <td>Velocity</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>acceleration</code></td>
 <td><code>int</code></td>
 <td>PLC application UNIT/s² DINT</td>
 <td>Acceleration</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>deceleration</code></td>
 <td><code>int</code></td>
 <td>PLC application UNIT/s² DINT</td>
 <td>Deceleration</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>jerk</code></td>
 <td><code>int</code></td>
 <td>PLC application UNIT/s³/1000 DINT</td>
 <td>Jerk</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>direction</code></td>
 <td><code>LMC_DIRECTION</code></td>
 <td><code>Shortest</code></td>
 <td>Distance 부호에 따른 이동</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>cancellationToken</code></td>
 <td><code>CancellationToken</code></td>
 <td>-</td>
@@ -1611,23 +1803,23 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb15-1"><a href=
 </table>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Return</th>
 <th>설명</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>LMC_Response</code></td>
 <td>MoveRelative command 결과</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>Task&lt;LMC_Response&gt;</code></td>
 <td>비동기 MoveRelative command 결과</td>
 </tr>
 </tbody>
 </table>
-<h2 id="movevelocityex">3.10 MoveVelocityEx</h2>
+<h2 id="310-movevelocityex">3.10 MoveVelocityEx</h2>
 <p>지정한 방향과 속도로 axis를 구동한다.</p>
 <div class="sourceCode" id="cb16"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMC_Response <span class="fu">MoveVelocityEx</span><span class="op">(</span></span>
@@ -1645,14 +1837,8 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb16-1"><a href=
 <span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a>    LMC_DIRECTION direction<span class="op">,</span></span>
 <span id="cb16-14"><a href="#cb16-14" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span></code></pre></div>
 <table>
-<colgroup>
-<col style="width: 25%" />
-<col style="width: 25%" />
-<col style="width: 25%" />
-<col style="width: 25%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>Parameter</th>
 <th>Type</th>
 <th>UNIT</th>
@@ -1660,37 +1846,37 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb16-1"><a href=
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>velocity</code></td>
 <td><code>int</code></td>
 <td>PLC application UNIT/s DINT</td>
 <td>Velocity magnitude</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>acceleration</code></td>
 <td><code>int</code></td>
 <td>PLC application UNIT/s² DINT</td>
 <td>Acceleration</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>deceleration</code></td>
 <td><code>int</code></td>
 <td>0</td>
 <td>0을 전달하고 정지는 <code>Stop</code> 사용</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>jerk</code></td>
 <td><code>int</code></td>
 <td>PLC application UNIT/s³/1000 DINT</td>
 <td>Jerk</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>direction</code></td>
 <td><code>LMC_DIRECTION</code></td>
 <td><code>Positive</code>, <code>Negative</code></td>
 <td>이동 방향</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>cancellationToken</code></td>
 <td><code>CancellationToken</code></td>
 <td>-</td>
@@ -1700,24 +1886,24 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb16-1"><a href=
 </table>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Return</th>
 <th>설명</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>LMC_Response</code></td>
 <td>MoveVelocity command 결과</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>Task&lt;LMC_Response&gt;</code></td>
 <td>비동기 MoveVelocity command 결과</td>
 </tr>
 </tbody>
 </table>
-<h2 id="drive-operation-mode와-composite-status">3.11 Drive operation
-mode와 composite status</h2>
+<h2 id="311-drive-operation-mode와-composite-status">3.11 Drive
+operation mode와 composite status</h2>
 <p>physical axis/slave 1..4의 CiA 402 operation mode와 status를 D5 SDO
 Read로 조회한다.</p>
 <div class="sourceCode" id="cb17"><pre
@@ -1770,7 +1956,7 @@ capability의 <code>BaseCycleTimeUs</code>에서 계산하며 최대 poll 수는
 중단하며, 이미 제출한 PLC ticket을 자동 cancel하지 않는다. 이미 진행
 중인 status RPC는 응답을 끝까지 수신한 뒤 취소를 보고하므로 connection은
 유지되고 보존된 ticket을 다시 조회할 수 있다.</p>
-<h3 id="setoperationmode">3.11.1 SetOperationMode</h3>
+<h3 id="3111-setoperationmode">3.11.1 SetOperationMode</h3>
 <p>2.6-development의 SetOperationMode는 current <code>dev</code>에서
 구현 완료된 single-axis operation-mode 변경 lifecycle이다. 지원 mode는
 PLC가 <code>SetOperationModeSupportedMask=0x018A</code>로 광고하는
@@ -1807,51 +1993,47 @@ outcome query <code>0x7D24</code>, exact-generation retirement
 보내지 않으며 current capability/identity와 execute token을 검증한다.
 prepared Start는 one-shot이다.</p>
 <table>
-<colgroup>
-<col style="width: 50%" />
-<col style="width: 50%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>항목</th>
 <th>current 계약</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>지원 mode</td>
 <td>PP(1), PV(3), IP(7), CSP(8)</td>
 </tr>
-<tr class="even">
+<tr>
 <td>same-target</td>
 <td>이미 <code>0x6061</code>이 requested mode면
 <code>SucceededNoWrite</code> 가능</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>cross-mode preflight</td>
 <td>Standstill=True, DS402 Fault=False, OperationEnabled=False</td>
 </tr>
-<tr class="even">
+<tr>
 <td>mode write</td>
 <td>exact requested mode를 <code>0x6060:0</code>에 최대 1회
 dispatch</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>verify</td>
 <td><code>0x6061:0</code> exact readback; 반영 지연은 original deadline
 안에서 read-only 재확인</td>
 </tr>
-<tr class="even">
+<tr>
 <td>recovery</td>
 <td>original <code>0x7D23</code>/<code>0x6060</code> replay 금지;
 exact-key query만 사용</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>terminal</td>
 <td>owner release와 executor reusable evidence를 포함한 terminal
 outcome</td>
 </tr>
-<tr class="even">
+<tr>
 <td>retire</td>
 <td>terminal record의 exact generation과 identity가 일치할 때만
 <code>0x7D25</code></td>
@@ -1862,7 +2044,7 @@ outcome</td>
 well-shaped domain failure에서 CSP 상수값을 기대하지 않고 <strong>exact
 requested mode</strong>를 echo/검증한다. 따라서 PP/PV/IP/CSP가 동일한
 wire 계약을 사용한다.</p>
-<h3 id="실행-완료와-durable-recovery">3.11.2 실행 완료와 durable
+<h3 id="3112-실행-완료와-durable-recovery">3.11.2 실행 완료와 durable
 recovery</h3>
 <p>WPF current path는 Start 전에 physical axis와 fresh drive status를
 읽고, preflight가 내부 D5 capability observation sequence를 변경한 뒤
@@ -1894,7 +2076,7 @@ readback settling, owner publish 및 CSP-fixed ACK 원인 분석은
 <code>design/SET_OPERATION_MODE_READBACK_SETTLING_FIX_20260831.md</code>에
 historical evidence로 보존한다. SetOperationMode 기능 구현 완료와 전체
 <code>0.9.1-preview</code> production release 승인은 별개다.</p>
-<h2 id="move-완료와-restart-recovery-경계">3.12 Move 완료와 restart
+<h2 id="312-move-완료와-restart-recovery-경계">3.12 Move 완료와 restart
 recovery 경계</h2>
 <p><code>MoveAbsoluteEx</code>, <code>MoveRelativeEx</code>,
 <code>MoveVelocityEx</code>의 sync/async 메서드는 command ACK만
@@ -1913,8 +2095,8 @@ Move completion token이 아니다.</p>
 status/position을 읽고, 필요한 경우 승인된
 <code>StopAndWaitForStableStandstillAsync</code> 또는 Power Off를 정확히
 한 번 수행한 후 다음 동작을 결정한다.</p>
-<h1 id="group-api">4. Group API</h1>
-<h2 id="lmcgroupaxis-생성">4.1 LMCGroupAxis 생성</h2>
+<h1 id="4-group-api">4. Group API</h1>
+<h2 id="41-lmcgroupaxis-생성">4.1 LMCGroupAxis 생성</h2>
 <p>LASAL group object name으로 group reference를 가져온다.</p>
 <div class="sourceCode" id="cb19"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="fu">LMCGroupAxis</span><span class="op">(</span></span>
@@ -1926,14 +2108,8 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb19-1"><a href=
 <span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a>    <span class="dt">string</span> groupName<span class="op">,</span></span>
 <span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span></code></pre></div>
 <table>
-<colgroup>
-<col style="width: 25%" />
-<col style="width: 25%" />
-<col style="width: 25%" />
-<col style="width: 25%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>Parameter</th>
 <th>Type</th>
 <th>UNIT</th>
@@ -1941,19 +2117,19 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb19-1"><a href=
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>connection</code></td>
 <td><code>LMCConnection</code></td>
 <td>-</td>
 <td>초기화된 RPC connection</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>groupName</code></td>
 <td><code>string</code></td>
 <td>ASCII string</td>
 <td>PLC에 등록된 group object name</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>cancellationToken</code></td>
 <td><code>CancellationToken</code></td>
 <td>-</td>
@@ -1963,17 +2139,17 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb19-1"><a href=
 </table>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Return</th>
 <th>설명</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>LMCGroupAxis</code></td>
 <td>조회된 group 객체</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>Task&lt;LMCGroupAxis&gt;</code></td>
 <td>비동기로 조회된 group 객체</td>
 </tr>
@@ -1984,9 +2160,12 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb19-1"><a href=
 <p>Group Power/Enable/Reset/Stop/Move의 성공 ACK는 method 호출 접수
 결과다. 완료 상태는 <code>GroupReadStatusResult</code>와 필요 시
 <code>GroupReadActualPosition</code>으로 확인한다. 현재
-SetKin/Lock/Move는 X/Y/Z/U 축 1~4에만 적용된다. 이것은 9축 동시 group
-interpolation API가 아니다.</p>
-<h2 id="getgroupmembersinfo">4.2 GetGroupMembersInfo</h2>
+SetKin/Lock/Move는 Cartesian4 프로파일의 X/Y/Z/U 축 1~4에만 적용된다. 축
+3~4가 Simulation이어도 Set Identity와 Profile Lock 대상에서 제외하지
+않는다. Group Power On/Off는 이 프로파일 범위와 다르게 software robot
+전체 Axis1~9에 전달한다. 따라서 이 API는 9축 동시 group interpolation
+API가 아니다.</p>
+<h2 id="42-getgroupmembersinfo">4.2 GetGroupMembersInfo</h2>
 <p>Group에 연결된 axis member 정보를 읽는다.</p>
 <div class="sourceCode" id="cb20"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMC_Response <span class="fu">GetGroupMembersInfo</span><span class="op">()</span></span>
@@ -1995,33 +2174,32 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb20-1"><a href=
 <span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMCGroupMembersInfoResult<span class="op">&gt;</span> <span class="fu">GetGroupMembersInfoResultAsync</span><span class="op">(</span></span>
 <span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span></code></pre></div>
 <table>
-<colgroup>
-<col style="width: 50%" />
-<col style="width: 50%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>Return</th>
 <th>설명</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>LMC_Response</code></td>
 <td>Member 조회 command 결과</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>LMCGroupMembersInfoResult</code></td>
 <td>Axis count, reference, device ID와 axis name</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>Task&lt;LMCGroupMembersInfoResult&gt;</code></td>
 <td>비동기 member 정보 결과</td>
 </tr>
 </tbody>
 </table>
-<h2 id="grouppoweron">4.3 GroupPowerOn</h2>
+<h2 id="43-grouppoweron">4.3 GroupPowerOn</h2>
 <p>Group member axis의 Power On을 요청한다.</p>
+<p>현재 PLC 구현은 physical/simulation 구분 없이 software robot member
+Axis1~9에 각각 native axis Power On을 전달한다. 첫 오류를 응답으로
+보존하지만 뒤쪽 선택 축의 명령 전송은 계속한다.</p>
 <div class="sourceCode" id="cb21"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMC_Response <span class="fu">GroupPowerOn</span><span class="op">()</span></span>
 <span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMC_Response<span class="op">&gt;</span> <span class="fu">GroupPowerOnAsync</span><span class="op">(</span></span>
@@ -2044,30 +2222,26 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb21-1"><a href=
 <span id="cb21-19"><a href="#cb21-19" aria-hidden="true" tabindex="-1"></a>    <span class="dt">bool</span> expectedPowerOn<span class="op">,</span></span>
 <span id="cb21-20"><a href="#cb21-20" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span></code></pre></div>
 <table>
-<colgroup>
-<col style="width: 50%" />
-<col style="width: 50%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>Return</th>
 <th>설명</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>LMC_Response</code></td>
 <td>Group Power On command 결과</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>Task&lt;LMC_Response&gt;</code></td>
 <td>비동기 Group Power On command 결과</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>Task&lt;LMCGroupPowerStateWaitContinuation&gt;</code></td>
 <td>한 번 accept된 Group Power On의 status-only 재개 정보</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>Task&lt;LMCGroupPowerStateWaitResult&gt;</code></td>
 <td>안정된 <code>PowerOn=true</code> 확인 evidence</td>
 </tr>
@@ -2081,8 +2255,11 @@ read-only helper다.
 <code>PendingGroupPowerStateWaitContinuation</code>은 같은
 connection/session/group의 latest unresolved Power command를
 제공한다.</p>
-<h2 id="grouppoweroff">4.4 GroupPowerOff</h2>
+<h2 id="44-grouppoweroff">4.4 GroupPowerOff</h2>
 <p>Group member axis의 Power Off를 요청한다.</p>
+<p>현재 PLC 구현은 physical/simulation 구분 없이 software robot member
+Axis1~9에 각각 native axis Power Off를 전달한다. Profile Lock의
+Cartesian4 범위와 무관하게 전체 9축을 끈다.</p>
 <div class="sourceCode" id="cb22"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMC_Response <span class="fu">GroupPowerOff</span><span class="op">()</span></span>
 <span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> Task<span class="op">&lt;</span>LMC_Response<span class="op">&gt;</span> <span class="fu">GroupPowerOffAsync</span><span class="op">(</span></span>
@@ -2096,30 +2273,26 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb22-1"><a href=
 <span id="cb22-10"><a href="#cb22-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">GroupPowerOffAndWaitForStableStateAsync</span><span class="op">(</span></span>
 <span id="cb22-11"><a href="#cb22-11" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken<span class="op">)</span></span></code></pre></div>
 <table>
-<colgroup>
-<col style="width: 50%" />
-<col style="width: 50%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>Return</th>
 <th>설명</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>LMC_Response</code></td>
 <td>Group Power Off command 결과</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>Task&lt;LMC_Response&gt;</code></td>
 <td>비동기 Group Power Off command 결과</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>Task&lt;LMCGroupPowerStateWaitContinuation&gt;</code></td>
 <td>한 번 accept된 Group Power Off의 status-only 재개 정보</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>Task&lt;LMCGroupPowerStateWaitResult&gt;</code></td>
 <td>안정된 <code>PowerOn=false</code> 확인 evidence</td>
 </tr>
@@ -2131,7 +2304,7 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb22-1"><a href=
 <code>PowerOn=false</code> 3회 연속이다. Group Power wait는 member별
 drive-ready나 DS402 fault 부재를 증명하지 않으므로 필요한 경우 개별 axis
 drive status를 추가 확인한다.</p>
-<h2 id="groupenable">4.5 GroupEnable</h2>
+<h2 id="45-groupenable">4.5 GroupEnable</h2>
 <p>Group motion profile을 lock한다.</p>
 <div class="sourceCode" id="cb23"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMC_Response <span class="fu">GroupEnable</span><span class="op">()</span></span>
@@ -2161,34 +2334,30 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb23-1"><a href=
 <span id="cb23-25"><a href="#cb23-25" aria-hidden="true" tabindex="-1"></a>    LMCGroupEnableWaitContinuation continuation<span class="op">)</span></span>
 <span id="cb23-26"><a href="#cb23-26" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="dt">bool</span> <span class="fu">InvalidatePendingGroupEnableWaitStatusProof</span><span class="op">()</span></span></code></pre></div>
 <table>
-<colgroup>
-<col style="width: 50%" />
-<col style="width: 50%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>Return</th>
 <th>설명</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>LMC_Response</code></td>
 <td>Profile lock command 결과</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>Task&lt;LMC_Response&gt;</code></td>
 <td>비동기 profile lock 결과</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>Task&lt;LMCGroupEnableWaitContinuation&gt;</code></td>
 <td>한 번 accept된 Group Enable의 status-only 재개 정보</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>Task&lt;LMCGroupEnableWaitResult&gt;</code></td>
 <td>accepted ACK와 안정된 PowerOn + Locked Standby evidence</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>Task&lt;LMCGroupLockedStandbyWaitResult&gt;</code></td>
 <td>command 없이 안정된 PowerOn + Locked Standby를 읽은 결과</td>
 </tr>
@@ -2218,7 +2387,7 @@ exact continuation만 wire 없이 해제한다.
 <code>InvalidatePendingGroupEnableWaitStatusProof</code> 는 Stop/Power
 Off reservation 경계에서 누적 proof만 지우며 pending command를
 완료시키지 않는다.</p>
-<h2 id="groupdisable">4.6 GroupDisable</h2>
+<h2 id="46-groupdisable">4.6 GroupDisable</h2>
 <p>Group motion profile을 unlock한다.</p>
 <div class="sourceCode" id="cb24"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMC_Response <span class="fu">GroupDisable</span><span class="op">()</span></span>
@@ -2244,34 +2413,30 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb24-1"><a href=
 <span id="cb24-21"><a href="#cb24-21" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb24-22"><a href="#cb24-22" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMCGroupDisableWaitContinuation PendingGroupDisableWaitContinuation <span class="op">{</span> <span class="kw">get</span><span class="op">;</span> <span class="op">}</span></span></code></pre></div>
 <table>
-<colgroup>
-<col style="width: 50%" />
-<col style="width: 50%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>Return</th>
 <th>설명</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>LMC_Response</code></td>
 <td>Profile unlock command 결과</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>Task&lt;LMC_Response&gt;</code></td>
 <td>비동기 profile unlock 결과</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>Task&lt;LMCGroupDisableWaitContinuation&gt;</code></td>
 <td>한 번 accept된 Group Disable의 status-only 재개 정보</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>Task&lt;LMCGroupDisableWaitResult&gt;</code></td>
 <td>안정된 powered-on Disabled 확인 evidence</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>Task&lt;LMCGroupStableDisabledWaitResult&gt;</code></td>
 <td>command 없이 stable Disabled를 읽은 결과</td>
 </tr>
@@ -2285,7 +2450,7 @@ Disable 완료로 오인하지 않는다. newer stable Group Power Off가 완료
 경우 <code>TryRetirePendingGroupDisableAfterStablePowerOff</code>는
 정확한 pending Disable을 wire 없이 superseded 처리하지만, powered-on
 Disabled 완료를 주장하지 않는다.</p>
-<h2 id="groupreset">4.7 GroupReset</h2>
+<h2 id="47-groupreset">4.7 GroupReset</h2>
 <p>Group error reset을 요청한다.</p>
 <div class="sourceCode" id="cb25"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMC_Response <span class="fu">GroupReset</span><span class="op">()</span></span>
@@ -2327,31 +2492,27 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb25-1"><a href=
 <span id="cb25-37"><a href="#cb25-37" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb25-38"><a href="#cb25-38" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMCGroupResetWaitContinuation PendingGroupResetWaitContinuation <span class="op">{</span> <span class="kw">get</span><span class="op">;</span> <span class="op">}</span></span></code></pre></div>
 <table>
-<colgroup>
-<col style="width: 50%" />
-<col style="width: 50%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>Return</th>
 <th>설명</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>LMC_Response</code></td>
 <td>Group Reset command 결과</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>Task&lt;LMC_Response&gt;</code></td>
 <td>비동기 Group Reset command 결과</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>Task&lt;LMCGroupResetWaitContinuation&gt;</code></td>
 <td>fresh Reset의 same-session 또는 exact durable reconnect/restart
 status-only 재개 정보</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>Task&lt;LMCGroupResetWaitResult&gt;</code></td>
 <td>pinned group/member error-clear가 안정된 결과와 evidence</td>
 </tr>
@@ -2395,7 +2556,7 @@ accepted/outcome-uncertain safety supersede 뒤에만 resolve한다.</p>
 <p>이 결과는 LASAL application error-clear 관찰이지 DS402 Fault, drive
 error register, power, profile lock, Home/reference 또는 motion-ready
 증거가 아니다.</p>
-<h2 id="groupstop">4.8 GroupStop</h2>
+<h2 id="48-groupstop">4.8 GroupStop</h2>
 <p>현재 group motion의 정지를 요청한다.</p>
 <div class="sourceCode" id="cb26"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMC_Response <span class="fu">GroupStop</span><span class="op">(</span></span>
@@ -2426,14 +2587,8 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb26-1"><a href=
 <span id="cb26-26"><a href="#cb26-26" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb26-27"><a href="#cb26-27" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMCGroupStopWaitContinuation PendingGroupStopWaitContinuation <span class="op">{</span> <span class="kw">get</span><span class="op">;</span> <span class="op">}</span></span></code></pre></div>
 <table>
-<colgroup>
-<col style="width: 25%" />
-<col style="width: 25%" />
-<col style="width: 25%" />
-<col style="width: 25%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>Parameter</th>
 <th>Type</th>
 <th>UNIT</th>
@@ -2441,19 +2596,19 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb26-1"><a href=
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>deceleration</code></td>
 <td><code>int</code></td>
 <td>Group application UNIT/s² DINT</td>
 <td>정지 감속도</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>jerk</code></td>
 <td><code>int</code></td>
 <td>Group application UNIT/s³/1000 DINT</td>
 <td>정지 jerk</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>cancellationToken</code></td>
 <td><code>CancellationToken</code></td>
 <td>-</td>
@@ -2462,30 +2617,26 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb26-1"><a href=
 </tbody>
 </table>
 <table>
-<colgroup>
-<col style="width: 50%" />
-<col style="width: 50%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>Return</th>
 <th>설명</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>LMC_Response</code></td>
 <td>Group Stop command 결과</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>Task&lt;LMC_Response&gt;</code></td>
 <td>비동기 Group Stop command 결과</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>Task&lt;LMCGroupStopWaitContinuation&gt;</code></td>
 <td>한 번 accept된 Group Stop의 status-only 재개 정보</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>Task&lt;LMCGroupStopWaitResult&gt;</code></td>
 <td>안정 Standby 확인 evidence</td>
 </tr>
@@ -2512,7 +2663,7 @@ superseded, completed continuation과 concurrent second Resume은
 zero-wire로 거부된다. options overload로 deadline, poll interval과
 stable sample 수를 지정할 수 있으며 compound API는 Begin과 Resume에 같은
 elapsed total deadline을 적용한다.</p>
-<h2 id="groupreadstatus">4.9 GroupReadStatus</h2>
+<h2 id="49-groupreadstatus">4.9 GroupReadStatus</h2>
 <p>Group power와 profile 상태를 읽는다.</p>
 <div class="sourceCode" id="cb27"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="dt">uint</span> <span class="fu">GroupReadStatus</span><span class="op">()</span></span>
@@ -2523,27 +2674,27 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb27-1"><a href=
 <span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span></code></pre></div>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Return</th>
 <th>설명</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>uint</code></td>
 <td>Raw group state</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>LMCGroupReadStatusResult</code></td>
 <td>Group power, profile 상태와 error 정보</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>Task&lt;LMCGroupReadStatusResult&gt;</code></td>
 <td>비동기 group 상태 결과</td>
 </tr>
 </tbody>
 </table>
-<h2 id="groupreadactualposition">4.10 GroupReadActualPosition</h2>
+<h2 id="410-groupreadactualposition">4.10 GroupReadActualPosition</h2>
 <p>Group actual position을 읽는다.</p>
 <div class="sourceCode" id="cb28"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMCGroupReadActualPositionResult <span class="fu">GroupReadActualPosition</span><span class="op">(</span></span>
@@ -2553,14 +2704,8 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb28-1"><a href=
 <span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a>    LMC_COORD_SYSTEM coordinateSystem<span class="op">,</span></span>
 <span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span></code></pre></div>
 <table>
-<colgroup>
-<col style="width: 25%" />
-<col style="width: 25%" />
-<col style="width: 25%" />
-<col style="width: 25%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>Parameter</th>
 <th>Type</th>
 <th>UNIT</th>
@@ -2568,13 +2713,13 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb28-1"><a href=
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>coordinateSystem</code></td>
 <td><code>LMC_COORD_SYSTEM</code></td>
 <td>Enum</td>
 <td><code>None</code> 또는 <code>Acs</code> member-slot alias</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>cancellationToken</code></td>
 <td><code>CancellationToken</code></td>
 <td>-</td>
@@ -2583,25 +2728,20 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb28-1"><a href=
 </tbody>
 </table>
 <table>
-<colgroup>
-<col style="width: 33%" />
-<col style="width: 33%" />
-<col style="width: 33%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>Return</th>
 <th>UNIT</th>
 <th>설명</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>LMCGroupReadActualPositionResult</code></td>
 <td>Group application UNIT DINT</td>
 <td>slot 1..9 member position, slot 10..16 zero와 error 정보</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>Task&lt;LMCGroupReadActualPositionResult&gt;</code></td>
 <td>Group application UNIT DINT</td>
 <td>비동기 group position 결과</td>
@@ -2616,9 +2756,16 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb28-1"><a href=
 <code>ErrorId=-7</code>로 거부한다. slot 1..9는 software group member
 순서이고 slot 10..16은 0이다. <code>Acs</code> alias의 실물 동등성은 PLC
 시험이 남아 있다.</p>
-<h2 id="setkintransformcartesian4axis">4.11
+<h2 id="411-setkintransformcartesian4axis">4.11
 SetKinTransformCartesian4Axis</h2>
-<p>4개 axis를 Cartesian X/Y/Z/U로 설정한다.</p>
+<p>4개 axis를 Cartesian X/Y/Z/U로 설정한다. 이 명령은 고정 Axis1~4
+identity mapping을 등록하며 Profile Lock이나 Group Power를 실행하지
+않는다. Axis3~4가 Simulation이어도 연결된 software axis이면 유효한
+profile member다.</p>
+<p>WPF의 Set Identity 버튼은 Home 상태를 명령 전 인터록으로 사용하지
+않는다. 별도 Home Check는 읽기 전용 진단이며, Set Identity는 선택한 4개
+axis를 로드한 뒤 <code>0x20E7</code>을 전송하고 실제 응답을
+표시한다.</p>
 <div class="sourceCode" id="cb29"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMC_Response <span class="fu">SetKinTransformCartesian4Axis</span><span class="op">(</span></span>
 <span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a>    LMCSingleAxis axisX<span class="op">,</span></span>
@@ -2633,14 +2780,8 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb29-1"><a href=
 <span id="cb29-11"><a href="#cb29-11" aria-hidden="true" tabindex="-1"></a>    LMCSingleAxis axisU<span class="op">,</span></span>
 <span id="cb29-12"><a href="#cb29-12" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span></code></pre></div>
 <table>
-<colgroup>
-<col style="width: 25%" />
-<col style="width: 25%" />
-<col style="width: 25%" />
-<col style="width: 25%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>Parameter</th>
 <th>Type</th>
 <th>UNIT</th>
@@ -2648,31 +2789,31 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb29-1"><a href=
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>axisX</code></td>
 <td><code>LMCSingleAxis</code></td>
 <td>-</td>
 <td>Cartesian X axis</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>axisY</code></td>
 <td><code>LMCSingleAxis</code></td>
 <td>-</td>
 <td>Cartesian Y axis</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>axisZ</code></td>
 <td><code>LMCSingleAxis</code></td>
 <td>-</td>
 <td>Cartesian Z axis</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>axisU</code></td>
 <td><code>LMCSingleAxis</code></td>
 <td>-</td>
 <td>Cartesian U axis</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>cancellationToken</code></td>
 <td><code>CancellationToken</code></td>
 <td>-</td>
@@ -2682,17 +2823,17 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb29-1"><a href=
 </table>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Return</th>
 <th>설명</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>LMC_Response</code></td>
 <td>Kinematic transform command 결과</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>Task&lt;LMC_Response&gt;</code></td>
 <td>비동기 transform command 결과</td>
 </tr>
@@ -2700,7 +2841,7 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb29-1"><a href=
 </table>
 <p>이 helper는 exact X/Y/Z/U identity payload만 만든다. generic/dynamic
 kinematic transform 계산이나 profile lock을 수행하지 않는다.</p>
-<h2 id="movelinearabsoluteex">4.12 MoveLinearAbsoluteEx</h2>
+<h2 id="412-movelinearabsoluteex">4.12 MoveLinearAbsoluteEx</h2>
 <p>Group을 Cartesian absolute position으로 linear 이동시킨다.</p>
 <div class="sourceCode" id="cb30"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> LMC_Response <span class="fu">MoveLinearAbsoluteEx</span><span class="op">(</span></span>
@@ -2735,14 +2876,8 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb30-1"><a href=
 <span id="cb30-30"><a href="#cb30-30" aria-hidden="true" tabindex="-1"></a>    LMCGroupMotionOptions options<span class="op">,</span></span>
 <span id="cb30-31"><a href="#cb30-31" aria-hidden="true" tabindex="-1"></a>    CancellationToken cancellationToken<span class="op">)</span></span></code></pre></div>
 <table>
-<colgroup>
-<col style="width: 25%" />
-<col style="width: 25%" />
-<col style="width: 25%" />
-<col style="width: 25%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>Parameter</th>
 <th>Type</th>
 <th>UNIT</th>
@@ -2750,44 +2885,44 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb30-1"><a href=
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>position</code></td>
 <td><code>int[]</code></td>
 <td>Group application UNIT DINT</td>
 <td>wire 16개; 현재 PLC는 X/Y/Z/U slot 1..4만 사용하고 5..16은 0이어야
 함</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>velocity</code></td>
 <td><code>int</code></td>
 <td>Group application UNIT/s DINT</td>
 <td>Path velocity</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>acceleration</code></td>
 <td><code>int</code></td>
 <td>Group application UNIT/s² DINT</td>
 <td>Path acceleration</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>deceleration</code></td>
 <td><code>int</code></td>
 <td>Group application UNIT/s² DINT</td>
 <td>Path deceleration</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>jerk</code></td>
 <td><code>int</code></td>
 <td>Group application UNIT/s³/1000 DINT</td>
 <td>Path jerk</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>options</code></td>
 <td><code>LMCGroupMotionOptions</code></td>
 <td>-</td>
 <td>Coordinate, transition, buffer와 execute 설정</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>cancellationToken</code></td>
 <td><code>CancellationToken</code></td>
 <td>-</td>
@@ -2797,17 +2932,17 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb30-1"><a href=
 </table>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Return</th>
 <th>설명</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>LMC_Response</code></td>
 <td>MoveLinearAbsolute command 결과</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>Task&lt;LMC_Response&gt;</code></td>
 <td>비동기 MoveLinearAbsolute command 결과</td>
 </tr>
@@ -2820,7 +2955,7 @@ coordinate <code>None</code>, transition
 <code>Aborting</code>/<code>Buffered</code>,
 <code>Execute=true</code>다. 정의됐지만 지원하지 않는 option은 RPC 전에
 <code>NotSupportedException</code>으로 거부한다.</p>
-<h2 id="movelinearrelativeex">4.13 MoveLinearRelativeEx</h2>
+<h2 id="413-movelinearrelativeex">4.13 MoveLinearRelativeEx</h2>
 <p>Group profile의 마지막 buffered target을 기준으로 Cartesian relative
 distance를 원자적으로 적재한다. PC에서 현재 위치를 읽어 absolute
 target으로 변환하지 않는다.</p>
@@ -2881,17 +3016,11 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb32-1"><a href=
 <span id="cb32-12"><a href="#cb32-12" aria-hidden="true" tabindex="-1"></a>    cancellationToken<span class="op">);</span></span></code></pre></div>
 <p>prepared capability를 받는 sync overload도 같은 인자 순서로
 제공한다.</p>
-<h2 id="lmcgroupmotionoptions">4.14 LMCGroupMotionOptions</h2>
+<h2 id="414-lmcgroupmotionoptions">4.14 LMCGroupMotionOptions</h2>
 <p>MoveLinearAbsolute/Relative의 좌표계와 motion mode를 설정한다.</p>
 <table>
-<colgroup>
-<col style="width: 25%" />
-<col style="width: 25%" />
-<col style="width: 25%" />
-<col style="width: 25%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>Property</th>
 <th>Type</th>
 <th>UNIT / Default</th>
@@ -2899,25 +3028,25 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb32-1"><a href=
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>CoordinateSystem</code></td>
 <td><code>LMC_COORD_SYSTEM</code></td>
 <td><code>None</code></td>
 <td>Coordinate system</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>TransitionMode</code></td>
 <td><code>LMC_GROUP_TRANSITION_MODE</code></td>
 <td><code>ExactStop</code></td>
 <td>Transition mode</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>BufferMode</code></td>
 <td><code>LMC_BUFFER_MODE</code></td>
 <td><code>Aborting</code></td>
 <td>Buffer mode</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>Execute</code></td>
 <td><code>bool</code></td>
 <td><code>true</code></td>
@@ -2931,18 +3060,12 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb32-1"><a href=
 <code>BufferMode=Aborting/Buffered</code>,
 <code>Execute=true</code>뿐이다. public enum에 다른 값이 있어도 현재 PLC
 지원을 뜻하지 않는다.</p>
-<h1 id="return-type">5. Return Type</h1>
-<h2 id="lmcreadstatusresult">5.1 LMCReadStatusResult</h2>
+<h1 id="5-return-type">5. Return Type</h1>
+<h2 id="51-lmcreadstatusresult">5.1 LMCReadStatusResult</h2>
 <p><code>ReadStatusResult</code>의 반환값이다.</p>
 <table>
-<colgroup>
-<col style="width: 25%" />
-<col style="width: 25%" />
-<col style="width: 25%" />
-<col style="width: 25%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>Property</th>
 <th>Type</th>
 <th>UNIT</th>
@@ -2950,87 +3073,87 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb32-1"><a href=
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>Response</code></td>
 <td><code>LMC_Response</code></td>
 <td>-</td>
 <td>원본 command response</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>IsSuccess</code></td>
 <td><code>bool</code></td>
 <td>-</td>
 <td>전체 결과 성공 여부</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>IsReadSuccessful</code></td>
 <td><code>bool</code></td>
 <td>-</td>
 <td>RPC/function read 성공; native axis error 존재 여부와 분리</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>State</code></td>
 <td><code>uint</code></td>
 <td>Bit field</td>
 <td>Raw axis state</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>FunctionStatus</code></td>
 <td><code>ushort</code></td>
 <td>Bit field</td>
 <td>MotionLib function status</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>HasCommandError</code></td>
 <td><code>bool</code></td>
 <td>-</td>
 <td>FunctionStatus command-error bit 여부</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>IsPowerOn</code></td>
 <td><code>bool</code></td>
 <td>-</td>
 <td>Axis Power On 상태</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>IsReferenced</code></td>
 <td><code>bool</code></td>
 <td>-</td>
 <td>Home / Reference 완료 상태</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>IsStandstill</code></td>
 <td><code>bool</code></td>
 <td>-</td>
 <td>Standstill 상태</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>AxisErrorId</code></td>
 <td><code>ushort</code></td>
 <td>Error ID</td>
 <td>Axis error</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>HasAxisError</code></td>
 <td><code>bool</code></td>
 <td>-</td>
 <td><code>AxisErrorId != 0</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>AxisErrorFlags</code></td>
 <td><code>ushort</code></td>
 <td>Bit field</td>
 <td>raw LASAL <code>_LMCAXIS_ERROR</code>; DS402 statusword bit가
 아님</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>StatusWord</code></td>
 <td><code>ushort</code></td>
 <td>Reserved</td>
 <td>현재 LASAL adapter는 0을 반환하며 DS402 statusword로 사용하지
 않음</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>ErrorId</code></td>
 <td><code>short</code></td>
 <td>Error ID</td>
@@ -3038,18 +3161,12 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb32-1"><a href=
 </tr>
 </tbody>
 </table>
-<h2 id="lmcreadactualpositionresult">5.2
+<h2 id="52-lmcreadactualpositionresult">5.2
 LMCReadActualPositionResult</h2>
 <p><code>GetActualPositionResult</code>의 반환값이다.</p>
 <table>
-<colgroup>
-<col style="width: 25%" />
-<col style="width: 25%" />
-<col style="width: 25%" />
-<col style="width: 25%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>Property</th>
 <th>Type</th>
 <th>UNIT</th>
@@ -3057,37 +3174,37 @@ LMCReadActualPositionResult</h2>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>Response</code></td>
 <td><code>LMC_Response</code></td>
 <td>-</td>
 <td>원본 command response</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>IsSuccess</code></td>
 <td><code>bool</code></td>
 <td>-</td>
 <td>전체 결과 성공 여부</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>PositionRaw</code></td>
 <td><code>int</code></td>
 <td>PLC application UNIT DINT</td>
 <td>Actual position</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>FunctionStatus</code></td>
 <td><code>ushort</code></td>
 <td>Bit field</td>
 <td>MotionLib function status</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>HasCommandError</code></td>
 <td><code>bool</code></td>
 <td>-</td>
 <td>FunctionStatus command-error bit 여부</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>ErrorId</code></td>
 <td><code>short</code></td>
 <td>Error ID</td>
@@ -3095,17 +3212,11 @@ LMCReadActualPositionResult</h2>
 </tr>
 </tbody>
 </table>
-<h2 id="lmcgroupreadstatusresult">5.3 LMCGroupReadStatusResult</h2>
+<h2 id="53-lmcgroupreadstatusresult">5.3 LMCGroupReadStatusResult</h2>
 <p><code>GroupReadStatusResult</code>의 반환값이다.</p>
 <table>
-<colgroup>
-<col style="width: 25%" />
-<col style="width: 25%" />
-<col style="width: 25%" />
-<col style="width: 25%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>Property</th>
 <th>Type</th>
 <th>UNIT</th>
@@ -3113,79 +3224,86 @@ LMCReadActualPositionResult</h2>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>Response</code></td>
 <td><code>LMC_Response</code></td>
 <td>-</td>
 <td>원본 command response</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>IsSuccess</code></td>
 <td><code>bool</code></td>
 <td>-</td>
 <td>전체 결과 성공 여부</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>IsReadSuccessful</code></td>
 <td><code>bool</code></td>
 <td>-</td>
 <td>RPC/function read 성공; native group error 존재 여부와 분리</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>State</code></td>
 <td><code>uint</code></td>
 <td>Bit field</td>
 <td>Raw group state</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>IsPowerOn</code></td>
 <td><code>bool</code></td>
 <td>-</td>
 <td>Group power 상태</td>
 </tr>
-<tr class="even">
+<tr>
+<td><code>IsInPosition</code></td>
+<td><code>bool</code></td>
+<td>-</td>
+<td>project-local <code>0x00080000</code>; <code>ProfileFinished</code>
+및 Cartesian X/Y/Z/U Standstill 기반 Group motion 완료 상태</td>
+</tr>
+<tr>
 <td><code>IsStandby</code></td>
 <td><code>bool</code></td>
 <td>-</td>
 <td>Profile locked 상태</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>IsEnabled</code></td>
 <td><code>bool</code></td>
 <td>-</td>
 <td><code>IsStandby</code> 호환 alias; servo power와 다름</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>IsDisabled</code></td>
 <td><code>bool</code></td>
 <td>-</td>
 <td>Profile unlocked 상태</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>FunctionStatus</code></td>
 <td><code>ushort</code></td>
 <td>Bit field</td>
 <td>MotionLib function status</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>HasCommandError</code></td>
 <td><code>bool</code></td>
 <td>-</td>
 <td>FunctionStatus command-error bit 여부</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>GroupErrorId</code></td>
 <td><code>ushort</code></td>
 <td>Error ID</td>
 <td>Group / profile error</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>HasGroupError</code></td>
 <td><code>bool</code></td>
 <td>-</td>
 <td><code>GroupErrorId != 0</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>ErrorId</code></td>
 <td><code>short</code></td>
 <td>Error ID</td>
@@ -3193,18 +3311,12 @@ LMCReadActualPositionResult</h2>
 </tr>
 </tbody>
 </table>
-<h2 id="lmcgroupreadactualpositionresult">5.4
+<h2 id="54-lmcgroupreadactualpositionresult">5.4
 LMCGroupReadActualPositionResult</h2>
 <p><code>GroupReadActualPosition</code>의 반환값이다.</p>
 <table>
-<colgroup>
-<col style="width: 25%" />
-<col style="width: 25%" />
-<col style="width: 25%" />
-<col style="width: 25%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>Property</th>
 <th>Type</th>
 <th>UNIT</th>
@@ -3212,43 +3324,43 @@ LMCGroupReadActualPositionResult</h2>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>Response</code></td>
 <td><code>LMC_Response</code></td>
 <td>-</td>
 <td>원본 command response</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>IsSuccess</code></td>
 <td><code>bool</code></td>
 <td>-</td>
 <td>전체 결과 성공 여부</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>CoordinateSystem</code></td>
 <td><code>LMC_COORD_SYSTEM</code></td>
 <td>Enum</td>
 <td>요청에 사용한 좌표계의 PC-side echo; PLC 응답 필드가 아님</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>PositionsRaw</code></td>
 <td><code>int[16]</code></td>
 <td>Group application UNIT DINT</td>
 <td>slot 1..9 software member position, slot 10..16 zero</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>FunctionStatus</code></td>
 <td><code>ushort</code></td>
 <td>Bit field</td>
 <td>MotionLib function status</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>HasCommandError</code></td>
 <td><code>bool</code></td>
 <td>-</td>
 <td>FunctionStatus command-error bit 여부</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>ErrorId</code></td>
 <td><code>short</code></td>
 <td>Error ID</td>
@@ -3258,18 +3370,13 @@ LMCGroupReadActualPositionResult</h2>
 </table>
 <p>현재 tracked PLC source는 <code>_LMCPROF_POS</code>의 Pos1..Pos9를
 response slot 1..9에 복사하고 slot 10..16을 0으로 유지한다.
-Move/SetKin/Lock의 physical 4축 제한은 그대로다.</p>
-<h2 id="lmcgroupmembersinforesult">5.5 LMCGroupMembersInfoResult</h2>
+Move/SetKin/Lock은 Cartesian4 profile Axis1~4 범위이며, 축의
+physical/simulation 설정과는 별개다.</p>
+<h2 id="55-lmcgroupmembersinforesult">5.5 LMCGroupMembersInfoResult</h2>
 <p><code>GetGroupMembersInfoResult</code>의 반환값이다.</p>
 <table>
-<colgroup>
-<col style="width: 25%" />
-<col style="width: 25%" />
-<col style="width: 25%" />
-<col style="width: 25%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>Property</th>
 <th>Type</th>
 <th>UNIT</th>
@@ -3277,50 +3384,50 @@ Move/SetKin/Lock의 physical 4축 제한은 그대로다.</p>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>Response</code></td>
 <td><code>LMC_Response</code></td>
 <td>-</td>
 <td>원본 command response</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>IsSuccess</code></td>
 <td><code>bool</code></td>
 <td>-</td>
 <td>전체 결과 성공 여부</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>AxisCount</code></td>
 <td><code>byte</code></td>
 <td>Count</td>
 <td>Group member 수; 현재 tracked source는 9</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>Members</code></td>
 <td><code>LMCGroupMemberInfo[]</code></td>
 <td>-</td>
 <td>Member 정보 배열</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>AxisReferences</code> / <code>DeviceIds</code> /
 <code>AxisNames</code></td>
 <td>배열</td>
 <td>-</td>
 <td>방어 복사된 원본 member 배열</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>FunctionStatus</code></td>
 <td><code>ushort</code></td>
 <td>Bit field</td>
 <td>MotionLib function status</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>HasCommandError</code></td>
 <td><code>bool</code></td>
 <td>-</td>
 <td>FunctionStatus command-error bit 여부</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>ErrorId</code></td>
 <td><code>short</code></td>
 <td>Error ID</td>
@@ -3331,7 +3438,7 @@ Move/SetKin/Lock의 physical 4축 제한은 그대로다.</p>
 <p><code>LMCGroupMemberInfo</code>의 반환 필드는 다음과 같다.</p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Property</th>
 <th>Type</th>
 <th>UNIT</th>
@@ -3339,25 +3446,25 @@ Move/SetKin/Lock의 physical 4축 제한은 그대로다.</p>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>Index</code></td>
 <td><code>int</code></td>
 <td>Index</td>
 <td>0-based member index</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>AxisReference</code></td>
 <td><code>ushort</code></td>
 <td>Reference</td>
 <td>Axis reference</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>DeviceId</code></td>
 <td><code>ushort</code></td>
 <td>Device ID</td>
 <td>PLC device ID</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>AxisName</code></td>
 <td><code>string</code></td>
 <td>ASCII string</td>
@@ -3365,62 +3472,57 @@ Move/SetKin/Lock의 physical 4축 제한은 그대로다.</p>
 </tr>
 </tbody>
 </table>
-<h2 id="lmcadminresponse">5.6 LMCAdminResponse</h2>
+<h2 id="56-lmcadminresponse">5.6 LMCAdminResponse</h2>
 <p>LASAL-local Admin 명령의 공통 16-byte response를 보존한다.</p>
 <table>
-<colgroup>
-<col style="width: 33%" />
-<col style="width: 33%" />
-<col style="width: 33%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>Property</th>
 <th>Type</th>
 <th>설명</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>TransportResponse</code></td>
 <td><code>LMC_Response</code></td>
 <td>outer transport frame</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>SchemaVersion</code> / <code>ResponseFlags</code></td>
 <td><code>ushort</code></td>
 <td>Admin schema와 reserved flags</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>CommandStatus</code></td>
 <td><code>ushort</code></td>
 <td>0 success, 1 domain rejection</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>ErrorId</code></td>
 <td><code>short</code></td>
 <td>Admin <code>-31000</code>, positive GroupProfile code 또는 adapter
 fallback <code>-6</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>RequestId</code></td>
 <td><code>uint</code></td>
 <td>request echo</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>DetailCode</code> / <code>DetailCodeValue</code></td>
 <td>enum / <code>uint</code></td>
 <td>typed/raw Admin detail</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>IsSuccess</code></td>
 <td><code>bool</code></td>
 <td>status/error/detail이 모두 success인지 여부</td>
 </tr>
 </tbody>
 </table>
-<h1 id="admin과-diagnostics-facade">6. Admin과 Diagnostics facade</h1>
-<h2 id="admin-capability와-semantic-parameter-read">6.1 Admin
+<h1 id="6-admin과-diagnostics-facade">6. Admin과 Diagnostics facade</h1>
+<h2 id="61-admin-capability와-semantic-parameter-read">6.1 Admin
 capability와 semantic parameter read</h2>
 <p>연결된 <code>LMCConnection.Admin</code>에서 LASAL-local read-only
 API를 사용한다. 각 parameter read는 먼저 <code>0x7D00</code>
@@ -3467,7 +3569,7 @@ milliseconds</li>
 <code>LMCAdminCommandException</code>으로 보고하며
 <code>Response</code>에 status/error/detail을 보존한다. 이 API는
 read-only이고 motion을 생성하지 않는다.</p>
-<h2 id="pi-alias와-bulk-builderreader">6.2 PI alias와 Bulk
+<h2 id="62-pi-alias와-bulk-builderreader">6.2 PI alias와 Bulk
 builder/reader</h2>
 <p>먼저 <code>GetSignalCatalog</code>로 얻은 같은 boot/map의 catalog를
 사용한다.</p>
@@ -3490,7 +3592,7 @@ snapshot을 조회하며 새 PLC read를 수행하지 않는다. 별도 compatib
 wire는 없고 D1 PI Read와 D2 Bulk command를 재사용한다. sync 메서드에는
 대응하는 <code>ConfigureAsync</code>, <code>UploadAsync</code>,
 <code>ReadStatusAsync</code>, <code>ReleaseAsync</code>가 있다.</p>
-<h2 id="project-local-error-catalog">6.3 Project-local error
+<h2 id="63-project-local-error-catalog">6.3 Project-local error
 catalog</h2>
 <div class="sourceCode" id="cb35"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a>LMCErrorDescription description<span class="op">;</span></span>
@@ -3509,7 +3611,7 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb35-1"><a href=
 <code>CatalogVersion</code>, <code>SourceVersion</code>을 제공한다.
 unknown domain/value는 false를 반환한다. 이 catalog는 현재 project-local
 계약이며 Elmo Maestro Personality 전체 error database가 아니다.</p>
-<h2 id="diagnostics-d0-capability와-공통-수명">6.4 Diagnostics D0
+<h2 id="64-diagnostics-d0-capability와-공통-수명">6.4 Diagnostics D0
 capability와 공통 수명</h2>
 <p>Diagnostics는 <code>connection.Diagnostics</code>에서 시작한다.
 reconnect 뒤에는 capability를 다시 읽어야 하며, 이전 session에서 얻은
@@ -3529,61 +3631,56 @@ Catalog/Bulk/Recorder 최대 크기와 request/response payload 한도다.
 connection에서 다시 읽은 실제 반환값과 새
 <code>BootId</code>/<code>MapRevision</code>을 사용한다.</p>
 <table>
-<colgroup>
-<col style="width: 33%" />
-<col style="width: 33%" />
-<col style="width: 33%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>기능 영역</th>
 <th>현재 판정</th>
 <th>증거 경계</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>Admin <code>0x7D00/10/20/22</code></td>
 <td>source-active</td>
 <td>전체 실물 값/UNIT/fault matrix는 별도 적격성 확인 필요</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Catalog, PI Read, Bulk Read</td>
 <td>capability-gated</td>
 <td>typed catalog, revision과 partial/recovery를 함께 확인</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>D5 SDO Read</td>
 <td>capability-gated</td>
 <td>operation ticket terminal과 typed readback을 확인</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Static Topology</td>
 <td>source-active</td>
 <td>configured inventory이며 runtime health 증거가 아님</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>EtherCAT Health</td>
 <td>source-active</td>
 <td>fault/stale/soak 실기 적격성은 별도 확인</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Recorder Single/Ring/Trigger</td>
 <td>source-active</td>
 <td>capture 적격성과 storage 한계를 별도 확인</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>SDO Write</td>
 <td>Generic scalar qualification-active</td>
 <td>fresh identity, safe drive state, exact request preview와 durable
 no-replay가 필수; hardware write/readback matrix는 미완료</td>
 </tr>
-<tr class="even">
+<tr>
 <td>PI/DO Write, Recorder Double</td>
 <td>현재 차단 또는 미구현</td>
 <td>capability, route 또는 allowlist OFF</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Node Health/DI</td>
 <td>dormant source</td>
 <td>capability OFF이며 정상 UI/API에서 호출 금지</td>
@@ -3594,7 +3691,7 @@ no-replay가 필수; hardware write/readback matrix는 미완료</td>
 terminal state와 result를 확인한다. <code>CancellationToken</code>은 PC
 대기를 중단할 뿐 이미 PLC가 accept한 작업을 자동 취소하지 않는다. 결과가
 불명인 mutation 또는 Release를 blind retry하지 않는다.</p>
-<h2 id="diagnostics-d1-catalog-health와-pi-read">6.5 Diagnostics D1
+<h2 id="65-diagnostics-d1-catalog-health와-pi-read">6.5 Diagnostics D1
 Catalog, Health와 PI Read</h2>
 <div class="sourceCode" id="cb37"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a>LMCSignalCatalogInfo info <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">GetSignalCatalogInfo</span><span class="op">();</span></span>
@@ -3624,7 +3721,7 @@ PMAS UNIT 변환을 수행하지 않는다.</p>
 <p><code>ReadEtherCATHealth</code>는 Master/Slave 상태, DS402
 StatusWord와 Axis Error를 읽지만 drive-ready, DS402 Warning 부재, 물리
 배선 또는 실제 I/O 정상 동작을 증명하지 않는다.</p>
-<h2 id="diagnostics-d2-bulk-read">6.6 Diagnostics D2 Bulk Read</h2>
+<h2 id="66-diagnostics-d2-bulk-read">6.6 Diagnostics D2 Bulk Read</h2>
 <p>raw facade는 다음 순서로 사용한다.</p>
 <div class="sourceCode" id="cb38"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a>LMCBulkConfiguration configuration <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">ConfigureBulk</span><span class="op">(</span>signalIds<span class="op">);</span></span>
@@ -3642,7 +3739,8 @@ session에서 자동 재전송하지 않는다.</p>
 current 4-entry Pending -&gt; Active -&gt; Snapshot -&gt; Release
 happy-path는 실기 확인됐지만, 최대 24-entry와 offline
 Partial/recovery/soak는 미완료다.</p>
-<h2 id="diagnostics-d3d4-recorder">6.7 Diagnostics D3/D4 Recorder</h2>
+<h2 id="67-diagnostics-d3d4-recorder">6.7 Diagnostics D3/D4
+Recorder</h2>
 <p>대표 lifecycle API는 다음과 같다. 모두 session/BootId에 귀속되며 sync
 메서드에는 해당 Async overload가 있다.</p>
 <div class="sourceCode" id="cb39"><pre
@@ -3678,8 +3776,8 @@ inventory/adoption 계약은 공개되어 있지만 Recorder Double capability�
 PLC route gate가 OFF이고 실제 bank count가 1이다. 현재 target에서는
 <code>UnsupportedFeature</code> 대상이다.</p>
 </blockquote>
-<h2 id="diagnostics-d5-sdo-read와-operation-ticket">6.8 Diagnostics D5
-SDO Read와 operation ticket</h2>
+<h2 id="68-diagnostics-d5-sdo-read와-operation-ticket">6.8 Diagnostics
+D5 SDO Read와 operation ticket</h2>
 <div class="sourceCode" id="cb40"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a>LMCSdoReadResult inline <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">ReadSdoInline</span><span class="op">(</span>request<span class="op">);</span></span>
 <span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a>LMCOperationTicket ticket <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">SubmitSdo</span><span class="op">(</span>request<span class="op">);</span></span>
@@ -3700,48 +3798,47 @@ operation 결과를 임의로 성공/실패로 확정하지 않으므로 status�
 <p>8/12-byte request/result chunk 계약은 공개되어 있으나 current maximum
 SDO data size가 4이고 Extended SDO capability/<code>0x7E51</code>
 route가 OFF라 실행할 수 없다.</p>
-<h2 id="static-topology와-dynamic-nodeio">6.9 Static Topology와 Dynamic
-Node/I/O</h2>
+<h2 id="69-static-topology와-dynamic-nodeio">6.9 Static Topology와
+Dynamic Node/I/O</h2>
 <div class="sourceCode" id="cb41"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a>LMCEtherCATTopologyInfo info <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">GetEtherCATTopologyInfo</span><span class="op">();</span></span>
 <span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a>LMCEtherCATTopologyChunk chunk <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">GetEtherCATTopologyChunk</span><span class="op">(...);</span></span>
 <span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a>LMCEtherCATTopology topology <span class="op">=</span> diagnostics<span class="op">.</span><span class="fu">GetEtherCATTopology</span><span class="op">();</span></span></code></pre></div>
 <p>Async overload도 제공한다. <code>GetEtherCATTopology()</code>는 Info
-뒤 7개 chunk를 조합하고 CRC를 검증한다. current static inventory는
-TopologyRevision <code>0x15867EEC</code>, 7 entry(Slave 5 + Slot Module
-2)다. 이것은 프로젝트에 설정된 schema이며 실제 runtime node health, 물리
-배선 순서, dynamic I/O 값 또는 drive-ready 상태를 증명하지 않는다.</p>
+뒤 2개 chunk를 조합하고 CRC를 검증한다. current source static
+inventory는 TopologyRevision <code>0x96FC461C</code>, 2 entry
+(<code>Elmo_11</code>, <code>Elmo_21</code>), slave/slot/physical count
+<code>2/0/2</code>다. master slave index는 0/1이고 SDO/physical axis
+reference는 1/2다. 이것은 프로젝트에 설정된 schema이며 실제 runtime node
+health, 물리 배선 순서 또는 drive-ready 상태를 증명하지 않는다. 이
+source 변경 후 새 LASAL build/download와 live readback은 아직
+필요하다.</p>
 <p>다음 public contract가 존재한다. current LASAL source는 read-owner 두
 command를 구현했지만 capability를 광고하지 않으므로 정상 public/WPF
 경로에서는 preflight에서 차단된다. output write는 handler와 allowlist가
 모두 없다.</p>
 <table>
-<colgroup>
-<col style="width: 30%" />
-<col style="width: 40%" />
-<col style="width: 30%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>API</th>
 <th style="text-align: right;">Command</th>
 <th>현재 상태</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>ReadEtherCATNodeHealth[Async]</code></td>
 <td style="text-align: right;"><code>0x7E13</code></td>
 <td>LASAL handler/464-byte snapshot 구현, capability OFF, runtime proof
 없음</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>ReadDigitalIO[Async]</code></td>
 <td style="text-align: right;"><code>0x7E22</code></td>
-<td>LASAL handler/CREVIS input-output shadow 구현, capability OFF,
-runtime proof 없음</td>
+<td>capability OFF; current two-drive topology에는 public digital-I/O
+reference가 없어 <code>IOReferenceNotFound</code>로 거부</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>SubmitDigitalOutputWrite[Async]</code></td>
 <td style="text-align: right;"><code>0x7E23</code></td>
 <td>capability OFF, RT owner/handler/allowlist 없음</td>
@@ -3751,38 +3848,33 @@ runtime proof 없음</td>
 <p><code>GetApprovedDigitalOutputWriteReferences()</code>는 현재 빈
 목록이다. request DTO를 생성할 수 있다는 사실은 PLC 실행 지원을 뜻하지
 않는다.</p>
-<h2 id="mutation-api-정책">6.10 Mutation API 정책</h2>
+<h2 id="610-mutation-api-정책">6.10 Mutation API 정책</h2>
 <table>
-<colgroup>
-<col style="width: 33%" />
-<col style="width: 33%" />
-<col style="width: 33%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>Public API 계약</th>
 <th>current source / 차단 근거</th>
 <th>판정</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>SubmitPIWrite[Async]</code></td>
 <td>PI Write capability/allowlist OFF</td>
 <td>실행 금지</td>
 </tr>
-<tr class="even">
+<tr>
 <td>SDO <code>CreateWrite</code> + <code>SubmitSdo[Async]</code></td>
 <td>R03 generic scalar policy + R04 exact editor/preview + R05 durable
 recovery 통합</td>
 <td>qualification-active / hardware PASS 미완료</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>SubmitDigitalOutputWrite[Async]</code></td>
 <td>DO capability/route/owner/allowlist 없음</td>
 <td>실행 금지</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Recoverable Double Recorder</td>
 <td>Double capability/route gate OFF, single bank</td>
 <td>실행 금지</td>
@@ -3806,10 +3898,14 @@ SDO Write에서 계속 금지한다.</p>
 0x6071 Target torque
 0x3204 / 0x20FC project-owned maintenance objects</code></pre>
 <p>WPF ordinary editor는 exact request preview와 reserved/semantic
-warning을 표시한다. Write 결과가 불확실한 경우 자동 재전송하지 않으며
-R05 durable record는 endpoint + DiagnosticsBuild + BootId + MapRevision
-+ exact request identity에 묶인다. restart recovery는 read-only 결과
-확인 경로만 허용한다.</p>
+warning을 표시한다. 첫 클릭은 exact baseline Read 뒤 immutable
+request+baseline만 arm하고, 두 번째 exact 클릭은 fresh
+safe-state/capability와 pre-write Read equality를 확인한 뒤 journal v4에
+baseline/prewrite/expected bytes를 저장하고 Write를 한 번만 submit한다.
+Write 결과가 불확실한 경우 자동 재전송하거나 값을 자동 restore하지
+않으며 durable record는 endpoint + DiagnosticsBuild + BootId +
+MapRevision + exact request identity에 묶인다. restart recovery는
+read-only 결과 확인 경로만 허용한다.</p>
 <p>과거 Axis1 UI[24] <code>0x2F00:24</code> same-value four-ticket
 qualification은 특정 live qualification preset으로 남아 있지만, 더 이상
 Generic SDO API 전체의 유일한 허용 target으로 해석하지 않는다.</p>
@@ -3817,45 +3913,41 @@ Generic SDO API 전체의 유일한 허용 target으로 해석하지 않는다.<
 object의 1/2/4-byte Write + exact readback hardware matrix는 아직
 완료되지 않았다. 따라서 production mutation 승인으로 해석하지
 않는다.</p>
-<h2 id="requestresult와-provenance-확인">6.11 Request/result와
+<h2 id="611-requestresult와-provenance-확인">6.11 Request/result와
 provenance 확인</h2>
 <p>새 Diagnostics API는 request, options, continuation, ticket,
 identity와 result DTO를 분리한다. 다음 원칙을 공통 적용한다.</p>
 <table>
-<colgroup>
-<col style="width: 50%" />
-<col style="width: 50%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>확인 항목</th>
 <th>사용 규칙</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>IsSuccess</code>, typed state/outcome</td>
 <td>outer frame 성공과 domain operation 완료를 모두 확인</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>BootId</code>, <code>MapRevision</code>, session
 generation</td>
 <td>현재 connection에서 얻은 객체만 사용</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>BelongsTo</code> / <code>BelongsToCurrentSession</code></td>
 <td>catalog, ticket, topology, I/O/result provenance 검증</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>RequestId</code>, operation/configuration/recorder ID</td>
 <td>ACK, status, chunk와 release 대상의 identity 일치 확인</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>Detail</code>, <code>ErrorId</code>, failure context
 <code>TryGet</code></td>
 <td>예외에서 typed evidence를 보존하고 숫자만 추측하지 않음</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Async <code>CancellationToken</code></td>
 <td>PC wait 취소이며 PLC mutation 취소 보장 아님</td>
 </tr>
@@ -3864,8 +3956,8 @@ generation</td>
 <p>이 설명서는 principal facade와 안전 경계를 설명한다. 모든 DTO
 property, overload와 exception의 완전한 선언 목록은 배포 DLL의
 IntelliSense/XML documentation과 current source를 함께 확인한다.</p>
-<h2 id="lmc-home-ds402-home과-encoder-maintenance">6.12 LMC Home, DS402
-Home과 Encoder Maintenance</h2>
+<h2 id="612-lmc-home-ds402-home과-encoder-maintenance">6.12 LMC Home,
+DS402 Home과 Encoder Maintenance</h2>
 <h3 id="lmc-home-currentpositionzero">LMC Home CurrentPositionZero</h3>
 <p><code>LMCSingleAxis</code>의 current <code>LMC_Home</code>은
 switch-search reference가 아니다. 실행 전에 읽은 actual position을
@@ -3873,36 +3965,31 @@ switch-search reference가 아니다. 실행 전에 읽은 actual position을
 position은 0으로 고정한다. axis motion을 enable하거나 Home/limit
 switch를 찾지 않는다.</p>
 <table>
-<colgroup>
-<col style="width: 30%" />
-<col style="width: 30%" />
-<col style="width: 40%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>단계</th>
 <th>Public API</th>
 <th style="text-align: right;">Command</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>Prepare</td>
 <td><code>PrepareLMC_Home</code></td>
 <td style="text-align: right;">wire 없음</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Start once</td>
 <td><code>LMC_Home</code>, <code>LMC_HomeAsync</code></td>
 <td style="text-align: right;"><code>0x7D13</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Exact outcome query</td>
 <td><code>ReadLMC_HomeOutcome</code>,
 <code>ReadLMC_HomeOutcomeAsync</code></td>
 <td style="text-align: right;"><code>0x7D18</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td>Exact terminal retirement</td>
 <td><code>RetireLMC_HomeOutcome</code>,
 <code>RetireLMC_HomeOutcomeAsync</code></td>
@@ -3945,91 +4032,107 @@ feedback 증거이지 bit-identical sample 계약이 아니다. Axis2의
 오판한 뒤 이 창을 PLC/SDK에 동기화했다. current image의 build/download와
 별개로 새 BootId에 묶인 한 축 단독 terminal/physical proof는 기능 적격성
 증거로 별도 확보해야 한다.</p>
-<h3 id="ds402-home-method-37">DS402 Home method 37</h3>
-<p>별도 <code>LMC_HomeDS402</code>는 method 37, Home offset 0,
-velocity/acceleration/distance/torque 0의 non-moving
-current-position-zero 계약이다.</p>
+<h3 id="ds402-home-parameters">DS402 Home parameters</h3>
+<p><code>LMC_HomeDS402</code>는 method <code>1..14</code>,
+<code>17..30</code>, <code>33</code>, <code>34</code>, <code>37</code>과
+Home Offset, Home Velocity1(<code>0x6099:01</code>), Home
+Velocity2(<code>0x6099:02</code>), Home Acceleration
+(<code>0x609A:00</code>)을 편집할 수 있다. 기존 72-byte wire 호환성을
+유지하기 위해 <code>Velocity</code>는 HomeVelocity1,
+<code>DistanceLimit</code>는 HomeVelocity2 저장소로 사용한다.
+TorqueLimit는 0, BufferMode는 Aborting만 허용한다. 이동 method는 두
+속도와 가속도가 모두 양수여야 하며, method 37은 세 값이 모두 0이어야
+한다.</p>
+<p>2026-09-14 runtime 계약은 controlword bit 4 HIGH 이후 fresh drive
+snapshot에서 HomingAttained(bit 12), HomingError clear(bit 13), raw
+ActualPosition이 기대 위치의 <code>+/- 32</code> count 범위인지 확인하면
+완료 단계로 진행한다. TargetReached(bit 10)는 StatusWord 진단값으로
+보존하지만 완료 gate로 사용하지 않는다. 기대 위치는 method 37에서
+<code>HomeOffset</code>, 이동 method에서 <code>-HomeOffset</code>이다.
+이후 LASAL setpoint alignment에서도 raw ActualPosition은 같은 범위를
+유지해야 하지만, RT scan 사이 실제 위치가 같은 단일 count에 고정될
+필요는 없다. 정렬된 setpoint/destination readback은 계속
+exact-match한다. <code>LMCAXIS_SET_SETPOS_APPUNIT_DEST</code>가 변경을
+보장하지 않는 master position은 판정에서 제외한다.</p>
+<p>Home 진입 전 <code>0x6061</code>에서 현재 지원 운전 모드 PP(1),
+PV(3), IP(7), CSP(8)를 저장한다. 완료와 실패 cleanup 모두 저장한 exact
+mode를 <code>0x6060</code>에 다시 쓰고 <code>0x6061</code> readback으로
+확인한다. 따라서 mode 1에서 Home을 시작하면 mode 1로 복귀하며 CSP(8)로
+강제하지 않는다.</p>
 <table>
-<colgroup>
-<col style="width: 30%" />
-<col style="width: 30%" />
-<col style="width: 40%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>단계</th>
 <th>Public API</th>
 <th style="text-align: right;">Command</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>Prepare</td>
-<td><code>PrepareLMC_HomeDS402</code> 또는
-<code>PrepareDs402Home</code></td>
+<td><code>PrepareLMC_HomeDS402</code></td>
 <td style="text-align: right;">wire 없음</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Start once</td>
-<td><code>LMC_HomeDS402[Async]</code> 또는
-<code>Ds402Home[Async]</code></td>
+<td><code>LMC_HomeDS402[Async]</code></td>
 <td style="text-align: right;"><code>0x7D15</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Exact outcome query</td>
 <td><code>ReadDs402HomeOutcome[Async]</code></td>
 <td style="text-align: right;"><code>0x7D16</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td>Exact terminal retirement</td>
 <td><code>RetireDs402HomeOutcome[Async]</code></td>
 <td style="text-align: right;"><code>0x7D17</code></td>
 </tr>
 </tbody>
 </table>
-<p>current source에는 protocol/state-machine/API가 있지만
-<code>LMC_DIAG_DS402_HOME_ENABLED=FALSE</code>이고 Admin feature bit 6도
-OFF다. 따라서 current PLC의 지원 API로 실행하지 않는다.</p>
-<h3 id="tw20-tw19-encoder-maintenance">TW[20] / TW[19] Encoder
+<p>WPF sample도 위 public API 이름을 직접 호출한다.
+<code>PrepareDs402Home</code>과 <code>Ds402Home[Async]</code>는 기존
+호출자 호환용 이름이며 각각 public API로 위임한다. Prepare 뒤 durable
+recovery key를 저장하고 Start를 한 번만 보내야 하므로 Prepare와 Start를
+하나의 재전송 가능한 편의 함수로 합치지 않는다.</p>
+<p>current source에는 protocol/state-machine/API와 parameter editor가
+구현돼 있다. PLC IDE build/download와 각 이동 method의 switch/index 배선
+및 실축 terminal 증거는 별도 검증이다.</p>
+<h3 id="tw20--tw19-encoder-maintenance">TW[20] / TW[19] Encoder
 Maintenance</h3>
 <p>이 경로는 일반 SDO Write와 분리된 파괴적 유지보수 API다. 허용
 payload는 TW[20] <code>0x20FC:0x02 &lt;- UInt16 1</code>, TW[19]
 <code>0x20FC:0x01 &lt;- UInt16 1</code>뿐이다.</p>
 <table>
-<colgroup>
-<col style="width: 30%" />
-<col style="width: 30%" />
-<col style="width: 40%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>단계</th>
 <th>Public API</th>
 <th style="text-align: right;">Command</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>Prepare TW[20]</td>
 <td><code>PrepareTw20EncoderErrorWarningReset</code></td>
 <td style="text-align: right;">wire 없음</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Prepare TW[19]</td>
 <td><code>PrepareTw19MultiturnPositionReset</code></td>
 <td style="text-align: right;">wire 없음</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Start once</td>
 <td><code>StartEncoderMaintenance[Async]</code></td>
 <td style="text-align: right;"><code>0x7E53</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td>Exact outcome query</td>
 <td><code>ReadEncoderMaintenanceOutcome[Async]</code></td>
 <td style="text-align: right;"><code>0x7E54</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Exact terminal retirement</td>
 <td><code>RetireEncoderMaintenanceOutcome[Async]</code></td>
 <td style="text-align: right;"><code>0x7E55</code></td>
@@ -4044,23 +4147,48 @@ payload는 TW[20] <code>0x20FC:0x02 &lt;- UInt16 1</code>, TW[19]
 source는 diagnostics capability bit 18/19를 ON으로 광고한다. 그러나
 ACK나 terminal outcome은 정확한 drive error/warning reset 또는
 multi-turn position 변화의 물리 증거가 아니므로 선택 축에서 별도
-확인한다.</p>
-<h2 id="axis-setposition">6.13 Axis SetPosition</h2>
+확인한다. Start가 write boundary를 지난 뒤 응답 envelope parsing이
+실패하면 prepared command는 이미 소비된 것으로 유지하며
+<code>0x7E53</code>을 재전송하지 않는다. WPF는 dispatch 전에 저장한
+exact recovery key로 read-only <code>0x7E54</code>를 한 번 실행하여
+durable outcome을 복구하고, 이후 기존 결과 읽기와 exact
+<code>0x7E55</code> retirement 절차를 따른다. PLC의 encoder-maintenance
+detail <code>43</code>(ownership admission unavailable)과
+<code>44</code>(physical drive unavailable)는 유효한 명시적 실패
+응답이다. PC parser는 detail <code>44</code>까지 허용하며 이 두 응답을
+<code>OutcomeUncertain</code>으로 오분류하지 않는다. Detail
+<code>43</code>은 SDO 또는 EtherCAT node 선택 실패가 아니라 SDO 전
+common ownership admission 실패다. <code>DriveReference=1</code>은 첫
+EtherCAT node가 아니라 <code>_LMCAxis1</code>과 그에 연결된
+<code>SdoAxis1</code>을 뜻한다. 2026-09-11 PLC 수정 source는 ordinary
+ownership 비활성화 전에 같은 BootId에 남은 direct/group owner와
+quarantine만 기존 physical/group/diagnostics idle proof 후 정리한다.
+이때 physical proof는 stale 레코드에 기록된 축으로 한정한다. 단축 direct
+레코드를 정리하기 위해 관계없는 다른 physical axis까지 Power Off할
+필요는 없으며, Group 레코드는 기록된 모든 member의 안전 증명을 그대로
+요구한다. Home/DS402/SetPosition/SetOperationMode/encoder-maintenance
+owner는 이 자동 migration에서 제외한다.</p>
+<p><code>OwnershipStartupState[4]=5</code>이고 configured axis status가
+Standstill/clear인데 <code>OwnershipState[28]=0</code>인 경우는 stale
+owner가 아니라 ownership table bootstrap이 완료되지 않은 상태다.
+2026-09-11 수정은 이 bootstrap에서 모든 configured physical drive의
+EtherCAT health와 모든 SDO executor availability를 전역 필수 조건으로
+사용하지 않는다. Ledger는 axis standstill/금지 상태 및
+Home/DS402/owner/start-low mailbox와 diagnostics engine drain을
+증명한다. 선택 drive의 EtherCAT snapshot과 physical membership은
+encoder-maintenance 본체가 별도로 검사하여 실패 시 detail
+<code>11</code> 또는 <code>44</code>를 반환하므로 선택 drive 안전 조건은
+완화되지 않는다.</p>
+<h2 id="613-axis-setposition">6.13 Axis SetPosition</h2>
 <p><code>SetPosition</code>은 축의 application actual/destination
 position을 같은 target으로 교정하기 위한 project-local Admin 계약이다.
 일반 motion 명령이 아니며, 현재 배포 image에서는 의도적으로
 fail-closed다. 아래 API는 향후 durable Store와 native executor가 승인된
 뒤 사용할 계약을 설명한다. 현재 장비에서 실행 절차로 사용하면 안
 된다.</p>
-<table style="width:100%;">
-<colgroup>
-<col style="width: 21%" />
-<col style="width: 21%" />
-<col style="width: 28%" />
-<col style="width: 28%" />
-</colgroup>
+<table>
 <thead>
-<tr class="header">
+<tr>
 <th>단계</th>
 <th>Public API</th>
 <th style="text-align: right;">Command</th>
@@ -4068,19 +4196,19 @@ fail-closed다. 아래 API는 향후 durable Store와 native executor가 승인�
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>Prepare</td>
 <td><code>PrepareSetPosition</code></td>
 <td style="text-align: right;">wire 없음</td>
 <td style="text-align: right;">-</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Start once</td>
 <td><code>SetPositionEx</code>, <code>SetPositionExAsync</code></td>
 <td style="text-align: right;"><code>0x7D12</code></td>
 <td style="text-align: right;">request 56 B / response 36 B</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Exact outcome query</td>
 <td><code>ReadSetPositionOutcome</code>,
 <code>ReadSetPositionOutcomeAsync</code></td>
@@ -4088,7 +4216,7 @@ fail-closed다. 아래 API는 향후 durable Store와 native executor가 승인�
 <td style="text-align: right;">request 60 B / terminal response 92
 B</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Exact terminal retirement</td>
 <td><code>RetireSetPositionOutcome</code>,
 <code>RetireSetPositionOutcomeAsync</code></td>
@@ -4163,3 +4291,5 @@ fail-closed된다.</li>
 tombstone, axis task/core/priority, claim-before-native exactly-once
 실행, terminal commit/readback, disconnect quarantine, packet capture와
 실제 축 coordinate effect를 하나의 승인 evidence로 닫아야 한다.</p>
+</body>
+</html>

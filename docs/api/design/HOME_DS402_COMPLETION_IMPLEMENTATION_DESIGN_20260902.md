@@ -10,11 +10,19 @@
 > HomingAttained/no-error와 raw ActualPosition 0 +/- 32를 완료 조건으로 사용한다.
 > TargetReached는 진단값일 뿐 완료 gate가 아니다. 또한 Home 전 0x6061의 지원 운전 모드
 > PP(1), PV(3), IP(7), CSP(8)를 저장하고 완료/cleanup 뒤 그 exact mode로 복귀한다.
+> 현재 public API는 `PrepareLMC_HomeDS402`, `LMC_HomeDS402[Async]`,
+> `ReadDs402HomeOutcome[Async]`, `RetireDs402HomeOutcome[Async]`이며 Method
+> `1..14`, `17..30`, `33`, `34`, `37`과 `0x607C`, `0x6099:01`,
+> `0x6099:02`, `0x609A:00` 편집을 지원한다. 아래 Method 37 전용 activation tranche와
+> CSP 고정 복귀 문구는 2026-09-02 당시의 qualification 기록이다. current 계약은
+> `DS402_HOME_IMPLEMENTATION_DESIGN_20260914.md`를 따른다. Method 37은 사용자 실기 확인
+> 완료이며 moving method는 개별 실축 검증 대기다.
 
 - 대상: No.19 `MMC_HomeDS402Cmd`
 - 기준 branch: `dev`
 - source baseline: `dev@90a86a795773d5f8eca211368aac3f0d64944a32` (`dev : SDO Write Func Complete`)
-- current 상태: method37 source/UI activation implemented, fresh LASAL build/download and hardware qualification pending
+- current 상태: public API/parameter/state-machine 구현 완료, Method 37 사용자 실기 확인 완료,
+  moving method 개별 실축 qualification 대기
 - tracker: issue #32
 - command: `0x7D15 Start`, `0x7D16 ReadOutcome`, `0x7D17 Retire`
 - 의미: DS402 method 37, 현재 위치를 0으로 확정하는 non-search Home

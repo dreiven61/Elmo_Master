@@ -1,70 +1,292 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>LASAL Motion Control API 개발 진척도</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      white-space: pre-wrap;
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <style>
+    @page { size: A4; margin: 18mm 16mm 18mm 16mm; }
+    body { font-family: "Malgun Gothic", "Noto Sans CJK KR", Arial, sans-serif; color: #1f2937; line-height: 1.55; max-width: 1120px; margin: 32px auto; padding: 0 28px; }
+    h1 { color: #17365d; border-bottom: 2px solid #9fbad0; padding-bottom: 0.25em; }
+    h2 { color: #1f4e79; margin-top: 1.6em; }
+    h3 { color: #365f91; }
+    table { border-collapse: collapse; width: 100%; margin: 0.8em 0 1.2em; font-size: 0.92em; }
+    th, td { border: 1px solid #b8c5d1; padding: 6px 8px; vertical-align: top; }
+    th { background: #d9eaf7; color: #17365d; }
+    tr:nth-child(even) td { background: #f7f9fb; }
+    code { font-family: Consolas, monospace; background: #f2f4f7; padding: 0.08em 0.25em; }
+    pre { background: #f4f6f8; border: 1px solid #d3dbe3; padding: 10px; overflow-wrap: anywhere; white-space: pre-wrap; }
+    blockquote { border-left: 4px solid #5b9bd5; margin-left: 0; padding: 0.3em 1em; background: #eef5fb; }
+    a { color: #0563c1; }
+    @media print { body { max-width: none; margin: 0; padding: 0; font-size: 9.5pt; } h1, h2, h3 { break-after: avoid; } table, pre, blockquote { break-inside: avoid; } }
+  </style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">LASAL Motion Control API 개발 진척도</h1>
+</header>
 <h1 id="lasal-motion-control-api-개발-진척도">LASAL Motion Control API
 개발 진척도</h1>
 <ul>
-<li>문서 버전: 1.4-current</li>
-<li>기준일: 2026-09-01</li>
+<li>문서 버전: 1.6-current</li>
+<li>기준일: 2026-09-14</li>
 <li>API: <code>LasalMotionControlLib 0.9.1-preview</code></li>
 <li>current integration branch: <code>dev</code></li>
-<li>current source baseline:
-<code>dev@0afbc2a79dff1b63f908b1bde3bd2502843045ff</code>
-(<code>dev : SetOpMode Complete</code>)</li>
+<li>DS402 Home implementation baseline:
+<code>dev@97e3ae433ef470ce815a79c9b8d8fda0201bd367</code></li>
 <li>릴리스 판정: <strong>production NO-GO</strong></li>
 </ul>
-<p>이 문서는 API 구현률, latest current qualification, 제한과 다음
-작업의 current 정본이다. API 사용법은 <a href="API_MANUAL.md">API
-설명서</a>, exact byte offset과 frame shape는 <a
+<p>이 문서는 API 구현률, current qualification, 제한과 다음 작업의
+정본이다. API 사용법은 <a href="API_MANUAL.md">API 설명서</a>, byte
+offset과 frame shape는 <a
 href="../../LMC_Library/LMC_API_Delivery/docs/DINT_PACKET_MAP.txt">DINT
-packet map</a>, 최우선 API 상세 설계는 <a
-href="design/README.md">design/README.md</a>를 따른다. 과거 tranche별
-상세 evidence는 design/evidence와 history 문서에 남기고 이 문서에는
-current 판정만 유지한다.</p>
-<h2 id="판정-기준">1. 판정 기준</h2>
+packet map</a>, 상세 설계는 <a
+href="design/README.md">design/README.md</a>를 따른다.</p>
+<h2 id="1-2026-09-14-current-override">1. 2026-09-14 current
+override</h2>
+<p>DS402 Home은 <code>dev@97e3ae4</code>에서 기존 Method 37 전용
+경로에서 standard DS402 homing method와 parameter editor를 지원하는 공개
+API 형태로 확장됐다.</p>
+<ul>
+<li>정식 public API: <code>PrepareLMC_HomeDS402</code>,
+<code>LMC_HomeDS402[Async]</code>,
+<code>ReadDs402HomeOutcome[Async]</code>,
+<code>RetireDs402HomeOutcome[Async]</code></li>
+<li>compatibility wrapper: <code>PrepareDs402Home</code>,
+<code>Ds402Home[Async]</code></li>
+<li>wire lifecycle: Start <code>0x7D15</code>, Outcome
+<code>0x7D16</code>, Retire <code>0x7D17</code></li>
+<li>지원 method: <code>1..14</code>, <code>17..30</code>,
+<code>33</code>, <code>34</code>, <code>37</code></li>
+<li>편집 object: <code>0x6098</code>, <code>0x607C</code>,
+<code>0x6099:01</code>, <code>0x6099:02</code>,
+<code>0x609A:00</code></li>
+<li>moving method는 Home Velocity1/2와 Acceleration이 모두 양수여야
+한다.</li>
+<li>Method 37은 Home Velocity1/2와 Acceleration이 모두 0이어야
+한다.</li>
+<li>Home 진입 전 PP(1), PV(3), IP(7), CSP(8) 중 현재 <code>0x6061</code>
+mode를 저장하고 cleanup 뒤 exact mode로 복귀한다.</li>
+<li>완료는 fresh HomingAttained(bit12), HomingError clear(bit13), Fault
+clear와 expected raw position <code>+/-32 count</code>로 판정한다.</li>
+<li>TargetReached(bit10)는 진단값이며 terminal success gate가
+아니다.</li>
+<li>Master Position은 success predicate가 아니다.</li>
+<li>Start ACK는 completion evidence가 아니며 post-write 불확실성에서
+original Start를 replay하지 않는다.</li>
+</ul>
+<p>사용자는 2026-09-14 기존 DS402 Home의 정상 구동을 확인했다. 현재
+evidence 범위는 기존 Method 37 실기 확인으로 기록한다. 다른 moving
+method는 사용자가 method별 개별 테스트를 진행할 예정이며, 한 method의
+PASS를 다른 method 또는 production 전체 PASS로 확대하지 않는다.</p>
+<h2 id="2-판정-기준">2. 판정 기준</h2>
 <p><code>구현</code>, <code>빌드</code>, <code>다운로드</code>,
 <code>실행</code>, <code>실축 효과</code>를 같은 PASS로 취급하지
 않는다.</p>
 <table>
-<colgroup>
-<col style="width: 33%" />
-<col style="width: 33%" />
-<col style="width: 33%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>등급</th>
 <th>뜻</th>
 <th>이 등급만으로 증명하지 않는 것</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>PC</td>
 <td>C# build, fake-RPC, parser, WPF 회귀</td>
 <td>PLC source 실행, 실축 효과</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Source/static</td>
 <td>LASAL source/route/ABI/mutation contract</td>
 <td>C78 compile, PLC runtime</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>IDE/artifact</td>
 <td>C78 compile/link와 generated artifact</td>
 <td>PLC download 후 실행</td>
 </tr>
-<tr class="even">
+<tr>
 <td>PLC load</td>
 <td>PLC link/download/SystemInit/project load</td>
 <td>command terminal, motion, fault/soak</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>PLC runtime</td>
 <td>online state와 command terminal/readback</td>
-<td>물리 좌표·토크·encoder 효과</td>
+<td>물리 좌표, switch/index, packet causal proof</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Hardware/packet</td>
 <td>실축 결과와 packet causal evidence</td>
-<td>다른 축·fault·restart matrix 전체</td>
+<td>다른 축/method/fault/restart matrix 전체</td>
 </tr>
 </tbody>
 </table>
@@ -72,89 +294,73 @@ current 판정만 유지한다.</p>
 <ul>
 <li><code>Active</code>: current route와 gate가 열려 지원 계약으로 호출
 가능</li>
-<li><code>Limited</code>: route는 열려 있으나 축/대상/기능 또는
-qualification 범위 제한</li>
+<li><code>Limited</code>: route는 열려 있으나 축/대상/qualification 범위
+제한</li>
 <li><code>Dormant</code>: source/runtime이 있어도 capability/gate가 닫혀
 정상 호출 금지</li>
 <li><code>Missing</code>: public surface 또는 요구사항에 대응하는
 current LASAL 실행 경로 없음</li>
 </ul>
-<h2 id="current-요약">2. current 요약</h2>
+<h2 id="3-current-요약">3. current 요약</h2>
 <ul>
 <li>C# protocol ID는 77개, current LASAL route는 76개다. C#-only
 command는 <code>0x7E23 SubmitDigitalOutputWrite</code> 하나다.</li>
-<li>요구사항 workbook 65개 중 완전/적응 구현 <code>40/65</code>, 부분
-포함 <code>53/65</code>다. 이는 semantic coverage이며 PLC/hardware 시험
-통과율이 아니다.</li>
-<li>Connection, Axis/Group core, Admin read, LMC Home, Diagnostics
-D1/D2/D3와 제한된 D5는 source-active다.</li>
-<li>SetPosition은 SDK/wire/route/P1 async lifecycle이 있으나
-execution/native exactly-once와 durable backend가 미완료라
+<li>요구사항 workbook 65개 중 완전/적응 구현은 <code>41/65</code>, 부분
+포함은 <code>53/65</code>다. 이는 semantic coverage이며 PLC/hardware
+시험 통과율이 아니다.</li>
+<li>Connection, Axis/Group core, Admin read, LMC Home, DS402 Home,
+Diagnostics D1/D2/D3와 제한된 D5는 source-active다.</li>
+<li>DS402 Home은 요청된 public API/parameter/state-machine 구현이
+완료됐다. Method 37은 사용자 실기 확인 완료, moving method는 개별 실축
+qualification 대기다.</li>
+<li>SetOperationMode는 PP/PV/IP/CSP, exact requested-mode ACK, one-shot
+<code>0x6060</code>, read-only <code>0x6061</code> settling, durable
+no-replay outcome/retire까지 구현 완료다.</li>
+<li>Generic SDO Write는 source/static 구현이 완료됐지만 physical
+Write/readback matrix는 미완료다.</li>
+<li>SetPosition은 SDK/wire/route/P1 async lifecycle이 있으나 durable
+backend와 native exactly-once execution이 미완료라
 <code>Dormant</code>다.</li>
-<li>HomeDS402는 method 37 source/runtime에 더해 H37-02/03/04/10
-hardware-independent qualification이 current <code>dev</code>에
-통합됐다. fresh C78/generated artifact, PLC/hardware와 activation은
-미완료다.</li>
-<li>SetOperationMode는
-<code>dev@0afbc2a79dff1b63f908b1bde3bd2502843045ff</code>에서 구현
-완료로 닫혔다. PP/PV/IP/CSP, exact requested-mode ACK, one-shot
-<code>0x6060</code>, read-only <code>0x6061</code> settling, bounded
-owner publish, durable no-replay outcome/retire와 WPF terminal 처리까지
-current Active 계약이다.</li>
-<li>Generic SDO는 R03 generic 1/2/4-byte scalar Write, R04 exact
-editor/preview, R05 durable no-replay recovery와 safe-state corrective가
-통합됐다. source gate는 ON이지만 physical Write/readback PASS는 아직
-아니다.</li>
-<li>HomeDS402Ex는 wire/SDK/WPF/scaffold/full-identity ownership/retained
-store/profile preparation/source-static collector까지 통합됐지만
-physical runtime은 no-op이고 bit 11은 OFF다.</li>
-<li>SetOperationMode 기능 구현은 완료됐지만 repository qualification
-hygiene는 별도 관리한다. current SetOperationMode static run은 기능/안전
-contract 93개가 PASS하고 LASAL metadata Client 순서와 generated
-declaration 순서 불일치 1건에서 멈췄다. current WPF workflow failure는
-hosted runner의 MSBuild 탐색 단계에서 발생해 test body가 실행되지 않은
-CI 환경 문제다.</li>
-<li>generated LASAL artifact identity와 repository-wide SourceOnly
-ratchet은 HomeDS402/HomeDS402Ex 등 남은 기능의 release qualification에서
-계속 명시적으로 검토하며 자동 갱신하지 않는다.</li>
+<li>HomeDS402Ex는 scaffold/store/profile preparation은 있으나 physical
+runtime이 no-op이고 capability bit 11은 OFF다.</li>
 <li>production 판정은 계속 <strong>NO-GO</strong>다.</li>
 </ul>
-<h2 id="요구사항-커버리지">3. 요구사항 커버리지</h2>
+<h2 id="4-요구사항-커버리지">4. 요구사항 커버리지</h2>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>분류</th>
 <th style="text-align: right;">개수</th>
 <th>의미</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>D</td>
-<td style="text-align: right;">16</td>
+<td style="text-align: right;">17</td>
 <td>직접 대응 구현</td>
 </tr>
-<tr class="even">
+<tr>
 <td>E</td>
 <td style="text-align: right;">24</td>
 <td>SIGMATEK/LASAL 방식으로 적응 구현</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>P</td>
-<td style="text-align: right;">13</td>
-<td>부분 구현 또는 제한 활성화</td>
+<td style="text-align: right;">12</td>
+<td>부분 구현 또는 qualification 제한</td>
 </tr>
-<tr class="even">
+<tr>
 <td>G</td>
 <td style="text-align: right;">8</td>
 <td>설계/게이트만 존재</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>X</td>
 <td style="text-align: right;">4</td>
 <td>current scope 제외 또는 미구현</td>
 </tr>
-<tr class="even">
+<tr>
 <td>합계</td>
 <td style="text-align: right;">65</td>
 <td>workbook 요구사항 수</td>
@@ -162,21 +368,15 @@ ratchet은 HomeDS402/HomeDS402Ex 등 남은 기능의 release qualification에�
 </tbody>
 </table>
 <ul>
-<li>완전/적응 구현: <code>40/65 = 61.5%</code></li>
+<li>완전/적응 구현: <code>41/65 = 63.1%</code></li>
 <li>부분 포함: <code>53/65 = 81.5%</code></li>
-<li>High-priority 21개 관점: Active 18, Partial 2(SetPosition, DS402
-Home), Dormant 1(HomeDS402Ex)</li>
+<li>High-priority 21개 관점: Active 19, Partial 1(SetPosition), Dormant
+1(HomeDS402Ex)</li>
 </ul>
-<h2 id="기능별-current-상태">4. 기능별 current 상태</h2>
+<h2 id="5-기능별-current-상태">5. 기능별 current 상태</h2>
 <table>
-<colgroup>
-<col style="width: 25%" />
-<col style="width: 25%" />
-<col style="width: 25%" />
-<col style="width: 25%" />
-</colgroup>
 <thead>
-<tr class="header">
+<tr>
 <th>영역</th>
 <th>Command / API</th>
 <th>상태</th>
@@ -184,372 +384,288 @@ Home), Dormant 1(HomeDS402Ex)</li>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>Connection/RPC</td>
 <td><code>0x8080</code>, <code>0x405C</code>, <code>0x405D</code>,
 <code>0x103C</code>, <code>0x1042</code>, <code>0x202B</code></td>
 <td>Active</td>
-<td>bounded fresh-TCP reconnect; callback은 wake hint이며 final state는
-TCP readback</td>
+<td>bounded reconnect; callback은 wake hint, final state는 TCP
+readback</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Axis core</td>
 <td><code>0x2022/23/24/28/2E/209F/20A0/20A2</code></td>
 <td>Active/Limited</td>
 <td>accepted-once wait/no-replay recovery; 전체 축/fault/race matrix
 미완료</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Group core</td>
 <td><code>0x20D2/2045/2047-4B/2051/2085/20A4/20E7/7D22</code></td>
 <td>Active/Limited</td>
-<td>X/Y/Z/U static identity; 전체 live matrix 미완료</td>
+<td>Cartesian4 profile, software robot Axis1..9 power lifecycle; 전체
+live matrix 미완료</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Admin read</td>
 <td><code>0x7D00/7D10/7D20/7D22</code></td>
 <td>Active</td>
 <td>capability + allowlisted semantic key</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>LMC Home</td>
 <td><code>0x7D13/7D18/7D19</code></td>
 <td>Active/Limited</td>
-<td>Admin bit 4 ON; no-motion CurrentPositionZero</td>
+<td>CurrentPositionZero, no switch-search</td>
 </tr>
-<tr class="even">
+<tr>
+<td>DS402 Home</td>
+<td><code>0x7D15/7D16/7D17</code></td>
+<td>Active/Limited</td>
+<td>standard method/API/parameter 구현 완료; Method 37 사용자 실기 확인,
+moving method 개별 qualification 대기</td>
+</tr>
+<tr>
 <td>SetPosition</td>
 <td><code>0x7D12/7D14/7D1A</code></td>
 <td>Dormant</td>
 <td>volatile store, runtime/native execution fail-closed</td>
 </tr>
-<tr class="odd">
-<td>DS402 Home</td>
-<td><code>0x7D15/7D16/7D17</code></td>
-<td>Dormant</td>
-<td>H37 software/source qualification current-dev PASS, five activation
-gates + bit 6 OFF, fresh C78/hardware 미완료</td>
-</tr>
-<tr class="even">
+<tr>
 <td>HomeDS402Ex</td>
 <td><code>0x7D1B/7D1C/7D1D</code></td>
 <td>Dormant</td>
-<td>full identity/retained store/profile preparation/source-static 존재;
-physical runtime no-op, bit 11 OFF</td>
+<td>physical runtime no-op, bit 11 OFF</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>SetOperationMode</td>
 <td><code>0x7D23/7D24/7D25</code></td>
 <td>Active</td>
-<td>구현 완료: PP/PV/IP/CSP, exact requested-mode ACK, one-shot
-write/read-only verify, durable no-replay outcome/retire</td>
+<td>PP/PV/IP/CSP, one-shot write/read-only verify, durable
+outcome/retire</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Diagnostics capability</td>
 <td><code>0x7E00</code></td>
 <td>Active</td>
 <td>매 connection fresh BootId/MapRevision/mask 필요</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>D1/D2</td>
 <td><code>0x7E01/02/10/20</code>, <code>0x7E30-33</code></td>
 <td>Active/Limited</td>
 <td>typed catalog/PI/Bulk; fault/partial/soak 확대 필요</td>
 </tr>
-<tr class="even">
+<tr>
 <td>D3 Recorder</td>
 <td><code>0x7E40-49</code></td>
 <td>Active/Limited</td>
 <td>Single/Ring/Trigger, single recorder owner</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>D4 Double</td>
 <td><code>0x7E4A-4D</code></td>
 <td>Dormant</td>
 <td>capability/proof gate OFF</td>
 </tr>
-<tr class="even">
+<tr>
 <td>D5 SDO Read</td>
 <td><code>0x7E50</code> read</td>
 <td>Active/Limited</td>
 <td>general inline read, exact ticket identity 필요</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>D5 SDO Write</td>
 <td><code>0x7E50</code> write</td>
 <td>Limited</td>
-<td>generic safe non-semantic 1/2/4-byte scalar policy + durable
-recovery 통합; OperationEnabled/semantic raw object deny, hardware
-readback matrix 미완료</td>
+<td>generic 1/2/4-byte scalar policy/source 완료, physical
+write/readback matrix 미완료</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Encoder maintenance</td>
 <td><code>0x7E53/54/55</code></td>
 <td>Active/Limited</td>
-<td>TW20/TW19 fixed payload; terminal과 actual drive effect 구분</td>
+<td>TW20/TW19 fixed payload; terminal과 physical effect 구분</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Static topology</td>
 <td><code>0x7E11/12</code></td>
 <td>Active</td>
 <td>configured inventory, runtime health 증거 아님</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Dynamic node/DI</td>
 <td><code>0x7E13/22</code></td>
 <td>Dormant</td>
-<td>route/source 존재, bits 15/16 OFF</td>
+<td>route/source 존재, capability OFF</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Digital output write</td>
 <td><code>0x7E23</code></td>
 <td>Missing</td>
 <td>C# surface만 존재, LASAL route/bit17 없음</td>
 </tr>
-<tr class="even">
+<tr>
 <td>PI Write</td>
 <td><code>0x7E21</code></td>
 <td>Dormant</td>
 <td>capability/allowlist OFF</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Extended SDO result</td>
 <td><code>0x7E51</code></td>
 <td>Dormant</td>
 <td>bit 12 OFF</td>
 </tr>
-<tr class="even">
-<td>Distribution</td>
-<td>SDK/WPF candidate</td>
-<td>Blocked</td>
-<td>development manual/semantic policy/distribution artifact release
-alignment 필요</td>
+</tbody>
+</table>
+<h2 id="6-ds402-home-current-checkpoint">6. DS402 Home current
+checkpoint</h2>
+<h3 id="61-구현-완료-범위">6.1 구현 완료 범위</h3>
+<table>
+<thead>
+<tr>
+<th>항목</th>
+<th>상태</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>정식 public API 호출 구조</td>
+<td>완료</td>
+</tr>
+<tr>
+<td>compatibility wrapper</td>
+<td>완료</td>
+</tr>
+<tr>
+<td>WPF parameter editor</td>
+<td>완료</td>
+</tr>
+<tr>
+<td>Method allowlist</td>
+<td>완료</td>
+</tr>
+<tr>
+<td>Home Offset / Velocity1 / Velocity2 / Acceleration</td>
+<td>완료</td>
+</tr>
+<tr>
+<td>Mode 6 진입/readback</td>
+<td>완료</td>
+</tr>
+<tr>
+<td>bit 4 start sequence</td>
+<td>완료</td>
+</tr>
+<tr>
+<td>HomingAttained/no-error/position completion</td>
+<td>완료</td>
+</tr>
+<tr>
+<td>TargetReached diagnostic-only 처리</td>
+<td>완료</td>
+</tr>
+<tr>
+<td>Master Position success predicate 제거</td>
+<td>완료</td>
+</tr>
+<tr>
+<td>pre-Home mode exact restore</td>
+<td>완료</td>
+</tr>
+<tr>
+<td>Start/Outcome/Retire durable lifecycle</td>
+<td>완료</td>
+</tr>
+<tr>
+<td>post-write no-replay recovery</td>
+<td>완료</td>
 </tr>
 </tbody>
 </table>
-<h2 id="homeds402-h37-current-checkpoint">5. HomeDS402 H37 current
+<h3 id="62-현재-실기-evidence">6.2 현재 실기 evidence</h3>
+<table>
+<thead>
+<tr>
+<th>Evidence</th>
+<th>상태</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Method 37 정상 동작</td>
+<td>사용자 확인 완료</td>
+</tr>
+<tr>
+<td>PP/PV/IP/CSP 각각의 restore matrix</td>
+<td>개별 확대 검증 대기</td>
+</tr>
+<tr>
+<td>Method <code>1..14</code>, <code>17..30</code>, <code>33</code>,
+<code>34</code></td>
+<td>사용자가 개별 테스트 예정</td>
+</tr>
+<tr>
+<td>switch/index/limit polarity와 direction</td>
+<td>method별 확인 필요</td>
+</tr>
+<tr>
+<td>nonzero Home Offset</td>
+<td>method별 확인 필요</td>
+</tr>
+<tr>
+<td>timeout/fault/Stop/PowerOff matrix</td>
+<td>release qualification 시 확인</td>
+</tr>
+<tr>
+<td>disconnect/restart no-replay</td>
+<td>release qualification 시 확인</td>
+</tr>
+<tr>
+<td>packet causal proof</td>
+<td>필요 시 method별 캡처</td>
+</tr>
+</tbody>
+</table>
+<h2 id="7-setoperationmode-checkpoint">7. SetOperationMode
 checkpoint</h2>
-<p>PR #40
-<code>test(h37): qualify HomeDS402 source and recovery on current dev</code>가
-<code>dev@1f741bfd08e9d75a52f7edd03862ef26ac562edd</code>로
-통합됐다.</p>
-<p>qualification:</p>
+<p>SetOperationMode는 구현 완료 상태를 유지한다.</p>
 <ul>
-<li>atomic five-value activation contract: <strong>43 checks
-PASS</strong></li>
-<li>exact method37 <code>0x7D15/16/17</code> PC Start/Outcome/Retire
-contract: PASS</li>
-<li>shared ownership/preemption: <strong>21 checks PASS</strong></li>
-<li>method-size verifier: <strong>10 checks PASS</strong>
-<ul>
-<li><code>HandleAxisDs402HomeStart</code>: 22,041 bytes</li>
-<li><code>HandleAxisDs402HomeOutcome</code>: 7,255 bytes</li>
-<li><code>HandleAxisDs402HomeRetire</code>: 4,221 bytes</li>
-<li><code>ProcessAxisDs402Home</code>: 29,497 bytes &lt; 32,768</li>
-</ul></li>
-<li>WPF durable no-replay source contract: <strong>36 checks
-PASS</strong></li>
-<li>unresolved durable journal startup recovery-key reconstruction:
-PASS</li>
-<li>API Debug/Release full suites: PASS</li>
-<li>WPF Debug/Release MaintenanceJournal + Ds402Home smoke: PASS</li>
-<li>diff hygiene: PASS</li>
-</ul>
-<p>Evidence:</p>
-<ul>
-<li>qualified head
-<code>f39fe0e9b56b0994619aed3f68b22c33a86d3b24</code></li>
-<li>workflow run <code>33026506170</code></li>
-<li>successful rerun job <code>98369296568</code></li>
-</ul>
-<p>첫 attempt는 four verifier PASS 후 hosted Windows runner MSBuild
-discovery에서만 중단됐고, 동일 head의 failed job rerun이 전체
-green이었다. product/source workaround는 추가하지 않았다.</p>
-<p>full SourceOnly은 source/static contract를 통과한 뒤 exact known
-generated-artifact boundary에서 멈춘다.</p>
-<p><code>LASAL.UdpCallbackContract blocker: SetPosition-augmented Classes.lcb physical identity drifted.</code></p>
-<p>따라서 current 판정:</p>
-<ul>
-<li>H37-01/02/03/04/10: 완료</li>
-<li>H37-05: method-size/source portion PASS, generated artifact closure
-미완료</li>
-<li>H37-06: fresh C78/direct-open/network smoke 미완료</li>
-<li>H37-07/08: hardware matrix 미완료</li>
-<li>H37-09: activation 미완료</li>
-</ul>
-<p>HomeDS402 capability bit 6과 five activation values는 계속 OFF다.</p>
-<h2 id="setoperationmode-완료-checkpoint">6. SetOperationMode 완료
-checkpoint</h2>
-<p>SetOperationMode feature implementation은
-<code>dev@0afbc2a79dff1b63f908b1bde3bd2502843045ff</code>
-(<code>dev : SetOpMode Complete</code>)에서 완료 상태로 닫는다.</p>
-<p>current source contract:</p>
-<ul>
-<li>qualification/runtime activation ON</li>
-<li>Admin Start/Outcome/Retire triad ON</li>
-<li><code>SetOperationModeSupportedMask=0x018A</code> = PP(1), PV(3),
-IP(7), CSP(8)</li>
-<li>Homing(6)은 HomeDS402/HomeDS402Ex 소유</li>
-<li>Start <code>0x7D23</code>, ReadOutcome <code>0x7D24</code>, Retire
+<li>Start <code>0x7D23</code>, Outcome <code>0x7D24</code>, Retire
 <code>0x7D25</code></li>
-<li>cross-mode fresh drive preflight: Standstill=True, Fault=False,
-OperationEnabled=False</li>
-<li>same-target <code>SucceededNoWrite</code>와 real cross-mode write
-구분</li>
-<li>exact requested mode ACK/domain-failure echo; CSP(8) 고정 ACK 판정
-제거</li>
-<li><code>0x6060</code> exact requested-mode write 최대 1회</li>
-<li>normal verify mismatch는 original deadline 안에서 50ms 이상 간격의
-<code>0x6061</code> read-only settling</li>
-<li>write-dispatched 이후 original Start/<code>0x6060</code> automatic
-replay 0회</li>
-<li>terminal owner publish/release는 original deadline 안에서 bounded
-retry, 추가 SDO write 0회</li>
-<li>terminal owner released + executor reusable evidence를 outcome에
-포함</li>
-<li>WPF Running은 PASS가 아니며 exact-key <code>0x7D24</code> polling 후
-terminal proof를 보존</li>
-<li>Succeeded는 exact-generation retire 이후에만 PASS</li>
-<li>Failed/Aborted는 terminal evidence/retire 후 실패로 반환</li>
-<li>indeterminate/query reject는 durable record와 mutation fence
-유지</li>
-<li>raw Generic SDO <code>0x6060</code> permanent deny</li>
+<li>PP(1), PV(3), IP(7), CSP(8)</li>
+<li>exact requested-mode ACK/readback</li>
+<li><code>0x6060</code> one-shot write</li>
+<li>original deadline 안의 read-only <code>0x6061</code> settling</li>
+<li>terminal owner publish/release</li>
+<li>durable no-replay recovery</li>
+<li>raw Generic SDO <code>0x6060</code> 우회 금지</li>
 </ul>
-<p>2026-08-28 capability freshness blocker, 2026-08-31
-readback/owner-publish 조사와 CSP-fixed ACK root cause는 모두 current
-implementation에서 corrective가 반영된 <strong>historical
-investigation</strong>이다. 상세 chronology는
-<code>design/SET_OPERATION_MODE_READBACK_SETTLING_FIX_20260831.md</code>에
-보존한다.</p>
-<p>current CI를 feature implementation status와 혼동하지 않는다.</p>
-<ul>
-<li>SetOperationMode C78 evidence tool run <code>33455821803</code>:
-SUCCESS</li>
-<li>SetOperationMode static run <code>33455821841</code>:
-functional/safety checks <strong>93 PASS</strong>, metadata
-Client/generated declaration order mismatch <strong>1 FAIL</strong></li>
-<li>SetOperationMode WPF run <code>33455821887</code>: hosted runner
-<code>Locate MSBuild</code> 실패로 test body 미실행</li>
-</ul>
-<p>후자의 두 항목은 repository/CI qualification hygiene로 남기되
-SetOperationMode 기능 구현을 다시 미완료 상태로 되돌리지 않는다. 전체
-API production release 판정은 다른 미완료 기능과 release gate 때문에
-계속 NO-GO다.</p>
-<h2 id="homeds402ex-current-checkpoint">7. HomeDS402Ex current
-checkpoint</h2>
-<p>current <code>dev</code> software tranche:</p>
-<ul>
-<li>HOMEEX-03 wire/capability contract</li>
-<li>HOMEEX-04 approved-plan lifecycle gate</li>
-<li>HOMEEX-05 retained exact-key/duplicate/replay/retire-retry
-store</li>
-<li>HOMEEX-06 gate-OFF parser/state scaffold</li>
-<li>HOMEEX-07 full 116-byte owner identity + shared DS402 Home resource
-admission</li>
-<li>HOMEEX-12 WPF durable no-replay recovery</li>
-<li>HOMEEX-08 approved-profile -&gt; frozen DINT internal preparation
-gate</li>
-<li>HOMEEX-09 source/static verifier + C78 evidence collector</li>
-</ul>
-<p>retained store:</p>
-<ul>
-<li>4축 active 40-DINT + retired full-outcome 40-DINT records</li>
-<li>176-byte Outcome/Retire exact serialization</li>
-<li>retained-store verifier 48/48 PASS</li>
-</ul>
-<p>current hard gates:</p>
-<ul>
-<li>issue #28 actual axis 1..4
-wiring/polarity/method/scale/range/rounding/MapRevision approval</li>
-<li>issue #35 same-tree fresh C78/generated artifact review + SourceOnly
-ratchet closure</li>
-</ul>
-<p>그 전에는 다음을 열지 않는다.</p>
-<ul>
-<li>parameter SDO snapshot/program/restore</li>
-<li>mode 6 / controlword bit4 physical execution</li>
-<li>RT owner + physical homing observation</li>
-<li>capability bit 11</li>
-<li>WPF HomeDS402Ex Start UI</li>
-</ul>
-<h2 id="setposition-current-checkpoint">8. SetPosition current
-checkpoint</h2>
-<ul>
-<li>SDK/wire/route와 P1 async lifecycle source 존재</li>
-<li>volatile <code>VAR_GLOBAL</code> backing 유지</li>
-<li>current production candidate에서 special RETAIN allocation 사용 안
-함</li>
-<li>durable backend target은 <code>_FileSys</code> fixed dual-file
-A/B</li>
-<li>RT claim/native execution/stable observer와 exactly-once execution은
-미완료</li>
-<li>capability/runtime은 fail-closed 유지</li>
-</ul>
-<h2 id="current-개발-우선순위">9. current 개발 우선순위</h2>
-<p>SetOperationMode 구현 완료 후 우선순위는 다음으로 재정렬한다.</p>
+<h2 id="8-homeds402ex--setposition">8. HomeDS402Ex / SetPosition</h2>
+<p>HomeDS402Ex는 DS402 Home standard-method 확장으로 대체된 항목과
+별개로, 별도 approved-profile/ retained lifecycle 실험 경로로
+<code>Dormant</code>를 유지한다. capability bit 11과 physical
+execution은 열지 않는다.</p>
+<p>SetPosition은 public SDK/wire가 존재하지만 durable backend/native
+exactly-once execution이 없으므로 current 지원 API로 승격하지
+않는다.</p>
+<h2 id="9-current-개발-우선순위">9. current 개발 우선순위</h2>
 <ol type="1">
-<li><strong>Generic SDO 완료 — issue #46의 잔여 범위</strong>
-<ul>
-<li>Axis1 safe non-semantic 1/2/4-byte Write + exact readback</li>
-<li>Manual Server / programmatic dual-entry BUSY arbitration과
-race/no-wire 검증</li>
-<li>timeout/disconnect/readback-mismatch durable no-replay recovery</li>
-<li>Axis2..4 확대</li>
-</ul></li>
-<li><strong>HomeDS402 — issue #32</strong>
-<ul>
-<li>current exact <code>dev</code> C78/generated artifact review와
-SourceOnly ratchet closure</li>
-<li>same-image PLC/hardware 정상/fault/timeout matrix</li>
-<li>activation은 독립 release gate 통과 전까지 OFF 유지</li>
-</ul></li>
-<li><strong>HomeDS402Ex — issue #28 + #35</strong>
-<ul>
-<li>축1..4 wiring/polarity/method/scale profile 승인</li>
-<li>fresh C78/generated artifact + SourceOnly closure</li>
-<li>이후에만 physical parameter program/restore와 homing runtime
-진행</li>
-</ul></li>
-<li><strong>SetPosition — issue #44</strong>
-<ul>
-<li>vendor <code>CheckSum.CRC32</code> golden fixture 확보</li>
-<li>LASAL IDE-generated <code>_FileSys</code> ABI 확보</li>
-<li>두 외부 prerequisite 없이는 durable A/B backend를 추측 구현하지
-않음</li>
-</ul></li>
-<li><strong>후순위 dormant/missing surface</strong>
-<ul>
-<li>PI Write, Recorder Double, Dynamic node/DI, Extended SDO result
-activation 검토</li>
-<li><code>0x7E23</code> Digital Output Write LASAL route/owner/allowlist
-구현</li>
-</ul></li>
-<li><strong>Repository/release hygiene</strong>
-<ul>
-<li>hosted Windows MSBuild discovery workflow 정리</li>
-<li>LASAL metadata/generated declaration order 및 generated artifact
-ratchet 정합화</li>
-<li>기능별 source SHA / artifact / PLC image / WPF binary evidence set
-정리</li>
-</ul></li>
+<li>DS402 Home moving method 중 실제 장비에서 사용할 method부터 개별
+실축 검증</li>
+<li>method별 switch/index/limit polarity, direction, velocity,
+acceleration, offset 검증</li>
+<li>PP/PV/IP/CSP pre-Home mode restore matrix 확인</li>
+<li>timeout, fault, Stop/PowerOff, disconnect/restart no-replay matrix
+확대</li>
+<li>Generic SDO physical write/readback qualification</li>
+<li>SetPosition durable backend/native executor prerequisite 확보</li>
+<li>repository/release 문서와 배포 artifact 동기화</li>
 </ol>
-<h2 id="branch-qualification-상태">10. branch / qualification 상태</h2>
-<ul>
-<li>remote branch는 현재 <code>main</code>, <code>dev</code> 두 개만
-유지한다.</li>
-<li>2026-08-28 cleanup에서 기존 <code>codex/*</code> 29개가 모두
-<code>dev</code> ancestor임을 확인한 뒤 삭제했다.</li>
-<li>열린 PR은 현재 없다.</li>
-<li><code>dev</code>가 유일한 integration / current qualification source
-truth다.</li>
-<li>qualification 중 blocker를 찾았다는 이유로 장기 branch를 새로
-누적하지 않는다.</li>
-<li>기능 작업 branch가 필요한 경우 작업 -&gt; 검증 -&gt;
-<code>dev</code> merge -&gt; 즉시 삭제 원칙을 적용한다.</li>
-<li>source SHA, generated artifact, PLC loaded image, WPF binary
-identity를 같은 qualification evidence set으로 기록한다.</li>
-</ul>
-<h2 id="production-release-gate">11. production release gate</h2>
+<p>사용자가 개별 DS402 Home 실축 테스트를 수행하므로 이 문서 갱신에서
+별도 PLC/실축 테스트를 실행하지 않는다.</p>
+<h2 id="10-production-release-gate">10. production release gate</h2>
 <p>production <code>Active</code> 승격에는 API별로 같은 승인 세트에서
 다음이 모두 필요하다.</p>
 <ol type="1">
@@ -562,7 +678,10 @@ matrix</li>
 <li>paired capability/gate activation</li>
 <li>manual/progress/WPF release synchronization</li>
 </ol>
-<p>SetOperationMode feature implementation은 완료됐지만 Generic SDO
-physical completion, HomeDS402, HomeDS402Ex, SetPosition과
-dormant/missing surface가 이 전체 gate를 닫지 못했다. 따라서 전체 API의
-production 판정은 계속 <strong>NO-GO</strong>다.</p>
+<p>DS402 Home 기능 구현 완료와 Method 37 정상 구동 확인은 위 전체
+release gate 완료를 뜻하지 않는다. Generic SDO physical completion,
+moving Home method qualification, HomeDS402Ex, SetPosition과
+dormant/missing surface가 남아 있으므로 전체 API의 production 판정은
+계속 <strong>NO-GO</strong>다.</p>
+</body>
+</html>

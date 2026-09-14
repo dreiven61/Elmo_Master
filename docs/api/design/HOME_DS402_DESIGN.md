@@ -1,5 +1,15 @@
 # HomeDS402 최우선 개발 설계
 
+> **2026-09-14 current override:** 이 문서는 초기 Method 37 wire/state-machine 설계와
+> qualification 이력을 보존한다. 현재 DS402 Home 설계 정본은
+> `DS402_HOME_IMPLEMENTATION_DESIGN_20260914.md`다. current public API는
+> `PrepareLMC_HomeDS402`, `LMC_HomeDS402[Async]`,
+> `ReadDs402HomeOutcome[Async]`, `RetireDs402HomeOutcome[Async]`이며 Method
+> `1..14`, `17..30`, `33`, `34`, `37`과 Home Offset, Velocity1/2,
+> Acceleration을 지원한다. TargetReached와 Master Position은 success gate가 아니고,
+> cleanup은 CSP 고정값이 아니라 Home 전 저장한 PP/PV/IP/CSP exact mode로 복귀한다.
+> Method 37은 사용자 실기 확인 완료, moving method는 개별 실축 검증 대기다.
+
 > **2026-09-11 current override:** 이 문서의 frozen wire/state-machine 설명은 유효하지만
 > `dev@1f741bfd...`, two-drive topology와 five-value atomic activation 설명은 historical이다.
 > current 구현은 `LMC_HOME_AND_DS402_HOME_IMPLEMENTATION_DESIGN_20260911.md`를 우선한다.
@@ -8,8 +18,9 @@
 > target은 Axis1 only다. Home/Referenced는 Servo On의 선행조건이 아니다.
 
 - 대상: No.19 `MMC_HomeDS402Cmd`
-- 현재 진행도: 50%
-- current 상태: source implemented, deployment `Dormant`
+- 현재 진행도: historical Method 37 설계 완료; current 범위는 2026-09-14 정본 참조
+- current 상태: public API/parameter/state-machine 구현 완료, Method 37 사용자 실기 확인 완료,
+  moving method 개별 실축 qualification 대기
 - current baseline: `dev@1f741bfd08e9d75a52f7edd03862ef26ac562edd`
 - current qualification: H37-02/03/04/10 software/source qualification이 PR #40으로 `dev` 통합 완료
 - existing command: `0x7D15 Start`, `0x7D16 ReadOutcome`, `0x7D17 Retire`

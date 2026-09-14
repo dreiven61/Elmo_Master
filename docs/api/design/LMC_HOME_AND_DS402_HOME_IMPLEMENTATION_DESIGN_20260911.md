@@ -1,5 +1,16 @@
 # LMC_Home / DS402Home 구현 설계 - 2026-09-11
 
+> **2026-09-14 current override:** 이 문서는 `LMC_Home` 설계와 2026-09-11 당시의
+> DS402 Home 구현 이력을 보존한다. 현재 DS402 Home 계약은
+> `DS402_HOME_IMPLEMENTATION_DESIGN_20260914.md`를 우선한다. 현재 public API는
+> `PrepareLMC_HomeDS402`, `LMC_HomeDS402[Async]`,
+> `ReadDs402HomeOutcome[Async]`, `RetireDs402HomeOutcome[Async]`이며, Method
+> `1..14`, `17..30`, `33`, `34`, `37`과 Home Offset, Velocity1/2,
+> Acceleration 편집을 지원한다. 완료는 fresh HomingAttained와 no-error 및 expected raw
+> ActualPosition으로 판정하고 TargetReached와 Master Position을 success gate로 사용하지 않는다.
+> cleanup에서는 Home 진입 전에 저장한 PP(1), PV(3), IP(7), CSP(8) 중 exact mode로 복귀한다.
+> Method 37은 사용자 실기 확인 완료이며 moving method는 method별 실축 검증 대기다.
+
 ## 1. 결론
 
 `LMC_Home`과 기본 `DS402Home`의 SDK, wire, PLC retained lifecycle, RT executor,
@@ -7,7 +18,8 @@ WPF one-shot/recovery 골격은 현재 source에 이미 구현돼 있다. 다음
 작성하는 작업이 아니라, 2026-09-11의 1 physical axis testbed에 맞게 physical eligibility와
 Admin capability를 정합화하고 동일 PLC image에서 동작을 검증하는 작업이다.
 
-현재 구현 대상은 다음 두 기능이다.
+2026-09-11 당시 구현 대상은 다음 두 기능이었다. 아래 DS402 Home 범위는 historical이며
+current 범위는 상단 override와 2026-09-14 정본을 따른다.
 
 | 기능 | 의미 | 이동 | current wire |
 |---|---|---:|---|
