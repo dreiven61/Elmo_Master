@@ -2,19 +2,23 @@
 
 ## 2026-09-14 current entrypoint
 
-현재 `dev`의 DS402 Home 설계 정본은 다음 순서로 본다.
+현재 `dev`의 Home 계열 설계는 다음 순서로 본다.
 
-1. `DS402_HOME_IMPLEMENTATION_DESIGN_20260914.md` - current DS402 Home public API, parameter, PLC sequence, completion/recovery 계약
-2. `DS402_HOME_MOVING_METHOD_QUALIFICATION_20260914.md` - moving method별 실축 qualification 기록 양식과 PASS 기준
-3. `LMC_HOME_AND_DS402_HOME_IMPLEMENTATION_DESIGN_20260911.md` - LMC Home과 2026-09-11 시점 DS402 Home 통합 설계의 historical baseline
-4. `HOME_DS402_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md` - frozen Start/Outcome/Retire lifecycle과 qualification history
-5. `HOME_DS402_DESIGN.md` - 초기 HomeDS402 wire/state-machine 설계와 과거 qualification history
+1. `LMC_HOME_IMPLEMENTATION_DESIGN_20260914.md` - LMC_Home 범용 parameter/API/wire/PLC/WPF 구현 목표 설계. 현재 source는 아직 v1 CurrentPositionZero이며 이 문서는 다음 구현 changeset 기준이다.
+2. `DS402_HOME_IMPLEMENTATION_DESIGN_20260914.md` - current DS402 Home public API, parameter, PLC sequence, completion/recovery 계약
+3. `DS402_HOME_MOVING_METHOD_QUALIFICATION_20260914.md` - moving method별 실축 qualification 기록 양식과 PASS 기준
+4. `LMC_HOME_AND_DS402_HOME_IMPLEMENTATION_DESIGN_20260911.md` - LMC Home과 2026-09-11 시점 DS402 Home 통합 설계의 historical baseline
+5. `HOME_DS402_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md` - frozen Start/Outcome/Retire lifecycle과 qualification history
+6. `HOME_DS402_DESIGN.md` - 초기 HomeDS402 wire/state-machine 설계와 과거 qualification history
 
-문서 간 설명이 충돌하면 current `dev` source와
-`DS402_HOME_IMPLEMENTATION_DESIGN_20260914.md`를 우선한다.
+문서 간 설명이 충돌하면 current `dev` source를 실제 구현 truth로 사용한다.
+DS402 Home은 `DS402_HOME_IMPLEMENTATION_DESIGN_20260914.md`를 current 설계 정본으로 사용하고,
+LMC_Home 범용화의 구현 목표는 `LMC_HOME_IMPLEMENTATION_DESIGN_20260914.md`를 따른다.
+범용 LMC_Home source가 반영되기 전까지 runtime 의미는 기존 CurrentPositionZero 계약이다.
 
 - current integration branch: `dev`
 - DS402 Home implementation baseline: `dev@97e3ae433ef470ce815a79c9b8d8fda0201bd367`
+- LMC Home generic design baseline: `dev@c8fa8bb6cd063fbb2f694561ef787ca7b223fdb4`
 - current API progress: `../API_DEVELOPMENT_PROGRESS.md`
 - current API manual: `../API_MANUAL.md`
 - production release posture: **NO-GO**
