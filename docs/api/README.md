@@ -2,6 +2,20 @@
 
 이 폴더는 LASAL Motion Control API의 사용자 설명서와 개발 진척도 문서를 한곳에서 관리한다.
 
+## 2026-09-14 DS402 Home current 문서
+
+`dev@97e3ae433ef470ce815a79c9b8d8fda0201bd367`의 DS402 Home standard-method 구현은 아래 3개 문서를 current 정본으로 사용한다.
+이 세 문서는 DS402 Home 항목에 한해 2026-09-11 이전의 `Method 37 only`, `CSP 고정 복귀`,
+`moving Home은 HomeDS402Ex only` 설명보다 우선한다.
+
+| 구분 | current 정본 |
+|---|---|
+| 설계 | [DS402 Home 구현 설계 2026-09-14](design/DS402_HOME_IMPLEMENTATION_DESIGN_20260914.md) |
+| 개발 진행도 | [DS402 Home 개발 진행도 2026-09-14](DS402_HOME_DEVELOPMENT_PROGRESS_20260914.md) |
+| 사용 매뉴얼 | [DS402 Home 사용 매뉴얼 2026-09-14](DS402_HOME_MANUAL_20260914.md) |
+
+전체 API의 다른 기능은 아래 기존 정본을 그대로 따른다.
+
 ## 정본과 배포 형식
 
 | 문서 | 편집 정본 | 배포·열람 형식 |
@@ -18,7 +32,7 @@ Markdown 파일이 내용의 정본이다. DOCX, PDF, XLSX와 HTML은 정본에�
 간단 현황표다. `진행도`와 `특이사항`만 current 진척도에 맞춰 갱신하며, 구현률은 PLC/실축
 시험 통과율을 의미하지 않는다.
 
-우선순위 `상`이면서 진행도 75% 미만인 4개 API는 `design/`을 current 구현 설계와 작업
+우선순위 `상`이면서 진행도 75% 미만인 API는 `design/`을 current 구현 설계와 작업
 체크리스트의 정본으로 사용한다. 다른 문서는 설계 내용을 복사하지 않고 이 폴더를 링크한다.
 
 현재 문서는 `2.4-development` 개발 문서다. 기존
