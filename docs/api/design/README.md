@@ -1,285 +1,156 @@
 # 최우선 API 개발 설계
 
-## 2026-09-11 Home 구현 current entrypoint
+## 2026-09-14 current entrypoint
 
-`LMC_Home`과 기본 `DS402Home(Method 37)` 구현/정합 작업은
-`LMC_HOME_AND_DS402_HOME_IMPLEMENTATION_DESIGN_20260911.md`를 current 정본으로 사용한다.
+현재 `dev`의 DS402 Home 설계 정본은 다음 순서로 본다.
 
-이 문서는 2026-09-11의 CREVIS + Elmo 1-drive/Axis1 physical topology를 반영하며 다음을
-기존 문서보다 우선한다.
+1. `DS402_HOME_IMPLEMENTATION_DESIGN_20260914.md` - current DS402 Home public API, parameter, PLC sequence, completion/recovery 계약
+2. `LMC_HOME_AND_DS402_HOME_IMPLEMENTATION_DESIGN_20260911.md` - LMC Home과 2026-09-11 시점 DS402 Home 통합 설계의 historical baseline
+3. `HOME_DS402_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md` - frozen Start/Outcome/Retire lifecycle과 qualification history
+4. `HOME_DS402_DESIGN.md` - 초기 HomeDS402 wire/state-machine 설계와 과거 qualification history
 
-- Home/Referenced는 Servo On의 선행조건이 아님
-- `LMC_Home`과 Method 37은 non-moving current-position-zero 기능
-- switch/index를 탐색하는 moving Home은 별도 `HomeDS402Ex`
-- Home specialized reservation은 global ordinary ownership gate와 독립
-- current physical Home target은 Axis1 only; Axis2는 simulation/deactivated
-- source/PC, LASAL build, PLC image, runtime, physical proof를 분리
+문서 간 설명이 충돌하면 current `dev` source와
+`DS402_HOME_IMPLEMENTATION_DESIGN_20260914.md`를 우선한다.
 
-아래의 2026-09-07 two-drive 설명과 과거 five-value activation 설명은 historical evidence다.
-current 구현 판정에는 새 문서를 우선한다.
-
-2026-09-11 first changeset의 source/static entrypoint는
-`../../../tools/Verify-HomeOneAxisImplementation.ps1`이며, H37 통합 회귀 entrypoint는
-`../../../tools/Verify-HomeDs402H37CurrentDevRegression.ps1`이다. 아래 2026-09-07
-two-drive `Verify-CurrentPhysicalTopology.ps1` 결과는 current one-drive Home 판정에 사용하지 않는다.
-
-- 기준일: 2026-09-07
-- current integration / qualification source: `dev`
-- current source baseline: `dev@4821797d9279770ba4e3ff396eae4dbb73d421d1`
-- current working-tree delta: two-drive Diagnostics topology inventory (`0x96FC461C`)
+- current integration branch: `dev`
+- DS402 Home implementation baseline: `dev@97e3ae433ef470ce815a79c9b8d8fda0201bd367`
 - current API progress: `../API_DEVELOPMENT_PROGRESS.md`
 - current API manual: `../API_MANUAL.md`
 - production release posture: **NO-GO**
 
-## current implementation master
+## 1. 2026-09-14 DS402 Home current contract
 
-**2026-09-07 Servo Power 수정과 testbed EtherCAT 변경 이후 신규 구현은 다음 문서를 정본으로 사용한다.**
+DS402 Home은 더 이상 Method 37 전용 surface가 아니다. current basic API는 다음 standard method를
+허용한다.
 
-1. `LMC_HOME_AND_DS402_HOME_IMPLEMENTATION_DESIGN_20260911.md` — current 1-axis LMC Home/DS402Home 구현 정본
-2. `ASYNC_OPERATION_WATCHDOG_AND_TRANSPORT_RECOVERY_DESIGN_20260909.md` — WPF 무기한 async/gate 대기 제거, post-write transport 폐기, safety takeover 설계
-3. `CURRENT_IMPLEMENTATION_HANDOFF_20260907.md` — 2026-09-07 historical HEAD 판정과 당시 재검증 순서
-4. `REMAINING_IMPLEMENTATION_DESIGN_20260902.md` — 남은 기능 구현 순서/의존성 master
-5. `CURRENT_IMPLEMENTATION_HANDOFF_20260902.md` — 2 physical drives + SimulationSetup 도입 당시 historical handoff
-6. `HOME_DS402_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md` — HomeDS402 frozen lifecycle + historical completion handoff
-7. `SET_POSITION_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md` — SetPosition durable runtime handoff
-8. `SET_POSITION_CURRENT_SOURCE_INVENTORY_20260902.md` — SP-C0 current source inventory evidence
-9. `TOPOLOGY_STATIC_QUALIFICATION_RESULT_20260902.md` — TOPO-C0 source/network/generated-table static tranche evidence
-10. `HOME_DS402_H37_OPERATOR_ACTIVATION_IMPLEMENTATION_20260902.md` — Method 37 UI/source activation의 historical evidence
+- `1..14`
+- `17..30`
+- `33`, `34`
+- `37`
 
-기존 상세 문서는 frozen wire/state-machine 또는 historical evidence로 계속 참조한다.
+Method 35와 reserved/vendor-specific method는 fail-closed한다.
 
-- `HOME_DS402_DESIGN.md`
-- `SET_POSITION_DESIGN.md`
-- `../../architecture/AXIS_SET_POSITION_ASYNC_RT_EXECUTOR_AND_RECOVERY_DESIGN_2026-08-19.md`
-- `REMAINING_IMPLEMENTATION_DESIGN_20260901.md` — SDO Write 완료 이전 계획
-- `SDO_WRITE_DETAILED_DESIGN_20260901.md`
-- `SDO_WRITE_DIRECT_MANUAL_ENABLEMENT_20260901.md`
+편집 가능한 drive object는 다음과 같다.
 
-문서가 충돌하면 current `dev` source와 `CURRENT_IMPLEMENTATION_HANDOFF_20260907.md`를 우선한다.
+| UI/API parameter | DS402 object | current 의미 |
+|---|---|---|
+| Homing Method | `0x6098` | 허용 standard method 선택 |
+| Home Offset | `0x607C` | raw drive DINT |
+| Home Velocity1 | `0x6099:01` | moving method search velocity 1 |
+| Home Velocity2 | `0x6099:02` | moving method search velocity 2; legacy wire `DistanceLimit` 저장소 사용 |
+| Home Acceleration | `0x609A:00` | moving method acceleration |
 
----
+moving method는 Velocity1/2와 Acceleration이 모두 양수여야 하고, Method 37은 세 값이 모두 0이어야 한다.
+TorqueLimit는 0, BufferMode는 Aborting을 유지한다.
 
-## 1. current topology baseline
+## 2. current public API / wire lifecycle
 
-current Motion/LASAL topology는 logical axis와 physical drive를 분리한다.
+응용 프로그램은 다음 public API를 사용한다.
 
 ```text
-Logical axes              : Axis1..Axis9
-Physical Elmo drives      : Axis1, Axis2
-Configured physical mask  : 0x00000003
-Simulation axes           : Axis3..Axis9
+PrepareLMC_HomeDS402(...)
+-> LMC_HomeDS402(...) / LMC_HomeDS402Async(...)
+-> ReadDs402HomeOutcome(...) / ReadDs402HomeOutcomeAsync(...)
+-> RetireDs402HomeOutcome(...) / RetireDs402HomeOutcomeAsync(...)
 ```
 
-latest source changes:
+wire command는 다음과 같다.
 
-- `b746252c...` — 2-drive startup/encoder-maintenance admission 대응
-- `570fddd5...` — ownership service의 file-local `LMC_OWNER_STARTUP_LATCH_PHYSICAL` define 보완
-- `5666497c...` — `SimulationSetup` class + Motion Network wiring 추가
-- `1852bd2e...` — Axis Power On/Off ownership lifecycle와 safety-repeat 오분류 수정
-- `c6bda1e3...` — Elmo slave index 0/1, GL_9086 deactivated testbed EtherCAT 갱신
-- 2026-09-07 working tree — stale 7-node Diagnostics inventory를 Elmo 2-node로 정합화
+| 단계 | Command |
+|---|---:|
+| Start | `0x7D15` |
+| Outcome | `0x7D16` |
+| Retire | `0x7D17` |
 
-`SimulationSetup`은 Axis1..9의 retentive 설정을 first scan에서 `_LMCAxisN.SimulateMode`에 즉시 전달한다.
-Motion Network current configured value는 Axis1/2 = non-simulation, Axis3..9 = simulation이다.
+`PrepareDs402Home`, `Ds402Home`, `Ds402HomeAsync`는 기존 호출자 호환 wrapper다. 신규 WPF/SDK 호출은
+정식 `LMC_` public API를 사용한다.
 
-따라서 이후 physical-drive-dependent 기능은 `axis <= 4` 같은 과거 가정이 아니라 configured physical mask를 사용한다.
+Start ACK는 completion evidence가 아니다. write boundary 이후 결과가 불명확해도 original Start를
+자동 replay하지 않고 동일 recovery key로 Outcome/Retire만 수행한다.
 
-상세 current override:
+## 3. PLC Homing sequence
 
-`CURRENT_IMPLEMENTATION_HANDOFF_20260907.md`
-
----
-
-## 2. 완료 기능
-
-### SetOperationMode
-
-상태: **IMPLEMENTATION COMPLETE / Active**
-
-- `0x7D23 Start / 0x7D24 Outcome / 0x7D25 Retire`
-- PP/PV/IP/CSP 지원
-- exact requested-mode ACK
-- one-shot `0x6060`
-- read-only `0x6061` settling
-- terminal owner publish/release
-- durable no-replay outcome/retire
-- WPF terminal/query/retire 처리
-
-### Generic SDO Write
-
-상태: **FEATURE IMPLEMENTATION COMPLETE**
-
-- qualification proof 없이 direct manual Arm/Confirm
-- canonical 1/2/4-byte scalar
-- nonzero ObjectIndex generic policy
-- baseline Read
-- immutable two-click confirmation
-- pre-Write guard
-- journal v4
-- identity-pinned one-shot submit
-- terminal tracking
-- mandatory exact readback
-- no automatic replay
-
-현재 physical topology는 Elmo Drive1/2만 존재하므로 physical SDO qualification/release evidence는 Slave1/2 기준으로 수행하고,
-비물리 target은 deterministic unavailable 처리 여부를 TOPO-C0에서 확인한다.
-
----
-
-## 3. P0-A — current topology freeze / regression
-
-HomeDS402 구현을 계속하기 전에 current testbed image 기준 `P0-0 / TOPO-C0`를 다시 닫는다.
-
-필수 확인:
-
-- LASAL Compile/Rebuild 0 errors
-- SimulationSetup first-scan 적용
-- Axis1/2 `SimulateMode=0`
-- Axis3..9 `SimulateMode=1`
-- physical mask `0x03`이 InputLatch / Ownership / Diagnostics와 일치
-- Axis3/4 EtherCAT absence가 ownership startup을 막지 않음
-- Encoder Maintenance Axis1/2 정상 admission
-- Encoder Maintenance Axis3/4 physical request 명시적 unavailable
-- EtherCAT generated table의 Elmo slave index 0/1과 실제 장비 순서 일치
-- GL_9086 deactivated 상태가 Drive1/2 startup readiness를 막지 않음
-- Servo Power 수정 포함 exact image의 Power On/Off physical lifecycle
-- static topology가 `2/2/0/2`, CRC `0x96FC461C`로 응답하고 removed CREVIS/Axis3/4를 노출하지 않음
-
-source/static 기준은 `tools/Verify-CurrentPhysicalTopology.ps1` `184/184`와 PC regression
-`1201/1201`로 닫혔다. 이 단계는 activation이 아니라 topology baseline freeze이며, current working-tree
-변경 후 LASAL Rebuild/Download와 live readback은 아직 필요하다.
-
----
-
-## 4. P0-B — HomeDS402
-
-대상: No.19 `MMC_HomeDS402Cmd`
-
-상태: **Method 37 source/UI activation implemented / fresh PLC image and hardware qualification required**
-
-HomeDS402는 state machine 신규 구현 대상이 아니다. 기존 method37 lifecycle을 유지한다.
-
-latest topology 변경이 `LMCEcatInputLatch`, `LMCControlCommandService`, `LMCDiagnosticsService`, Motion Network를 수정했으므로
-기존 software qualification을 latest tree에서 다시 확인한다.
+current backend sequence는 다음이다.
 
 ```text
-TOPO-C0
--> H37-C0R current-dev regression on latest tree
--> H37-C1 fresh C78/generated artifact
--> H37-C2 activation candidate source/UI qualification
--> H37-C3 Axis1 hardware normal/failure matrix
--> H37-C4 Axis2 hardware + Axis3/4 nonphysical rejection matrix
--> H37-C5 five-value atomic activation runtime qualification
+pre-Home 0x6061 mode 저장
+-> Homing parameter SDO 설정
+-> 0x6060 = 6
+-> 0x6061 = 6 확인
+-> ControlWord bit 4 rising edge
+-> fresh HomingAttained/no-error/expected raw position 확인
+-> bit 4 LOW
+-> LASAL setpoint/destination alignment
+-> 저장한 pre-Home mode를 0x6060에 복원
+-> 0x6061 exact readback
+-> owner release
+-> terminal outcome commit
 ```
 
-과거 `Axis2..4 hardware expansion` 문구는 current topology에서 그대로 적용하지 않는다.
-physical HomeDS402 hardware qualification 대상은 Axis1/2다.
+pre-Home mode는 PP(1), PV(3), IP(7), CSP(8)를 지원한다. Home 종료 시 CSP로 고정 복귀하지 않고
+시작 전에 저장한 exact mode로 돌아간다.
 
-현재 tracked source의 activation values는 모두 ON이다.
+## 4. completion contract
 
-- TCP ordinary ownership
-- Control ordinary ownership
-- Diagnostics HomeDS402 gate
-- InputLatch startup sweep gate
-- Admin capability bit 6
+terminal success의 핵심 predicate는 다음이다.
 
-Admin HomeDS402 capability는 `0x00000757`의 bit 6이다. Diagnostics capability
-`0x0000613F`의 bit 6은 RecorderDoubleBank이므로 Home 판정에 사용하지 않는다.
-현재 실행 중 PLC/WPF가 이 변경 이전 image/process이면 capability를 새로 읽어도 사용할 수 없다.
-fresh LASAL build/link/download와 WPF 재시작이 필요하다. 특히 BootId 137 실패 시험은
-최종 safety-repeat helper 수정 전 evidence이므로 current success로 재사용하지 않는다.
+- fresh HomingAttained bit 12
+- HomingError bit 13 clear
+- Fault bit 3 clear
+- raw ActualPosition이 expected position `+/-32 count`
+- bit 4 LOW cleanup
+- LASAL setpoint/destination alignment
+- saved pre-Home mode exact restore/readback
+- owner release와 terminal record commit
 
-WPF는 현재 검증된 Method 37만 선택할 수 있다. 이는 축 이동 없이 현재 actual position을
-0으로 정의하는 방식이다. switch/index를 찾는 이동형 homing은 `HomeDS402Ex`이며 아직 미구현/비활성이다.
+expected raw position은 Method 37에서 `HomeOffset`, moving method에서 `-HomeOffset`이다.
+TargetReached bit 10은 진단 StatusWord에 보존하지만 terminal success gate로 사용하지 않는다.
+Master Position은 success predicate가 아니다.
 
-상세 frozen lifecycle:
+## 5. current validation state
 
-`HOME_DS402_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md`
+2026-09-14 사용자 확인으로 기존 DS402 Home 정상 구동이 확인됐다. 이 evidence는 Method 37 실기
+확인으로 기록한다. moving method는 사용자가 method별로 개별 실축 테스트한다.
 
-current topology override:
+따라서 current 판정은 다음과 같다.
 
-`CURRENT_IMPLEMENTATION_HANDOFF_20260907.md`
+- public API / WPF parameter editor / PLC state-machine implementation: **완료**
+- Method 37 physical/runtime: **사용자 확인 완료**
+- moving method individual qualification: **대기**
+- full fault/disconnect/restart/packet matrix: **대기**
+- production release: **NO-GO**
 
----
+한 method의 실축 PASS를 다른 method 또는 전체 production PASS로 확대하지 않는다.
 
-## 5. P1 — SetPosition
+## 6. historical document interpretation
 
-대상: No.58 `MMC_SetPositionCmd`
+2026-09-11 및 2026-09-02 문서의 다음 문구는 historical 설계다.
 
-상태: **Dormant / SP-C0 COMPLETE / SP-C1 NEXT**
+- `Method 37 only`
+- `Home Offset = 0 only`
+- moving Home은 `HomeDS402Ex`만 사용
+- cleanup 뒤 CSP(8) 고정 복귀
+- TargetReached가 terminal success 필수 gate
+- Master Position exact update가 성공 조건
 
-SP-C0 current source inventory는 완료됐다.
+frozen `0x7D15/16/17` lifecycle, exact identity, durable recovery, no-replay, terminal retirement와
+source/runtime/hardware evidence 분리 원칙은 계속 유효하다.
 
-- validating commit: `08e85d456ad118abaec8405fe9ab1c1ec3baa974`
-- verifier: 39 checks PASS on the current shared-ownership state
-- WPF AxisSetPositionJournal: 11/11 PASS
-- evidence: `SET_POSITION_CURRENT_SOURCE_INVENTORY_20260902.md`
+## 7. 다른 current design 문서
 
-다음 단계는 SP-C1 prerequisite capture다.
+- `ASYNC_OPERATION_WATCHDOG_AND_TRANSPORT_RECOVERY_DESIGN_20260909.md` - WPF async/gate timeout과 transport recovery
+- `CURRENT_IMPLEMENTATION_HANDOFF_20260907.md` - 2026-09-07 historical integration handoff
+- `REMAINING_IMPLEMENTATION_DESIGN_20260902.md` - remaining feature dependency plan
+- `SET_POSITION_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md` - SetPosition durable runtime handoff
+- `SET_POSITION_CURRENT_SOURCE_INVENTORY_20260902.md` - SetPosition source inventory
+- `SET_OPERATION_MODE_READBACK_SETTLING_FIX_20260831.md` - SetOperationMode historical investigation
 
-```text
-current-tree SP-C0 smoke
--> vendor CRC golden + IDE-generated _FileSys ABI
--> durable A/B backend
--> Store durable adapter
--> RT claim-before-native exactly-once executor
--> terminal-before-release integration
--> WPF recovery completion
--> C78/source qualification
--> Axis1/2 hardware + Axis3/4 simulation qualification
--> paired activation
-```
+## 8. 공통 구현 원칙
 
-외부 evidence 전 금지:
-
-- vendor CRC 알고리즘 추측
-- `_FileSys` generated ABI hand-authoring
-- Store configured/ownership/max-jump/capability activation
-
-Axis5..9가 SimulationSetup에 존재한다고 해서 SetPosition public contract를 자동 확장하지 않는다.
-
-상세:
-
-`SET_POSITION_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md`
-
----
-
-## 6. HomeDS402Ex
-
-HomeDS402Ex는 별도 P2다.
-
-- issue #28: wiring/polarity/method/scale/range profile
-- issue #35: fresh C78/generated artifact + SourceOnly
-- 이후 parameter SDO + RT physical homing runtime
-
-current P0/P1이 닫히기 전 HomeDS402Ex activation은 OFF 유지한다.
-
----
-
-## 7. 공통 구현 원칙
-
-- `dev`가 유일한 current integration source truth
-- logical axis와 physical drive를 분리
-- physical capability는 configured physical mask 기준
-- simulation PASS를 hardware PASS로 승격하지 않음
-- mutation wire/native boundary 이후 original mutation replay 0
-- terminal proof 전에 shared owner release 금지
-- capability/gate source candidate와 runtime/production Active 판정을 구분함
-- hardware qualification 전 source gate를 켠 예외는 exact build/download/runtime 증거 전까지 NO-GO 유지
-- generated LASAL ABI/artifact/hash를 추측하지 않음
-- source PASS / LASAL compile / C78 artifact / PLC boot / hardware PASS를 분리 기록
-- topology 변경과 feature activation을 같은 changeset에 섞지 않음
-- physical drive count가 바뀌면 TOPO-C0를 다시 수행
-
----
-
-## 8. current 문서 우선순위
-
-1. `CURRENT_IMPLEMENTATION_HANDOFF_20260907.md`
-2. current `dev` source와 current verifier 결과
-3. `REMAINING_IMPLEMENTATION_DESIGN_20260902.md`
-4. `HOME_DS402_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md`
-5. `SET_POSITION_COMPLETION_IMPLEMENTATION_DESIGN_20260902.md`
-6. `SET_POSITION_CURRENT_SOURCE_INVENTORY_20260902.md`
-7. `../API_DEVELOPMENT_PROGRESS.md`
-8. historical detailed design/evidence
+- `dev`를 current integration source truth로 사용한다.
+- static/PC, LASAL build, PLC load/runtime, hardware/packet evidence를 분리한다.
+- mutation write 이후 original command 자동 replay를 하지 않는다.
+- terminal proof 전에 shared owner를 release하지 않는다.
+- generated LASAL artifact/hash를 근거 없이 rebaseline하지 않는다.
+- physical drive count/topology가 바뀌면 topology baseline을 다시 확인한다.
+- 개별 method/axis PASS를 다른 method/axis 또는 production 전체 PASS로 확대하지 않는다.
