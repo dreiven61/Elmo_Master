@@ -1,5 +1,4 @@
 using System;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
 
@@ -23,6 +22,11 @@ namespace LasalMotionControlApiExample
                 FrameworkElement.LoadedEvent,
                 new RoutedEventHandler(HomeRepeatWindow_Loaded),
                 true);
+            EventManager.RegisterClassHandler(
+                typeof(MainWindow),
+                FrameworkElement.UnloadedEvent,
+                new RoutedEventHandler(HomeRepeatWindow_Unloaded),
+                true);
         }
 
         private static void HomeRepeatWindow_Loaded(
@@ -30,12 +34,25 @@ namespace LasalMotionControlApiExample
             RoutedEventArgs e)
         {
             var window = sender as MainWindow;
-            if (window == null)
+            if (window == null || !ReferenceEquals(e.OriginalSource, window))
             {
                 return;
             }
 
             window.EnsureHomeRepeatRecoveryMonitorStarted();
+        }
+
+        private static void HomeRepeatWindow_Unloaded(
+            object sender,
+            RoutedEventArgs e)
+        {
+            var window = sender as MainWindow;
+            if (window == null || !ReferenceEquals(e.OriginalSource, window))
+            {
+                return;
+            }
+
+            window.StopHomeRepeatRecoveryMonitor();
         }
 
         private void EnsureHomeRepeatRecoveryMonitorStarted()
@@ -53,6 +70,19 @@ namespace LasalMotionControlApiExample
             homeRepeatRecoveryTimer.Start();
             WriteLog(
                 "HOME_REPEAT MONITOR_READY: automatic exact Home outcome/retire recovery is active.");
+        }
+
+        private void StopHomeRepeatRecoveryMonitor()
+        {
+            var timer = homeRepeatRecoveryTimer;
+            homeRepeatRecoveryTimer = null;
+            if (timer != null)
+            {
+                timer.Stop();
+                timer.Tick -= HomeRepeatRecoveryTimer_Tick;
+            }
+
+            homeRepeatRecoveryPollRunning = false;
         }
 
         private async void HomeRepeatRecoveryTimer_Tick(
