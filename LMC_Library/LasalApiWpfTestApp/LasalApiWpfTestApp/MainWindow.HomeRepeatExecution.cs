@@ -133,14 +133,17 @@ namespace LasalMotionControlApiExample
                 DateTime.UtcNow.Add(HomeRepeatRecoveryRetryInterval);
             var action = recovery.Action;
             var correlationId = recovery.TransportCorrelationId;
-            var operation = action == MaintenanceActionKind.LmcHome
+            var lmcHome = action == MaintenanceActionKind.LmcHome;
+            var operation = lmcHome
                 ? "LMC Home Automatic Outcome"
                 : "DS402 Home Automatic Outcome";
+            var logPrefix = lmcHome
+                ? "LMC_HOME_REPEAT"
+                : "DS402_HOME_REPEAT";
 
             WriteLog(
-                "HOME_REPEAT OUTCOME_POLL: Action="
-                + action
-                + "; AxisRef="
+                logPrefix
+                + " OUTCOME_POLL: AxisRef="
                 + recovery.AxisReference
                 + "; Correlation="
                 + correlationId
@@ -152,7 +155,7 @@ namespace LasalMotionControlApiExample
                     operation,
                     async () =>
                     {
-                        if (action == MaintenanceActionKind.LmcHome)
+                        if (lmcHome)
                         {
                             await ReadExactLmcHomeOutcomeAsync(axis, recovery);
                         }
@@ -164,7 +167,7 @@ namespace LasalMotionControlApiExample
 
                 if (!HasUnresolvedMaintenanceAction)
                 {
-                    if (action == MaintenanceActionKind.LmcHome)
+                    if (lmcHome)
                     {
                         latestLmcHomeRecoveryKey = null;
                     }
@@ -174,13 +177,12 @@ namespace LasalMotionControlApiExample
                     }
 
                     WriteLog(
-                        "HOME_REPEAT READY_FOR_NEXT_START: Action="
-                        + action
-                        + "; AxisRef="
+                        logPrefix
+                        + " JOURNAL_RESOLVED: AxisRef="
                         + recovery.AxisReference
                         + "; Correlation="
                         + correlationId
-                        + "; Retire=Confirmed; Journal=Resolved.");
+                        + "; Retire=Confirmed; ReadyForNextStart=True.");
                     TextHomeResult.Text += Environment.NewLine
                         + TranslateUiText(
                             "Home terminal outcome was retired and the durable recovery record was resolved. Ready for the next Home Start.");
