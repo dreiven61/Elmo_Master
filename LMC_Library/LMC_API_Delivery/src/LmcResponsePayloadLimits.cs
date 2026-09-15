@@ -101,7 +101,7 @@ namespace LasalMotionControlLib
                 case LMC_CommandId.ReadAxisHomeOutcome:
                 case LMC_CommandId.RetireAxisHomeOutcome:
                     return LMC_AdminParser
-                        .LmcHomeOutcomeResponsePayloadLength;
+                        .LmcHomeV2OutcomeResponsePayloadLength;
 
                 case LMC_CommandId.ReadGroupParameters:
                     return LMC_AdminParser.GroupParametersPayloadLength;

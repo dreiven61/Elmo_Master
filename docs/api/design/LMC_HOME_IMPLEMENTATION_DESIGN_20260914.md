@@ -28,7 +28,8 @@ source/API/wire/PLC/WPF가 이 문서대로 반영되기 전까지 current runti
 핵심 목표는 다음과 같다.
 
 1. Home 완료 시 부여할 `Position`을 호출자가 입력할 수 있어야 한다.
-2. 이동 Home은 `Velocity`, `Acceleration`, `DistanceLimit`, `TorqueLimit`을 입력할 수 있어야 한다.
+2. 이동 Home은 LASAL `MoveReference` 기준 `ReferenceVelocity1`, `ReferenceVelocity2`,
+   `ReferenceAcceleration`, `ReferencePositionWindow`를 입력할 수 있어야 한다.
 3. `HomingMode`, `Direction`, `SwitchMode`, `BufferMode`, `Timeout`을 typed parameter로 전달한다.
 4. 현재 DS402 Home과 동일하게 `Prepare -> Start once -> Outcome -> Retire` lifecycle을 사용한다.
 5. write boundary 이후 original Start를 자동 replay하지 않는다.
@@ -114,15 +115,21 @@ public sealed class LMCHomeParameters
 | Parameter | project 단위 | 의미 |
 |---|---|---|
 | `Position` | application unit | reference 검출 시 부여할 절대 좌표 |
-| `Velocity` | application unit/s | Home 검색 속도 |
-| `Acceleration` | application unit/s^2 | Home 검색 가속도 |
-| `DistanceLimit` | application unit | 검색 이동 거리 제한, `0`은 제한 없음 |
-| `TorqueLimit` | project torque unit | torque 제한, `0`은 제한 없음 |
+| `Velocity` / `ReferenceVelocity1` | application unit/s | reference switch 접근 속도 |
+| `TorqueLimit` / `ReferenceVelocity2` | application unit/s | reference switch 이탈 속도 |
+| `Acceleration` / `ReferenceAcceleration` | application unit/s^2 | reference 이동 가속도와 StopMove 감속도 |
+| `DistanceLimit` / `ReferencePositionWindow` | application unit | reference switch 이탈 뒤 Z pulse 허용 거리 창 |
 | `TimeoutMilliseconds` | ms | Home watchdog |
 
 `Position`은 `MoveAbsolute`의 목적지와 동일한 의미가 아니다. moving Home에서는 reference event가
 발생한 순간 적용되는 좌표 기준값이다. 감속 또는 후속 Home sequence 때문에 Home 종료 시점의
 ActualPosition이 항상 `Position`과 exact 일치한다고 가정하지 않는다.
+
+기존 v2 wire 크기와 public constructor 호환성을 유지하기 위해 wire/property 저장소 이름은
+`Velocity`, `Acceleration`, `DistanceLimit`, `TorqueLimit`을 유지한다. LASAL adapter와 WPF에서는
+각각 `ReferenceVelocity1`, `ReferenceAcceleration`, `ReferencePositionWindow`,
+`ReferenceVelocity2` alias로 해석한다. 이 매핑에서 `TorqueLimit`은 torque가 아니라 두 번째
+reference 속도다. `RefJerk`는 현재 wire slot이 없으므로 `0`으로 고정한다.
 
 ### 4.2 project semantic enum
 
@@ -264,19 +271,17 @@ SDK와 PLC는 같은 validation matrix를 각각 수행한다. UI validation만�
 
 ### 6.2 mode별 조건
 
-| Mode | Position | Velocity | Acceleration | DistanceLimit | TorqueLimit | Direction | SwitchMode |
+| Mode | Position | Ref Velocity 1 | Ref Acceleration | Position Window | Ref Velocity 2 | Direction | SwitchMode |
 |---|---:|---:|---:|---:|---:|---|---|
 | `Direct` | any DINT | `0` | `0` | `0` | `0` | `NotApplicable` | `NotApplicable` |
-| `AbsoluteSwitch` | any DINT | `>0` | `>0` | `0` | `0` | Positive / Negative / SwitchPositive / SwitchNegative | On / Off / EdgeOn / EdgeOff / EdgeSwitchPositive / EdgeSwitchNegative |
-| `LimitSwitch` | any DINT | `>0` | `>0` | `0` | `0` | Positive / Negative | `NotApplicable` |
-| `ReferencePulse` | any DINT | `>0` | `>0` | `0` | `0` | Positive / Negative | `NotApplicable` |
+| `AbsoluteSwitch` | any DINT | `>0` | `>0` | `>=0` | `>0` | Positive / Negative | `On` |
+| `LimitSwitch` | any DINT | `>0` | `>0` | `>=0` | `>0` | Positive / Negative | `NotApplicable` |
+| `ReferencePulse` | any DINT | `>0` | `>0` | `>=0` | `>0` | Positive / Negative | `NotApplicable` |
 | `Block` | any DINT | `>0` | `>0` | `0` 또는 signed limit | `>=0` | Positive / Negative | `NotApplicable` |
 
-`TorqueLimit`의 nonzero 활성화는 LASAL/native torque unit mapping이 확인된 뒤 허용한다. mapping이
-미확정인 changeset에서는 SDK/PLC가 nonzero 값을 fail-closed 해야 한다.
-
-`DistanceLimit`도 native backend가 실제 travel stop에 사용한다는 증거가 없는 mode에서는 `0`으로
-제한한다.
+`Block`은 LASAL `MoveReference`에 torque/block detection 입력이 없으므로 계속 fail-closed한다.
+moving mode의 legacy `TorqueLimit` slot은 `VRef2`, legacy `DistanceLimit` slot은
+`PositionWindow`로 사용하며 둘 다 exact recovery identity에 포함한다.
 
 ---
 
@@ -795,18 +800,103 @@ mode는 한 번에 모두 활성화하지 않는다. native mapping과 실축 �
 
 ## 17. 현재 판정
 
-2026-09-14 기준 상태는 다음과 같다.
+2026-09-15 기준 상태는 다음과 같다.
 
 - generic LMC_Home 설계: **DESIGN COMPLETE**
-- current source의 generic parameter/API: **NOT IMPLEMENTED**
-- current wire v2: **NOT IMPLEMENTED**
-- arbitrary Position Direct Home: **NOT IMPLEMENTED**
-- moving Home native adapter: **OPEN**
-- WPF generic Home editor: **NOT IMPLEMENTED**
+- current source의 generic parameter/API: **IMPLEMENTED (v2 Direct + MoveReference mode 2..4 activated)**
+- current wire v2: **IMPLEMENTED (76/80/84-byte request, 164-byte outcome)**
+- arbitrary Position Direct Home: **IMPLEMENTED; 사용자 1회 실기 성공 확인**
+- v2 Direct 반복 실행 owner cleanup: **SOURCE FIXED; IDE build/download/retest pending**
+- moving Home native adapter: **SOURCE IMPLEMENTED; BUILD/PLC/PHYSICAL QUALIFICATION OPEN**
+- WPF generic Home editor: **IMPLEMENTED; Direct/AbsoluteSwitch/LimitSwitch/ReferencePulse selectable**
 - current v1 CurrentPositionZero: 기존 구현 유지
+- v2 moving native adapter: **SOURCE IMPLEMENTED, BUILD/PLC/PHYSICAL TEST PENDING**
+- `Block`: **FAIL-CLOSED** (`MoveReference`에 torque/block detection 입력이 없음)
 - physical qualification: **OPEN**
 - production release: **NO-GO**
 
-다음 구현 시작점은 H1 typed model/validation이다. H1/H2에서 public contract와 wire를 먼저 고정한 뒤
-Direct를 arbitrary Position으로 일반화하고, moving Home은 native LASAL reference boundary가 확인된
-mode부터 순차적으로 활성화한다.
+2026-09-15 source 구현은 `_LMCAxis.MoveReference()`에 다음 allowlist를 연결한다.
+
+- `AbsoluteSwitch`: `NoZImpulse=1`, normalized `RefSwitch`, `SwitchMode=On`
+- `LimitSwitch`: `NoZImpulse=1`, `ESEqualRef=1`
+- `ReferencePulse`: `NoEndSwitch=1`, encoder Z pulse
+- `Positive/Negative`: `RefDirection`으로 변환
+- `VRef1`: v2 `Velocity` (`ReferenceVelocity1`)
+- `VRef2`: v2 `TorqueLimit` slot (`ReferenceVelocity2`)
+- `Accel`: v2 `Acceleration` (`ReferenceAcceleration`)
+- `PositionWindow`: v2 `DistanceLimit` slot (`ReferencePositionWindow`)
+- `RefJerk`: wire 입력이 없어 `0` 고정
+- 완료: command 후 motion/reference clear 관측, `IsReferenced + Standstill` 3 scan
+- timeout/cancel: `StopMove(Decel:=Acceleration)` 후 Standstill 확인
+
+이 항목은 source 구현 상태만 뜻한다. LASAL build/download, 실제 RefSwitch/HWMin/HWMax/ZImpulse
+배선, 극성, 이동 방향 및 실축 결과는 사용자가 별도로 검증해야 한다.
+
+2026-09-15 WPF 입력부는 native MoveReference 화면과 같은 의미로 Home Position,
+Reference Velocity 1, Reference Velocity 2, Reference Acceleration, Reference Position Window를
+노출한다. moving Home Start/Query/Retire는 이 네 값을 exact identity로 보존하고 PLC는 같은 값을
+`MoveReference`와 timeout StopMove에 전달한다. 복구 저널도 mode 2..4를 유효한 v2 semantic으로
+인정한다. 이 변경은 source 반영 상태이며 빌드 및 실축 시험은 수행하지 않았다.
+
+2026-09-15 반복 실행 분석에서 v2 Start identity는 76 bytes인데 정상 완료 receipt cleanup의
+identity header/axis record 및 safety-preemption 검사 일부가 v1의 56 bytes만 허용하는 결함을
+확인했다. 첫 수정은 identity size와 tail cleanup만 확장했으나 충분하지 않았다. 이후 Watch에서
+`ZeroHomeState[39]=FINALIZE`, `[47]=-3`, `[56]=0x1C`, receipt magic `0x484F4D50`,
+receipt phase `PREPARED`가 확인됐다. 동시에 Axis1 owner record는 `LMC_HOME_ACTIVE`, identity size
+76이고 `[+25]=0x00010002`였다. 즉 물리 Home과 RT terminal은 완료됐지만 receipt의 axis-record
+검증이 `[+25]=1`인 v1 layout으로만 해석해 cleanup을 거절한 것이 직접 원인이다.
+
+current source는 receipt axis-record 검증을 identity size별로 분리한다. v1은 기존 56-byte tuple을,
+v2는 `ContractVersion/HomingMode`, Position, VRef1, Accel, PositionWindow, VRef2 및
+BufferMode/Direction이 저장된 76-byte prefix를 검증한다. moving parameter는 `ZeroHomeState`에
+보존된 실행값과 대조하고 Direct는 이동 파라미터가 0인지를 확인한다. 기존 `PREPARED` receipt는
+같은 exact owner/identity tuple이면 다음 cycle에 cleanup을 이어갈 수 있다. 과거 Home record나
+다른 owner를 강제 해제하지 않는다. 이 판정은 source fix이며 새 IDE build/download 및 반복 실기
+결과는 아직 없다.
+
+2026-09-15 15:17 로그의 새 BootId `0x5C`에서는 Home 성공 전 첫 Start가 detail 42, ownership
+startup이 완료된 뒤 모든 Start가 detail 40(`LmcHomeOutcomeSlotOccupied`)으로 거절됐다. 이는
+owner receipt 수정과 별개의 startup 결함이다. `ReconcileAxisOwnershipStartup`은 이전 BootId의 owner
+table은 안전 증명 후 초기화했지만, 완전히 terminal인 `ZeroHomeState`는 그대로 남겼다. recovery key는
+BootId-bound이므로 새 PC 세션은 이 오래된 결과를 exact query/retire할 수 없고 새 Start도 할 수 없다.
+
+current source는 current-boot ownership table의 startup proof가 완료되고, 해당 축 owner가 정확히
+IDLE이며, 이전 BootId의 Home record가 SUCCEEDED/FAILED/ABORTED terminal이고 finalize/receipt가
+완료된 경우에만 그 오래된 outcome을 정리한다. `ZeroHomeState[50]` generation counter는 보존한다.
+같은 BootId 결과, Running/Quarantined 상태, partial receipt, active owner는 자동 정리하지 않는다.
+이 변경은 source 반영 상태이며 IDE build/download와 반복 실기 검증은 사용자가 수행한다.
+
+추가 source 재검사에서 반복 실행을 직접 막는 결함을 별도로 확인했다. `0x7D19` Retire 성공 경로는
+terminal snapshot을 응답으로 복사하고 observation marker만 기록했으며 `ZeroHomeState` 자체는
+비우지 않았다. 따라서 정상적인 `0x7D18 -> 0x7D19` 호출이 모두 성공해도 다음 Start는 detail 40으로
+거절됐다. current source는 exact terminal snapshot을 응답 버퍼에 완성한 뒤 `ZeroHomeState`를
+초기화하고 `[50]` generation counter만 보존한다. 이것이 same-boot Direct Home 반복 실행을
+가능하게 하는 실제 retirement 변경이다. 이전 잘못된 `0x7D19`가 이미 실행되어 `[48]=1`,
+`[49]=record generation` 증거가 남은 same-boot terminal record도 current owner table과 대상 축
+IDLE을 확인한 뒤 startup reconciliation에서 정리한다.
+
+Moving Home은 PLC `ZeroHomeState[13]` timeout이 지나면 의도적으로 `StopMove`로 전환한다. WPF의
+기본값 5000 ms는 switch/limit/pulse 탐색에 짧아 동작 시작 후 정지로 보일 수 있으므로 기본값을
+60000 ms로 변경했다. 실제 PLC UNIT 환산, 이동 거리, 센서 위치에 맞는 timeout은 사용자가 입력해야
+하며 timeout 이외의 정지 원인은 fresh outcome/Watch 증거로 구분해야 한다.
+
+2026-09-15 추가 반복 실행 분석에서 WPF가 Start 직전에 confirmation을 강제로 해제하고,
+미해결 Home recovery가 있으면 실행 버튼 자체를 비활성화하고 있었다. 이 때문에 PLC Home이
+정상 종료되어도 사용자는 같은 버튼으로 다음 실행을 진행할 수 없었다. current source는 입력값이
+바뀌지 않는 동안 confirmation을 유지하며, 이전 Home recovery가 있으면 같은 버튼이 먼저 exact
+Outcome을 조회한다. `Running`이면 새 Start 없이 유지하고, terminal outcome의 exact retire가
+완료된 경우에만 동일 클릭에서 새로운 request identity로 다음 Start를 전송한다. original Start의
+자동 replay 금지 원칙은 유지한다. 이 변경도 source 구현 상태이며 build/download/실기 확인은
+아직 없다.
+
+2026-09-15 14:25 로그에서는 새 WPF 실행의 첫 Start가 detail 42로 거절된 직후 모든 후속 Start가
+detail 41로 바뀌었다. TCP facade가 `0x7D13`용 owner를 예약한 뒤 service의 exact rejection을
+정상 failure response로만 처리하고, 아직 physical/mailbox boundary를 넘지 않은 예약을 rollback하지
+않은 결함이다. current source는 exact rejected `0x7D13`의 새 reservation만 exact tuple로 rollback하며,
+rollback 자체가 불확실하면 기존 quarantine 경로를 유지한다. 과거 Home record를 강제 삭제하거나
+Start를 replay하지 않는다.
+
+WPF는 새 Start ACK 이후 200 ms 간격의 read-only `0x7D18` 조회로 terminal을 기다리고, exact terminal
+snapshot을 받으면 `0x7D19`로 retire한다. 따라서 정상 완료된 한 번의 버튼 실행이 Start만 남기지 않고
+전체 `Prepare -> Start once -> monitor -> terminal retire` lifecycle을 끝낸다. local monitor deadline이
+끝나거나 결과가 불확실하면 recovery record를 유지하며 새 Start를 보내지 않는다.

@@ -29,6 +29,15 @@ namespace LasalMotionControlLib.Tests
                 "Request.Admin.LMC_Home.QueryAndRetireGolden",
                 QueryAndRetireGolden);
             tests.Add(
+                "Request.Admin.LMC_Home.V2DirectGolden",
+                V2DirectRequestGolden);
+            tests.Add(
+                "Response.Admin.LMC_Home.V2DirectOutcomeStrict",
+                V2DirectOutcomeStrict);
+            tests.Add(
+                "Contract.Admin.LMC_Home.V2MovingFailClosed",
+                V2MovingFailClosed);
+            tests.Add(
                 "Contract.Admin.LMC_Home.NoMotionOrSwitchSurface",
                 NoMotionOrSwitchSurface);
             tests.Add(
@@ -168,6 +177,68 @@ namespace LasalMotionControlLib.Tests
             AssertEx.Equal(RecordGeneration, TestFrame.ReadUInt32(retire, 64));
         }
 
+        private static void V2DirectRequestGolden()
+        {
+            var key = V2RecoveryKey();
+            var start = LMC_AdminFrame.StartLmcHome(key);
+            AssertEx.Equal((ushort)76, TestFrame.ReadUInt16(start, 4));
+            AssertEx.Equal((ushort)2, TestFrame.ReadUInt16(start, 44));
+            AssertEx.Equal((ushort)1, TestFrame.ReadUInt16(start, 46));
+            AssertEx.Equal(34567, TestFrame.ReadInt32(start, 48));
+            AssertEx.Equal((ushort)1, TestFrame.ReadUInt16(start, 68));
+            AssertEx.Equal(0x454D4F48u, TestFrame.ReadUInt32(start, 80));
+
+            var query = LMC_AdminFrame.ReadLmcHomeOutcome(3, CurrentBootId, key);
+            AssertEx.Equal((ushort)80, TestFrame.ReadUInt16(query, 4));
+            AssertEx.Equal((ushort)2, TestFrame.ReadUInt16(query, 52));
+            AssertEx.Equal(34567, TestFrame.ReadInt32(query, 56));
+            AssertEx.Equal((uint)TimeoutMilliseconds, TestFrame.ReadUInt32(query, 84));
+
+            var retire = LMC_AdminFrame.RetireLmcHomeOutcome(
+                4,
+                CurrentBootId,
+                key,
+                RecordGeneration);
+            AssertEx.Equal((ushort)84, TestFrame.ReadUInt16(retire, 4));
+            AssertEx.Equal(RecordGeneration, TestFrame.ReadUInt32(retire, 88));
+        }
+
+        private static void V2DirectOutcomeStrict()
+        {
+            var key = V2RecoveryKey();
+            var payload = V2OutcomePayload(3, key, RecordGeneration);
+            var parsed = LMC_AdminParser.ParseLmcHomeOutcome(
+                TestFrame.Response(0, payload),
+                3,
+                key);
+            var result = CreatePublicOutcome(parsed, key);
+            AssertEx.True(result.HomeSucceeded);
+            AssertEx.Equal(34567, result.ActualApplicationPositionAfter);
+
+            TestFrame.WriteInt32(payload, 128, 34566);
+            AssertEx.Throws<InvalidDataException>(
+                () => LMC_AdminParser.ParseLmcHomeOutcome(
+                    TestFrame.Response(0, payload),
+                    3,
+                    key));
+        }
+
+        private static void V2MovingFailClosed()
+        {
+            AssertEx.Throws<NotSupportedException>(
+                () => new LMCHomeParameters(
+                    0,
+                    100,
+                    100,
+                    1,
+                    0,
+                    LMCHomeMode.LimitSwitch,
+                    LMCHomeBufferMode.Buffered,
+                    LMCHomeDirection.Positive,
+                    LMCHomeSwitchMode.NotApplicable,
+                    TimeoutMilliseconds));
+        }
+
         private static void NoMotionOrSwitchSurface()
         {
             var parameters = new LMCHomeParameters(
@@ -184,7 +255,6 @@ namespace LasalMotionControlLib.Tests
                 "Recipe",
                 "SearchVelocity",
                 "BackoffVelocity",
-                "Acceleration",
                 "PositionWindow",
                 "Jerk",
                 "MaxTravel",
@@ -198,6 +268,13 @@ namespace LasalMotionControlLib.Tests
                 AssertEx.True(
                     typeof(LMCPreparedHome).GetProperty(name) == null);
             }
+
+            AssertEx.True(
+                typeof(LMCHomeParameters).GetProperty("Position") != null);
+            AssertEx.True(
+                typeof(LMCHomeParameters).GetProperty("Acceleration") != null);
+            AssertEx.True(
+                typeof(LMCHomeParameters).GetProperty("HomingMode") != null);
 
             AssertEx.True(HasPublicMethod("LMC_Home"));
             AssertEx.True(HasPublicMethod("ReadLMC_HomeOutcome"));
@@ -848,6 +925,29 @@ namespace LasalMotionControlLib.Tests
                 LMCHomeSemanticMode.CurrentPositionZero);
         }
 
+        private static LMCHomeRecoveryKey V2RecoveryKey()
+        {
+            return new LMCHomeRecoveryKey(
+                1,
+                OriginalRequestId,
+                DiagnosticsBuild,
+                OriginalBootId,
+                MapRevision,
+                Intent(),
+                2,
+                new LMCHomeParameters(
+                    34567,
+                    0,
+                    0,
+                    0,
+                    0,
+                    LMCHomeMode.Direct,
+                    LMCHomeBufferMode.Buffered,
+                    LMCHomeDirection.NotApplicable,
+                    LMCHomeSwitchMode.NotApplicable,
+                    TimeoutMilliseconds));
+        }
+
         private static LMCHomeClientIntentId Intent()
         {
             return new LMCHomeClientIntentId(
@@ -905,6 +1005,47 @@ namespace LasalMotionControlLib.Tests
             TestFrame.WriteUInt32(payload, 136, 7);
             TestFrame.WriteUInt32(payload, 140, generation);
             return payload;
+        }
+
+        private static byte[] V2OutcomePayload(
+            uint requestId,
+            LMCHomeRecoveryKey key,
+            uint generation)
+        {
+            var p = CommonAdminPayload(requestId, 164);
+            var parameters = key.Parameters;
+            TestFrame.WriteUInt16(p, 16, (ushort)LMCHomeOutcomeRecordState.Succeeded);
+            TestFrame.WriteUInt16(p, 18, 2);
+            TestFrame.WriteUInt32(p, 20, key.DiagnosticsBuild);
+            TestFrame.WriteUInt32(p, 24, key.OriginalDiagnosticsBootId);
+            TestFrame.WriteUInt32(p, 28, key.MapRevision);
+            TestFrame.WriteUInt32(p, 32, key.OriginalRequestId);
+            TestFrame.WriteUInt32(p, 36, key.ClientIntentId0);
+            TestFrame.WriteUInt32(p, 40, key.ClientIntentId1);
+            TestFrame.WriteUInt32(p, 44, key.ClientIntentId2);
+            TestFrame.WriteUInt32(p, 48, key.ClientIntentId3);
+            TestFrame.WriteUInt16(p, 52, key.AxisReference);
+            TestFrame.WriteUInt16(p, 54, (ushort)parameters.HomingMode);
+            TestFrame.WriteInt32(p, 56, parameters.Position);
+            TestFrame.WriteUInt16(p, 76, (ushort)parameters.BufferMode);
+            TestFrame.WriteUInt16(p, 78, (ushort)parameters.Direction);
+            TestFrame.WriteUInt16(p, 80, (ushort)parameters.SwitchMode);
+            TestFrame.WriteUInt32(p, 84, (uint)parameters.TimeoutMilliseconds);
+            TestFrame.WriteUInt32(p, 96, AxisStandstill);
+            TestFrame.WriteInt32(p, 104, 7654321);
+            TestFrame.WriteInt32(p, 108, 7654321);
+            TestFrame.WriteInt32(p, 112, parameters.Position);
+            TestFrame.WriteInt32(p, 116, parameters.Position);
+            TestFrame.WriteInt32(p, 120, parameters.Position);
+            TestFrame.WriteInt32(p, 124, parameters.Position);
+            TestFrame.WriteInt32(p, 128, parameters.Position);
+            TestFrame.WriteInt32(p, 132, parameters.Position);
+            TestFrame.WriteUInt32(p, 140, RequiredEvidenceFlags);
+            TestFrame.WriteUInt32(p, 144, 100);
+            TestFrame.WriteUInt32(p, 148, 200);
+            TestFrame.WriteUInt32(p, 156, 7);
+            TestFrame.WriteUInt32(p, 160, generation);
+            return p;
         }
 
         private static byte[] StartAcknowledgementPayload(uint requestId)

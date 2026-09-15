@@ -3035,7 +3035,7 @@ FUNCTION GLOBAL LMCControlCommandService::ReserveAxisOwnership
 	elsif CommandId = 0x7D12 then
 		identityShapeValid := IdentitySize = 48;
 	elsif CommandId = 0x7D13 then
-		identityShapeValid := IdentitySize = 56;
+		identityShapeValid := (IdentitySize = 56) | (IdentitySize = 76);
 	elsif CommandId = 0x7D1B then
 		identityShapeValid := IdentitySize = 116;
 	elsif CommandId = 0x7D23 then
@@ -6449,7 +6449,7 @@ FUNCTION GLOBAL LMCControlCommandService::PublishAxisOwnership
 	elsif expectedCommandId = 0x20E7 then
 		identityShapeValid := identitySize = 1320;
 	elsif expectedCommandId = 0x7D13 then
-		identityShapeValid := identitySize = 56;
+		identityShapeValid := (identitySize = 56) | (identitySize = 76);
 	elsif expectedCommandId = 0x7D23 then
 		identityShapeValid := identitySize = 56;
 	elsif (expectedCommandId = 0x7D15) |
@@ -7054,12 +7054,80 @@ FUNCTION GLOBAL LMCControlCommandService::ReconcileAxisOwnershipStartup
 		recordAxisBit : UDINT;
 		ordinaryAxisMask : UDINT;
 		migrationPhysicalAxisMask : UDINT;
+		staleHomeRecordBase : DINT;
+		staleHomeGeneration : UDINT;
+		staleHomeTerminalValid : BOOL;
+		staleHomeOwnerReleased : BOOL;
 	END_VAR
 
 	Result := -1;
 	if (DiagnosticsBootId = 0) | (ObservationCycle = 0) |
 		(ReportCycle = 0) then
 		RETURN;
+	end_if;
+
+	// A terminal Home outcome from an older diagnostics boot cannot be queried
+	// with the current boot-bound recovery key. Legacy 0x7D19 also marked an exact
+	// same-boot retirement without clearing the record. Once startup has already
+	// created a healthy current-boot owner table and the exact target axis is idle,
+	// retire only either of those completed outcomes. Running, quarantined and
+	// partial-receipt outcomes remain fail-closed.
+	staleHomeTerminalValid :=
+		(ZeroHomeState[51]$UDINT = LMC_HOME_RECORD_MAGIC) &
+		(ZeroHomeState[33]$UDINT <> 0) &
+		(ZeroHomeState[2]$UDINT <> 0) &
+		((ZeroHomeState[2]$UDINT <> DiagnosticsBootId) |
+		 ((ZeroHomeState[2]$UDINT = DiagnosticsBootId) &
+		  (ZeroHomeState[48] = 1) &
+		  (ZeroHomeState[49]$UDINT = ZeroHomeState[33]$UDINT))) &
+		(ZeroHomeState[9] >= 1) & (ZeroHomeState[9] <= 4) &
+		(ZeroHomeState[0] >= LMC_HOME_RECORD_SUCCEEDED) &
+		(ZeroHomeState[0] <= LMC_HOME_RECORD_ABORTED) &
+		(ZeroHomeState[39] = LMC_HOME_ENGINE_TERMINAL) &
+		(ZeroHomeState[57] = ZeroHomeState[0]) &
+		((ZeroHomeState[56]$UDINT and
+		  LMC_HOME_FLAG_EXACT_RT_TERMINAL) <> 0) &
+		((ZeroHomeState[56]$UDINT and
+		  LMC_HOME_FLAG_OWNER_FINALIZE_ACCEPTED) <> 0) &
+		((ZeroHomeState[56]$UDINT and
+		  LMC_HOME_FLAG_TERMINAL_PUBLISHED) <> 0) &
+		((((ZeroHomeState[56]$UDINT and
+		    LMC_HOME_FLAG_PREEMPTION_CLEANUP) <> 0) &
+		  ((ZeroHomeState[47] = 0) | (ZeroHomeState[47] = 1)) &
+		  (ZeroHomeState[60] = 0) & (ZeroHomeState[61] = 0) &
+		  (ZeroHomeState[62] = 0) & (ZeroHomeState[63] = 0)) |
+		 ((ZeroHomeState[47] = 1) &
+		  (ZeroHomeState[60]$UDINT = LMC_HOME_OWNER_RECEIPT_MAGIC) &
+		  (ZeroHomeState[61] = LMC_HOME_OWNER_RECEIPT_COMPLETE) &
+		  (ZeroHomeState[62] = 0) &
+		  (ZeroHomeState[63]$UDINT = ZeroHomeState[33]$UDINT)));
+	if staleHomeTerminalValid &
+	   (OwnershipState[0]$UDINT = LMC_OWNER_TABLE_MAGIC) &
+	   (OwnershipState[3]$UDINT = DiagnosticsBootId) &
+	   (OwnershipState[4]$UDINT <> 0) &
+	   (OwnershipState[5]$UDINT = LMC_OWNER_STARTUP_PROOF_REQUIRED) &
+	   (OwnershipState[6] = 0) & (OwnershipState[24] = 0) &
+	   (OwnershipState[7] = 0) & (OwnershipState[8] = 0) &
+	   (OwnershipState[9] = 0) then
+		staleHomeRecordBase := LMC_OWNER_GLOBAL_SLOTS +
+			((ZeroHomeState[9] - 1) * LMC_OWNER_AXIS_STRIDE);
+		staleHomeOwnerReleased :=
+			(OwnershipState[staleHomeRecordBase] = ZeroHomeState[9]) &
+			(OwnershipState[staleHomeRecordBase + 1] =
+			 LMC_OWNER_STATE_IDLE) &
+			(OwnershipState[staleHomeRecordBase + 2] = 0) &
+			(OwnershipState[staleHomeRecordBase + 3] = 0) &
+			(OwnershipState[staleHomeRecordBase + 4] = 0) &
+			(OwnershipState[staleHomeRecordBase + 5] = 0) &
+			(OwnershipState[staleHomeRecordBase + 35]$UDINT =
+			 (LMC_OWNER_AXIS_RECORD_MAGIC + TO_UDINT(ZeroHomeState[9])));
+		if staleHomeOwnerReleased then
+			staleHomeGeneration := ZeroHomeState[50]$UDINT;
+			_memset(dest:=#ZeroHomeState[0], usByte:=0, cntr:=256);
+			ZeroHomeState[50]$UDINT := staleHomeGeneration;
+			Result := 0;
+			RETURN;
+		end_if;
 	end_if;
 
 	// Normal operations may make a completed same-boot table non-idle. Do not
@@ -11018,6 +11086,12 @@ FUNCTION GLOBAL LMCControlCommandService::ProcessAxisZeroHome
 		homeIdentityValid : BOOL;
 		homeWorkSuspect : BOOL;
 		homeReceiptRequired : BOOL;
+		homeMovingMode : BOOL;
+		homeAxisConnected : BOOL;
+		homeAxisStatus : _LMCAXIS_STATUS;
+		homeAxisError : _LMCAXIS_ERROR;
+		homeAxisPosition : DINT;
+		homeCommandState : _LMCAXIS_CMDERROR;
 	END_VAR
 
 	if LMC_ADMIN_AXIS_HOME_ENABLED = FALSE then
@@ -11036,6 +11110,8 @@ FUNCTION GLOBAL LMCControlCommandService::ProcessAxisZeroHome
 	homeSessionEpoch := ZeroHomeState[36]$UDINT;
 	homeRequestSequence := ZeroHomeState[37]$UDINT;
 	homeAxisMask := ZeroHomeState[38]$UDINT;
+	homeMovingMode := (ZeroHomeState[10] = 2) &
+		(ZeroHomeState[11] >= 2) & (ZeroHomeState[11] <= 4);
 	homeCancelResult := -4;
 	homeIdentityValid :=
 		(ZeroHomeState[51]$UDINT = LMC_HOME_RECORD_MAGIC) &
@@ -11084,8 +11160,24 @@ FUNCTION GLOBAL LMCControlCommandService::ProcessAxisZeroHome
 	if (homeEngineState < LMC_HOME_ENGINE_WAIT_RT) |
 	   (homeEngineState > LMC_HOME_ENGINE_FINALIZE) then
 		homeFlags := homeFlags or LMC_HOME_FLAG_CANCEL_REQUIRED;
-		if (homeAdmissionToken <> 0) &
-		   (IsClientConnected(#InputLatch) <> 0) then
+		if (homeAdmissionToken <> 0) & homeMovingMode then
+			homeCommandState$UDINT := 0xFFFFFFFF;
+			case ZeroHomeState[9] of
+				1: if IsClientConnected(#LMCAxis1) <> 0 then homeCommandState := LMCAxis1.StopMove(Decel:=ZeroHomeState[42], Jerk:=0); end_if;
+				2: if IsClientConnected(#LMCAxis2) <> 0 then homeCommandState := LMCAxis2.StopMove(Decel:=ZeroHomeState[42], Jerk:=0); end_if;
+				3: if IsClientConnected(#LMCAxis3) <> 0 then homeCommandState := LMCAxis3.StopMove(Decel:=ZeroHomeState[42], Jerk:=0); end_if;
+				4: if IsClientConnected(#LMCAxis4) <> 0 then homeCommandState := LMCAxis4.StopMove(Decel:=ZeroHomeState[42], Jerk:=0); end_if;
+			else
+			end_case;
+			if homeCommandState$UDINT = 0 then
+				homeCancelResult := 0;
+				if (homeFlags and LMC_HOME_FLAG_CANCEL_PUBLISHED) = 0 then
+					ZeroHomeState[54]$UDINT := homeServiceNow;
+				end_if;
+				homeFlags := homeFlags or LMC_HOME_FLAG_CANCEL_PUBLISHED;
+			end_if;
+		elsif (homeAdmissionToken <> 0) &
+		      (IsClientConnected(#InputLatch) <> 0) then
 			homeCancelResult := InputLatch.CancelAxisZeroHome(
 				OperationToken:=homeAdmissionToken);
 			if homeCancelResult >= 0 then
@@ -11108,8 +11200,24 @@ FUNCTION GLOBAL LMCControlCommandService::ProcessAxisZeroHome
 		ZeroHomeState[0] := LMC_HOME_RECORD_RUNNING;
 	elsif ZeroHomeState[0] <> LMC_HOME_RECORD_RUNNING then
 		homeFlags := homeFlags or LMC_HOME_FLAG_CANCEL_REQUIRED;
-		if (homeAdmissionToken <> 0) &
-		   (IsClientConnected(#InputLatch) <> 0) then
+		if (homeAdmissionToken <> 0) & homeMovingMode then
+			homeCommandState$UDINT := 0xFFFFFFFF;
+			case ZeroHomeState[9] of
+				1: if IsClientConnected(#LMCAxis1) <> 0 then homeCommandState := LMCAxis1.StopMove(Decel:=ZeroHomeState[42], Jerk:=0); end_if;
+				2: if IsClientConnected(#LMCAxis2) <> 0 then homeCommandState := LMCAxis2.StopMove(Decel:=ZeroHomeState[42], Jerk:=0); end_if;
+				3: if IsClientConnected(#LMCAxis3) <> 0 then homeCommandState := LMCAxis3.StopMove(Decel:=ZeroHomeState[42], Jerk:=0); end_if;
+				4: if IsClientConnected(#LMCAxis4) <> 0 then homeCommandState := LMCAxis4.StopMove(Decel:=ZeroHomeState[42], Jerk:=0); end_if;
+			else
+			end_case;
+			if homeCommandState$UDINT = 0 then
+				homeCancelResult := 0;
+				if (homeFlags and LMC_HOME_FLAG_CANCEL_PUBLISHED) = 0 then
+					ZeroHomeState[54]$UDINT := homeServiceNow;
+				end_if;
+				homeFlags := homeFlags or LMC_HOME_FLAG_CANCEL_PUBLISHED;
+			end_if;
+		elsif (homeAdmissionToken <> 0) &
+		      (IsClientConnected(#InputLatch) <> 0) then
 			homeCancelResult := InputLatch.CancelAxisZeroHome(
 				OperationToken:=homeAdmissionToken);
 			if homeCancelResult >= 0 then
@@ -11154,8 +11262,24 @@ FUNCTION GLOBAL LMCControlCommandService::ProcessAxisZeroHome
 	if homeIdentityValid = FALSE then
 		ZeroHomeState[31] := -8;
 		homeFlags := homeFlags or LMC_HOME_FLAG_CANCEL_REQUIRED;
-		if (homeAdmissionToken <> 0) &
-		   (IsClientConnected(#InputLatch) <> 0) then
+		if (homeAdmissionToken <> 0) & homeMovingMode then
+			homeCommandState$UDINT := 0xFFFFFFFF;
+			case ZeroHomeState[9] of
+				1: if IsClientConnected(#LMCAxis1) <> 0 then homeCommandState := LMCAxis1.StopMove(Decel:=ZeroHomeState[42], Jerk:=0); end_if;
+				2: if IsClientConnected(#LMCAxis2) <> 0 then homeCommandState := LMCAxis2.StopMove(Decel:=ZeroHomeState[42], Jerk:=0); end_if;
+				3: if IsClientConnected(#LMCAxis3) <> 0 then homeCommandState := LMCAxis3.StopMove(Decel:=ZeroHomeState[42], Jerk:=0); end_if;
+				4: if IsClientConnected(#LMCAxis4) <> 0 then homeCommandState := LMCAxis4.StopMove(Decel:=ZeroHomeState[42], Jerk:=0); end_if;
+			else
+			end_case;
+			if homeCommandState$UDINT = 0 then
+				homeCancelResult := 0;
+				if (homeFlags and LMC_HOME_FLAG_CANCEL_PUBLISHED) = 0 then
+					ZeroHomeState[54]$UDINT := homeServiceNow;
+				end_if;
+				homeFlags := homeFlags or LMC_HOME_FLAG_CANCEL_PUBLISHED;
+			end_if;
+		elsif (homeAdmissionToken <> 0) &
+		      (IsClientConnected(#InputLatch) <> 0) then
 			homeCancelResult := InputLatch.CancelAxisZeroHome(
 				OperationToken:=homeAdmissionToken);
 			if homeCancelResult >= 0 then
@@ -11209,7 +11333,8 @@ FUNCTION GLOBAL LMCControlCommandService::ProcessAxisZeroHome
 				 LMC_OWNER_ADMISSION_LIFECYCLE) &
 				(homePreemptionSnapshot[72]$DINT =
 				 LMC_OWNER_STATE_LMC_HOME_ACTIVE) &
-				(homePreemptionSnapshot[76]$UDINT = 56) &
+				((homePreemptionSnapshot[76]$UDINT = 56) |
+				 (homePreemptionSnapshot[76]$UDINT = 76)) &
 				((homePreemptionSnapshot[104]$UDINT and
 				  homeAxisMask) = homeAxisMask) &
 				(homePreemptionSnapshot[108]$UDINT <> 0) &
@@ -11285,8 +11410,24 @@ FUNCTION GLOBAL LMCControlCommandService::ProcessAxisZeroHome
 		// The safety handler may run only after exact snapshot and cancel proof.
 		homeFlags := homeFlags or LMC_HOME_FLAG_CANCEL_REQUIRED;
 		ZeroHomeState[39] := LMC_HOME_ENGINE_CANCEL_DRAIN;
-		if homePreemptionSnapshotValid &
-		   (IsClientConnected(#InputLatch) <> 0) then
+		if homePreemptionSnapshotValid & homeMovingMode then
+			homeCommandState$UDINT := 0xFFFFFFFF;
+			case ZeroHomeState[9] of
+				1: if IsClientConnected(#LMCAxis1) <> 0 then homeCommandState := LMCAxis1.StopMove(Decel:=ZeroHomeState[42], Jerk:=0); end_if;
+				2: if IsClientConnected(#LMCAxis2) <> 0 then homeCommandState := LMCAxis2.StopMove(Decel:=ZeroHomeState[42], Jerk:=0); end_if;
+				3: if IsClientConnected(#LMCAxis3) <> 0 then homeCommandState := LMCAxis3.StopMove(Decel:=ZeroHomeState[42], Jerk:=0); end_if;
+				4: if IsClientConnected(#LMCAxis4) <> 0 then homeCommandState := LMCAxis4.StopMove(Decel:=ZeroHomeState[42], Jerk:=0); end_if;
+			else
+			end_case;
+			if homeCommandState$UDINT = 0 then
+				homeCancelResult := 0;
+				if (homeFlags and LMC_HOME_FLAG_CANCEL_PUBLISHED) = 0 then
+					ZeroHomeState[54]$UDINT := homeServiceNow;
+				end_if;
+				homeFlags := homeFlags or LMC_HOME_FLAG_CANCEL_PUBLISHED;
+			end_if;
+		elsif homePreemptionSnapshotValid &
+		      (IsClientConnected(#InputLatch) <> 0) then
 			homeCancelResult := InputLatch.CancelAxisZeroHome(
 				OperationToken:=homeAdmissionToken);
 		end_if;
@@ -11356,7 +11497,23 @@ FUNCTION GLOBAL LMCControlCommandService::ProcessAxisZeroHome
 		       (homePreemptionSnapshotValid = FALSE)) then
 		homeFlags := homeFlags or LMC_HOME_FLAG_CANCEL_REQUIRED;
 		ZeroHomeState[39] := LMC_HOME_ENGINE_CANCEL_DRAIN;
-		if IsClientConnected(#InputLatch) <> 0 then
+		if homeMovingMode then
+			homeCommandState$UDINT := 0xFFFFFFFF;
+			case ZeroHomeState[9] of
+				1: if IsClientConnected(#LMCAxis1) <> 0 then homeCommandState := LMCAxis1.StopMove(Decel:=ZeroHomeState[42], Jerk:=0); end_if;
+				2: if IsClientConnected(#LMCAxis2) <> 0 then homeCommandState := LMCAxis2.StopMove(Decel:=ZeroHomeState[42], Jerk:=0); end_if;
+				3: if IsClientConnected(#LMCAxis3) <> 0 then homeCommandState := LMCAxis3.StopMove(Decel:=ZeroHomeState[42], Jerk:=0); end_if;
+				4: if IsClientConnected(#LMCAxis4) <> 0 then homeCommandState := LMCAxis4.StopMove(Decel:=ZeroHomeState[42], Jerk:=0); end_if;
+			else
+			end_case;
+			if homeCommandState$UDINT = 0 then
+				homeCancelResult := 0;
+				if (homeFlags and LMC_HOME_FLAG_CANCEL_PUBLISHED) = 0 then
+					ZeroHomeState[54]$UDINT := homeServiceNow;
+				end_if;
+				homeFlags := homeFlags or LMC_HOME_FLAG_CANCEL_PUBLISHED;
+			end_if;
+		elsif IsClientConnected(#InputLatch) <> 0 then
 			homeCancelResult := InputLatch.CancelAxisZeroHome(
 				OperationToken:=homeAdmissionToken);
 			if homeCancelResult >= 0 then
@@ -11525,6 +11682,152 @@ FUNCTION GLOBAL LMCControlCommandService::ProcessAxisZeroHome
 		RETURN;
 	end_if;
 
+	if homeMovingMode then
+		homeAxisConnected := FALSE;
+		homeAxisStatus$UDINT := 0;
+		homeAxisError$UDINT := 0;
+		homeAxisPosition := 0;
+		homeCommandState$UDINT := 0;
+		case ZeroHomeState[9] of
+			1:
+				if IsClientConnected(#LMCAxis1) <> 0 then
+					homeAxisConnected := TRUE;
+					homeAxisStatus := LMCAxis1.ReadAxisStatus();
+					homeAxisError := LMCAxis1.ReadAxisError();
+					homeAxisPosition := LMCAxis1.ReadPosition(Mode:=LMCAXIS_ACTPOS_APPUNIT);
+				end_if;
+			2:
+				if IsClientConnected(#LMCAxis2) <> 0 then
+					homeAxisConnected := TRUE;
+					homeAxisStatus := LMCAxis2.ReadAxisStatus();
+					homeAxisError := LMCAxis2.ReadAxisError();
+					homeAxisPosition := LMCAxis2.ReadPosition(Mode:=LMCAXIS_ACTPOS_APPUNIT);
+				end_if;
+			3:
+				if IsClientConnected(#LMCAxis3) <> 0 then
+					homeAxisConnected := TRUE;
+					homeAxisStatus := LMCAxis3.ReadAxisStatus();
+					homeAxisError := LMCAxis3.ReadAxisError();
+					homeAxisPosition := LMCAxis3.ReadPosition(Mode:=LMCAXIS_ACTPOS_APPUNIT);
+				end_if;
+			4:
+				if IsClientConnected(#LMCAxis4) <> 0 then
+					homeAxisConnected := TRUE;
+					homeAxisStatus := LMCAxis4.ReadAxisStatus();
+					homeAxisError := LMCAxis4.ReadAxisError();
+					homeAxisPosition := LMCAxis4.ReadPosition(Mode:=LMCAXIS_ACTPOS_APPUNIT);
+				end_if;
+		else
+		end_case;
+
+		if homeAxisConnected = FALSE then
+			homeFailureCode := -3;
+			homeQuarantine := TRUE;
+			homeTerminal := TRUE;
+		elsif homeCancelRequired |
+		      (ZeroHomeState[39] = LMC_HOME_ENGINE_CANCEL_DRAIN) then
+			homeFlags := homeFlags or LMC_HOME_FLAG_CANCEL_REQUIRED;
+			ZeroHomeState[39] := LMC_HOME_ENGINE_CANCEL_DRAIN;
+			if (homeFlags and LMC_HOME_FLAG_CANCEL_PUBLISHED) = 0 then
+				case ZeroHomeState[9] of
+					1: homeCommandState := LMCAxis1.StopMove(Decel:=ZeroHomeState[42], Jerk:=0);
+					2: homeCommandState := LMCAxis2.StopMove(Decel:=ZeroHomeState[42], Jerk:=0);
+					3: homeCommandState := LMCAxis3.StopMove(Decel:=ZeroHomeState[42], Jerk:=0);
+					4: homeCommandState := LMCAxis4.StopMove(Decel:=ZeroHomeState[42], Jerk:=0);
+				else
+				end_case;
+				ZeroHomeState[54]$UDINT := homeServiceNow;
+				ZeroHomeState[27]$UDINT := homeCommandState$UDINT;
+				homeFlags := homeFlags or LMC_HOME_FLAG_CANCEL_PUBLISHED;
+				ZeroHomeState[56]$UDINT := homeFlags;
+			elsif (homeAxisStatus$UDINT and LMC_AXIS_STATUS_STANDSTILL) <> 0 then
+				homeFailureCode := -10;
+				homeAborted := TRUE;
+				homeExactRtTerminal := TRUE;
+				homeTerminal := TRUE;
+			elsif homeCancelElapsedMs >= LMC_HOME_CANCEL_DRAIN_TIMEOUT_MS then
+				homeFailureCode := -10;
+				homeQuarantine := TRUE;
+				homeTerminal := TRUE;
+			end_if;
+		elsif homeElapsedMs >= ZeroHomeState[13]$UDINT then
+			homeFlags := homeFlags or LMC_HOME_FLAG_CANCEL_REQUIRED;
+			ZeroHomeState[56]$UDINT := homeFlags;
+			ZeroHomeState[39] := LMC_HOME_ENGINE_CANCEL_DRAIN;
+			RETURN;
+		elsif homeAxisError$UDINT <> 0 then
+			homeFailureCode := homeAxisError$DINT;
+			homeExactRtTerminal := TRUE;
+			homeTerminal := TRUE;
+		else
+			case ZeroHomeState[32] of
+				1:
+					if ((homeAxisStatus$UDINT and LMC_AXIS_STATUS_STANDSTILL) = 0) |
+					   ((homeAxisStatus$UDINT and 0x00000002) = 0) then
+						ZeroHomeState[32] := 2;
+					end_if;
+				2:
+					if ((homeAxisStatus$UDINT and LMC_AXIS_STATUS_STANDSTILL) <> 0) &
+					   ((homeAxisStatus$UDINT and 0x00000002) <> 0) then
+						ZeroHomeState[32] := 3;
+						ZeroHomeState[43] := 1;
+					end_if;
+				3:
+					if ((homeAxisStatus$UDINT and LMC_AXIS_STATUS_STANDSTILL) <> 0) &
+					   ((homeAxisStatus$UDINT and 0x00000002) <> 0) then
+						ZeroHomeState[43] += 1;
+						if ZeroHomeState[43] >= 3 then
+							homeSucceeded := TRUE;
+							homeExactRtTerminal := TRUE;
+							homeTerminal := TRUE;
+						end_if;
+					else
+						ZeroHomeState[32] := 2;
+						ZeroHomeState[43] := 0;
+					end_if;
+			else
+				homeFailureCode := -8;
+				homeQuarantine := TRUE;
+				homeTerminal := TRUE;
+			end_case;
+		end_if;
+
+		if homeTerminal then
+			homeCopyResult := 0;
+			homeNativeCallCount := 1;
+			homeObservationCycle := homeServiceNow;
+			homeLatchResult[0]$UDINT := homeAdmissionToken;
+			if homeSucceeded then
+				homeLatchResult[1] := LMC_HOME_RECORD_SUCCEEDED;
+			else
+				homeLatchResult[1] := LMC_HOME_RECORD_FAILED;
+			end_if;
+			homeLatchResult[2] := homeFailureCode;
+			homeLatchResult[3] := ZeroHomeState[9];
+			homeLatchResult[4] := ZeroHomeState[12];
+			homeLatchResult[5] := ZeroHomeState[32];
+			homeLatchResult[6] := 3;
+			homeLatchResult[7]$UDINT := LMC_HOME_EVIDENCE_COMPLETE;
+			homeLatchResult[8] := 1;
+			homeLatchResult[9]$UDINT := ZeroHomeState[29]$UDINT;
+			homeLatchResult[10]$UDINT := homeServiceNow;
+			homeLatchResult[11]$UDINT := homeAxisStatus$UDINT;
+			homeLatchResult[12] := homeAxisError$DINT;
+			homeLatchResult[13] := ZeroHomeState[19];
+			homeLatchResult[14] := homeAxisPosition;
+			homeLatchResult[15] := ZeroHomeState[12];
+			homeLatchResult[16] := ZeroHomeState[12];
+			homeLatchResult[17] := homeAxisPosition;
+			homeLatchResult[18] := homeAxisPosition;
+			homeLatchResult[19] := homeAxisPosition;
+			homeLatchResult[20] := homeAxisPosition;
+			homeLatchResult[21]$UDINT := ZeroHomeState[27]$UDINT;
+			homeLatchResult[22]$UDINT := ZeroHomeState[33]$UDINT;
+			homeLatchResult[23]$UDINT := homeServiceNow;
+		else
+			homeCopyResult := 1;
+		end_if;
+	else
 	if homeCancelRequired |
 	   (ZeroHomeState[39] = LMC_HOME_ENGINE_CANCEL_DRAIN) then
 		homeFlags := homeFlags or LMC_HOME_FLAG_CANCEL_REQUIRED;
@@ -11556,13 +11859,17 @@ FUNCTION GLOBAL LMCControlCommandService::ProcessAxisZeroHome
 		OperationToken:=homeAdmissionToken,
 		pDest:=#homeLatchResult[0],
 		DestSize:=128);
+	end_if;
 
 	if homeCopyResult = 0 then
 			homeNativeCallCount := homeLatchResult[8];
 			homeObservationCycle := homeLatchResult[23]$UDINT;
 			if (homeLatchResult[0]$UDINT <> homeAdmissionToken) |
 			   (homeLatchResult[3] <> ZeroHomeState[9]) |
-			   (homeLatchResult[4] <> ZeroHomeState[11]) |
+			   (((ZeroHomeState[10] = 1) &
+			     (homeLatchResult[4] <> ZeroHomeState[11])) |
+			    ((ZeroHomeState[10] = 2) &
+			     (homeLatchResult[4] <> ZeroHomeState[12]))) |
 			   (homeLatchResult[22]$UDINT = 0) |
 			   ((homeLatchResult[1] <> LMC_HOME_RECORD_SUCCEEDED) &
 			    (homeLatchResult[1] <> LMC_HOME_RECORD_FAILED)) then
@@ -11577,12 +11884,16 @@ FUNCTION GLOBAL LMCControlCommandService::ProcessAxisZeroHome
 			      ((homeLatchResult[11]$UDINT and
 			        LMC_AXIS_STATUS_STANDSTILL) <> 0) &
 			      (homeLatchResult[12] = 0) &
-			      (homeLatchResult[15] = 0) &
-			      (homeLatchResult[16] = 0) &
-			      (homeLatchResult[17] = 0) &
-			      (homeLatchResult[18] = 0) &
-			      (homeLatchResult[19] = 0) &
-			      (homeLatchResult[20] = 0) &
+			      (homeLatchResult[15] = ZeroHomeState[12]) &
+			      (homeLatchResult[16] = ZeroHomeState[12]) &
+			      (((ZeroHomeState[10] = 1) &
+			        (homeLatchResult[17] = 0) &
+			        (homeLatchResult[18] = 0) &
+			        (homeLatchResult[19] = 0) &
+			        (homeLatchResult[20] = 0)) |
+			       ((ZeroHomeState[10] = 2) &
+			        (homeLatchResult[17] = homeLatchResult[18]) &
+			        (homeLatchResult[17] = homeLatchResult[19]))) &
 			      (homeLatchResult[21] = 0) &
 			      (ZeroHomeState[53] = 0) then
 				homeSucceeded := TRUE;
@@ -11658,9 +11969,11 @@ FUNCTION GLOBAL LMCControlCommandService::ProcessAxisZeroHome
 	ZeroHomeState[30]$UDINT := homeServiceNow;
 	ZeroHomeState[31] := homeFailureCode;
 	ZeroHomeState[32] := homeLatchResult[5];
-	ZeroHomeState[40] := homeLatchResult[1];
-	ZeroHomeState[41] := homeFailureCode;
-	ZeroHomeState[42] := homeNativeCallCount;
+	if homeMovingMode = FALSE then
+		ZeroHomeState[40] := homeLatchResult[1];
+		ZeroHomeState[41] := homeFailureCode;
+		ZeroHomeState[42] := homeNativeCallCount;
+	end_if;
 	ZeroHomeState[43] := homeLatchResult[6];
 	ZeroHomeState[44]$UDINT := homeLatchResult[9]$UDINT;
 	ZeroHomeState[45]$UDINT := homeLatchResult[10]$UDINT;
@@ -11757,9 +12070,18 @@ FUNCTION LMCControlCommandService::HandleAxisZeroHomeCommands
 		adminOriginalRequestId : UDINT;
 		adminDetailCode : UDINT;
 		adminHomeSemanticMode : UINT;
+		adminHomeContractVersion : UINT;
+		adminHomeHomingMode : UINT;
 		adminHomeReserved : UINT;
 		adminHomeExpectedActualPosition : DINT;
 		adminHomeTargetPosition : DINT;
+		adminHomeVelocity : DINT;
+		adminHomeAcceleration : DINT;
+		adminHomeDistanceLimit : DINT;
+		adminHomeTorqueLimit : DINT;
+		adminHomeBufferMode : UINT;
+		adminHomeDirection : UINT;
+		adminHomeSwitchMode : UINT;
 		adminHomeTimeoutMs : UDINT;
 		adminHomeExecuteToken : UDINT;
 		adminHomeRecordGeneration : UDINT;
@@ -11776,6 +12098,12 @@ FUNCTION LMCControlCommandService::HandleAxisZeroHomeCommands
 		adminHomeEmptyValid : BOOL;
 		adminHomeStateConsistent : BOOL;
 		adminErrorId : INT;
+		adminHomeRefMode : _LMCAXIS_REFMODE;
+		adminHomeCommandState : _LMCAXIS_CMDERROR;
+		adminHomeAxisStatus : _LMCAXIS_STATUS;
+		adminHomeAxisError : _LMCAXIS_ERROR;
+		adminHomeInitialPosition : DINT;
+		adminHomeAxisConnected : BOOL;
 	END_VAR
 
 	ResponseSize := -1;
@@ -11803,9 +12131,18 @@ FUNCTION LMCControlCommandService::HandleAxisZeroHomeCommands
 			adminClientIntentId2 := 0;
 			adminClientIntentId3 := 0;
 			adminHomeSemanticMode := 0;
+			adminHomeContractVersion := 0;
+			adminHomeHomingMode := 0;
 			adminHomeReserved := 0;
 			adminHomeExpectedActualPosition := 0;
 			adminHomeTargetPosition := 0;
+			adminHomeVelocity := 0;
+			adminHomeAcceleration := 0;
+			adminHomeDistanceLimit := 0;
+			adminHomeTorqueLimit := 0;
+			adminHomeBufferMode := 0;
+			adminHomeDirection := 0;
+			adminHomeSwitchMode := 0;
 			adminHomeTimeoutMs := 0;
 			adminHomeExecuteToken := 0;
 			adminHomeAxisMask := 0;
@@ -11833,6 +12170,23 @@ FUNCTION LMCControlCommandService::HandleAxisZeroHomeCommands
 				adminHomeTargetPosition := (pRequest + 44)^$DINT;
 				adminHomeTimeoutMs := (pRequest + 48)^$UDINT;
 				adminHomeExecuteToken := (pRequest + 52)^$UDINT;
+			end_if;
+			if RequestSize = 76 then
+				adminHomeContractVersion := (pRequest + 36)^$UINT;
+				adminHomeHomingMode := (pRequest + 38)^$UINT;
+				adminHomeTargetPosition := (pRequest + 40)^$DINT;
+				adminHomeVelocity := (pRequest + 44)^$DINT;
+				adminHomeAcceleration := (pRequest + 48)^$DINT;
+				adminHomeDistanceLimit := (pRequest + 52)^$DINT;
+				adminHomeTorqueLimit := (pRequest + 56)^$DINT;
+				adminHomeBufferMode := (pRequest + 60)^$UINT;
+				adminHomeDirection := (pRequest + 62)^$UINT;
+				adminHomeSwitchMode := (pRequest + 64)^$UINT;
+				adminHomeReserved := (pRequest + 66)^$UINT;
+				adminHomeTimeoutMs := (pRequest + 68)^$UDINT;
+				adminHomeExecuteToken := (pRequest + 72)^$UDINT;
+				adminHomeSemanticMode := adminHomeContractVersion;
+				adminHomeExpectedActualPosition := adminHomeTargetPosition;
 			end_if;
 
 			case Reference of
@@ -11862,7 +12216,7 @@ FUNCTION LMCControlCommandService::HandleAxisZeroHomeCommands
 				end_while;
 			end_if;
 
-			if RequestSize <> 56 then
+			if (RequestSize <> 56) & (RequestSize <> 76) then
 				adminDetailCode := 5;
 			elsif (Reference < 1) | (Reference > 4) then
 				adminDetailCode := 4;
@@ -11887,16 +12241,46 @@ FUNCTION LMCControlCommandService::HandleAxisZeroHomeCommands
 			      (adminClientIntentId2 = 0) &
 			      (adminClientIntentId3 = 0) then
 				adminDetailCode := 15;
-			elsif (adminHomeSemanticMode <> 1) |
-			      (adminHomeReserved <> 0) |
-			      (adminHomeTargetPosition <> 0) |
-			      (adminHomeTimeoutMs < 100) |
-			      (adminHomeTimeoutMs > 5000) |
-			      (adminHomeExecuteToken <> 0x454D4F48) then
+			elsif ((RequestSize = 56) &
+			       ((adminHomeSemanticMode <> 1) |
+			        (adminHomeReserved <> 0) |
+			        (adminHomeTargetPosition <> 0) |
+			        (adminHomeTimeoutMs < 100) |
+			        (adminHomeTimeoutMs > 5000) |
+			        (adminHomeExecuteToken <> 0x454D4F48))) |
+			      ((RequestSize = 76) &
+			       ((adminHomeContractVersion <> 2) |
+			        (adminHomeHomingMode < 1) |
+			        (adminHomeHomingMode > 4) |
+			        (((adminHomeHomingMode = 1) &
+			          ((adminHomeVelocity <> 0) |
+			           (adminHomeAcceleration <> 0) |
+			           (adminHomeDistanceLimit <> 0) |
+			           (adminHomeTorqueLimit <> 0) |
+			           (adminHomeDirection <> 0) |
+			           (adminHomeSwitchMode <> 0))) |
+			         ((adminHomeHomingMode > 1) &
+			          ((adminHomeVelocity <= 0) |
+			           (adminHomeAcceleration <= 0) |
+			           (adminHomeDistanceLimit < 0) |
+			           (adminHomeTorqueLimit <= 0) |
+			           (adminHomeDirection < 1) |
+			           (adminHomeDirection > 2) |
+			           (((adminHomeHomingMode = 2) &
+			             (adminHomeSwitchMode <> 1)) |
+			            ((adminHomeHomingMode > 2) &
+			             (adminHomeSwitchMode <> 0)))))) |
+			        (adminHomeBufferMode <> 1) |
+			        (adminHomeReserved <> 0) |
+			        (adminHomeTimeoutMs < 100) |
+			        (adminHomeTimeoutMs > 300000) |
+			        (adminHomeExecuteToken <> 0x454D4F48))) then
+				// Block mode and unsupported switch semantics remain fail-closed.
 				adminDetailCode := 15;
 			elsif LMC_ADMIN_AXIS_HOME_ENABLED = FALSE then
 				adminDetailCode := 10;
-			elsif IsClientConnected(#InputLatch) = 0 then
+			elsif (((RequestSize <> 76) | (adminHomeHomingMode = 1)) &
+			       (IsClientConnected(#InputLatch) = 0)) then
 				adminDetailCode := 42;
 			elsif (OwnershipState[0]$UDINT <> LMC_OWNER_TABLE_MAGIC) |
 			      (OwnershipState[3]$UDINT = 0) then
@@ -11971,7 +12355,11 @@ FUNCTION LMCControlCommandService::HandleAxisZeroHomeCommands
 					ZeroHomeState[8]$UDINT := adminClientIntentId3;
 					ZeroHomeState[9] := TO_DINT(Reference);
 					ZeroHomeState[10] := TO_DINT(adminHomeSemanticMode);
-					ZeroHomeState[11] := adminHomeExpectedActualPosition;
+					if RequestSize = 76 then
+						ZeroHomeState[11] := TO_DINT(adminHomeHomingMode);
+					else
+						ZeroHomeState[11] := adminHomeExpectedActualPosition;
+					end_if;
 					ZeroHomeState[12] := adminHomeTargetPosition;
 					ZeroHomeState[13]$UDINT := adminHomeTimeoutMs;
 					ZeroHomeState[14] := 0;
@@ -11992,11 +12380,114 @@ FUNCTION LMCControlCommandService::HandleAxisZeroHomeCommands
 					ZeroHomeState[50]$UDINT := adminHomeGenerationCounter;
 					ZeroHomeState[51]$UDINT := LMC_HOME_RECORD_MAGIC;
 
-					adminHomeSubmitResult := InputLatch.SubmitAxisZeroHome(
-						OperationToken:=OwnershipState[18]$UDINT,
-						AxisReference:=TO_DINT(Reference),
-						ExpectedActualPosition:=adminHomeExpectedActualPosition);
-					ZeroHomeState[52] := adminHomeSubmitResult;
+					if (RequestSize = 76) & (adminHomeHomingMode > 1) then
+						adminHomeRefMode$UDINT := 0;
+						case adminHomeHomingMode of
+							2:
+								// Normalized RefSwitch input, no Z pulse.
+								adminHomeRefMode.NoZImpulse := 1;
+							3:
+								// Use the selected hardware end switch as reference.
+								adminHomeRefMode.NoZImpulse := 1;
+								adminHomeRefMode.ESEqualRef := 1;
+							4:
+								// Search the encoder Z pulse without a reference switch.
+								adminHomeRefMode.NoEndSwitch := 1;
+						else
+						end_case;
+						if adminHomeDirection = 1 then
+							adminHomeRefMode.RefDirection := 1;
+						end_if;
+						adminHomeAxisConnected := FALSE;
+						adminHomeCommandState$UDINT := 0xFFFFFFFF;
+						case Reference of
+							1:
+								if IsClientConnected(#LMCAxis1) <> 0 then
+									adminHomeAxisConnected := TRUE;
+									adminHomeAxisStatus := LMCAxis1.ReadAxisStatus();
+									adminHomeAxisError := LMCAxis1.ReadAxisError();
+									adminHomeInitialPosition := LMCAxis1.ReadPosition(Mode:=LMCAXIS_ACTPOS_APPUNIT);
+									if (adminHomeAxisError$UDINT = 0) &
+									   ((adminHomeAxisStatus$UDINT and 0x00000001) <> 0) &
+									   ((adminHomeAxisStatus$UDINT and LMC_AXIS_STATUS_STANDSTILL) <> 0) then
+										adminHomeCommandState := LMCAxis1.MoveReference(Mode:=adminHomeRefMode, Position:=adminHomeTargetPosition, VRef1:=adminHomeVelocity, VRef2:=adminHomeTorqueLimit, Accel:=adminHomeAcceleration, PositionWindow:=adminHomeDistanceLimit, RefJerk:=0);
+									end_if;
+								end_if;
+							2:
+								if IsClientConnected(#LMCAxis2) <> 0 then
+									adminHomeAxisConnected := TRUE;
+									adminHomeAxisStatus := LMCAxis2.ReadAxisStatus();
+									adminHomeAxisError := LMCAxis2.ReadAxisError();
+									adminHomeInitialPosition := LMCAxis2.ReadPosition(Mode:=LMCAXIS_ACTPOS_APPUNIT);
+									if (adminHomeAxisError$UDINT = 0) &
+									   ((adminHomeAxisStatus$UDINT and 0x00000001) <> 0) &
+									   ((adminHomeAxisStatus$UDINT and LMC_AXIS_STATUS_STANDSTILL) <> 0) then
+										adminHomeCommandState := LMCAxis2.MoveReference(Mode:=adminHomeRefMode, Position:=adminHomeTargetPosition, VRef1:=adminHomeVelocity, VRef2:=adminHomeTorqueLimit, Accel:=adminHomeAcceleration, PositionWindow:=adminHomeDistanceLimit, RefJerk:=0);
+									end_if;
+								end_if;
+							3:
+								if IsClientConnected(#LMCAxis3) <> 0 then
+									adminHomeAxisConnected := TRUE;
+									adminHomeAxisStatus := LMCAxis3.ReadAxisStatus();
+									adminHomeAxisError := LMCAxis3.ReadAxisError();
+									adminHomeInitialPosition := LMCAxis3.ReadPosition(Mode:=LMCAXIS_ACTPOS_APPUNIT);
+									if (adminHomeAxisError$UDINT = 0) &
+									   ((adminHomeAxisStatus$UDINT and 0x00000001) <> 0) &
+									   ((adminHomeAxisStatus$UDINT and LMC_AXIS_STATUS_STANDSTILL) <> 0) then
+										adminHomeCommandState := LMCAxis3.MoveReference(Mode:=adminHomeRefMode, Position:=adminHomeTargetPosition, VRef1:=adminHomeVelocity, VRef2:=adminHomeTorqueLimit, Accel:=adminHomeAcceleration, PositionWindow:=adminHomeDistanceLimit, RefJerk:=0);
+									end_if;
+								end_if;
+							4:
+								if IsClientConnected(#LMCAxis4) <> 0 then
+									adminHomeAxisConnected := TRUE;
+									adminHomeAxisStatus := LMCAxis4.ReadAxisStatus();
+									adminHomeAxisError := LMCAxis4.ReadAxisError();
+									adminHomeInitialPosition := LMCAxis4.ReadPosition(Mode:=LMCAXIS_ACTPOS_APPUNIT);
+									if (adminHomeAxisError$UDINT = 0) &
+									   ((adminHomeAxisStatus$UDINT and 0x00000001) <> 0) &
+									   ((adminHomeAxisStatus$UDINT and LMC_AXIS_STATUS_STANDSTILL) <> 0) then
+										adminHomeCommandState := LMCAxis4.MoveReference(Mode:=adminHomeRefMode, Position:=adminHomeTargetPosition, VRef1:=adminHomeVelocity, VRef2:=adminHomeTorqueLimit, Accel:=adminHomeAcceleration, PositionWindow:=adminHomeDistanceLimit, RefJerk:=0);
+									end_if;
+								end_if;
+							else
+							end_case;
+						if adminHomeAxisConnected &
+						   (adminHomeAxisError$UDINT = 0) &
+						   ((adminHomeAxisStatus$UDINT and 0x00000001) <> 0) &
+						   (adminHomeCommandState$UDINT = 0) then
+							adminHomeSubmitResult := 1;
+							ZeroHomeState[17]$UDINT := adminHomeAxisStatus$UDINT;
+							ZeroHomeState[18] := adminHomeAxisError$DINT;
+							ZeroHomeState[19] := adminHomeInitialPosition;
+							ZeroHomeState[27]$UDINT := adminHomeCommandState$UDINT;
+							ZeroHomeState[28]$UDINT := 0x00000001;
+							ZeroHomeState[32] := 1;
+							if adminHomeDirection = 2 then
+								ZeroHomeState[40] := 0 - adminHomeVelocity;
+							else
+								ZeroHomeState[40] := adminHomeVelocity;
+							end_if;
+							ZeroHomeState[41] := adminHomeTorqueLimit;
+							ZeroHomeState[42] := adminHomeAcceleration;
+							ZeroHomeState[43] := 0;
+							ZeroHomeState[52] := adminHomeDistanceLimit;
+						else
+							adminHomeSubmitResult := -3;
+						end_if;
+					elsif RequestSize = 76 then
+						adminHomeSubmitResult := InputLatch.SubmitAxisZeroHome(
+							OperationToken:=OwnershipState[18]$UDINT,
+							AxisReference:=TO_DINT(Reference) + 0x0100,
+							ExpectedActualPosition:=adminHomeTargetPosition);
+					else
+						adminHomeSubmitResult := InputLatch.SubmitAxisZeroHome(
+							OperationToken:=OwnershipState[18]$UDINT,
+							AxisReference:=TO_DINT(Reference),
+							ExpectedActualPosition:=adminHomeExpectedActualPosition);
+					end_if;
+					if (RequestSize <> 76) | (adminHomeHomingMode = 1) then
+						ZeroHomeState[52] := adminHomeSubmitResult;
+					end_if;
 					if adminHomeSubmitResult = 1 then
 						adminHomeOwnerResult := CommitAxisOwnership(
 							CommandId:=0x7D13,
@@ -12036,8 +12527,13 @@ FUNCTION LMCControlCommandService::HandleAxisZeroHomeCommands
 				(pResponseFrame + 14)^$INT := 0;
 				(pResponseFrame + 16)^$UDINT := adminRequestId;
 				(pResponseFrame + 20)^$UDINT := 0;
-				(pResponseFrame + 24)^$UINT := adminHomeSemanticMode;
-				(pResponseFrame + 26)^$UINT := 0;
+				if RequestSize = 76 then
+					(pResponseFrame + 24)^$UINT := adminHomeContractVersion;
+					(pResponseFrame + 26)^$UINT := adminHomeHomingMode;
+				else
+					(pResponseFrame + 24)^$UINT := adminHomeSemanticMode;
+					(pResponseFrame + 26)^$UINT := 0;
+				end_if;
 				(pResponseFrame + 28)^$UDINT := 0;
 				ResponseSize := 32;
 			else
@@ -12055,7 +12551,7 @@ FUNCTION LMCControlCommandService::HandleAxisZeroHomeCommands
 			end_if;
 
 		0x7D18:
-			if ResponseCapacity < 152 then
+			if ResponseCapacity < 172 then
 				RETURN;
 			end_if;
 			adminDetailCode := 0;
@@ -12072,9 +12568,19 @@ FUNCTION LMCControlCommandService::HandleAxisZeroHomeCommands
 			adminClientIntentId2 := 0;
 			adminClientIntentId3 := 0;
 			adminHomeSemanticMode := 0;
+			adminHomeContractVersion := 0;
+			adminHomeHomingMode := 0;
 			adminHomeReserved := 0;
 			adminHomeExpectedActualPosition := 0;
 			adminHomeTargetPosition := 0;
+			adminHomeVelocity := 0;
+			adminHomeAcceleration := 0;
+			adminHomeDistanceLimit := 0;
+			adminHomeTorqueLimit := 0;
+			adminHomeBufferMode := 0;
+			adminHomeDirection := 0;
+			adminHomeSwitchMode := 0;
+			adminHomeTimeoutMs := 0;
 			adminHomeAxisMask := 0;
 			if RequestSize >= 8 then
 				adminSchemaVersion := pRequest^$UINT;
@@ -12095,6 +12601,22 @@ FUNCTION LMCControlCommandService::HandleAxisZeroHomeCommands
 				adminHomeReserved := (pRequest + 46)^$UINT;
 				adminHomeExpectedActualPosition := (pRequest + 48)^$DINT;
 				adminHomeTargetPosition := (pRequest + 52)^$DINT;
+			end_if;
+			if RequestSize = 80 then
+				adminHomeContractVersion := (pRequest + 44)^$UINT;
+				adminHomeHomingMode := (pRequest + 46)^$UINT;
+				adminHomeTargetPosition := (pRequest + 48)^$DINT;
+				adminHomeVelocity := (pRequest + 52)^$DINT;
+				adminHomeAcceleration := (pRequest + 56)^$DINT;
+				adminHomeDistanceLimit := (pRequest + 60)^$DINT;
+				adminHomeTorqueLimit := (pRequest + 64)^$DINT;
+				adminHomeBufferMode := (pRequest + 68)^$UINT;
+				adminHomeDirection := (pRequest + 70)^$UINT;
+				adminHomeSwitchMode := (pRequest + 72)^$UINT;
+				adminHomeReserved := (pRequest + 74)^$UINT;
+				adminHomeTimeoutMs := (pRequest + 76)^$UDINT;
+				adminHomeSemanticMode := adminHomeContractVersion;
+				adminHomeExpectedActualPosition := adminHomeHomingMode$DINT;
 			end_if;
 			case Reference of
 				1: adminHomeAxisMask := 0x00000001;
@@ -12118,7 +12640,28 @@ FUNCTION LMCControlCommandService::HandleAxisZeroHomeCommands
 				(ZeroHomeState[9] = TO_DINT(Reference)) &
 				(ZeroHomeState[10] = TO_DINT(adminHomeSemanticMode)) &
 				(ZeroHomeState[11] = adminHomeExpectedActualPosition) &
-				(ZeroHomeState[12] = adminHomeTargetPosition);
+				(ZeroHomeState[12] = adminHomeTargetPosition) &
+				((RequestSize = 56) |
+				 ((((adminHomeHomingMode = 1) &
+				    (adminHomeVelocity = 0) & (adminHomeAcceleration = 0) &
+				    (adminHomeDistanceLimit = 0) & (adminHomeTorqueLimit = 0) &
+				    (adminHomeBufferMode = 1) &
+				    (adminHomeDirection = 0) & (adminHomeSwitchMode = 0)) |
+				   ((adminHomeHomingMode > 1) &
+				    ((((adminHomeDirection = 1) &
+				       (ZeroHomeState[40] > 0) &
+				       (adminHomeVelocity = ZeroHomeState[40])) |
+				      ((adminHomeDirection = 2) &
+				       (ZeroHomeState[40] < 0) &
+				       (adminHomeVelocity = (0 - ZeroHomeState[40])))) &
+				    (adminHomeAcceleration = ZeroHomeState[42]) &
+				    (adminHomeDistanceLimit = ZeroHomeState[52]) &
+				    (adminHomeTorqueLimit = ZeroHomeState[41]) &
+				    (adminHomeBufferMode = 1) &
+				    (((adminHomeHomingMode = 2) & (adminHomeSwitchMode = 1)) |
+				     ((adminHomeHomingMode > 2) & (adminHomeSwitchMode = 0))))) &
+				  (adminHomeReserved = 0) &
+				  (adminHomeTimeoutMs = ZeroHomeState[13]$UDINT))));
 			adminHomeTerminal :=
 				(ZeroHomeState[0] >= LMC_HOME_RECORD_SUCCEEDED) &
 				(ZeroHomeState[0] <= LMC_HOME_RECORD_QUARANTINED);
@@ -12178,7 +12721,7 @@ FUNCTION LMCControlCommandService::HandleAxisZeroHomeCommands
 				end_case;
 			end_if;
 
-			if RequestSize <> 56 then
+			if (RequestSize <> 56) & (RequestSize <> 80) then
 				adminDetailCode := 5;
 			elsif (Reference < 1) | (Reference > 4) then
 				adminDetailCode := 4;
@@ -12194,9 +12737,34 @@ FUNCTION LMCControlCommandService::HandleAxisZeroHomeCommands
 				adminDetailCode := 17;
 			elsif adminMapRevision = 0 then
 				adminDetailCode := 18;
-			elsif (adminHomeSemanticMode <> 1) |
-			      (adminHomeReserved <> 0) |
-			      (adminHomeTargetPosition <> 0) then
+			elsif ((RequestSize = 56) &
+			       ((adminHomeSemanticMode <> 1) |
+			        (adminHomeReserved <> 0) |
+			        (adminHomeTargetPosition <> 0))) |
+			      ((RequestSize = 80) &
+			       ((adminHomeContractVersion <> 2) |
+			        (adminHomeHomingMode < 1) |
+			        (adminHomeHomingMode > 4) |
+			        (((adminHomeHomingMode = 1) &
+			          ((adminHomeVelocity <> 0) |
+			           (adminHomeAcceleration <> 0) |
+			           (adminHomeDistanceLimit <> 0) |
+			           (adminHomeTorqueLimit <> 0) |
+			           (adminHomeDirection <> 0) |
+			           (adminHomeSwitchMode <> 0))) |
+			         ((adminHomeHomingMode > 1) &
+			          ((adminHomeVelocity <= 0) |
+			           (adminHomeAcceleration <= 0) |
+			           (adminHomeDistanceLimit < 0) |
+			           (adminHomeTorqueLimit <= 0) |
+			           (adminHomeDirection < 1) |
+			           (adminHomeDirection > 2) |
+			           (((adminHomeHomingMode = 2) &
+			             (adminHomeSwitchMode <> 1)) |
+			            ((adminHomeHomingMode > 2) &
+			             (adminHomeSwitchMode <> 0)))))) |
+			        (adminHomeBufferMode <> 1) |
+			        (adminHomeReserved <> 0))) then
 				adminDetailCode := 36;
 			elsif (OwnershipState[3]$UDINT <> 0) &
 			      (adminCurrentBootId <> OwnershipState[3]$UDINT) then
@@ -12214,6 +12782,74 @@ FUNCTION LMCControlCommandService::HandleAxisZeroHomeCommands
 			end_if;
 
 			if adminDetailCode = 0 then
+			if ZeroHomeState[10] = 2 then
+				_memset(dest:=pResponseFrame, usByte:=0, cntr:=172);
+				pResponseFrame^$UINT := 0;
+				(pResponseFrame + 2)^$UINT := 164;
+				(pResponseFrame + 8)^$UINT := 1;
+				(pResponseFrame + 16)^$UDINT := adminRequestId;
+				(pResponseFrame + 24)^$UINT := ZeroHomeState[0]$UINT;
+				(pResponseFrame + 26)^$UINT := 2;
+				(pResponseFrame + 28)^$UDINT := ZeroHomeState[1]$UDINT;
+				(pResponseFrame + 32)^$UDINT := ZeroHomeState[2]$UDINT;
+				(pResponseFrame + 36)^$UDINT := ZeroHomeState[3]$UDINT;
+				(pResponseFrame + 40)^$UDINT := ZeroHomeState[4]$UDINT;
+				(pResponseFrame + 44)^$UDINT := ZeroHomeState[5]$UDINT;
+				(pResponseFrame + 48)^$UDINT := ZeroHomeState[6]$UDINT;
+				(pResponseFrame + 52)^$UDINT := ZeroHomeState[7]$UDINT;
+				(pResponseFrame + 56)^$UDINT := ZeroHomeState[8]$UDINT;
+				(pResponseFrame + 60)^$UINT := ZeroHomeState[9]$UINT;
+				(pResponseFrame + 62)^$UINT := ZeroHomeState[11]$UINT;
+				(pResponseFrame + 64)^$DINT := ZeroHomeState[12];
+				if ZeroHomeState[11] = 1 then
+					(pResponseFrame + 68)^$DINT := 0;
+					(pResponseFrame + 72)^$DINT := 0;
+					(pResponseFrame + 76)^$DINT := 0;
+					(pResponseFrame + 80)^$DINT := 0;
+					(pResponseFrame + 86)^$UINT := 0;
+					(pResponseFrame + 88)^$UINT := 0;
+				else
+					if ZeroHomeState[40] < 0 then
+						(pResponseFrame + 68)^$DINT := 0 - ZeroHomeState[40];
+						(pResponseFrame + 86)^$UINT := 2;
+					else
+						(pResponseFrame + 68)^$DINT := ZeroHomeState[40];
+						(pResponseFrame + 86)^$UINT := 1;
+					end_if;
+					(pResponseFrame + 72)^$DINT := ZeroHomeState[42];
+					(pResponseFrame + 76)^$DINT := ZeroHomeState[52];
+					(pResponseFrame + 80)^$DINT := ZeroHomeState[41];
+					if ZeroHomeState[11] = 2 then
+						(pResponseFrame + 88)^$UINT := 1;
+					else
+						(pResponseFrame + 88)^$UINT := 0;
+					end_if;
+				end_if;
+				(pResponseFrame + 84)^$UINT := 1;
+				(pResponseFrame + 90)^$UINT := 0;
+				(pResponseFrame + 92)^$UDINT := ZeroHomeState[13]$UDINT;
+				(pResponseFrame + 96)^$UINT := ZeroHomeState[14]$UINT;
+				(pResponseFrame + 98)^$INT := ZeroHomeState[15]$INT;
+				(pResponseFrame + 100)^$UDINT := ZeroHomeState[16]$UDINT;
+				(pResponseFrame + 104)^$UDINT := ZeroHomeState[17]$UDINT;
+				(pResponseFrame + 108)^$DINT := ZeroHomeState[18];
+				(pResponseFrame + 112)^$DINT := ZeroHomeState[19];
+				(pResponseFrame + 116)^$DINT := ZeroHomeState[20];
+				(pResponseFrame + 120)^$DINT := ZeroHomeState[21];
+				(pResponseFrame + 124)^$DINT := ZeroHomeState[22];
+				(pResponseFrame + 128)^$DINT := ZeroHomeState[23];
+				(pResponseFrame + 132)^$DINT := ZeroHomeState[24];
+				(pResponseFrame + 136)^$DINT := ZeroHomeState[25];
+				(pResponseFrame + 140)^$DINT := ZeroHomeState[26];
+				(pResponseFrame + 144)^$UDINT := ZeroHomeState[27]$UDINT;
+				(pResponseFrame + 148)^$UDINT := ZeroHomeState[28]$UDINT;
+				(pResponseFrame + 152)^$UDINT := ZeroHomeState[29]$UDINT;
+				(pResponseFrame + 156)^$UDINT := ZeroHomeState[30]$UDINT;
+				(pResponseFrame + 160)^$UDINT := ZeroHomeState[31]$UDINT;
+				(pResponseFrame + 164)^$UDINT := ZeroHomeState[32]$UDINT;
+				(pResponseFrame + 168)^$UDINT := ZeroHomeState[33]$UDINT;
+				ResponseSize := 172;
+			else
 				_memset(dest:=pResponseFrame, usByte:=0, cntr:=152);
 				pResponseFrame^$UINT := 0;
 				(pResponseFrame + 2)^$UINT := 144;
@@ -12260,6 +12896,7 @@ FUNCTION LMCControlCommandService::HandleAxisZeroHomeCommands
 				(pResponseFrame + 144)^$UDINT := ZeroHomeState[32]$UDINT;
 				(pResponseFrame + 148)^$UDINT := ZeroHomeState[33]$UDINT;
 				ResponseSize := 152;
+			end_if;
 			else
 				_memset(dest:=pResponseFrame, usByte:=0, cntr:=24);
 				pResponseFrame^$UINT := 0;
@@ -12275,7 +12912,7 @@ FUNCTION LMCControlCommandService::HandleAxisZeroHomeCommands
 			end_if;
 
 		0x7D19:
-			if ResponseCapacity < 152 then
+			if ResponseCapacity < 172 then
 				RETURN;
 			end_if;
 			adminDetailCode := 0;
@@ -12292,9 +12929,19 @@ FUNCTION LMCControlCommandService::HandleAxisZeroHomeCommands
 			adminClientIntentId2 := 0;
 			adminClientIntentId3 := 0;
 			adminHomeSemanticMode := 0;
+			adminHomeContractVersion := 0;
+			adminHomeHomingMode := 0;
 			adminHomeReserved := 0;
 			adminHomeExpectedActualPosition := 0;
 			adminHomeTargetPosition := 0;
+			adminHomeVelocity := 0;
+			adminHomeAcceleration := 0;
+			adminHomeDistanceLimit := 0;
+			adminHomeTorqueLimit := 0;
+			adminHomeBufferMode := 0;
+			adminHomeDirection := 0;
+			adminHomeSwitchMode := 0;
+			adminHomeTimeoutMs := 0;
 			adminHomeRecordGeneration := 0;
 			if RequestSize >= 8 then
 				adminSchemaVersion := pRequest^$UINT;
@@ -12317,6 +12964,23 @@ FUNCTION LMCControlCommandService::HandleAxisZeroHomeCommands
 				adminHomeTargetPosition := (pRequest + 52)^$DINT;
 				adminHomeRecordGeneration := (pRequest + 56)^$UDINT;
 			end_if;
+			if RequestSize = 84 then
+				adminHomeContractVersion := (pRequest + 44)^$UINT;
+				adminHomeHomingMode := (pRequest + 46)^$UINT;
+				adminHomeTargetPosition := (pRequest + 48)^$DINT;
+				adminHomeVelocity := (pRequest + 52)^$DINT;
+				adminHomeAcceleration := (pRequest + 56)^$DINT;
+				adminHomeDistanceLimit := (pRequest + 60)^$DINT;
+				adminHomeTorqueLimit := (pRequest + 64)^$DINT;
+				adminHomeBufferMode := (pRequest + 68)^$UINT;
+				adminHomeDirection := (pRequest + 70)^$UINT;
+				adminHomeSwitchMode := (pRequest + 72)^$UINT;
+				adminHomeReserved := (pRequest + 74)^$UINT;
+				adminHomeTimeoutMs := (pRequest + 76)^$UDINT;
+				adminHomeRecordGeneration := (pRequest + 80)^$UDINT;
+				adminHomeSemanticMode := adminHomeContractVersion;
+				adminHomeExpectedActualPosition := adminHomeHomingMode$DINT;
+			end_if;
 			adminHomeRecordValid :=
 				(ZeroHomeState[51]$UDINT = LMC_HOME_RECORD_MAGIC) &
 				(ZeroHomeState[33]$UDINT <> 0);
@@ -12332,12 +12996,33 @@ FUNCTION LMCControlCommandService::HandleAxisZeroHomeCommands
 				(ZeroHomeState[9] = TO_DINT(Reference)) &
 				(ZeroHomeState[10] = TO_DINT(adminHomeSemanticMode)) &
 				(ZeroHomeState[11] = adminHomeExpectedActualPosition) &
-				(ZeroHomeState[12] = adminHomeTargetPosition);
+				(ZeroHomeState[12] = adminHomeTargetPosition) &
+				((RequestSize = 60) |
+				 ((((adminHomeHomingMode = 1) &
+				    (adminHomeVelocity = 0) & (adminHomeAcceleration = 0) &
+				    (adminHomeDistanceLimit = 0) & (adminHomeTorqueLimit = 0) &
+				    (adminHomeBufferMode = 1) &
+				    (adminHomeDirection = 0) & (adminHomeSwitchMode = 0)) |
+				   ((adminHomeHomingMode > 1) &
+				    ((((adminHomeDirection = 1) &
+				       (ZeroHomeState[40] > 0) &
+				       (adminHomeVelocity = ZeroHomeState[40])) |
+				      ((adminHomeDirection = 2) &
+				       (ZeroHomeState[40] < 0) &
+				       (adminHomeVelocity = (0 - ZeroHomeState[40])))) &
+				    (adminHomeAcceleration = ZeroHomeState[42]) &
+				    (adminHomeDistanceLimit = ZeroHomeState[52]) &
+				    (adminHomeTorqueLimit = ZeroHomeState[41]) &
+				    (adminHomeBufferMode = 1) &
+				    (((adminHomeHomingMode = 2) & (adminHomeSwitchMode = 1)) |
+				     ((adminHomeHomingMode > 2) & (adminHomeSwitchMode = 0))))) &
+				  (adminHomeReserved = 0) &
+				  (adminHomeTimeoutMs = ZeroHomeState[13]$UDINT))));
 			adminHomeTerminal :=
 				(ZeroHomeState[0] >= LMC_HOME_RECORD_SUCCEEDED) &
 				(ZeroHomeState[0] <= LMC_HOME_RECORD_QUARANTINED);
 
-			if RequestSize <> 60 then
+			if (RequestSize <> 60) & (RequestSize <> 84) then
 				adminDetailCode := 5;
 			elsif (Reference < 1) | (Reference > 4) then
 				adminDetailCode := 4;
@@ -12347,8 +13032,41 @@ FUNCTION LMCControlCommandService::HandleAxisZeroHomeCommands
 				adminDetailCode := 2;
 			elsif adminRequestId = 0 then
 				adminDetailCode := 3;
+			elsif adminDiagnosticsBuild = 0 then
+				adminDetailCode := 16;
 			elsif (adminBootId = 0) | (adminCurrentBootId = 0) then
 				adminDetailCode := 17;
+			elsif adminMapRevision = 0 then
+				adminDetailCode := 18;
+			elsif ((RequestSize = 60) &
+			       ((adminHomeSemanticMode <> 1) |
+			        (adminHomeReserved <> 0) |
+			        (adminHomeTargetPosition <> 0))) |
+			      ((RequestSize = 84) &
+			       ((adminHomeContractVersion <> 2) |
+			        (adminHomeHomingMode < 1) |
+			        (adminHomeHomingMode > 4) |
+			        (((adminHomeHomingMode = 1) &
+			          ((adminHomeVelocity <> 0) |
+			           (adminHomeAcceleration <> 0) |
+			           (adminHomeDistanceLimit <> 0) |
+			           (adminHomeTorqueLimit <> 0) |
+			           (adminHomeDirection <> 0) |
+			           (adminHomeSwitchMode <> 0))) |
+			         ((adminHomeHomingMode > 1) &
+			          ((adminHomeVelocity <= 0) |
+			           (adminHomeAcceleration <= 0) |
+			           (adminHomeDistanceLimit < 0) |
+			           (adminHomeTorqueLimit <= 0) |
+			           (adminHomeDirection < 1) |
+			           (adminHomeDirection > 2) |
+			           (((adminHomeHomingMode = 2) &
+			             (adminHomeSwitchMode <> 1)) |
+			            ((adminHomeHomingMode > 2) &
+			             (adminHomeSwitchMode <> 0)))))) |
+			        (adminHomeBufferMode <> 1) |
+			        (adminHomeReserved <> 0))) then
+				adminDetailCode := 36;
 			elsif (OwnershipState[3]$UDINT <> 0) &
 			      (adminCurrentBootId <> OwnershipState[3]$UDINT) then
 				adminDetailCode := 17;
@@ -12389,6 +13107,76 @@ FUNCTION LMCControlCommandService::HandleAxisZeroHomeCommands
 			end_if;
 
 			if adminDetailCode = 0 then
+			if ZeroHomeState[10] = 2 then
+				_memset(dest:=pResponseFrame, usByte:=0, cntr:=172);
+				pResponseFrame^$UINT := 0;
+				(pResponseFrame + 2)^$UINT := 164;
+				(pResponseFrame + 8)^$UINT := 1;
+				(pResponseFrame + 16)^$UDINT := adminRequestId;
+				(pResponseFrame + 24)^$UINT := ZeroHomeState[0]$UINT;
+				(pResponseFrame + 26)^$UINT := 2;
+				(pResponseFrame + 28)^$UDINT := ZeroHomeState[1]$UDINT;
+				(pResponseFrame + 32)^$UDINT := ZeroHomeState[2]$UDINT;
+				(pResponseFrame + 36)^$UDINT := ZeroHomeState[3]$UDINT;
+				(pResponseFrame + 40)^$UDINT := ZeroHomeState[4]$UDINT;
+				(pResponseFrame + 44)^$UDINT := ZeroHomeState[5]$UDINT;
+				(pResponseFrame + 48)^$UDINT := ZeroHomeState[6]$UDINT;
+				(pResponseFrame + 52)^$UDINT := ZeroHomeState[7]$UDINT;
+				(pResponseFrame + 56)^$UDINT := ZeroHomeState[8]$UDINT;
+				(pResponseFrame + 60)^$UINT := ZeroHomeState[9]$UINT;
+				(pResponseFrame + 62)^$UINT := ZeroHomeState[11]$UINT;
+				(pResponseFrame + 64)^$DINT := ZeroHomeState[12];
+				if ZeroHomeState[11] = 1 then
+					(pResponseFrame + 68)^$DINT := 0;
+					(pResponseFrame + 72)^$DINT := 0;
+					(pResponseFrame + 76)^$DINT := 0;
+					(pResponseFrame + 80)^$DINT := 0;
+					(pResponseFrame + 86)^$UINT := 0;
+					(pResponseFrame + 88)^$UINT := 0;
+				else
+					if ZeroHomeState[40] < 0 then
+						(pResponseFrame + 68)^$DINT := 0 - ZeroHomeState[40];
+						(pResponseFrame + 86)^$UINT := 2;
+					else
+						(pResponseFrame + 68)^$DINT := ZeroHomeState[40];
+						(pResponseFrame + 86)^$UINT := 1;
+					end_if;
+					(pResponseFrame + 72)^$DINT := ZeroHomeState[42];
+					(pResponseFrame + 76)^$DINT := ZeroHomeState[52];
+					(pResponseFrame + 80)^$DINT := ZeroHomeState[41];
+					if ZeroHomeState[11] = 2 then
+						(pResponseFrame + 88)^$UINT := 1;
+					else
+						(pResponseFrame + 88)^$UINT := 0;
+					end_if;
+				end_if;
+				(pResponseFrame + 84)^$UINT := 1;
+				(pResponseFrame + 90)^$UINT := 0;
+				(pResponseFrame + 92)^$UDINT := ZeroHomeState[13]$UDINT;
+				(pResponseFrame + 96)^$UINT := ZeroHomeState[14]$UINT;
+				(pResponseFrame + 98)^$INT := ZeroHomeState[15]$INT;
+				(pResponseFrame + 100)^$UDINT := ZeroHomeState[16]$UDINT;
+				(pResponseFrame + 104)^$UDINT := ZeroHomeState[17]$UDINT;
+				(pResponseFrame + 108)^$DINT := ZeroHomeState[18];
+				(pResponseFrame + 112)^$DINT := ZeroHomeState[19];
+				(pResponseFrame + 116)^$DINT := ZeroHomeState[20];
+				(pResponseFrame + 120)^$DINT := ZeroHomeState[21];
+				(pResponseFrame + 124)^$DINT := ZeroHomeState[22];
+				(pResponseFrame + 128)^$DINT := ZeroHomeState[23];
+				(pResponseFrame + 132)^$DINT := ZeroHomeState[24];
+				(pResponseFrame + 136)^$DINT := ZeroHomeState[25];
+				(pResponseFrame + 140)^$DINT := ZeroHomeState[26];
+				(pResponseFrame + 144)^$UDINT := ZeroHomeState[27]$UDINT;
+				(pResponseFrame + 148)^$UDINT := ZeroHomeState[28]$UDINT;
+				(pResponseFrame + 152)^$UDINT := ZeroHomeState[29]$UDINT;
+				(pResponseFrame + 156)^$UDINT := ZeroHomeState[30]$UDINT;
+				(pResponseFrame + 160)^$UDINT := ZeroHomeState[31]$UDINT;
+				(pResponseFrame + 164)^$UDINT := ZeroHomeState[32]$UDINT;
+				(pResponseFrame + 168)^$UDINT := ZeroHomeState[33]$UDINT;
+				ZeroHomeState[48] := 1;
+				ZeroHomeState[49]$UDINT := adminHomeRecordGeneration;
+				ResponseSize := 172;
+			else
 				_memset(dest:=pResponseFrame, usByte:=0, cntr:=152);
 				pResponseFrame^$UINT := 0;
 				(pResponseFrame + 2)^$UINT := 144;
@@ -12437,6 +13225,13 @@ FUNCTION LMCControlCommandService::HandleAxisZeroHomeCommands
 				ZeroHomeState[48] := 1;
 				ZeroHomeState[49]$UDINT := adminHomeRecordGeneration;
 				ResponseSize := 152;
+			end_if;
+			// The exact terminal snapshot is already copied to the response. Retire
+			// the retained outcome now so a later Home can acquire the slot. Keep the
+			// monotonic generation counter across the record clear.
+			adminHomeGenerationCounter := ZeroHomeState[50]$UDINT;
+			_memset(dest:=#ZeroHomeState[0], usByte:=0, cntr:=256);
+			ZeroHomeState[50]$UDINT := adminHomeGenerationCounter;
 			else
 				_memset(dest:=pResponseFrame, usByte:=0, cntr:=24);
 				pResponseFrame^$UINT := 0;
@@ -13303,14 +14098,15 @@ FUNCTION GLOBAL LMCControlCommandService::CopyAxisOwnershipPreemption
 				(oldReference = 0x0100) &
 				(oldAxisMask = LMC_OWNER_ROBOT_AXIS_MASK);
 		0x7D13:
-			identityExpectedSize := 56;
+			identityExpectedSize := identitySize;
 			identityMetadataValid :=
 				(oldOwnerKind = LMC_OWNER_KIND_LMC_HOME) &
 				(oldResourceKind = LMC_OWNER_RESOURCE_LMC_HOME_ENGINE) &
 				(oldAdmissionMode = LMC_OWNER_ADMISSION_LIFECYCLE) &
 				(referenceAxisMask <> 0) &
 				(referenceAxisMask <= 0x00000008) &
-				(oldAxisMask = referenceAxisMask);
+				(oldAxisMask = referenceAxisMask) &
+				((identitySize = 56) | (identitySize = 76));
 		0x7D15:
 			identityExpectedSize := 72;
 			identityMetadataValid :=
@@ -14088,12 +14884,13 @@ FUNCTION GLOBAL LMCControlCommandService::PublishAxisOwnershipPreemptionCleanup
 	oldIdentityExpectedSize := 0;
 	case oldOwnerKind of
 		LMC_OWNER_KIND_LMC_HOME:
-			oldIdentityExpectedSize := 56;
+			oldIdentityExpectedSize := oldIdentitySize;
 			oldSpecialValid :=
 				(oldCommand = 0x7D13) &
 				(oldResourceKind = LMC_OWNER_RESOURCE_LMC_HOME_ENGINE) &
 				(oldAdmissionMode = LMC_OWNER_ADMISSION_LIFECYCLE) &
-				(oldState = LMC_OWNER_STATE_LMC_HOME_ACTIVE);
+				(oldState = LMC_OWNER_STATE_LMC_HOME_ACTIVE) &
+				((oldIdentitySize = 56) | (oldIdentitySize = 76));
 		LMC_OWNER_KIND_DS402_HOME:
 			oldIdentityExpectedSize := 72;
 			oldSpecialValid :=
@@ -14952,9 +15749,11 @@ FUNCTION GLOBAL LMCControlCommandService::PublishAxisOwnershipDs402Receipt
 		Result := -3;
 		RETURN;
 	end_if;
+	// PREPARED is a durable checkpoint, not a terminal result. The replay must
+	// continue through the idempotent clear stages below so the next Home can
+	// reserve the axis. Returning here left the owner permanently reserved.
 	if receiptPhase = LMC_DS402_OWNER_RECEIPT_PREPARED then
-		Result := 0;
-		RETURN;
+		receiptPhase := LMC_DS402_OWNER_RECEIPT_CLEAR_IDENTITY;
 	end_if;
 	if receiptPhase = LMC_DS402_OWNER_RECEIPT_COMPLETE then
 		// COMPLETE is committed only after the idle record and its magic. A replay
@@ -16217,7 +17016,7 @@ FUNCTION LMCControlCommandService::ValidateAxisOwnershipRollbackPreemptBank
 			elsif snapshotCommand = 0x7D12 then
 				identityExpectedSize := 48;
 			elsif snapshotCommand = 0x7D13 then
-				identityExpectedSize := 56;
+				identityExpectedSize := snapshotIdentitySize;
 			elsif (snapshotCommand = 0x7D15) |
 			      (snapshotCommand = 0x7E53) then
 				identityExpectedSize := 72;
@@ -16335,6 +17134,8 @@ FUNCTION LMCControlCommandService::ValidateAxisOwnershipRollbackPreemptBank
 						 LMC_OWNER_RESOURCE_LMC_HOME_ENGINE) &
 						(snapshotAdmissionMode =
 						 LMC_OWNER_ADMISSION_LIFECYCLE) &
+						((snapshotIdentitySize = 56) |
+						 (snapshotIdentitySize = 76)) &
 						(probeAxisBit <> 0) &
 						(probeAxisBit <= 0x00000008) &
 						(snapshotMask = probeAxisBit) &
@@ -16706,6 +17507,7 @@ FUNCTION LMCControlCommandService::HandleAxisOwnershipPublishHomeReceipt
 		homeReceiptIdentityPost : BOOL;
 		homeReceiptObserverPre : BOOL;
 		homeReceiptObserverPost : BOOL;
+		homeReceiptRecordIdentityPre : BOOL;
 		homeReceiptRecordPre : BOOL;
 		homeReceiptRecordBodyPost : BOOL;
 		homeReceiptRecordPost : BOOL;
@@ -16814,7 +17616,8 @@ FUNCTION LMCControlCommandService::HandleAxisOwnershipPublishHomeReceipt
 			 (LMC_OWNER_IDENTITY_AXIS_MAGIC + TO_UDINT(axisIndex))) &
 			(OwnershipIdentityState[identityHeaderBase + 1] =
 			 LMC_OWNER_IDENTITY_VERSION) &
-			(OwnershipIdentityState[identityHeaderBase + 2]$UDINT = 56) &
+			(OwnershipIdentityState[identityHeaderBase + 2]$UDINT =
+			 identitySize) &
 			(OwnershipIdentityState[identityHeaderBase + 3]$UDINT =
 			 AdmissionToken) &
 			(OwnershipIdentityState[identityHeaderBase + 4]$UDINT =
@@ -16830,8 +17633,10 @@ FUNCTION LMCControlCommandService::HandleAxisOwnershipPublishHomeReceipt
 			 identityPackedOwner) &
 			(OwnershipIdentityState[identityHeaderBase + 10]$UDINT =
 			 identityTailOffset) &
-			(OwnershipIdentityState[identityHeaderBase + 11]$UDINT = 0) &
-			(identitySize = 56) & (identityTailSize = 0);
+			(OwnershipIdentityState[identityHeaderBase + 11]$UDINT =
+			 identityTailSize) &
+			((identitySize = 56) | (identitySize = 76)) &
+			(identityTailSize <= LMC_OWNER_IDENTITY_AXIS_TAIL_BYTES);
 		homeReceiptIdentityPost := TRUE;
 		homeReceiptIndex := 0;
 		while homeReceiptIndex < LMC_OWNER_IDENTITY_AXIS_HEADER_STRIDE do
@@ -16860,6 +17665,54 @@ FUNCTION LMCControlCommandService::HandleAxisOwnershipPublishHomeReceipt
 			homeReceiptIndex += 1;
 		end_while;
 
+		// The owner record stores the first 64 identity bytes in slots 16..31.
+		// Contract v1 and v2 use different layouts after the common client tuple.
+		// Validate the retained layout that was admitted instead of interpreting a
+		// v2 prefix as the legacy v1 Home tuple during receipt cleanup.
+		homeReceiptRecordIdentityPre := FALSE;
+		if identitySize = 56 then
+			homeReceiptRecordIdentityPre :=
+				(OwnershipState[recordBase + 25]$UDINT = 1) &
+				(OwnershipState[recordBase + 26] = ZeroHomeState[11]) &
+				(OwnershipState[recordBase + 27] = ZeroHomeState[12]) &
+				(OwnershipState[recordBase + 28]$UDINT =
+				 ZeroHomeState[13]$UDINT) &
+				(OwnershipState[recordBase + 29]$UDINT = 0x454D4F48) &
+				(OwnershipState[recordBase + 30] = 0) &
+				(OwnershipState[recordBase + 31] = 0);
+		elsif identitySize = 76 then
+			homeReceiptRecordIdentityPre :=
+				(OwnershipState[recordBase + 25]$UDINT =
+				 (TO_UDINT(2) or
+				  (TO_UDINT(ZeroHomeState[11]) shl 16))) &
+				(OwnershipState[recordBase + 26] = ZeroHomeState[12]);
+			if homeReceiptRecordIdentityPre then
+				if ZeroHomeState[11] = 1 then
+					homeReceiptRecordIdentityPre :=
+						(OwnershipState[recordBase + 27] = 0) &
+						(OwnershipState[recordBase + 28] = 0) &
+						(OwnershipState[recordBase + 29] = 0) &
+						(OwnershipState[recordBase + 30] = 0) &
+						(OwnershipState[recordBase + 31]$UDINT = 1);
+				elsif ZeroHomeState[11] > 1 then
+					homeReceiptRecordIdentityPre :=
+						(OwnershipState[recordBase + 27] > 0) &
+						(OwnershipState[recordBase + 28] = ZeroHomeState[42]) &
+						(OwnershipState[recordBase + 29] = ZeroHomeState[52]) &
+						(OwnershipState[recordBase + 30] = ZeroHomeState[41]) &
+						(((OwnershipState[recordBase + 31]$UDINT =
+						   (TO_UDINT(1) or (TO_UDINT(1) shl 16))) &
+						  (OwnershipState[recordBase + 27] = ZeroHomeState[40])) |
+						 ((OwnershipState[recordBase + 31]$UDINT =
+						   (TO_UDINT(1) or (TO_UDINT(2) shl 16))) &
+						  (OwnershipState[recordBase + 27] =
+						   (0 - ZeroHomeState[40]))));
+				else
+					homeReceiptRecordIdentityPre := FALSE;
+				end_if;
+			end_if;
+		end_if;
+
 		homeReceiptRecordPre :=
 			(OwnershipState[recordBase] = axisIndex) &
 			(OwnershipState[recordBase + 1] = LMC_OWNER_STATE_LMC_HOME_ACTIVE) &
@@ -16878,7 +17731,7 @@ FUNCTION LMCControlCommandService::HandleAxisOwnershipPublishHomeReceipt
 			 LMC_OWNER_RESOURCE_LMC_HOME_ENGINE) &
 			(OwnershipState[recordBase + 14] =
 			 LMC_OWNER_ADMISSION_LIFECYCLE) &
-			(OwnershipState[recordBase + 15]$UDINT = 56) &
+			(OwnershipState[recordBase + 15]$UDINT = identitySize) &
 			(OwnershipState[recordBase + 16]$UDINT = 1) &
 			(OwnershipState[recordBase + 17]$UDINT = ZeroHomeState[4]$UDINT) &
 			(OwnershipState[recordBase + 18]$UDINT = ZeroHomeState[1]$UDINT) &
@@ -16888,13 +17741,7 @@ FUNCTION LMCControlCommandService::HandleAxisOwnershipPublishHomeReceipt
 			(OwnershipState[recordBase + 22]$UDINT = ZeroHomeState[6]$UDINT) &
 			(OwnershipState[recordBase + 23]$UDINT = ZeroHomeState[7]$UDINT) &
 			(OwnershipState[recordBase + 24]$UDINT = ZeroHomeState[8]$UDINT) &
-			(OwnershipState[recordBase + 25]$UDINT = 1) &
-			(OwnershipState[recordBase + 26] = ZeroHomeState[11]) &
-			(OwnershipState[recordBase + 27] = ZeroHomeState[12]) &
-			(OwnershipState[recordBase + 28]$UDINT = ZeroHomeState[13]$UDINT) &
-			(OwnershipState[recordBase + 29]$UDINT = 0x454D4F48) &
-			(OwnershipState[recordBase + 30] = 0) &
-			(OwnershipState[recordBase + 31] = 0) &
+			homeReceiptRecordIdentityPre &
 			(OwnershipState[recordBase + 32] = 0) &
 			(OwnershipState[recordBase + 33] = 0) &
 			(OwnershipState[recordBase + 34] = 0) &
@@ -16984,6 +17831,11 @@ FUNCTION LMCControlCommandService::HandleAxisOwnershipPublishHomeReceipt
 			OwnershipIdentityState[identityHeaderBase] := 0;
 			_memset(dest:=#OwnershipIdentityState[identityHeaderBase],
 				usByte:=0, cntr:=LMC_OWNER_IDENTITY_AXIS_HEADER_STRIDE * 4);
+			if identityTailSize > 0 then
+				_memset(dest:=#OwnershipIdentityState[
+					TO_DINT(identityTailOffset / 4)], usByte:=0,
+					cntr:=identityTailSize);
+			end_if;
 		end_if;
 		if homeReceiptPhase <= LMC_HOME_OWNER_RECEIPT_CLEAR_OBSERVER then
 			ZeroHomeState[61] := LMC_HOME_OWNER_RECEIPT_CLEAR_OBSERVER;
@@ -17244,7 +18096,8 @@ FUNCTION LMCControlCommandService::PrepareAxisOwnershipPublishDecision
 							((preemptState = LMC_OWNER_STATE_RESERVED) |
 							 (preemptState =
 							  LMC_OWNER_STATE_LMC_HOME_ACTIVE)) &
-							(preemptIdentitySize = 56);
+							((preemptIdentitySize = 56) |
+							 (preemptIdentitySize = 76));
 					LMC_OWNER_KIND_DS402_HOME:
 						preemptSpecialValid :=
 							(preemptCommand = 0x7D15) &

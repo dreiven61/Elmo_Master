@@ -27087,6 +27087,17 @@ function Assert-LasalAdminLmcHomeContract {
         'Result\s*:=\s*-3\s*;\s*RETURN\s*;') (
         "$Owner Home receipt replay is not fenced by the immutable operation tuple.")
     Assert-Match $homeReceiptReplayBlock (
+        '(?is)identitySize\s*:=\s*OwnershipState\[recordBase\s*\+\s*15\]' +
+        '\$UDINT\s*;.*?' +
+        'OwnershipIdentityState\[identityHeaderBase\s*\+\s*2\]\$UDINT\s*=\s*' +
+        'identitySize.*?' +
+        'OwnershipIdentityState\[identityHeaderBase\s*\+\s*11\]\$UDINT\s*=\s*' +
+        'identityTailSize.*?' +
+        '\(identitySize\s*=\s*56\)\s*\|\s*\(identitySize\s*=\s*76\).*?' +
+        'OwnershipState\[recordBase\s*\+\s*15\]\$UDINT\s*=\s*identitySize') (
+        "$Owner Home receipt cleanup does not preserve both v1 56-byte and " +
+        'v2 76-byte ownership identity shapes.')
+    Assert-Match $homeReceiptReplayBlock (
         '(?is)if\s*\(ZeroHomeState\[56\]\$UDINT\s+and\s*' +
         'LMC_HOME_FLAG_OWNER_FINALIZE_ACCEPTED\)\s*=\s*0\s+then\s*' +
         'if\s+homeReceiptPhase\s*<>\s*LMC_HOME_OWNER_RECEIPT_PREPARED\s+then.*?' +
@@ -27114,6 +27125,9 @@ function Assert-LasalAdminLmcHomeContract {
         'LMC_HOME_OWNER_RECEIPT_CLEAR_IDENTITY\s+then\s*' +
         'ZeroHomeState\[61\]\s*:=\s*LMC_HOME_OWNER_RECEIPT_CLEAR_IDENTITY\s*;.*?' +
         '_memset\(dest:=#OwnershipIdentityState\[identityHeaderBase\].*?' +
+        'if\s+identityTailSize\s*>\s*0\s+then\s*' +
+        '_memset\(dest:=#OwnershipIdentityState\[.*?' +
+        'cntr:=identityTailSize\)\s*;\s*end_if\s*;.*?' +
         'if\s+homeReceiptPhase\s*<=\s*' +
         'LMC_HOME_OWNER_RECEIPT_CLEAR_OBSERVER\s+then\s*' +
         'ZeroHomeState\[61\]\s*:=\s*LMC_HOME_OWNER_RECEIPT_CLEAR_OBSERVER\s*;.*?' +
@@ -59074,7 +59088,7 @@ Assert-Match $protocol 'WriteInt32\(buffer, HeaderSize \+ 64, velocity\);' 'C# g
 Assert-Match $protocol 'WriteInt32\(\s*buffer,\s*HeaderSize \+ 92,\s*options\.Execute \? 1 : 0\s*\);' 'C# group execute option is not serialized at payload offset 92.'
 Assert-Match $protocol '(?s)StartAxisHome\s*=\s*0x7D13.*?ReadAxisHomeOutcome\s*=\s*0x7D18.*?RetireAxisHomeOutcome\s*=\s*0x7D19' 'C# protocol does not reserve the complete LMC_Home triad.'
 Assert-Match $protocol '(?s)StartEncoderMaintenance\s*=\s*0x7E53.*?ReadEncoderMaintenanceOutcome\s*=\s*0x7E54.*?RetireEncoderMaintenanceOutcome\s*=\s*0x7E55' 'C# protocol does not reserve the complete encoder-maintenance triad.'
-Assert-Match $adminHomeProtocol '(?s)StartLmcHomeRequestPayloadLength\s*=\s*56.*?LmcHomeOutcomeRequestPayloadLength\s*=\s*56.*?LmcHomeRetirementRequestPayloadLength\s*=\s*60.*?LmcHomeOutcomeResponsePayloadLength\s*=\s*144' 'C# LMC_Home request/outcome sizes drifted.'
+Assert-Match $adminHomeProtocol '(?s)StartLmcHomeRequestPayloadLength\s*=\s*56.*?StartLmcHomeV2RequestPayloadLength\s*=\s*76.*?LmcHomeOutcomeRequestPayloadLength\s*=\s*56.*?LmcHomeV2OutcomeRequestPayloadLength\s*=\s*80.*?LmcHomeRetirementRequestPayloadLength\s*=\s*60.*?LmcHomeV2RetirementRequestPayloadLength\s*=\s*84.*?LmcHomeOutcomeResponsePayloadLength\s*=\s*144.*?LmcHomeV2OutcomeResponsePayloadLength\s*=\s*164' 'C# LMC_Home v1/v2 request/outcome sizes drifted.'
 Assert-Match $adminHomeProtocol (
     '(?s)(?=.*?semanticOffset\s*=\s*isOutcomeRequest\s*\?\s*44\s*:\s*36)' +
     '(?=.*?payloadOffset \+ semanticOffset.*?SemanticMode)' +

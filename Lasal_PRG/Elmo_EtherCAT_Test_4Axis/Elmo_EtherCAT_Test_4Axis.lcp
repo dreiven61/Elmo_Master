@@ -274,6 +274,8 @@
 		<File Path=".\Class\DriveAxisDS402\DriveAxisDS402.st"/>
 		<File Path=".\Class\DriveAxisDS402_Base\DriveAxisDS402_Base.st"/>
 		<File Path=".\Class\WELCON_1\WELCON_1.st"/>
+		<File Path=".\Class\Byte_to_Bit\Byte_to_Bit.st"/>
+		<File Path=".\Class\TestClass\TestClass.st"/>
 	</ClassFiles>
 	<NetworkFiles>
 		<File Path=".\Network\HW_Network\HW_Network.lcn"/>

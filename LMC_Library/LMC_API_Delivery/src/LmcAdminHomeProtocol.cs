@@ -9,8 +9,11 @@ namespace LasalMotionControlLib
         internal const ushort ReadLmcHomeOutcomeCommandId = 0x7D18;
         internal const ushort RetireLmcHomeOutcomeCommandId = 0x7D19;
         internal const int StartLmcHomeRequestPayloadLength = 56;
+        internal const int StartLmcHomeV2RequestPayloadLength = 76;
         internal const int LmcHomeOutcomeRequestPayloadLength = 56;
+        internal const int LmcHomeV2OutcomeRequestPayloadLength = 80;
         internal const int LmcHomeRetirementRequestPayloadLength = 60;
+        internal const int LmcHomeV2RetirementRequestPayloadLength = 84;
         internal const int LmcHomeMinimumTimeoutMilliseconds = 100;
         internal const int LmcHomeMaximumTimeoutMilliseconds = 5000;
         internal const uint LmcHomeExecuteTokenValue = 0x454D4F48u;
@@ -38,6 +41,82 @@ namespace LasalMotionControlLib
             }
         }
 
+        internal static void ValidateLmcHome(LMCHomeParameters parameters)
+        {
+            if (parameters == null)
+            {
+                throw new ArgumentNullException("parameters");
+            }
+            if (parameters.TimeoutMilliseconds
+                    < LmcHomeMinimumTimeoutMilliseconds
+                || parameters.TimeoutMilliseconds > 300000)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "parameters",
+                    "Generic LMC_Home timeout must be from 100 through 300000 milliseconds.");
+            }
+            if (parameters.BufferMode != LMCHomeBufferMode.Buffered)
+            {
+                throw new ArgumentOutOfRangeException("parameters");
+            }
+
+            var direct = parameters.HomingMode == LMCHomeMode.Direct;
+            if (direct)
+            {
+                if (parameters.Velocity != 0
+                    || parameters.Acceleration != 0
+                    || parameters.DistanceLimit != 0
+                    || parameters.TorqueLimit != 0
+                    || parameters.Direction != LMCHomeDirection.NotApplicable
+                    || parameters.SwitchMode
+                        != LMCHomeSwitchMode.NotApplicable)
+                {
+                    throw new ArgumentException(
+                        "Direct LMC_Home requires zero motion fields and NotApplicable direction/switch mode.",
+                        "parameters");
+                }
+                return;
+            }
+
+            if (parameters.HomingMode < LMCHomeMode.AbsoluteSwitch
+                || parameters.HomingMode > LMCHomeMode.ReferencePulse)
+            {
+                throw new NotSupportedException(
+                    "Block LMC_Home remains disabled because the LASAL MoveReference contract has no torque/block-detection input.");
+            }
+            if (parameters.Velocity <= 0
+                || parameters.Acceleration <= 0
+                || parameters.DistanceLimit < 0
+                || parameters.TorqueLimit <= 0)
+            {
+                throw new ArgumentException(
+                    "Moving LMC_Home requires positive ReferenceVelocity1/ReferenceVelocity2/ReferenceAcceleration and a non-negative ReferencePositionWindow.",
+                    "parameters");
+            }
+            if (parameters.Direction != LMCHomeDirection.Positive
+                && parameters.Direction != LMCHomeDirection.Negative)
+            {
+                throw new ArgumentException(
+                    "The LASAL MoveReference adapter supports Positive or Negative direction.",
+                    "parameters");
+            }
+            if (parameters.HomingMode == LMCHomeMode.AbsoluteSwitch)
+            {
+                if (parameters.SwitchMode != LMCHomeSwitchMode.On)
+                {
+                    throw new ArgumentException(
+                        "AbsoluteSwitch currently supports the normalized LASAL RefSwitch input with SwitchMode.On.",
+                        "parameters");
+                }
+            }
+            else if (parameters.SwitchMode != LMCHomeSwitchMode.NotApplicable)
+            {
+                throw new ArgumentException(
+                    "LimitSwitch and ReferencePulse require NotApplicable switch mode.",
+                    "parameters");
+            }
+        }
+
         internal static byte[] StartLmcHome(
             LMCHomeRecoveryKey recoveryKey)
         {
@@ -47,9 +126,12 @@ namespace LasalMotionControlLib
             }
 
             ValidateAxisReference(recoveryKey.AxisReference);
-            ValidateLmcHome(
-                recoveryKey.SemanticMode,
-                recoveryKey.TimeoutMilliseconds);
+            if (recoveryKey.HomeContractVersion == 2)
+            {
+                ValidateLmcHome(recoveryKey.Parameters);
+                return StartLmcHomeV2(recoveryKey);
+            }
+            ValidateLmcHome(recoveryKey.SemanticMode, recoveryKey.TimeoutMilliseconds);
 
             var buffer = CreateCommonRequest(
                 StartLmcHomeCommandId,
@@ -70,6 +152,20 @@ namespace LasalMotionControlLib
             return buffer;
         }
 
+        private static byte[] StartLmcHomeV2(LMCHomeRecoveryKey recoveryKey)
+        {
+            var buffer = CreateCommonRequest(
+                StartLmcHomeCommandId,
+                recoveryKey.AxisReference,
+                StartLmcHomeV2RequestPayloadLength,
+                recoveryKey.OriginalRequestId);
+            var p = LMC_Frame.HeaderSize;
+            WriteLmcHomeCommonIdentity(buffer, p, recoveryKey);
+            WriteLmcHomeV2Parameters(buffer, p + 36, recoveryKey.Parameters);
+            LMC_Frame.WriteUInt32(buffer, p + 72, LmcHomeExecuteTokenValue);
+            return buffer;
+        }
+
         internal static byte[] ReadLmcHomeOutcome(
             uint queryRequestId,
             uint currentDiagnosticsBootId,
@@ -87,10 +183,13 @@ namespace LasalMotionControlLib
             }
 
             ValidateAxisReference(recoveryKey.AxisReference);
+            var payloadLength = recoveryKey.HomeContractVersion == 2
+                ? LmcHomeV2OutcomeRequestPayloadLength
+                : LmcHomeOutcomeRequestPayloadLength;
             var buffer = CreateCommonRequest(
                 ReadLmcHomeOutcomeCommandId,
                 recoveryKey.AxisReference,
-                LmcHomeOutcomeRequestPayloadLength,
+                payloadLength,
                 queryRequestId);
             var payloadOffset = LMC_Frame.HeaderSize;
             WriteLmcHomeIdentity(
@@ -99,6 +198,13 @@ namespace LasalMotionControlLib
                 recoveryKey,
                 true,
                 currentDiagnosticsBootId);
+            if (recoveryKey.HomeContractVersion == 2)
+            {
+                WriteLmcHomeV2Parameters(
+                    buffer,
+                    LMC_Frame.HeaderSize + 44,
+                    recoveryKey.Parameters);
+            }
             return buffer;
         }
 
@@ -119,19 +225,25 @@ namespace LasalMotionControlLib
                 retireRequestId,
                 currentDiagnosticsBootId,
                 recoveryKey);
+            var queryLength = recoveryKey.HomeContractVersion == 2
+                ? LmcHomeV2OutcomeRequestPayloadLength
+                : LmcHomeOutcomeRequestPayloadLength;
+            var retirementLength = recoveryKey.HomeContractVersion == 2
+                ? LmcHomeV2RetirementRequestPayloadLength
+                : LmcHomeRetirementRequestPayloadLength;
             var buffer = LMC_Frame.CreateRequest(
                 RetireLmcHomeOutcomeCommandId,
                 recoveryKey.AxisReference,
-                LmcHomeRetirementRequestPayloadLength);
+                checked((ushort)retirementLength));
             Buffer.BlockCopy(
                 query,
                 LMC_Frame.HeaderSize,
                 buffer,
                 LMC_Frame.HeaderSize,
-                LmcHomeOutcomeRequestPayloadLength);
+                queryLength);
             LMC_Frame.WriteUInt32(
                 buffer,
-                LMC_Frame.HeaderSize + 56,
+                LMC_Frame.HeaderSize + queryLength,
                 recordGeneration);
             return buffer;
         }
@@ -212,6 +324,42 @@ namespace LasalMotionControlLib
                     payloadOffset + 48,
                     checked((uint)recoveryKey.TimeoutMilliseconds));
             }
+        }
+
+        private static void WriteLmcHomeCommonIdentity(
+            byte[] buffer,
+            int payloadOffset,
+            LMCHomeRecoveryKey recoveryKey)
+        {
+            LMC_Frame.WriteUInt32(buffer, payloadOffset + 8, recoveryKey.DiagnosticsBuild);
+            LMC_Frame.WriteUInt32(buffer, payloadOffset + 12, recoveryKey.OriginalDiagnosticsBootId);
+            LMC_Frame.WriteUInt32(buffer, payloadOffset + 16, recoveryKey.MapRevision);
+            LMC_Frame.WriteUInt32(buffer, payloadOffset + 20, recoveryKey.ClientIntentId0);
+            LMC_Frame.WriteUInt32(buffer, payloadOffset + 24, recoveryKey.ClientIntentId1);
+            LMC_Frame.WriteUInt32(buffer, payloadOffset + 28, recoveryKey.ClientIntentId2);
+            LMC_Frame.WriteUInt32(buffer, payloadOffset + 32, recoveryKey.ClientIntentId3);
+        }
+
+        private static void WriteLmcHomeV2Parameters(
+            byte[] buffer,
+            int offset,
+            LMCHomeParameters parameters)
+        {
+            LMC_Frame.WriteUInt16(buffer, offset, 2);
+            LMC_Frame.WriteUInt16(buffer, offset + 2, (ushort)parameters.HomingMode);
+            LMC_Frame.WriteInt32(buffer, offset + 4, parameters.Position);
+            LMC_Frame.WriteInt32(buffer, offset + 8, parameters.Velocity);
+            LMC_Frame.WriteInt32(buffer, offset + 12, parameters.Acceleration);
+            LMC_Frame.WriteInt32(buffer, offset + 16, parameters.DistanceLimit);
+            LMC_Frame.WriteInt32(buffer, offset + 20, parameters.TorqueLimit);
+            LMC_Frame.WriteUInt16(buffer, offset + 24, (ushort)parameters.BufferMode);
+            LMC_Frame.WriteUInt16(buffer, offset + 26, (ushort)parameters.Direction);
+            LMC_Frame.WriteUInt16(buffer, offset + 28, (ushort)parameters.SwitchMode);
+            LMC_Frame.WriteUInt16(buffer, offset + 30, 0);
+            LMC_Frame.WriteUInt32(
+                buffer,
+                offset + 32,
+                checked((uint)parameters.TimeoutMilliseconds));
         }
     }
 
@@ -315,6 +463,7 @@ namespace LasalMotionControlLib
     {
         internal const int StartLmcHomeResponsePayloadLength = 24;
         internal const int LmcHomeOutcomeResponsePayloadLength = 144;
+        internal const int LmcHomeV2OutcomeResponsePayloadLength = 164;
 
         internal static LMCParsedHomeStartResponse
             ParseStartLmcHome(
@@ -379,6 +528,68 @@ namespace LasalMotionControlLib
                 nativeCommandState);
         }
 
+        internal static LMCParsedHomeStartResponse
+            ParseStartLmcHome(
+                byte[] raw,
+                uint expectedRequestId,
+                LMCHomeRecoveryKey recoveryKey)
+        {
+            if (recoveryKey == null)
+            {
+                throw new ArgumentNullException("recoveryKey");
+            }
+            if (recoveryKey.HomeContractVersion == 1)
+            {
+                return ParseStartLmcHome(
+                    raw,
+                    expectedRequestId,
+                    recoveryKey.SemanticMode);
+            }
+
+            var transport = ParseTransport(raw, "LMC_Home", false);
+            var response = ParseCommonResponse(
+                transport,
+                expectedRequestId,
+                true,
+                false,
+                false,
+                false,
+                false,
+                false,
+                true);
+            if (!response.IsSuccess)
+            {
+                EnsurePayloadLength(
+                    transport,
+                    CommonResponsePayloadLength,
+                    "LMC_Home rejection");
+                return new LMCParsedHomeStartResponse(
+                    response,
+                    LMCHomeSemanticMode.GenericHome,
+                    0);
+            }
+
+            EnsurePayloadLength(
+                transport,
+                StartLmcHomeResponsePayloadLength,
+                "LMC_Home v2 acceptance");
+            var payload = transport.Payload;
+            var contractVersion = LMC_Frame.ReadUInt16(payload, 16);
+            var homingMode = (LMCHomeMode)LMC_Frame.ReadUInt16(payload, 18);
+            var nativeCommandState = LMC_Frame.ReadUInt32(payload, 20);
+            if (contractVersion != 2
+                || homingMode != recoveryKey.Parameters.HomingMode
+                || nativeCommandState != 0)
+            {
+                throw new InvalidDataException(
+                    "LMC_Home v2 ACK did not echo the exact contract version and homing mode.");
+            }
+            return new LMCParsedHomeStartResponse(
+                response,
+                LMCHomeSemanticMode.GenericHome,
+                nativeCommandState);
+        }
+
         internal static LMCParsedHomeOutcome
             ParseLmcHomeOutcome(
                 byte[] raw,
@@ -428,6 +639,16 @@ namespace LasalMotionControlLib
             if (expectedRecoveryKey == null)
             {
                 throw new ArgumentNullException("expectedRecoveryKey");
+            }
+            if (expectedRecoveryKey.HomeContractVersion == 2)
+            {
+                return ParseLmcHomeV2OutcomeCore(
+                    raw,
+                    expectedRequestId,
+                    expectedRecoveryKey,
+                    requireTerminal,
+                    expectedRecordGeneration,
+                    operation);
             }
 
             var transport = ParseTransport(raw, operation, false);
@@ -587,6 +808,223 @@ namespace LasalMotionControlLib
                 stopState,
                 runtimePhase,
                 recordGeneration);
+        }
+
+        private static LMCParsedHomeOutcome ParseLmcHomeV2OutcomeCore(
+            byte[] raw,
+            uint expectedRequestId,
+            LMCHomeRecoveryKey key,
+            bool requireTerminal,
+            uint expectedRecordGeneration,
+            string operation)
+        {
+            var transport = ParseTransport(raw, operation, false);
+            var response = ParseCommonResponse(
+                transport,
+                expectedRequestId,
+                false,
+                false,
+                false,
+                false,
+                false,
+                true,
+                false);
+            if (!response.IsSuccess)
+            {
+                EnsurePayloadLength(
+                    transport,
+                    CommonResponsePayloadLength,
+                    operation + " failure");
+                if (requireTerminal)
+                {
+                    throw new LMCHomeOutcomeRetirementException(
+                        response,
+                        key,
+                        expectedRecordGeneration);
+                }
+                throw new LMCHomeOutcomeQueryException(response, key);
+            }
+
+            EnsurePayloadLength(
+                transport,
+                LmcHomeV2OutcomeResponsePayloadLength,
+                operation + " v2 success");
+            var p = transport.Payload;
+            var state = (LMCHomeOutcomeRecordState)LMC_Frame.ReadUInt16(p, 16);
+            var parameters = key.Parameters;
+            if (LMC_Frame.ReadUInt16(p, 18) != 2
+                || LMC_Frame.ReadUInt32(p, 20) != key.DiagnosticsBuild
+                || LMC_Frame.ReadUInt32(p, 24) != key.OriginalDiagnosticsBootId
+                || LMC_Frame.ReadUInt32(p, 28) != key.MapRevision
+                || LMC_Frame.ReadUInt32(p, 32) != key.OriginalRequestId
+                || LMC_Frame.ReadUInt32(p, 36) != key.ClientIntentId0
+                || LMC_Frame.ReadUInt32(p, 40) != key.ClientIntentId1
+                || LMC_Frame.ReadUInt32(p, 44) != key.ClientIntentId2
+                || LMC_Frame.ReadUInt32(p, 48) != key.ClientIntentId3
+                || LMC_Frame.ReadUInt16(p, 52) != key.AxisReference
+                || (LMCHomeMode)LMC_Frame.ReadUInt16(p, 54)
+                    != parameters.HomingMode
+                || LMC_Frame.ReadInt32(p, 56) != parameters.Position
+                || LMC_Frame.ReadInt32(p, 60) != parameters.Velocity
+                || LMC_Frame.ReadInt32(p, 64) != parameters.Acceleration
+                || LMC_Frame.ReadInt32(p, 68) != parameters.DistanceLimit
+                || LMC_Frame.ReadInt32(p, 72) != parameters.TorqueLimit
+                || (LMCHomeBufferMode)LMC_Frame.ReadUInt16(p, 76)
+                    != parameters.BufferMode
+                || (LMCHomeDirection)LMC_Frame.ReadUInt16(p, 78)
+                    != parameters.Direction
+                || (LMCHomeSwitchMode)LMC_Frame.ReadUInt16(p, 80)
+                    != parameters.SwitchMode
+                || LMC_Frame.ReadUInt16(p, 82) != 0
+                || LMC_Frame.ReadUInt32(p, 84)
+                    != checked((uint)parameters.TimeoutMilliseconds))
+            {
+                throw new InvalidDataException(
+                    operation + " v2 record does not match the recovery key.");
+            }
+
+            var originalStatus = LMC_Frame.ReadUInt16(p, 88);
+            var originalError = unchecked((short)LMC_Frame.ReadUInt16(p, 90));
+            var originalDetail = LMC_Frame.ReadUInt32(p, 92);
+            var axisStatus = LMC_Frame.ReadUInt32(p, 96);
+            var axisError = LMC_Frame.ReadInt32(p, 100);
+            var rawBefore = LMC_Frame.ReadInt32(p, 104);
+            var rawAfter = LMC_Frame.ReadInt32(p, 108);
+            var actualApp = LMC_Frame.ReadInt32(p, 112);
+            var setApp = LMC_Frame.ReadInt32(p, 116);
+            var actualInternal = LMC_Frame.ReadInt32(p, 120);
+            var setInternal = LMC_Frame.ReadInt32(p, 124);
+            var destinationInternal = LMC_Frame.ReadInt32(p, 128);
+            var masterInternal = LMC_Frame.ReadInt32(p, 132);
+            var nativeState = LMC_Frame.ReadUInt32(p, 136);
+            var evidence = LMC_Frame.ReadUInt32(p, 140);
+            var startMs = LMC_Frame.ReadUInt32(p, 144);
+            var completionMs = LMC_Frame.ReadUInt32(p, 148);
+            var stopState = LMC_Frame.ReadUInt32(p, 152);
+            var runtimePhase = LMC_Frame.ReadUInt32(p, 156);
+            var generation = LMC_Frame.ReadUInt32(p, 160);
+            if (generation == 0
+                || (expectedRecordGeneration != 0
+                    && generation != expectedRecordGeneration)
+                || (requireTerminal
+                    && state == LMCHomeOutcomeRecordState.Running)
+                || !IsValidLmcHomeV2RuntimeResult(
+                    key,
+                    response.IsSuccess,
+                    state,
+                    originalStatus,
+                    originalError,
+                    originalDetail,
+                    axisStatus,
+                    axisError,
+                    rawBefore,
+                    rawAfter,
+                    actualApp,
+                    setApp,
+                    actualInternal,
+                    setInternal,
+                    destinationInternal,
+                    masterInternal,
+                    nativeState,
+                    evidence,
+                    startMs,
+                    completionMs,
+                    stopState,
+                    generation))
+            {
+                throw new InvalidDataException(
+                    operation + " contains an invalid v2 runtime result.");
+            }
+            return new LMCParsedHomeOutcome(
+                response,
+                state,
+                originalStatus,
+                originalError,
+                originalDetail,
+                axisStatus,
+                axisError,
+                rawBefore,
+                rawAfter,
+                actualApp,
+                setApp,
+                actualInternal,
+                setInternal,
+                destinationInternal,
+                masterInternal,
+                nativeState,
+                evidence,
+                startMs,
+                completionMs,
+                stopState,
+                runtimePhase,
+                generation);
+        }
+
+        private static bool IsValidLmcHomeV2RuntimeResult(
+            LMCHomeRecoveryKey key,
+            bool responseSucceeded,
+            LMCHomeOutcomeRecordState state,
+            ushort originalStatus,
+            short originalError,
+            uint originalDetail,
+            uint axisStatus,
+            int axisError,
+            int rawBefore,
+            int rawAfter,
+            int actualApp,
+            int setApp,
+            int actualInternal,
+            int setInternal,
+            int destinationInternal,
+            int masterInternal,
+            uint nativeState,
+            uint evidence,
+            uint startMs,
+            uint completionMs,
+            uint stopState,
+            uint generation)
+        {
+            if (state == LMCHomeOutcomeRecordState.Running)
+            {
+                return startMs != 0
+                    && completionMs == 0
+                    && originalStatus == 0
+                    && originalError == 0
+                    && originalDetail == 0;
+            }
+            if (state == LMCHomeOutcomeRecordState.Succeeded)
+            {
+                return LMCHomeOutcomeSemantics.IsSucceeded(
+                    key,
+                    responseSucceeded,
+                    state,
+                    originalStatus,
+                    originalError,
+                    originalDetail,
+                    axisStatus,
+                    axisError,
+                    rawBefore,
+                    rawAfter,
+                    actualApp,
+                    setApp,
+                    actualInternal,
+                    setInternal,
+                    destinationInternal,
+                    masterInternal,
+                    nativeState,
+                    evidence,
+                    startMs,
+                    completionMs,
+                    stopState,
+                    generation);
+            }
+            return (state == LMCHomeOutcomeRecordState.Failed
+                    || state == LMCHomeOutcomeRecordState.Aborted
+                    || state == LMCHomeOutcomeRecordState.Quarantined)
+                && startMs != 0
+                && completionMs != 0
+                && originalStatus == 1
+                && (originalError != 0 || originalDetail != 0);
         }
 
         private static bool IsValidLmcHomeRuntimeResult(

@@ -81,6 +81,28 @@ namespace LasalMotionControlApiExample
 
         private void InitializeMaintenanceActionUi()
         {
+            ComboLmcHomeMode.ItemsSource = new[]
+            {
+                LMCHomeMode.Direct,
+                LMCHomeMode.AbsoluteSwitch,
+                LMCHomeMode.LimitSwitch,
+                LMCHomeMode.ReferencePulse,
+                LMCHomeMode.Block
+            };
+            ComboLmcHomeMode.SelectedItem = LMCHomeMode.Direct;
+            ComboLmcHomeBufferMode.ItemsSource = new[]
+            {
+                LMCHomeBufferMode.Buffered
+            };
+            ComboLmcHomeBufferMode.SelectedItem = LMCHomeBufferMode.Buffered;
+            ComboLmcHomeDirection.ItemsSource = Enum.GetValues(
+                typeof(LMCHomeDirection));
+            ComboLmcHomeDirection.SelectedItem =
+                LMCHomeDirection.NotApplicable;
+            ComboLmcHomeSwitchMode.ItemsSource = Enum.GetValues(
+                typeof(LMCHomeSwitchMode));
+            ComboLmcHomeSwitchMode.SelectedItem =
+                LMCHomeSwitchMode.NotApplicable;
             ComboDs402HomeMethod.ItemsSource = new[]
             {
                 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
@@ -251,6 +273,12 @@ namespace LasalMotionControlApiExample
             var activeRecoveryRecord = activeRecovery
                 ? maintenanceActionRecoveryJournal.CurrentRecord
                 : null;
+            var lmcHomeRecoveryActive = activeRecoveryRecord != null
+                && activeRecoveryRecord.Action
+                    == MaintenanceActionKind.LmcHome;
+            var ds402HomeRecoveryActive = activeRecoveryRecord != null
+                && activeRecoveryRecord.Action
+                    == MaintenanceActionKind.Ds402Home;
             var manualRecoveryResolutionAllowed = activeRecoveryRecord != null
                 && activeRecoveryRecord.Action
                     != MaintenanceActionKind.Ds402Home
@@ -286,11 +314,29 @@ namespace LasalMotionControlApiExample
                 && !HasUnresolvedGroupProfileLockState()
                 && resetCapability;
             var homeInputEnabled = idle && !activeRecovery;
+            var selectedLmcHomeMode = ComboLmcHomeMode.SelectedItem
+                    is LMCHomeMode
+                ? (LMCHomeMode)ComboLmcHomeMode.SelectedItem
+                : LMCHomeMode.Direct;
+            var directLmcHome = selectedLmcHomeMode == LMCHomeMode.Direct;
+            var supportedLmcHome = selectedLmcHomeMode != LMCHomeMode.Block;
 
             ButtonRefreshHomeCapabilities.IsEnabled = connected && idle;
             ButtonRefreshTestResetCapabilities.IsEnabled = connected && idle;
             ButtonReadHomeStatus.IsEnabled = connected && idle && axisReady;
             TextLmcHomeTimeout.IsEnabled = homeInputEnabled;
+            TextLmcHomePosition.IsEnabled = homeInputEnabled;
+            ComboLmcHomeMode.IsEnabled = homeInputEnabled;
+            ComboLmcHomeBufferMode.IsEnabled = homeInputEnabled;
+            TextLmcHomeVelocity.IsEnabled = homeInputEnabled && !directLmcHome;
+            TextLmcHomeAcceleration.IsEnabled = homeInputEnabled && !directLmcHome;
+            TextLmcHomeDistanceLimit.IsEnabled = homeInputEnabled
+                && !directLmcHome;
+            TextLmcHomeTorqueLimit.IsEnabled = homeInputEnabled
+                && !directLmcHome;
+            ComboLmcHomeDirection.IsEnabled = homeInputEnabled && !directLmcHome;
+            ComboLmcHomeSwitchMode.IsEnabled = homeInputEnabled
+                && selectedLmcHomeMode == LMCHomeMode.AbsoluteSwitch;
             TextDs402HomeTimeout.IsEnabled = homeInputEnabled;
             ComboDs402HomeMethod.IsEnabled = homeInputEnabled;
             TextDs402HomeOffset.IsEnabled = homeInputEnabled;
@@ -299,19 +345,28 @@ namespace LasalMotionControlApiExample
             TextDs402HomeAcceleration.IsEnabled = homeInputEnabled;
             CheckHomeOneShotConfirmed.IsEnabled = homeInputEnabled;
             ButtonLmcHome.IsEnabled = axisReady
-                && liveCommandAllowed
-                && MaintenanceActionRecoveryJournalCanArm
-                && MotionUncertaintyJournalCanArm
                 && diagnosticsIdentityReady
                 && lmcCapability
+                && (lmcHomeRecoveryActive
+                    || (liveCommandAllowed
+                        && MaintenanceActionRecoveryJournalCanArm
+                        && MotionUncertaintyJournalCanArm
+                        && supportedLmcHome))
                 && CheckHomeOneShotConfirmed.IsChecked == true;
             ButtonDs402Home.IsEnabled = axisReady
-                && liveCommandAllowed
-                && MaintenanceActionRecoveryJournalCanArm
-                && MotionUncertaintyJournalCanArm
                 && diagnosticsIdentityReady
                 && ds402Capability
+                && (ds402HomeRecoveryActive
+                    || (liveCommandAllowed
+                        && MaintenanceActionRecoveryJournalCanArm
+                        && MotionUncertaintyJournalCanArm))
                 && CheckHomeOneShotConfirmed.IsChecked == true;
+            ButtonLmcHome.Content = lmcHomeRecoveryActive
+                ? "Check Previous / Execute Next LMC Home"
+                : "Execute LMC Home Once";
+            ButtonDs402Home.Content = ds402HomeRecoveryActive
+                ? "Check Previous / Execute Next DS402 Home"
+                : "Execute DS402 Home Once";
             if (!connected)
             {
                 TextDs402HomeAvailability.Text = TranslateUiText(
@@ -559,6 +614,35 @@ namespace LasalMotionControlApiExample
             object sender,
             RoutedEventArgs e)
         {
+            if (ReferenceEquals(sender, ComboLmcHomeMode)
+                && ComboLmcHomeMode.SelectedItem is LMCHomeMode)
+            {
+                var mode = (LMCHomeMode)ComboLmcHomeMode.SelectedItem;
+                if (mode == LMCHomeMode.Direct)
+                {
+                    ComboLmcHomeDirection.SelectedItem =
+                        LMCHomeDirection.NotApplicable;
+                    ComboLmcHomeSwitchMode.SelectedItem =
+                        LMCHomeSwitchMode.NotApplicable;
+                }
+                else
+                {
+                    var direction = ComboLmcHomeDirection.SelectedItem
+                        is LMCHomeDirection
+                        ? (LMCHomeDirection)ComboLmcHomeDirection.SelectedItem
+                        : LMCHomeDirection.NotApplicable;
+                    if (direction != LMCHomeDirection.Positive
+                        && direction != LMCHomeDirection.Negative)
+                    {
+                        ComboLmcHomeDirection.SelectedItem =
+                            LMCHomeDirection.Negative;
+                    }
+                    ComboLmcHomeSwitchMode.SelectedItem =
+                        mode == LMCHomeMode.AbsoluteSwitch
+                            ? LMCHomeSwitchMode.On
+                            : LMCHomeSwitchMode.NotApplicable;
+                }
+            }
             if (CheckHomeOneShotConfirmed != null)
             {
                 CheckHomeOneShotConfirmed.IsChecked = false;
@@ -578,8 +662,7 @@ namespace LasalMotionControlApiExample
             object sender,
             RoutedEventArgs e)
         {
-            const string operation =
-                "LMC Home Start (Current Position Zero)";
+            const string operation = "LMC Home Start";
             if (CheckHomeOneShotConfirmed.IsChecked != true)
             {
                 TextHomeResult.Text =
@@ -588,7 +671,28 @@ namespace LasalMotionControlApiExample
                 return;
             }
 
-            CheckHomeOneShotConfirmed.IsChecked = false;
+            var pendingRecovery = HasUnresolvedMaintenanceAction
+                ? maintenanceActionRecoveryJournal.CurrentRecord
+                : null;
+            if (pendingRecovery != null
+                && pendingRecovery.Action == MaintenanceActionKind.LmcHome)
+            {
+                await RunOperationAsync(
+                    "LMC Home Previous Outcome",
+                    async () =>
+                    {
+                        await ReadExactLmcHomeOutcomeAsync(
+                            RequireAxis(),
+                            pendingRecovery);
+                    });
+                if (HasUnresolvedMaintenanceAction)
+                {
+                    TextOperationState.Text =
+                        "Previous LMC Home outcome is still pending";
+                    return;
+                }
+            }
+
             await RunOperationAsync(
                 operation,
                 async () =>
@@ -606,13 +710,7 @@ namespace LasalMotionControlApiExample
                         LMCAdminFeature.AxisHome,
                         LMCDiagnosticCapability.None);
 
-                    var actualPosition = await currentAxis
-                        .GetActualPositionResultAsync(CancellationToken.None);
-                    EnsureAxisPositionSuccess(
-                        "LMC Home current-position guard",
-                        actualPosition);
-                    var parameters = ReadLmcHomeParameters(
-                        actualPosition.PositionRaw);
+                    var parameters = ReadLmcHomeParameters();
                     var prepared = currentAxis.PrepareLMC_Home(
                         parameters,
                         adminCapabilities,
@@ -655,15 +753,21 @@ namespace LasalMotionControlApiExample
                             + acknowledgement.RequestId
                             + ", AxisRef="
                             + acknowledgement.AxisReference
-                            + ", Semantic="
-                            + acknowledgement.SemanticMode
-                            + ", ExpectedActualPosition="
-                            + key.ExpectedActualPosition
+                            + ", Contract="
+                            + key.HomeContractVersion
+                            + ", Mode="
+                            + key.Parameters.HomingMode
+                            + ", Position="
+                            + key.Parameters.Position
                             + ", NativeCommandState=0x"
                             + acknowledgement.NativeCommandState.ToString("X8")
                             + Environment.NewLine
                             + TranslateUiText(
                                 "Read Home Status performs the exact 0x7D18 outcome query; the start acknowledgement is not completion proof.");
+                        await MonitorAndRetireLmcHomeAsync(
+                            currentAxis,
+                            recovery,
+                            parameters.TimeoutMilliseconds);
                     }
                     catch (LMCHomeStartRejectedException rejected)
                     {
@@ -678,14 +782,26 @@ namespace LasalMotionControlApiExample
                     }
                     catch
                     {
-                        PromoteMaintenanceRecovery(recovery, prepared.RequestId);
+                        if (prepared.IsConsumed)
+                        {
+                            PromoteMaintenanceRecovery(
+                                recovery,
+                                prepared.RequestId);
+                        }
+                        else
+                        {
+                            ResolveMaintenanceConfirmedRejection(
+                                recovery,
+                                prepared.RequestId);
+                        }
                         throw;
                     }
                 });
             if (string.Equals(
                 TextOperationState.Text,
                 operation + " completed",
-                StringComparison.Ordinal))
+                StringComparison.Ordinal)
+                && HasUnresolvedMaintenanceAction)
             {
                 TextOperationState.Text =
                     "LMC Home Start accepted; outcome pending";
@@ -706,7 +822,28 @@ namespace LasalMotionControlApiExample
                 return;
             }
 
-            CheckHomeOneShotConfirmed.IsChecked = false;
+            var pendingRecovery = HasUnresolvedMaintenanceAction
+                ? maintenanceActionRecoveryJournal.CurrentRecord
+                : null;
+            if (pendingRecovery != null
+                && pendingRecovery.Action == MaintenanceActionKind.Ds402Home)
+            {
+                await RunOperationAsync(
+                    "DS402 Home Previous Outcome",
+                    async () =>
+                    {
+                        await ReadExactDs402HomeOutcomeAsync(
+                            RequireAxis(),
+                            pendingRecovery);
+                    });
+                if (HasUnresolvedMaintenanceAction)
+                {
+                    TextOperationState.Text =
+                        "Previous DS402 Home outcome is still pending";
+                    return;
+                }
+            }
+
             await RunOperationAsync(
                 "DS402 Home",
                 async () =>
@@ -951,6 +1088,30 @@ namespace LasalMotionControlApiExample
             TextHomeResult.Text += Environment.NewLine
                 + TranslateUiText(
                     "Exact terminal 0x7D18 outcome and matching 0x7D19 retirement verified. The LMC Home no-replay record was resolved.");
+        }
+
+        private async Task MonitorAndRetireLmcHomeAsync(
+            LMCSingleAxis currentAxis,
+            MaintenanceActionRecoveryRecord recovery,
+            int timeoutMilliseconds)
+        {
+            var deadline = DateTime.UtcNow.AddMilliseconds(
+                checked(timeoutMilliseconds + 5000));
+            while (HasUnresolvedMaintenanceAction
+                && DateTime.UtcNow < deadline)
+            {
+                await Task.Delay(200, CancellationToken.None);
+                await ReadExactLmcHomeOutcomeAsync(
+                    currentAxis,
+                    recovery);
+            }
+
+            if (HasUnresolvedMaintenanceAction)
+            {
+                TextHomeResult.Text += Environment.NewLine
+                    + TranslateUiText(
+                        "The local monitor deadline expired. The exact Home recovery record remains active; no Start was replayed.");
+            }
         }
 
         private static bool LmcHomeTerminalSnapshotsMatch(
@@ -1267,10 +1428,42 @@ namespace LasalMotionControlApiExample
 
             var values = ParseMaintenanceParameters(
                 record.ActionParameters);
+            if (values.ContainsKey("Contract"))
+            {
+                if (ReadParameterUInt(values, "Contract") != 2)
+                {
+                    throw new InvalidOperationException(
+                        "The durable LMC Home v2 contract identity is invalid.");
+                }
+                return new LMCHomeRecoveryKey(
+                    checked((ushort)ReadParameterUInt(values, "Schema")),
+                    record.TransportCorrelationId,
+                    record.ObservedDiagnosticsBuild,
+                    record.ObservedDiagnosticsBootId,
+                    record.ObservedMapRevision,
+                    new LMCHomeClientIntentId(
+                        record.ClientIntentId0,
+                        record.ClientIntentId1,
+                        record.ClientIntentId2,
+                        record.ClientIntentId3),
+                    record.AxisReference,
+                    new LMCHomeParameters(
+                        ReadParameterInt(values, "Position"),
+                        ReadParameterInt(values, "Velocity"),
+                        ReadParameterInt(values, "Acceleration"),
+                        ReadParameterInt(values, "DistanceLimit"),
+                        ReadParameterInt(values, "TorqueLimit"),
+                        (LMCHomeMode)ReadParameterInt(values, "HomingMode"),
+                        (LMCHomeBufferMode)ReadParameterInt(values, "BufferMode"),
+                        (LMCHomeDirection)ReadParameterInt(values, "Direction"),
+                        (LMCHomeSwitchMode)ReadParameterInt(values, "SwitchMode"),
+                        checked((int)ReadParameterUInt(values, "TimeoutMs"))));
+            }
+
             if (!string.Equals(
-                    ReadParameter(values, "Semantic"),
-                    "CurrentPositionZero",
-                    StringComparison.Ordinal)
+                ReadParameter(values, "Semantic"),
+                "CurrentPositionZero",
+                StringComparison.Ordinal)
                 || ReadParameterInt(values, "TargetPosition") != 0)
             {
                 throw new InvalidOperationException(
@@ -2300,11 +2493,43 @@ namespace LasalMotionControlApiExample
             }
         }
 
-        internal LMCHomeParameters ReadLmcHomeParameters(
-            int expectedActualPosition)
+        internal LMCHomeParameters ReadLmcHomeParameters()
         {
+            if (!(ComboLmcHomeMode.SelectedItem is LMCHomeMode)
+                || !(ComboLmcHomeBufferMode.SelectedItem
+                    is LMCHomeBufferMode)
+                || !(ComboLmcHomeDirection.SelectedItem
+                    is LMCHomeDirection)
+                || !(ComboLmcHomeSwitchMode.SelectedItem
+                    is LMCHomeSwitchMode))
+            {
+                throw new InvalidOperationException(
+                    "All LMC Home typed selections are required.");
+            }
+
+            var mode = (LMCHomeMode)ComboLmcHomeMode.SelectedItem;
+            var direct = mode == LMCHomeMode.Direct;
+            var absoluteSwitch = mode == LMCHomeMode.AbsoluteSwitch;
             return new LMCHomeParameters(
-                expectedActualPosition,
+                ParseMaintenanceInt(TextLmcHomePosition.Text, "LMC Home Position"),
+                direct ? 0 : ParseMaintenanceInt(
+                    TextLmcHomeVelocity.Text, "LMC Home Velocity"),
+                direct ? 0 : ParseMaintenanceInt(
+                    TextLmcHomeAcceleration.Text, "LMC Home Acceleration"),
+                direct ? 0 : ParseMaintenanceInt(
+                    TextLmcHomeDistanceLimit.Text,
+                    "LMC Home Reference Position Window"),
+                direct ? 0 : ParseMaintenanceInt(
+                    TextLmcHomeTorqueLimit.Text,
+                    "LMC Home Reference Velocity 2"),
+                mode,
+                (LMCHomeBufferMode)ComboLmcHomeBufferMode.SelectedItem,
+                direct
+                    ? LMCHomeDirection.NotApplicable
+                    : (LMCHomeDirection)ComboLmcHomeDirection.SelectedItem,
+                absoluteSwitch
+                    ? (LMCHomeSwitchMode)ComboLmcHomeSwitchMode.SelectedItem
+                    : LMCHomeSwitchMode.NotApplicable,
                 ParseMaintenanceInt(
                     TextLmcHomeTimeout.Text,
                     "LMC Home timeout"));
@@ -2383,13 +2608,49 @@ namespace LasalMotionControlApiExample
         internal static string FormatLmcHomeIdentity(
             LMCHomeRecoveryKey value)
         {
+            if (value.HomeContractVersion == 1)
+            {
+                return "Schema="
+                    + value.SchemaVersion.ToString(CultureInfo.InvariantCulture)
+                    + ";Semantic=CurrentPositionZero;ExpectedActualPosition="
+                    + value.ExpectedActualPosition.ToString(
+                        CultureInfo.InvariantCulture)
+                    + ";TargetPosition=0;TimeoutMs="
+                    + value.TimeoutMilliseconds.ToString(
+                        CultureInfo.InvariantCulture);
+            }
             return "Schema="
                 + value.SchemaVersion.ToString(
                     CultureInfo.InvariantCulture)
-                + ";Semantic=CurrentPositionZero;ExpectedActualPosition="
-                + value.ExpectedActualPosition.ToString(
+                + ";Contract="
+                + value.HomeContractVersion.ToString(CultureInfo.InvariantCulture)
+                + ";HomingMode="
+                + ((ushort)value.Parameters.HomingMode).ToString(
                     CultureInfo.InvariantCulture)
-                + ";TargetPosition=0"
+                + ";Position="
+                + value.Parameters.Position.ToString(
+                    CultureInfo.InvariantCulture)
+                + ";Velocity="
+                + value.Parameters.ReferenceVelocity1.ToString(
+                    CultureInfo.InvariantCulture)
+                + ";Acceleration="
+                + value.Parameters.ReferenceAcceleration.ToString(
+                    CultureInfo.InvariantCulture)
+                + ";DistanceLimit="
+                + value.Parameters.ReferencePositionWindow.ToString(
+                    CultureInfo.InvariantCulture)
+                + ";TorqueLimit="
+                + value.Parameters.ReferenceVelocity2.ToString(
+                    CultureInfo.InvariantCulture)
+                + ";BufferMode="
+                + ((ushort)value.Parameters.BufferMode).ToString(
+                    CultureInfo.InvariantCulture)
+                + ";Direction="
+                + ((ushort)value.Parameters.Direction).ToString(
+                    CultureInfo.InvariantCulture)
+                + ";SwitchMode="
+                + ((ushort)value.Parameters.SwitchMode).ToString(
+                    CultureInfo.InvariantCulture)
                 + ";TimeoutMs="
                 + value.TimeoutMilliseconds.ToString(
                     CultureInfo.InvariantCulture);

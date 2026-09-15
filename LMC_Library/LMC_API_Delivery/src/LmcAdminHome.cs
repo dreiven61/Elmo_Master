@@ -56,6 +56,63 @@ namespace LasalMotionControlLib
                 recoveryKey);
         }
 
+        public LMCPreparedHome PrepareLmcHome(
+            LMCSingleAxis axis,
+            LMCHomeParameters parameters,
+            LMCAdminCapabilities verifiedCapabilities,
+            LMCDiagnosticCapabilities verifiedDiagnosticCapabilities,
+            LMCHomeExecuteToken executeToken)
+        {
+            if (parameters == null)
+            {
+                throw new ArgumentNullException("parameters");
+            }
+            if (parameters.IsLegacyCurrentPositionZero)
+            {
+                return PrepareLmcHome(
+                    axis,
+                    parameters.ExpectedActualPosition,
+                    parameters.TimeoutMilliseconds,
+                    verifiedCapabilities,
+                    verifiedDiagnosticCapabilities,
+                    executeToken);
+            }
+            if (executeToken == null)
+            {
+                throw new ArgumentNullException("executeToken");
+            }
+
+            LMC_AdminFrame.ValidateLmcHome(parameters);
+            var sessionGeneration = ValidateAxisOwner(axis);
+            ValidateLmcHomeAdminCapabilities(
+                verifiedCapabilities,
+                sessionGeneration,
+                axis.AxisReference,
+                true);
+            ValidateLmcHomeDiagnosticCapabilities(
+                verifiedDiagnosticCapabilities,
+                sessionGeneration,
+                true);
+            var clientIntentId = LMCHomeClientIntentId.Create();
+            executeToken.ConsumeForPreparation();
+            var recoveryKey = new LMCHomeRecoveryKey(
+                ProtocolSchemaVersion,
+                NextRequestId(),
+                verifiedDiagnosticCapabilities.DiagnosticsBuild,
+                verifiedDiagnosticCapabilities.DiagnosticsBootId,
+                verifiedDiagnosticCapabilities.MapRevision,
+                clientIntentId,
+                axis.AxisReference,
+                parameters);
+            return new LMCPreparedHome(
+                connection,
+                axis,
+                verifiedCapabilities,
+                verifiedDiagnosticCapabilities,
+                sessionGeneration,
+                recoveryKey);
+        }
+
         public LMCHomeStartAcknowledgement StartLmcHome(
             LMCPreparedHome preparedCommand)
         {
@@ -109,7 +166,7 @@ namespace LasalMotionControlLib
                             var parsed = LMC_AdminParser.ParseStartLmcHome(
                                 response,
                                 preparedCommand.RequestId,
-                                preparedCommand.SemanticMode);
+                                preparedCommand.RecoveryKey);
                             acknowledgement =
                                 new LMCHomeStartAcknowledgement(
                                     parsed.Response,
@@ -217,7 +274,7 @@ namespace LasalMotionControlLib
                             var parsed = LMC_AdminParser.ParseStartLmcHome(
                                 response,
                                 preparedCommand.RequestId,
-                                preparedCommand.SemanticMode);
+                                preparedCommand.RecoveryKey);
                             acknowledgement =
                                 new LMCHomeStartAcknowledgement(
                                     parsed.Response,
@@ -490,9 +547,14 @@ namespace LasalMotionControlLib
                 || preparedCommand.RecoveryKey == null
                 || preparedCommand.SchemaVersion != ProtocolSchemaVersion
                 || preparedCommand.RequestId == 0
-                || preparedCommand.SemanticMode
-                    != LMCHomeSemanticMode.CurrentPositionZero
-                || preparedCommand.TargetPosition != 0
+                || (preparedCommand.HomeContractVersion == 1
+                    && preparedCommand.SemanticMode
+                        != LMCHomeSemanticMode.CurrentPositionZero)
+                || (preparedCommand.HomeContractVersion == 2
+                    && preparedCommand.SemanticMode
+                        != LMCHomeSemanticMode.GenericHome)
+                || (preparedCommand.HomeContractVersion == 1
+                    && preparedCommand.TargetPosition != 0)
                 || preparedCommand.Axis == null
                 || preparedCommand.Axis.AxisReference
                     != preparedCommand.AxisReference
@@ -504,9 +566,16 @@ namespace LasalMotionControlLib
                     "The prepared LMC_Home command context is invalid.");
             }
 
-            LMC_AdminFrame.ValidateLmcHome(
-                preparedCommand.SemanticMode,
-                preparedCommand.TimeoutMilliseconds);
+            if (preparedCommand.HomeContractVersion == 2)
+            {
+                LMC_AdminFrame.ValidateLmcHome(preparedCommand.Parameters);
+            }
+            else
+            {
+                LMC_AdminFrame.ValidateLmcHome(
+                    preparedCommand.SemanticMode,
+                    preparedCommand.TimeoutMilliseconds);
+            }
             preparedCommand.ThrowIfConsumed();
             ValidateLmcHomeAdminCapabilities(
                 preparedCommand.VerifiedCapabilities,
@@ -555,12 +624,20 @@ namespace LasalMotionControlLib
                 verifiedDiagnosticCapabilities,
                 expectedSessionGeneration,
                 true);
-            LMC_AdminFrame.ValidateLmcHome(
-                recoveryKey.SemanticMode,
-                recoveryKey.TimeoutMilliseconds);
+            if (recoveryKey.HomeContractVersion == 2)
+            {
+                LMC_AdminFrame.ValidateLmcHome(recoveryKey.Parameters);
+            }
+            else
+            {
+                LMC_AdminFrame.ValidateLmcHome(
+                    recoveryKey.SemanticMode,
+                    recoveryKey.TimeoutMilliseconds);
+            }
             if (recoveryKey.SchemaVersion != ProtocolSchemaVersion
                 || recoveryKey.AxisReference != axis.AxisReference
-                || recoveryKey.TargetPosition != 0
+                || (recoveryKey.HomeContractVersion == 1
+                    && recoveryKey.TargetPosition != 0)
                 || recoveryKey.DiagnosticsBuild
                     != verifiedDiagnosticCapabilities.DiagnosticsBuild
                 || recoveryKey.MapRevision

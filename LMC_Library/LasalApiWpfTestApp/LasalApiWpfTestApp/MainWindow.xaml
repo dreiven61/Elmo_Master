@@ -449,11 +449,11 @@
 									</StackPanel>
 								</GroupBox>
 
-								<GroupBox Header="Home (explicit one-shot actions)">
+								<GroupBox Header="Home (explicit confirmed actions)">
 									<StackPanel>
 										<TextBlock
 											Foreground="#8A4A00"
-											Text="LMC Home and DS402 Method 37 are non-moving. Other DS402 methods can move toward a Home/limit switch or index. Verify wiring, direction, travel clearance, raw drive units, and the exact axis before one-shot confirmation."
+											Text="LMC Home Direct and DS402 Method 37 are non-moving. LMC moving modes and other DS402 methods can move toward a Home/limit switch or index. Verify wiring, direction, travel clearance, raw drive units, and the exact axis before every execution."
 											TextWrapping="Wrap" />
 										<WrapPanel Margin="0,4,0,0">
 											<Button
@@ -469,18 +469,69 @@
 										<TextBlock
 											Margin="0,6,0,0"
 											FontWeight="SemiBold"
-											Text="LMC Home - Current Position Zero (0x7D13)" />
+											Text="LMC Home - Generic Home (0x7D13 v2)" />
 										<TextBlock
 											Foreground="#8A4A00"
-											Text="The app reads the current actual position as an exact stale-read guard, then requests TargetPosition=0. Start acceptance is not completion; Read Home Status queries the retained 0x7D18 outcome and retires a terminal record with 0x7D19."
+											Text="Direct applies Position without motion. AbsoluteSwitch, LimitSwitch, and ReferencePulse execute the LASAL MoveReference sequence and require positive Velocity/Acceleration. Block remains disabled because torque detection is not mapped. Start acceptance is not completion; Read Home Status verifies 0x7D18 and retires with 0x7D19."
 											TextWrapping="Wrap" />
 										<WrapPanel>
+											<StackPanel Width="150">
+												<TextBlock Style="{StaticResource FieldLabel}" Text="Home Position" />
+												<TextBox
+													x:Name="TextLmcHomePosition"
+													Text="100000"
+													TextChanged="MaintenanceInput_Changed" />
+											</StackPanel>
+											<StackPanel Width="170">
+												<TextBlock Style="{StaticResource FieldLabel}" Text="Homing Mode" />
+												<ComboBox x:Name="ComboLmcHomeMode" SelectionChanged="MaintenanceInput_Changed" />
+											</StackPanel>
+											<StackPanel Width="140">
+												<TextBlock Style="{StaticResource FieldLabel}" Text="Reference Velocity 1" />
+												<TextBox
+													x:Name="TextLmcHomeVelocity"
+													Text="100000"
+													TextChanged="MaintenanceInput_Changed" />
+											</StackPanel>
+											<StackPanel Width="140">
+												<TextBlock Style="{StaticResource FieldLabel}" Text="Reference Acceleration" />
+												<TextBox
+													x:Name="TextLmcHomeAcceleration"
+													Text="100000"
+													TextChanged="MaintenanceInput_Changed" />
+											</StackPanel>
+											<StackPanel Width="140">
+												<TextBlock Style="{StaticResource FieldLabel}" Text="Reference Position Window" />
+												<TextBox
+													x:Name="TextLmcHomeDistanceLimit"
+													Text="20000"
+													TextChanged="MaintenanceInput_Changed" />
+											</StackPanel>
+											<StackPanel Width="140">
+												<TextBlock Style="{StaticResource FieldLabel}" Text="Reference Velocity 2" />
+												<TextBox
+													x:Name="TextLmcHomeTorqueLimit"
+													Text="50000"
+													TextChanged="MaintenanceInput_Changed" />
+											</StackPanel>
+											<StackPanel Width="170">
+												<TextBlock Style="{StaticResource FieldLabel}" Text="Direction" />
+												<ComboBox x:Name="ComboLmcHomeDirection" SelectionChanged="MaintenanceInput_Changed" />
+											</StackPanel>
+											<StackPanel Width="190">
+												<TextBlock Style="{StaticResource FieldLabel}" Text="Switch Mode" />
+												<ComboBox x:Name="ComboLmcHomeSwitchMode" SelectionChanged="MaintenanceInput_Changed" />
+											</StackPanel>
+											<StackPanel Width="140">
+												<TextBlock Style="{StaticResource FieldLabel}" Text="Buffer Mode" />
+												<ComboBox x:Name="ComboLmcHomeBufferMode" SelectionChanged="MaintenanceInput_Changed" />
+											</StackPanel>
 											<StackPanel Width="135">
 												<TextBlock Style="{StaticResource FieldLabel}" Text="Timeout (ms)" />
-												<TextBox
-													x:Name="TextLmcHomeTimeout"
-													Text="5000"
-													TextChanged="MaintenanceInput_Changed" />
+											<TextBox
+												x:Name="TextLmcHomeTimeout"
+												Text="60000"
+												TextChanged="MaintenanceInput_Changed" />
 											</StackPanel>
 										</WrapPanel>
 
@@ -495,23 +546,38 @@
 										<WrapPanel>
 											<StackPanel Width="230">
 												<TextBlock Style="{StaticResource FieldLabel}" Text="Homing Method (0x6098)" />
-												<ComboBox x:Name="ComboDs402HomeMethod" IsEditable="True" SelectionChanged="MaintenanceInput_Changed" />
+												<ComboBox
+													x:Name="ComboDs402HomeMethod"
+													IsEditable="True"
+													SelectionChanged="MaintenanceInput_Changed" />
 											</StackPanel>
 											<StackPanel Width="160">
 												<TextBlock Style="{StaticResource FieldLabel}" Text="Home Offset (0x607C)" />
-												<TextBox x:Name="TextDs402HomeOffset" Text="0" TextChanged="MaintenanceInput_Changed" />
+												<TextBox
+													x:Name="TextDs402HomeOffset"
+													Text="0"
+													TextChanged="MaintenanceInput_Changed" />
 											</StackPanel>
 											<StackPanel Width="180">
 												<TextBlock Style="{StaticResource FieldLabel}" Text="Home Velocity1 (0x6099:01)" />
-												<TextBox x:Name="TextDs402HomeVelocity1" Text="0" TextChanged="MaintenanceInput_Changed" />
+												<TextBox
+													x:Name="TextDs402HomeVelocity1"
+													Text="0"
+													TextChanged="MaintenanceInput_Changed" />
 											</StackPanel>
 											<StackPanel Width="180">
 												<TextBlock Style="{StaticResource FieldLabel}" Text="Home Velocity2 (0x6099:02)" />
-												<TextBox x:Name="TextDs402HomeVelocity2" Text="0" TextChanged="MaintenanceInput_Changed" />
+												<TextBox
+													x:Name="TextDs402HomeVelocity2"
+													Text="0"
+													TextChanged="MaintenanceInput_Changed" />
 											</StackPanel>
 											<StackPanel Width="170">
 												<TextBlock Style="{StaticResource FieldLabel}" Text="Home Acceleration (0x609A)" />
-												<TextBox x:Name="TextDs402HomeAcceleration" Text="0" TextChanged="MaintenanceInput_Changed" />
+												<TextBox
+													x:Name="TextDs402HomeAcceleration"
+													Text="0"
+													TextChanged="MaintenanceInput_Changed" />
 											</StackPanel>
 											<StackPanel Width="135">
 												<TextBlock Style="{StaticResource FieldLabel}" Text="Timeout (ms)" />
@@ -528,7 +594,7 @@
 											Checked="MaintenanceConfirmation_Changed"
 											Unchecked="MaintenanceConfirmation_Changed">
 											<CheckBox.Content>
-												<TextBlock Text="I verified the exact axis, Homing method direction, Home/limit/index wiring, travel clearance, raw drive-unit values, and stopping means. Send Home once only and never replay it after an uncertain result." TextWrapping="Wrap" />
+												<TextBlock Text="I verified the exact axis, Homing method direction, Home/limit/index wiring, travel clearance, raw drive-unit values, and stopping means. This confirmation remains valid while these inputs are unchanged. After the first execution, the same button checks the previous exact outcome and sends the next Home only when that outcome is terminal and retired. A Running or uncertain result is never replayed." TextWrapping="Wrap" />
 											</CheckBox.Content>
 										</CheckBox>
 										<WrapPanel Margin="0,4,0,0">

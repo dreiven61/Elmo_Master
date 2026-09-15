@@ -456,6 +456,8 @@ FUNCTION VIRTUAL GLOBAL LMCEcatInputLatch::RtWork
 		zeroHomeRequestToken : UDINT;
 		zeroHomeRequestAxis : DINT;
 		zeroHomeExpectedActualPosition : DINT;
+		zeroHomeTargetPosition : DINT;
+		zeroHomeContractVersion : DINT;
 		zeroHomePhase : DINT;
 		zeroHomeStableSampleCount : DINT;
 		zeroHomeFailure : DINT;
@@ -535,7 +537,9 @@ FUNCTION VIRTUAL GLOBAL LMCEcatInputLatch::RtWork
 
 	// Mailbox slots 0..3 are immutable after the request sequence is published.
 	// Slot 4 is the RT-owned irrevocable native-dispatch sequence claim.
-	// Slot 5 is the cancel producer's request-sequence echo; slots 6..7 stay zero.
+	// Slot 5 is the cancel producer's request-sequence echo.
+	// Slot 6 is 0 for legacy CurrentPositionZero and 2 for generic Direct Home.
+	// Slot 7 remains reserved zero.
 	// AxisZeroHomeResult is the 32-DINT RT result defined in the handoff document.
 	zeroHomeRequestSequence := sigclib_atomic_getU32(
 		pValue:=#AxisZeroHomeRequestSequence);
@@ -551,6 +555,11 @@ FUNCTION VIRTUAL GLOBAL LMCEcatInputLatch::RtWork
 		zeroHomeRequestToken := AxisZeroHomeMailbox[0]$UDINT;
 		zeroHomeRequestAxis := AxisZeroHomeMailbox[1];
 		zeroHomeExpectedActualPosition := AxisZeroHomeMailbox[2];
+		zeroHomeContractVersion := AxisZeroHomeMailbox[6];
+		zeroHomeTargetPosition := 0;
+		if zeroHomeContractVersion = 2 then
+			zeroHomeTargetPosition := AxisZeroHomeMailbox[2];
+		end_if;
 		zeroHomeCycle := SnapshotBytes[0]$UDINT + 1;
 		if zeroHomeCycle = 0 then
 			zeroHomeCycle := 1;
@@ -701,7 +710,8 @@ FUNCTION VIRTUAL GLOBAL LMCEcatInputLatch::RtWork
 			zeroHomeFailure := LMC_ZERO_HOME_FAILURE_CORRUPT;
 		elsif (zeroHomeRequestSequence = 0) |
 			(AxisZeroHomeMailbox[3]$UDINT <> zeroHomeRequestSequence) |
-			(AxisZeroHomeMailbox[6]$UDINT <> 0) |
+			((AxisZeroHomeMailbox[6] <> 0) &
+			 (AxisZeroHomeMailbox[6] <> 2)) |
 			(AxisZeroHomeMailbox[7]$UDINT <> 0) |
 			(zeroHomeRequestToken = 0) |
 			(zeroHomeRequestAxis < 1) | (zeroHomeRequestAxis > 4) |
@@ -745,8 +755,9 @@ FUNCTION VIRTUAL GLOBAL LMCEcatInputLatch::RtWork
 				((zeroHomeAxisStatus$UDINT and LMC_ZERO_HOME_STANDSTILL) = 0) then
 				zeroHomeFailure := LMC_ZERO_HOME_FAILURE_STATE;
 				zeroHomeTerminal := TRUE;
-			elsif zeroHomeActualAppPosition <>
-				zeroHomeExpectedActualPosition then
+			elsif (zeroHomeContractVersion = 0) &
+				(zeroHomeActualAppPosition <>
+				 zeroHomeExpectedActualPosition) then
 				zeroHomeFailure := LMC_ZERO_HOME_FAILURE_STALE;
 				zeroHomeTerminal := TRUE;
 			else
@@ -780,7 +791,7 @@ FUNCTION VIRTUAL GLOBAL LMCEcatInputLatch::RtWork
 					1:
 						zeroHomeNativeState := LMCAxis1.SetPosition(
 							Mode:=LMCAXIS_SET_ACTPOS_APPUNIT_DEST,
-							Position:=0);
+							Position:=zeroHomeTargetPosition);
 						zeroHomeRawDrivePosition := Drive1.ActPos.Read();
 						zeroHomeAxisStatus := LMCAxis1.ReadAxisStatus();
 						zeroHomeAxisError := LMCAxis1.ReadAxisError();
@@ -799,7 +810,7 @@ FUNCTION VIRTUAL GLOBAL LMCEcatInputLatch::RtWork
 					2:
 						zeroHomeNativeState := LMCAxis2.SetPosition(
 							Mode:=LMCAXIS_SET_ACTPOS_APPUNIT_DEST,
-							Position:=0);
+							Position:=zeroHomeTargetPosition);
 						zeroHomeRawDrivePosition := Drive2.ActPos.Read();
 						zeroHomeAxisStatus := LMCAxis2.ReadAxisStatus();
 						zeroHomeAxisError := LMCAxis2.ReadAxisError();
@@ -818,7 +829,7 @@ FUNCTION VIRTUAL GLOBAL LMCEcatInputLatch::RtWork
 					3:
 						zeroHomeNativeState := LMCAxis3.SetPosition(
 							Mode:=LMCAXIS_SET_ACTPOS_APPUNIT_DEST,
-							Position:=0);
+							Position:=zeroHomeTargetPosition);
 						zeroHomeRawDrivePosition := Drive3.ActPos.Read();
 						zeroHomeAxisStatus := LMCAxis3.ReadAxisStatus();
 						zeroHomeAxisError := LMCAxis3.ReadAxisError();
@@ -837,7 +848,7 @@ FUNCTION VIRTUAL GLOBAL LMCEcatInputLatch::RtWork
 					4:
 						zeroHomeNativeState := LMCAxis4.SetPosition(
 							Mode:=LMCAXIS_SET_ACTPOS_APPUNIT_DEST,
-							Position:=0);
+							Position:=zeroHomeTargetPosition);
 						zeroHomeRawDrivePosition := Drive4.ActPos.Read();
 						zeroHomeAxisStatus := LMCAxis4.ReadAxisStatus();
 						zeroHomeAxisError := LMCAxis4.ReadAxisError();
@@ -909,17 +920,22 @@ FUNCTION VIRTUAL GLOBAL LMCEcatInputLatch::RtWork
 					zeroHomeFailure := LMC_ZERO_HOME_FAILURE_NATIVE;
 					zeroHomeTerminal := TRUE;
 				else
-					if (zeroHomeActualAppPosition <> 0) |
-						(zeroHomeSetAppPosition <> 0) then
+					if (zeroHomeActualAppPosition <> zeroHomeTargetPosition) |
+						(zeroHomeSetAppPosition <> zeroHomeTargetPosition) then
 						zeroHomeFailure := LMC_ZERO_HOME_FAILURE_VERIFY;
 						zeroHomeTerminal := TRUE;
 					else
 						zeroHomeEvidence := zeroHomeEvidence or
 							LMC_ZERO_HOME_EVIDENCE_APP;
-						if (zeroHomeActualIntPosition <> 0) |
-							(zeroHomeSetIntPosition <> 0) |
-							(zeroHomeDestinationPosition <> 0) |
-							(zeroHomeMasterPosition <> 0) then
+						if ((zeroHomeContractVersion = 0) &
+						    ((zeroHomeActualIntPosition <> 0) |
+						     (zeroHomeSetIntPosition <> 0) |
+						     (zeroHomeDestinationPosition <> 0) |
+						     (zeroHomeMasterPosition <> 0))) |
+						   ((zeroHomeContractVersion = 2) &
+						    ((zeroHomeActualIntPosition <> zeroHomeSetIntPosition) |
+						     (zeroHomeActualIntPosition <>
+						      zeroHomeDestinationPosition))) then
 							zeroHomeFailure := LMC_ZERO_HOME_FAILURE_VERIFY;
 							zeroHomeTerminal := TRUE;
 						else
@@ -2606,11 +2622,19 @@ FUNCTION GLOBAL LMCEcatInputLatch::SubmitAxisZeroHome
 		requestSequence : UDINT;
 		appliedSequence : UDINT;
 		nextRequestSequence : UDINT;
+		decodedAxisReference : DINT;
+		contractVersion : DINT;
 	END_VAR
 
 	Result := LMC_ZERO_HOME_FAILURE_INVALID;
+	decodedAxisReference := AxisReference;
+	contractVersion := 0;
+	if (AxisReference >= 0x0101) & (AxisReference <= 0x0104) then
+		decodedAxisReference := AxisReference - 0x0100;
+		contractVersion := 2;
+	end_if;
 	if (OperationToken = 0) |
-		(AxisReference < 1) | (AxisReference > 4) then
+		(decodedAxisReference < 1) | (decodedAxisReference > 4) then
 		RETURN;
 	end_if;
 
@@ -2621,8 +2645,9 @@ FUNCTION GLOBAL LMCEcatInputLatch::SubmitAxisZeroHome
 
 	if requestSequence <> appliedSequence then
 		if (AxisZeroHomeMailbox[0]$UDINT = OperationToken) &
-			(AxisZeroHomeMailbox[1] = AxisReference) &
+			(AxisZeroHomeMailbox[1] = decodedAxisReference) &
 			(AxisZeroHomeMailbox[2] = ExpectedActualPosition) &
+			(AxisZeroHomeMailbox[6] = contractVersion) &
 			(AxisZeroHomeMailbox[3]$UDINT = requestSequence) then
 			Result := 1;
 		else
@@ -2635,7 +2660,7 @@ FUNCTION GLOBAL LMCEcatInputLatch::SubmitAxisZeroHome
 		(AxisZeroHomeResult[0]$UDINT = OperationToken) then
 		// One token identifies exactly one immutable axis/expected-position key.
 		if (AxisZeroHomeResult[22]$UDINT <> appliedSequence) |
-			(AxisZeroHomeResult[3] <> AxisReference) |
+			(AxisZeroHomeResult[3] <> decodedAxisReference) |
 			(AxisZeroHomeResult[4] <> ExpectedActualPosition) then
 			RETURN;
 		end_if;
@@ -2653,12 +2678,12 @@ FUNCTION GLOBAL LMCEcatInputLatch::SubmitAxisZeroHome
 	end_if;
 
 	AxisZeroHomeMailbox[0]$UDINT := OperationToken;
-	AxisZeroHomeMailbox[1] := AxisReference;
+	AxisZeroHomeMailbox[1] := decodedAxisReference;
 	AxisZeroHomeMailbox[2] := ExpectedActualPosition;
 	AxisZeroHomeMailbox[3]$UDINT := nextRequestSequence;
 	AxisZeroHomeMailbox[4] := 0;
 	AxisZeroHomeMailbox[5] := 0;
-	AxisZeroHomeMailbox[6] := 0;
+	AxisZeroHomeMailbox[6] := contractVersion;
 	AxisZeroHomeMailbox[7] := 0;
 	// Clear the prior cancel publication before publishing the new request.
 	sigclib_atomic_setU32(
@@ -2717,7 +2742,8 @@ FUNCTION GLOBAL LMCEcatInputLatch::CancelAxisZeroHome
 		(AxisZeroHomeMailbox[3]$UDINT <> requestSequenceBefore) |
 		((AxisZeroHomeMailbox[4]$UDINT <> 0) &
 		 (AxisZeroHomeMailbox[4]$UDINT <> requestSequenceBefore)) |
-		(AxisZeroHomeMailbox[6]$UDINT <> 0) |
+		((AxisZeroHomeMailbox[6] <> 0) &
+		 (AxisZeroHomeMailbox[6] <> 2)) |
 		(AxisZeroHomeMailbox[7]$UDINT <> 0) then
 		RETURN;
 	end_if;

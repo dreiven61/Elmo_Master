@@ -3,6 +3,25 @@
 	<!-- List of Components in this network -->
 	<Components>
 		<Object
+			Name       = "Byte_to_Bit1"
+			GUID       = "{DD7E637C-6970-4915-9883-14B8BD82B07B}"
+			Class      = "Byte_to_Bit"
+			Position   = "(3180,720)"
+			Visualized = "false">
+			<Channels>
+				<Server Name="bit1"/>
+				<Server Name="bit2"/>
+				<Server Name="bit3"/>
+				<Server Name="bit4"/>
+				<Server Name="bit5"/>
+				<Server Name="bit6"/>
+				<Server Name="bit7"/>
+				<Server Name="bit8"/>
+				<Server Name="ClassSvr"/>
+				<Client Name="fromByte"/>
+			</Channels>
+		</Object>
+		<Object
 			Name       = "Elmo_11"
 			GUID       = "{47F87ED0-D0EE-486E-BC7A-A70547F6C0D9}"
 			Class      = "Elmo_1"
@@ -1424,7 +1443,7 @@
 			Name       = "GL_9086_1_Slot011"
 			GUID       = "{7557A81C-A45C-4ACC-9E85-0C14F77A00EC}"
 			Class      = "GL_9086_1_Slot01"
-			Position   = "(3120,660)"
+			Position   = "(2310,1110)"
 			Visualized = "true"
 			Remotely   = "true"
 			Comment    = "GT-22BA">
@@ -2357,7 +2376,7 @@
 		<Connection Source="Elmo_41.toMaster" Destination="Elmo_31.EtherCATOut_1" Vertices="(1500,7110),(1433,7110),(1433,6990),(2386,6990),(2386,6930),(2344,6930),"/>
 		<Connection Source="GL_9086_11.toMaster" Destination="EtherCAT_PLC1.EtherCatOut_1" Vertices="(1500,750),(1127,750),"/>
 		<Connection Source="GL_9086_1_Slot001.ECATSlotIn" Destination="GL_9086_11.EthercatSlotOut_1" Vertices="(2310,750),(2116,1470),"/>
-		<Connection Source="GL_9086_1_Slot011.ECATSlotIn" Destination="GL_9086_11.EthercatSlotOut_1" Vertices="(3120,750),(2116,1470),"/>
+		<Connection Source="GL_9086_1_Slot011.ECATSlotIn" Destination="GL_9086_11.EthercatSlotOut_1" Vertices="(2310,1200),(2116,1470),"/>
 		<Connection Source="EtherCAT_PLC1.ToHwControl" Destination="HwControl1.Control"/>
 		<Connection Source="LMCSdoExecutor1.toSlave" Destination="Elmo_11.ClassState" Vertices="(2730,1710),(2344,1710),"/>
 		<Connection Source="LMCSdoExecutor2.toSlave" Destination="Elmo_21.ClassState" Vertices="(2670,3510),(2344,3510),"/>
@@ -2365,6 +2384,7 @@
 		<Connection Source="LMCSdoExecutor4.toSlave" Destination="Elmo_41.ClassState" Vertices="(2670,7110),(2344,7110),"/>
 		<Connection Source="WELCON_11.toMaster" Destination="Elmo_41.EtherCATOut_1" Vertices="(4230,1050),(4080,1050),(4080,8730),(2344,8730),"/>
 		<Connection Source="LMCSdoExecutor6.toSlave" Destination="WELCON_11.ClassState" Vertices="(6240,1890),(5334,1050),"/>
+		<Connection Source="Byte_to_Bit1.fromByte" Destination="GL_9086_1_Slot001.InputS_Byte0" Vertices="(3180,810),(2926,810),"/>
 		<Connection Source="LMCSdoExecutor5.toSlave" Destination="WELCON_11.ClassState" Vertices="(6240,1050),(5334,1050),"/>
 	</Connections>
 	<!-- Headerfiles -->

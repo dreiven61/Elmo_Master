@@ -70,6 +70,7 @@
 			<IOConnection ObjSrv="WELCON_11" Server="ClassState" ObjClt="LMCSdoExecutor5" Client="toSlave" IOI="IOState" SortIndex="64" KeyName="000059" Advanced="0"/>
 			<IOConnection ObjSrv="WELCON_11" Server="ClassState" ObjClt="LMCSdoExecutor6" Client="toSlave" IOI="IOState" SortIndex="65" KeyName="000060" Advanced="0"/>
 			<IOConnection ObjSrv="Elmo_41" Server="Online" ObjClt="_LMCAxis4" Client="HWReady" IOI="IOState" SortIndex="66" KeyName="000061" Advanced="0"/>
+			<IOConnection ObjSrv="GL_9086_1_Slot001" Server="InputS_Byte0" ObjClt="Byte_to_Bit1" Client="fromByte" IOI="Input" Type="Analog" SortIndex="67" KeyName="000062" Advanced="0"/>
 		</IOConnections>
 	</Entry>
 	<!-- List of Folders -->

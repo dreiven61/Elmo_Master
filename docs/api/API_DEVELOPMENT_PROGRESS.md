@@ -90,7 +90,7 @@ parameter editor를 지원하는 공개 API 형태로 확장됐다.
 | Axis core | `0x2022/23/24/28/2E/209F/20A0/20A2` | Active/Limited | accepted-once wait/no-replay recovery; 전체 축/fault/race matrix 미완료 |
 | Group core | `0x20D2/2045/2047-4B/2051/2085/20A4/20E7/7D22` | Active/Limited | Cartesian4 profile, software robot Axis1..9 power lifecycle; 전체 live matrix 미완료 |
 | Admin read | `0x7D00/7D10/7D20/7D22` | Active | capability + allowlisted semantic key |
-| LMC Home | `0x7D13/7D18/7D19` | Active/Limited | CurrentPositionZero, no switch-search |
+| LMC Home | `0x7D13/7D18/7D19` | Active/Limited | `0x7D19`가 snapshot만 반환하고 `ZeroHomeState`를 비우지 않던 same-boot 반복 실행 직접 원인 수정, generation 보존 actual retire 반영; old-boot 완전 terminal startup 정리 및 v2 receipt layout 수정; MoveReference mode 2..4 입력 구현, WPF moving timeout 기본 60000 ms; Block fail-closed; IDE build/download 및 반복/mode별 실기 확인 대기 |
 | DS402 Home | `0x7D15/7D16/7D17` | Active/Limited | standard method/API/parameter 구현 완료; Method 37 사용자 실기 확인, moving method 개별 qualification 대기 |
 | SetPosition | `0x7D12/7D14/7D1A` | Dormant | volatile store, runtime/native execution fail-closed |
 | HomeDS402Ex | `0x7D1B/7D1C/7D1D` | Dormant | physical runtime no-op, bit 11 OFF |

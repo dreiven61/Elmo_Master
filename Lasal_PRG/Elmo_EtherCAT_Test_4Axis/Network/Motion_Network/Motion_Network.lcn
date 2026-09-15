@@ -4933,6 +4933,24 @@
 				<Client Name="Simul_Axis_9" DrawChnConn="Text"/>
 			</Channels>
 		</Object>
+		<Object
+			Name       = "TestClass1"
+			GUID       = "{07146987-8834-4C58-8C7C-DA0A3B2162EC}"
+			Class      = "TestClass"
+			Position   = "(2580,600)"
+			Visualized = "false">
+			<Channels>
+				<Server Name="ClassSvr"/>
+				<Server Name="Server"/>
+				<Server Name="Server0"/>
+				<Server Name="Server1"/>
+				<Server Name="Server2"/>
+				<Server Name="Server3"/>
+				<Server Name="Server4"/>
+				<Server Name="Server5"/>
+				<Server Name="Server6"/>
+			</Channels>
+		</Object>
 	</Components>
 	<Comments>
 	</Comments>
@@ -5041,6 +5059,10 @@
 		<Connection Source="DriveAxisDS4021.VelocityActualValue" Destination="WELCON_11.TxPDO9_VelocityActualValue2"/>
 		<Connection Source="DriveAxisDS4021.Online" Destination="WELCON_11.Online"/>
 		<Connection Source="_LMCAxis4.HWReady" Destination="Elmo_41.Online"/>
+		<Connection Source="_LMCAxis1.HWMin" Destination="TestClass1.Server" Vertices="(3090,750),(2880,750),"/>
+		<Connection Source="_LMCAxis1.HWMax" Destination="TestClass1.Server0" Vertices="(3090,810),(2880,810),"/>
+		<Connection Source="_LMCAxis1.ZImpulse" Destination="TestClass1.Server1" Vertices="(3090,870),(2880,870),"/>
+		<Connection Source="_LMCAxis1.RefSwitch" Destination="TestClass1.Server2" Vertices="(3090,930),(2880,930),"/>
 	</Connections>
 	<!-- Headerfiles -->
 	<Options>

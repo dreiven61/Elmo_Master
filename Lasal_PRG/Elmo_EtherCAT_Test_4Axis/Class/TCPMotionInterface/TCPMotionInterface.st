@@ -2413,6 +2413,8 @@ FUNCTION TCPMotionInterface::MsgPaser
 		controlAdmissionToken : UDINT;
 		controlOwnerGeneration : UDINT;
 		controlAdmissionResult : DINT;
+		controlRollbackResult : DINT;
+		controlPublishResult : DINT;
 		controlOwnerKind : UINT;
 		controlResourceKind : UINT;
 		controlAdmissionMode : UINT;
@@ -2920,7 +2922,9 @@ case CommandID of
     controlEffectiveAxisMask := 0;
     controlAdmissionToken := 0;
     controlOwnerGeneration := 0;
-    controlAdmissionResult := -1;
+	  controlAdmissionResult := -1;
+	  controlRollbackResult := -1;
+	  controlPublishResult := -1;
     controlOwnerKind := 0;
     controlResourceKind := 0;
     controlAdmissionMode := 0;
@@ -2957,7 +2961,8 @@ case CommandID of
 		  LMC_OWNER_SAFETY_PENDING_GENERATION_OFFSET]$UDINT;
 	  else
 
-    if (CommandID = 0x7D13) & (Payload = 56) then
+    if (CommandID = 0x7D13) &
+       ((Payload = 56) | (Payload = 76)) then
       case AxisRef of
         1: controlAxisMask := 0x00000001;
         2: controlAxisMask := 0x00000002;
@@ -3396,6 +3401,29 @@ case CommandID of
         Sendbuf[20]$UDINT := 42;
         controlResponseSize := 24;
       end_if;
+	  if (CommandID = 0x7D13) & controlExactFailure then
+		controlRollbackResult := ControlCommands.RollbackAxisOwnership(
+		  AdmissionToken:=controlAdmissionToken,
+		  OwnerGeneration:=controlOwnerGeneration,
+		  CallerSessionEpoch:=ActiveRequest.SessionEpoch,
+		  RequestSequence:=ActiveRequest.Sequence,
+		  Reason:=0);
+		if controlRollbackResult <> 0 then
+		  controlPublishResult := ControlCommands.PublishAxisOwnership(
+			AxisMask:=controlEffectiveAxisMask,
+			AdmissionToken:=controlAdmissionToken,
+			OwnerGeneration:=controlOwnerGeneration,
+			ReportKind:=4,
+			ReportValue0:=TO_UDINT(controlRollbackResult),
+			ReportValue1:=42,
+			ObservationCycle:=ActiveRequest.Sequence);
+		  if controlPublishResult <> 0 then
+			ActiveRequest.Reserved := 2;
+			ActiveRequestValid := TRUE;
+			RETURN;
+		  end_if;
+		end_if;
+	  end_if;
     end_if;
 
       if (controlResponseSize <= 0) |

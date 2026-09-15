@@ -760,15 +760,14 @@ namespace LasalApiWpfTestApp.SmokeTests
                     AssertEx.Equal(0, parameters.TorqueLimit);
 
                     window.TextLmcHomeTimeout.Text = "100";
-                    var lmcParameters = window.ReadLmcHomeParameters(-123);
-                    AssertEx.Equal(-123, lmcParameters.ExpectedActualPosition);
-                    AssertEx.Equal(0, lmcParameters.TargetPosition);
-                    AssertEx.Equal(
-                        LMCHomeSemanticMode.CurrentPositionZero,
-                        lmcParameters.SemanticMode);
+                    window.TextLmcHomePosition.Text = "-123";
+                    var lmcParameters = window.ReadLmcHomeParameters();
+                    AssertEx.Equal(-123, lmcParameters.Position);
+                    AssertEx.Equal(LMCHomeMode.Direct, lmcParameters.HomingMode);
+                    AssertEx.Equal(0, lmcParameters.Velocity);
                     window.TextLmcHomeTimeout.Text = "99";
                     AssertEx.Throws<ArgumentOutOfRangeException>(
-                        () => window.ReadLmcHomeParameters(-123));
+                        () => window.ReadLmcHomeParameters());
                 });
         }
 

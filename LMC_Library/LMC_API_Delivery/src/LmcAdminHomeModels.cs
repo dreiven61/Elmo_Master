@@ -10,7 +10,8 @@ namespace LasalMotionControlLib
     /// </summary>
     public enum LMCHomeSemanticMode : ushort
     {
-        CurrentPositionZero = 1
+        CurrentPositionZero = 1,
+        GenericHome = 2
     }
 
     /// <summary>
@@ -204,6 +205,66 @@ namespace LasalMotionControlLib
             ExpectedActualPosition = expectedActualPosition;
             TimeoutMilliseconds = timeoutMilliseconds;
             SemanticMode = semanticMode;
+            HomeContractVersion = 1;
+            Parameters = LMCHomeParameters.CreateLegacyCurrentPositionZero(
+                expectedActualPosition,
+                timeoutMilliseconds);
+        }
+
+        public LMCHomeRecoveryKey(
+            ushort schemaVersion,
+            uint originalRequestId,
+            uint diagnosticsBuild,
+            uint originalDiagnosticsBootId,
+            uint mapRevision,
+            LMCHomeClientIntentId clientIntentId,
+            ushort axisReference,
+            LMCHomeParameters parameters)
+        {
+            if (schemaVersion != LMCAdmin.ProtocolSchemaVersion)
+            {
+                throw new ArgumentOutOfRangeException("schemaVersion");
+            }
+            if (originalRequestId == 0)
+            {
+                throw new ArgumentOutOfRangeException("originalRequestId");
+            }
+            if (diagnosticsBuild == 0)
+            {
+                throw new ArgumentOutOfRangeException("diagnosticsBuild");
+            }
+            if (originalDiagnosticsBootId == 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "originalDiagnosticsBootId");
+            }
+            if (mapRevision == 0)
+            {
+                throw new ArgumentOutOfRangeException("mapRevision");
+            }
+            if (clientIntentId == null)
+            {
+                throw new ArgumentNullException("clientIntentId");
+            }
+            if (parameters == null)
+            {
+                throw new ArgumentNullException("parameters");
+            }
+
+            LMC_AdminFrame.ValidateAxisReference(axisReference);
+            LMC_AdminFrame.ValidateLmcHome(parameters);
+            SchemaVersion = schemaVersion;
+            OriginalRequestId = originalRequestId;
+            DiagnosticsBuild = diagnosticsBuild;
+            OriginalDiagnosticsBootId = originalDiagnosticsBootId;
+            MapRevision = mapRevision;
+            ClientIntentId = clientIntentId;
+            AxisReference = axisReference;
+            HomeContractVersion = 2;
+            Parameters = parameters;
+            ExpectedActualPosition = 0;
+            TimeoutMilliseconds = parameters.TimeoutMilliseconds;
+            SemanticMode = LMCHomeSemanticMode.GenericHome;
         }
 
         public ushort SchemaVersion { get; private set; }
@@ -222,7 +283,12 @@ namespace LasalMotionControlLib
         public uint ClientIntentId3 { get { return ClientIntentId.Word3; } }
         public ushort AxisReference { get; private set; }
         public int ExpectedActualPosition { get; private set; }
-        public int TargetPosition { get { return 0; } }
+        public ushort HomeContractVersion { get; private set; }
+        public LMCHomeParameters Parameters { get; private set; }
+        public int TargetPosition
+        {
+            get { return HomeContractVersion == 1 ? 0 : Parameters.Position; }
+        }
         public int TimeoutMilliseconds { get; private set; }
         public LMCHomeSemanticMode SemanticMode { get; private set; }
 
@@ -239,7 +305,9 @@ namespace LasalMotionControlLib
                 && AxisReference == other.AxisReference
                 && ExpectedActualPosition == other.ExpectedActualPosition
                 && TimeoutMilliseconds == other.TimeoutMilliseconds
-                && SemanticMode == other.SemanticMode;
+                && SemanticMode == other.SemanticMode
+                && HomeContractVersion == other.HomeContractVersion
+                && ParametersEqual(Parameters, other.Parameters);
         }
 
         public override bool Equals(object obj)
@@ -262,8 +330,42 @@ namespace LasalMotionControlLib
                 hash = (hash * 397) ^ ExpectedActualPosition;
                 hash = (hash * 397) ^ TimeoutMilliseconds;
                 hash = (hash * 397) ^ SemanticMode.GetHashCode();
+                hash = (hash * 397) ^ HomeContractVersion.GetHashCode();
+                if (HomeContractVersion == 2)
+                {
+                    hash = (hash * 397) ^ Parameters.Position;
+                    hash = (hash * 397) ^ Parameters.Velocity;
+                    hash = (hash * 397) ^ Parameters.Acceleration;
+                    hash = (hash * 397) ^ Parameters.DistanceLimit;
+                    hash = (hash * 397) ^ Parameters.TorqueLimit;
+                    hash = (hash * 397) ^ Parameters.HomingMode.GetHashCode();
+                    hash = (hash * 397) ^ Parameters.BufferMode.GetHashCode();
+                    hash = (hash * 397) ^ Parameters.Direction.GetHashCode();
+                    hash = (hash * 397) ^ Parameters.SwitchMode.GetHashCode();
+                }
                 return hash;
             }
+        }
+
+        private static bool ParametersEqual(
+            LMCHomeParameters left,
+            LMCHomeParameters right)
+        {
+            return ReferenceEquals(left, right)
+                || (left != null
+                    && right != null
+                    && left.Position == right.Position
+                    && left.Velocity == right.Velocity
+                    && left.Acceleration == right.Acceleration
+                    && left.DistanceLimit == right.DistanceLimit
+                    && left.TorqueLimit == right.TorqueLimit
+                    && left.HomingMode == right.HomingMode
+                    && left.BufferMode == right.BufferMode
+                    && left.Direction == right.Direction
+                    && left.SwitchMode == right.SwitchMode
+                    && left.TimeoutMilliseconds == right.TimeoutMilliseconds
+                    && left.IsLegacyCurrentPositionZero
+                        == right.IsLegacyCurrentPositionZero);
         }
     }
 
@@ -341,7 +443,12 @@ namespace LasalMotionControlLib
         {
             get { return RecoveryKey.ExpectedActualPosition; }
         }
-        public int TargetPosition { get { return 0; } }
+        public ushort HomeContractVersion
+        {
+            get { return RecoveryKey.HomeContractVersion; }
+        }
+        public LMCHomeParameters Parameters { get { return RecoveryKey.Parameters; } }
+        public int TargetPosition { get { return RecoveryKey.TargetPosition; } }
         public int TimeoutMilliseconds
         {
             get { return RecoveryKey.TimeoutMilliseconds; }
@@ -528,11 +635,108 @@ namespace LasalMotionControlLib
                 && stopState == 0
                 && recordGeneration != 0;
         }
+
+        internal static bool IsSucceeded(
+            LMCHomeRecoveryKey recoveryKey,
+            bool responseSucceeded,
+            LMCHomeOutcomeRecordState recordState,
+            ushort originalCommandStatus,
+            short originalErrorId,
+            uint originalDetailCode,
+            uint axisStatus,
+            int axisError,
+            int rawDrivePositionBefore,
+            int rawDrivePositionAfter,
+            int actualApplicationPositionAfter,
+            int setApplicationPositionAfter,
+            int actualInternalPositionAfter,
+            int setInternalPositionAfter,
+            int destinationInternalPositionAfter,
+            int masterInternalPositionAfter,
+            uint nativeCommandState,
+            uint evidenceFlags,
+            uint startMilliseconds,
+            uint completionMilliseconds,
+            uint stopState,
+            uint recordGeneration)
+        {
+            if (recoveryKey == null || recoveryKey.HomeContractVersion == 1)
+            {
+                return IsSucceeded(
+                    responseSucceeded,
+                    recordState,
+                    originalCommandStatus,
+                    originalErrorId,
+                    originalDetailCode,
+                    axisStatus,
+                    axisError,
+                    rawDrivePositionBefore,
+                    rawDrivePositionAfter,
+                    actualApplicationPositionAfter,
+                    setApplicationPositionAfter,
+                    actualInternalPositionAfter,
+                    setInternalPositionAfter,
+                    destinationInternalPositionAfter,
+                    masterInternalPositionAfter,
+                    nativeCommandState,
+                    evidenceFlags,
+                    startMilliseconds,
+                    completionMilliseconds,
+                    stopState,
+                    recordGeneration);
+            }
+
+            var parameters = recoveryKey.Parameters;
+            if (parameters.HomingMode != LMCHomeMode.Direct)
+            {
+                return responseSucceeded
+                    && recordState == LMCHomeOutcomeRecordState.Succeeded
+                    && originalCommandStatus == 0
+                    && originalErrorId == 0
+                    && originalDetailCode == 0
+                    && (axisStatus & AxisStandstillMask) != 0
+                    && axisError == 0
+                    && nativeCommandState == 0
+                    && startMilliseconds != 0
+                    && completionMilliseconds != 0
+                    && recordGeneration != 0;
+            }
+
+            var position = parameters.Position;
+            return responseSucceeded
+                && recordState == LMCHomeOutcomeRecordState.Succeeded
+                && originalCommandStatus == 0
+                && originalErrorId == 0
+                && originalDetailCode == 0
+                && (axisStatus & AxisStandstillMask) != 0
+                && axisError == 0
+                && IsRawDriveStationary(
+                    rawDrivePositionBefore,
+                    rawDrivePositionAfter)
+                && actualApplicationPositionAfter == position
+                && setApplicationPositionAfter == position
+                && actualInternalPositionAfter == setInternalPositionAfter
+                && actualInternalPositionAfter
+                    == destinationInternalPositionAfter
+                && nativeCommandState == 0
+                && evidenceFlags == RequiredEvidenceFlags
+                && startMilliseconds != 0
+                && completionMilliseconds != 0
+                && stopState == 0
+                && recordGeneration != 0;
+        }
+
+        private static bool IsRawDriveStationary(int before, int after)
+        {
+            var delta = unchecked((uint)(after - before));
+            return delta <= 2u || delta >= 0xFFFFFFFEu;
+        }
     }
 
     /// <summary>
     /// Exact retained LMC_Home runtime record. Only HomeSucceeded proves a
-    /// completed CurrentPositionZero operation. Start ACK is insufficient.
+    /// completed v1 CurrentPositionZero or v2 Direct operation. Start ACK is
+    /// insufficient.
     /// </summary>
     public sealed class LMCHomeOutcomeResult
     {
@@ -643,6 +847,7 @@ namespace LasalMotionControlLib
             get
             {
                 return LMCHomeOutcomeSemantics.IsSucceeded(
+                    RecoveryKey,
                     Response != null && Response.IsSuccess,
                     RecordState,
                     OriginalCommandStatus,

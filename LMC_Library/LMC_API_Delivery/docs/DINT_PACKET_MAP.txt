@@ -403,6 +403,36 @@ Admin feature bit 4 AxisHome is indivisible: it implies 0x7D13/0x7D18/0x7D19 and
 ErrorCatalogVersion>=5. Gate/bit activation is source availability only; F9,
 download, same-core task placement and PLC/pcap proof remain separate evidence.
 
+LMC_Home generic contract v2 coexists with the legacy payloads above. The v2
+Start/Query/Retire request payload lengths are 76/80/84 bytes. Their common
+parameter tail starts at P36 for Start and P44 for Query/Retire:
+  ContractVersion U16=2, HomingMode U16, Position DINT, Velocity DINT,
+  Acceleration DINT, DistanceLimit DINT, TorqueLimit DINT, BufferMode U16,
+  Direction U16, SwitchMode U16, Reserved U16=0, TimeoutMilliseconds U32.
+Start appends ExecuteToken at P72. Retire appends RecordGeneration at P80.
+The v2 success outcome is 164 bytes: P16 State, P18 ContractVersion=2,
+P20..P48 exact retained identity, P52 AxisReference, P54 HomingMode,
+P56..P84 the exact parameter set, P88 OriginalStatus, P90 OriginalError,
+P92 OriginalDetail, P96 AxisStatus, P100 AxisError, P104/P108 raw before/after,
+P112..P132 application/internal/destination/master positions, P136 NativeState,
+P140 EvidenceFlags, P144/P148 start/completion time, P152 StopState,
+P156 RuntimePhase and P160 RecordGeneration.
+Current source activation supports HomingMode=1 Direct and the LASAL
+MoveReference modes 2 AbsoluteSwitch, 3 LimitSwitch and 4 ReferencePulse.
+For modes 2..4, Velocity maps to VRef1, TorqueLimit maps to VRef2,
+Acceleration maps to Accel and DistanceLimit maps to PositionWindow. These
+legacy field names remain on the wire for v2 size compatibility. VRef1, VRef2
+and Accel must be positive; PositionWindow must be non-negative. Direction is
+Positive or Negative. AbsoluteSwitch requires SwitchMode=On; LimitSwitch and
+ReferencePulse require NotApplicable. RefJerk remains zero because v2 has no
+slot for it. HomingMode=5 Block remains fail-closed. Direct uses zero motion
+fields and NotApplicable direction/switch and does not apply the legacy
+stale-read guard. Source activation is not build/download or physical proof.
+If the 0x7D13 service returns an exact rejection before accepting the Home
+mailbox/native boundary, the TCP facade rolls back only that request's exact
+new reservation. A rollback uncertainty is quarantined. The facade never
+clears an older Home record and never replays Start.
+
 0x7D15 StartAxisDs402Home, request payload 72 bytes, Reference=axis 1..4:
 P8  ExpectedDiagnosticsBuild U32, nonzero
 P12 ExpectedDiagnosticsBootId U32, nonzero

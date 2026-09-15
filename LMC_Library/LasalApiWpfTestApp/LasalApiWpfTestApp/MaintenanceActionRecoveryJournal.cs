@@ -515,7 +515,7 @@ namespace LasalMotionControlApiExample
                     && !HasExactLmcHomeSemantic(actionParameters))
                 {
                     throw new ArgumentException(
-                        "The LMC Home recovery record must identify the exact CurrentPositionZero semantic.",
+                        "The LMC Home recovery record must identify an exact supported v1 or v2 semantic.",
                         "actionParameters");
                 }
 
@@ -1069,7 +1069,7 @@ namespace LasalMotionControlApiExample
                             result.ActionParameters)))
                 {
                     throw new InvalidDataException(
-                        "Current maintenance recovery format requires an exact LMC Home CurrentPositionZero identity.");
+                        "Current maintenance recovery format requires an exact supported LMC Home v1 or v2 identity.");
                 }
 
                 if (formatVersion == FormatVersion
@@ -1105,36 +1105,83 @@ namespace LasalMotionControlApiExample
             string actionParameters)
         {
             Dictionary<string, string> values;
-            if (!TryParseExactParameters(
-                    actionParameters,
-                    5,
-                    out values))
+            if (TryParseExactParameters(actionParameters, 5, out values))
+            {
+                uint legacySchema;
+                int targetPosition;
+                int expectedActualPosition;
+                uint legacyTimeout;
+                return TryReadUInt(values, "Schema", out legacySchema)
+                    && legacySchema == 1
+                    && HasValue(values, "Semantic", "CurrentPositionZero")
+                    && TryReadInt(values, "TargetPosition", out targetPosition)
+                    && targetPosition == 0
+                    && TryReadInt(
+                        values,
+                        "ExpectedActualPosition",
+                        out expectedActualPosition)
+                    && TryReadUInt(values, "TimeoutMs", out legacyTimeout)
+                    && legacyTimeout >= 100
+                    && legacyTimeout <= 5000;
+            }
+
+            uint schema;
+            uint contract;
+            int homingMode;
+            int position;
+            int velocity;
+            int acceleration;
+            int distanceLimit;
+            int torqueLimit;
+            int bufferMode;
+            int direction;
+            int switchMode;
+            uint timeout;
+            if (!TryParseExactParameters(actionParameters, 12, out values))
             {
                 return false;
             }
 
-            uint schema;
-            int targetPosition;
-            int expectedActualPosition;
-            uint timeout;
-            return TryReadUInt(values, "Schema", out schema)
-                && schema == 1
-                && HasValue(
-                    values,
-                    "Semantic",
-                    "CurrentPositionZero")
-                && TryReadInt(
-                    values,
-                    "TargetPosition",
-                    out targetPosition)
-                && targetPosition == 0
-                && TryReadInt(
-                    values,
-                    "ExpectedActualPosition",
-                    out expectedActualPosition)
-                && TryReadUInt(values, "TimeoutMs", out timeout)
-                && timeout >= 100
-                && timeout <= 5000;
+            if (!TryReadUInt(values, "Schema", out schema)
+                || schema != 1
+                || !TryReadUInt(values, "Contract", out contract)
+                || contract != 2
+                || !TryReadInt(values, "HomingMode", out homingMode)
+                || homingMode < 1
+                || homingMode > 4
+                || !TryReadInt(values, "Position", out position)
+                || !TryReadInt(values, "Velocity", out velocity)
+                || !TryReadInt(values, "Acceleration", out acceleration)
+                || !TryReadInt(values, "DistanceLimit", out distanceLimit)
+                || !TryReadInt(values, "TorqueLimit", out torqueLimit)
+                || !TryReadInt(values, "BufferMode", out bufferMode)
+                || bufferMode != 1
+                || !TryReadInt(values, "Direction", out direction)
+                || !TryReadInt(values, "SwitchMode", out switchMode)
+                || !TryReadUInt(values, "TimeoutMs", out timeout)
+                || timeout < 100
+                || timeout > 300000)
+            {
+                return false;
+            }
+
+            if (homingMode == 1)
+            {
+                return velocity == 0
+                    && acceleration == 0
+                    && distanceLimit == 0
+                    && torqueLimit == 0
+                    && direction == 0
+                    && switchMode == 0;
+            }
+
+            return velocity > 0
+                && acceleration > 0
+                && distanceLimit >= 0
+                && torqueLimit > 0
+                && (direction == 1 || direction == 2)
+                && ((homingMode == 2 && switchMode == 1)
+                    || (homingMode > 2 && switchMode == 0));
         }
 
         private static bool HasExactDs402HomeSemantic(

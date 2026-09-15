@@ -284,9 +284,10 @@ FUNCTION GLOBAL TAB ONE_EtherCAT_Network
 -1$UINT, 0$UINT, 
 0$UINT, 0$UINT,
 
-25$UDINT,
+26$UDINT,
 TO_UDINT(34287727), "_SyncMeasure", 1$UINT, 4$UINT, 0$UINT,
 TO_UDINT(820122881), "_SyncMeasureECAT", 1$UINT, 3$UINT, 1$UINT,
+TO_UDINT(3683474287), "Byte_to_Bit", 0$UINT, 0$UINT, 1$UINT,
 TO_UDINT(861770287), "ECAT_DS402Base", 1$UINT, 2$UINT, 0$UINT,
 TO_UDINT(4097056936), "ECAT_Master_Base", 2$UINT, 3$UINT, 0$UINT,
 TO_UDINT(1515440174), "ECAT_Slave_Base", 2$UINT, 1$UINT, 0$UINT,
@@ -313,6 +314,8 @@ TO_UDINT(2662678246), "WELCON_1", 0$UINT, 0$UINT, 1$UINT,
 
 
 1$UINT, TO_UDINT(1058685178), "ETHERCAT_PLC1\_BASE\_SYNCMEASUREECAT1", 
+
+_NO_ATTR, TO_UDINT(1577721381), "BYTE_TO_BIT1", 
 
 
 
@@ -411,41 +414,40 @@ _NO_ATTR, TO_UDINT(3391823300), "WELCON_11",
 //Internal connections
 0$UDINT,
 57$UDINT,
-TO_UDINT(0), "GetCILInterfacePLL", TO_UDINT(19),
-TO_UDINT(1), "GetCILInterface_ECAT", TO_UDINT(14),
-TO_UDINT(1), "DeviceNameStr", TO_UDINT(52),
-TO_UDINT(1), "ProductRevStr", TO_UDINT(53),
-TO_UDINT(1), "EtherCAT_Hub_Base_1", TO_UDINT(5),
+TO_UDINT(0), "GetCILInterfacePLL", TO_UDINT(20),
 TO_UDINT(2), "GetCILInterface_ECAT", TO_UDINT(15),
-TO_UDINT(2), "DeviceNameStr", TO_UDINT(54),
-TO_UDINT(2), "ProductRevStr", TO_UDINT(55),
+TO_UDINT(2), "DeviceNameStr", TO_UDINT(53),
+TO_UDINT(2), "ProductRevStr", TO_UDINT(54),
 TO_UDINT(2), "EtherCAT_Hub_Base_1", TO_UDINT(6),
 TO_UDINT(3), "GetCILInterface_ECAT", TO_UDINT(16),
-TO_UDINT(3), "DeviceNameStr", TO_UDINT(56),
-TO_UDINT(3), "ProductRevStr", TO_UDINT(57),
+TO_UDINT(3), "DeviceNameStr", TO_UDINT(55),
+TO_UDINT(3), "ProductRevStr", TO_UDINT(56),
 TO_UDINT(3), "EtherCAT_Hub_Base_1", TO_UDINT(7),
 TO_UDINT(4), "GetCILInterface_ECAT", TO_UDINT(17),
-TO_UDINT(4), "DeviceNameStr", TO_UDINT(58),
-TO_UDINT(4), "ProductRevStr", TO_UDINT(59),
+TO_UDINT(4), "DeviceNameStr", TO_UDINT(57),
+TO_UDINT(4), "ProductRevStr", TO_UDINT(58),
 TO_UDINT(4), "EtherCAT_Hub_Base_1", TO_UDINT(8),
-TO_UDINT(12), "GetCILInterface_ECAT", TO_UDINT(18),
-TO_UDINT(12), "strSoftwareVersion", TO_UDINT(60),
-TO_UDINT(12), "_SyncMeasureECAT1", TO_UDINT(0),
-TO_UDINT(12), "EtherCAT_Hub_Base1", TO_UDINT(9),
-TO_UDINT(24), "GetCILInterface_ECAT", TO_UDINT(20),
-TO_UDINT(24), "DeviceNameStr", TO_UDINT(61),
-TO_UDINT(24), "ProductRevStr", TO_UDINT(62),
-TO_UDINT(24), "EtherCATSlot_Hub_Base1", TO_UDINT(13),
-TO_UDINT(24), "EtherCAT_Hub_Base_1", TO_UDINT(10),
-TO_UDINT(25), "GetCILInterfaceECAT_SlotBase", TO_UDINT(21),
+TO_UDINT(5), "GetCILInterface_ECAT", TO_UDINT(18),
+TO_UDINT(5), "DeviceNameStr", TO_UDINT(59),
+TO_UDINT(5), "ProductRevStr", TO_UDINT(60),
+TO_UDINT(5), "EtherCAT_Hub_Base_1", TO_UDINT(9),
+TO_UDINT(13), "GetCILInterface_ECAT", TO_UDINT(19),
+TO_UDINT(13), "strSoftwareVersion", TO_UDINT(61),
+TO_UDINT(13), "_SyncMeasureECAT1", TO_UDINT(0),
+TO_UDINT(13), "EtherCAT_Hub_Base1", TO_UDINT(10),
+TO_UDINT(25), "GetCILInterface_ECAT", TO_UDINT(21),
+TO_UDINT(25), "DeviceNameStr", TO_UDINT(62),
+TO_UDINT(25), "ProductRevStr", TO_UDINT(63),
+TO_UDINT(25), "EtherCATSlot_Hub_Base1", TO_UDINT(14),
+TO_UDINT(25), "EtherCAT_Hub_Base_1", TO_UDINT(11),
 TO_UDINT(26), "GetCILInterfaceECAT_SlotBase", TO_UDINT(22),
-TO_UDINT(27), "strSDOParaString", TO_UDINT(63),
+TO_UDINT(27), "GetCILInterfaceECAT_SlotBase", TO_UDINT(23),
 TO_UDINT(28), "strSDOParaString", TO_UDINT(64),
 TO_UDINT(29), "strSDOParaString", TO_UDINT(65),
 TO_UDINT(30), "strSDOParaString", TO_UDINT(66),
 TO_UDINT(31), "strSDOParaString", TO_UDINT(67),
 TO_UDINT(32), "strSDOParaString", TO_UDINT(68),
-TO_UDINT(52), "MerkerEx0", TO_UDINT(33),
+TO_UDINT(33), "strSDOParaString", TO_UDINT(69),
 TO_UDINT(53), "MerkerEx0", TO_UDINT(34),
 TO_UDINT(54), "MerkerEx0", TO_UDINT(35),
 TO_UDINT(55), "MerkerEx0", TO_UDINT(36),
@@ -464,34 +466,35 @@ TO_UDINT(67), "MerkerEx0", TO_UDINT(48),
 TO_UDINT(68), "MerkerEx0", TO_UDINT(49),
 TO_UDINT(69), "MerkerEx0", TO_UDINT(50),
 TO_UDINT(70), "MerkerEx0", TO_UDINT(51),
-TO_UDINT(71), "GetCILInterface_ECAT", TO_UDINT(23),
-TO_UDINT(71), "DeviceNameStr", TO_UDINT(69),
-TO_UDINT(71), "ProductRevStr", TO_UDINT(70),
-TO_UDINT(71), "EtherCAT_Hub_Base_1", TO_UDINT(11),
+TO_UDINT(71), "MerkerEx0", TO_UDINT(52),
+TO_UDINT(72), "GetCILInterface_ECAT", TO_UDINT(24),
+TO_UDINT(72), "DeviceNameStr", TO_UDINT(70),
+TO_UDINT(72), "ProductRevStr", TO_UDINT(71),
+TO_UDINT(72), "EtherCAT_Hub_Base_1", TO_UDINT(12),
 0$UDINT,
-41$UDINT,
-TO_UDINT(1), "toMaster", TO_UDINT(10), "ClassSvr",
-TO_UDINT(2), "toMaster", TO_UDINT(5), "ClassSvr",
+42$UDINT,
+TO_UDINT(1), "fromByte", TO_UDINT(26), "InputS_Byte0",
+TO_UDINT(2), "toMaster", TO_UDINT(11), "ClassSvr",
 TO_UDINT(3), "toMaster", TO_UDINT(6), "ClassSvr",
 TO_UDINT(4), "toMaster", TO_UDINT(7), "ClassSvr",
-TO_UDINT(5), "toNextEtherCAT", TO_UDINT(1), "ClassState",
+TO_UDINT(5), "toMaster", TO_UDINT(8), "ClassSvr",
 TO_UDINT(6), "toNextEtherCAT", TO_UDINT(2), "ClassState",
 TO_UDINT(7), "toNextEtherCAT", TO_UDINT(3), "ClassState",
 TO_UDINT(8), "toNextEtherCAT", TO_UDINT(4), "ClassState",
-TO_UDINT(9), "toNextEtherCAT", TO_UDINT(12), "ClassState",
-TO_UDINT(10), "toNextEtherCAT", TO_UDINT(24), "ClassState",
-TO_UDINT(11), "toNextEtherCAT", TO_UDINT(71), "ClassState",
-TO_UDINT(13), "toNextEtherCAT", TO_UDINT(24), "ClassState",
-TO_UDINT(24), "toMaster", TO_UDINT(9), "ClassSvr",
-TO_UDINT(25), "ECATSlotIn", TO_UDINT(13), "ClassSvr",
-TO_UDINT(26), "ECATSlotIn", TO_UDINT(13), "ClassSvr",
-TO_UDINT(27), "toSlave", TO_UDINT(1), "ClassState",
+TO_UDINT(9), "toNextEtherCAT", TO_UDINT(5), "ClassState",
+TO_UDINT(10), "toNextEtherCAT", TO_UDINT(13), "ClassState",
+TO_UDINT(11), "toNextEtherCAT", TO_UDINT(25), "ClassState",
+TO_UDINT(12), "toNextEtherCAT", TO_UDINT(72), "ClassState",
+TO_UDINT(14), "toNextEtherCAT", TO_UDINT(25), "ClassState",
+TO_UDINT(25), "toMaster", TO_UDINT(10), "ClassSvr",
+TO_UDINT(26), "ECATSlotIn", TO_UDINT(14), "ClassSvr",
+TO_UDINT(27), "ECATSlotIn", TO_UDINT(14), "ClassSvr",
 TO_UDINT(28), "toSlave", TO_UDINT(2), "ClassState",
 TO_UDINT(29), "toSlave", TO_UDINT(3), "ClassState",
 TO_UDINT(30), "toSlave", TO_UDINT(4), "ClassState",
-TO_UDINT(31), "toSlave", TO_UDINT(71), "ClassState",
-TO_UDINT(32), "toSlave", TO_UDINT(71), "ClassState",
-TO_UDINT(52), "DataBuffer", TO_UDINT(33), "m_udLength",
+TO_UDINT(31), "toSlave", TO_UDINT(5), "ClassState",
+TO_UDINT(32), "toSlave", TO_UDINT(72), "ClassState",
+TO_UDINT(33), "toSlave", TO_UDINT(72), "ClassState",
 TO_UDINT(53), "DataBuffer", TO_UDINT(34), "m_udLength",
 TO_UDINT(54), "DataBuffer", TO_UDINT(35), "m_udLength",
 TO_UDINT(55), "DataBuffer", TO_UDINT(36), "m_udLength",
@@ -510,129 +513,130 @@ TO_UDINT(67), "DataBuffer", TO_UDINT(48), "m_udLength",
 TO_UDINT(68), "DataBuffer", TO_UDINT(49), "m_udLength",
 TO_UDINT(69), "DataBuffer", TO_UDINT(50), "m_udLength",
 TO_UDINT(70), "DataBuffer", TO_UDINT(51), "m_udLength",
-TO_UDINT(71), "toMaster", TO_UDINT(8), "ClassSvr",
+TO_UDINT(71), "DataBuffer", TO_UDINT(52), "m_udLength",
+TO_UDINT(72), "toMaster", TO_UDINT(9), "ClassSvr",
 
 //Initialization values
 0$UDINT,
 118$UDINT,
 TO_UDINT(0), "divisor", TO_UDINT(4),//|EtherCAT_Network._base\EtherCAT_PLC1\_SyncMeasureECAT1.divisor;
 TO_UDINT(0), "PhaseRegDamping", TO_UDINT(0),//|EtherCAT_Network._base\EtherCAT_PLC1\_SyncMeasureECAT1.PhaseRegDamping;
-TO_UDINT(1), "SlaveIndex", TO_UDINT(1),//|EtherCAT_Network.Elmo_11.SlaveIndex;
-TO_UDINT(1), "Required", TO_UDINT(1),//|EtherCAT_Network.Elmo_11.Required;
-TO_UDINT(1), "NoSDOBuffer", TO_UDINT(0),//|EtherCAT_Network.Elmo_11.NoSDOBuffer;
-TO_UDINT(1), "NoAsyncBuffer", TO_UDINT(0),//|EtherCAT_Network.Elmo_11.NoAsyncBuffer;
-TO_UDINT(1), "NoSSCBuffer", TO_UDINT(0),//|EtherCAT_Network.Elmo_11.NoSSCBuffer;
-TO_UDINT(1), "UseDefaultEnableSequence", TO_UDINT(1),//|EtherCAT_Network.Elmo_11.UseDefaultEnableSequence;
-TO_UDINT(2), "SlaveIndex", TO_UDINT(DEACTIVATED_LSL),//|EtherCAT_Network.Elmo_21.SlaveIndex;
-TO_UDINT(2), "Required", TO_UDINT(1),//|EtherCAT_Network.Elmo_21.Required;
-TO_UDINT(2), "NoSDOBuffer", TO_UDINT(0),//|EtherCAT_Network.Elmo_21.NoSDOBuffer;
-TO_UDINT(2), "NoAsyncBuffer", TO_UDINT(0),//|EtherCAT_Network.Elmo_21.NoAsyncBuffer;
-TO_UDINT(2), "NoSSCBuffer", TO_UDINT(0),//|EtherCAT_Network.Elmo_21.NoSSCBuffer;
-TO_UDINT(2), "UseDefaultEnableSequence", TO_UDINT(1),//|EtherCAT_Network.Elmo_21.UseDefaultEnableSequence;
-TO_UDINT(3), "SlaveIndex", TO_UDINT(DEACTIVATED_LSL),//|EtherCAT_Network.Elmo_31.SlaveIndex;
-TO_UDINT(3), "Required", TO_UDINT(1),//|EtherCAT_Network.Elmo_31.Required;
-TO_UDINT(3), "NoSDOBuffer", TO_UDINT(0),//|EtherCAT_Network.Elmo_31.NoSDOBuffer;
-TO_UDINT(3), "NoAsyncBuffer", TO_UDINT(0),//|EtherCAT_Network.Elmo_31.NoAsyncBuffer;
-TO_UDINT(3), "NoSSCBuffer", TO_UDINT(0),//|EtherCAT_Network.Elmo_31.NoSSCBuffer;
-TO_UDINT(3), "UseDefaultEnableSequence", TO_UDINT(1),//|EtherCAT_Network.Elmo_31.UseDefaultEnableSequence;
-TO_UDINT(4), "SlaveIndex", TO_UDINT(DEACTIVATED_LSL),//|EtherCAT_Network.Elmo_41.SlaveIndex;
-TO_UDINT(4), "Required", TO_UDINT(1),//|EtherCAT_Network.Elmo_41.Required;
-TO_UDINT(4), "NoSDOBuffer", TO_UDINT(0),//|EtherCAT_Network.Elmo_41.NoSDOBuffer;
-TO_UDINT(4), "NoAsyncBuffer", TO_UDINT(0),//|EtherCAT_Network.Elmo_41.NoAsyncBuffer;
-TO_UDINT(4), "NoSSCBuffer", TO_UDINT(0),//|EtherCAT_Network.Elmo_41.NoSSCBuffer;
-TO_UDINT(4), "UseDefaultEnableSequence", TO_UDINT(1),//|EtherCAT_Network.Elmo_41.UseDefaultEnableSequence;
-TO_UDINT(5), "SplitterPlace", TO_UDINT(0),//|EtherCAT_Network.Elmo_11\EtherCAT_Hub_Base_1.SplitterPlace;
-TO_UDINT(5), "BusType", TO_UDINT(0),//|EtherCAT_Network.Elmo_11\EtherCAT_Hub_Base_1.BusType;
-TO_UDINT(6), "SplitterPlace", TO_UDINT(0),//|EtherCAT_Network.Elmo_21\EtherCAT_Hub_Base_1.SplitterPlace;
-TO_UDINT(6), "BusType", TO_UDINT(0),//|EtherCAT_Network.Elmo_21\EtherCAT_Hub_Base_1.BusType;
-TO_UDINT(7), "SplitterPlace", TO_UDINT(0),//|EtherCAT_Network.Elmo_31\EtherCAT_Hub_Base_1.SplitterPlace;
-TO_UDINT(7), "BusType", TO_UDINT(0),//|EtherCAT_Network.Elmo_31\EtherCAT_Hub_Base_1.BusType;
-TO_UDINT(8), "SplitterPlace", TO_UDINT(0),//|EtherCAT_Network.Elmo_41\EtherCAT_Hub_Base_1.SplitterPlace;
-TO_UDINT(8), "BusType", TO_UDINT(0),//|EtherCAT_Network.Elmo_41\EtherCAT_Hub_Base_1.BusType;
-TO_UDINT(9), "SplitterPlace", TO_UDINT(0),//|EtherCAT_Network.EtherCAT_PLC1\EtherCAT_Hub_Base1.SplitterPlace;
-TO_UDINT(9), "BusType", TO_UDINT(0),//|EtherCAT_Network.EtherCAT_PLC1\EtherCAT_Hub_Base1.BusType;
-TO_UDINT(10), "SplitterPlace", TO_UDINT(0),//|EtherCAT_Network.GL_9086_11\EtherCAT_Hub_Base_1.SplitterPlace;
-TO_UDINT(10), "BusType", TO_UDINT(0),//|EtherCAT_Network.GL_9086_11\EtherCAT_Hub_Base_1.BusType;
-TO_UDINT(11), "SplitterPlace", TO_UDINT(0),//|EtherCAT_Network.WELCON_11\EtherCAT_Hub_Base_1.SplitterPlace;
-TO_UDINT(11), "BusType", TO_UDINT(0),//|EtherCAT_Network.WELCON_11\EtherCAT_Hub_Base_1.BusType;
-TO_UDINT(12), "IsoStartPoint", TO_UDINT(80),//|EtherCAT_Network.EtherCAT_PLC1.IsoStartPoint;
-TO_UDINT(12), "CoreSelect", TO_UDINT(0),//|EtherCAT_Network.EtherCAT_PLC1.CoreSelect;
-TO_UDINT(12), "MasterID", TO_UDINT(1),//|EtherCAT_Network.EtherCAT_PLC1.MasterID;
-TO_UDINT(12), "StateTransitionBehaviour", TO_UDINT(2#110),//|EtherCAT_Network.EtherCAT_PLC1.StateTransitionBehaviour;
-TO_UDINT(12), "StateTransitionTimeout", TO_UDINT(20000),//|EtherCAT_Network.EtherCAT_PLC1.StateTransitionTimeout;
-TO_UDINT(12), "SynchronizationMode", TO_UDINT(0),//|EtherCAT_Network.EtherCAT_PLC1.SynchronizationMode;
-TO_UDINT(12), "PhaseRegDamping", TO_UDINT(0),//|EtherCAT_Network.EtherCAT_PLC1.PhaseRegDamping;
-TO_UDINT(12), "MissingFrameBehaviour", TO_UDINT(3),//|EtherCAT_Network.EtherCAT_PLC1.MissingFrameBehaviour;
-TO_UDINT(13), "SplitterPlace", TO_UDINT(0),//|EtherCAT_Network._base\GL_9086_11\EtherCATSlot_Hub_Base1.SplitterPlace;
-TO_UDINT(24), "SlaveIndex", TO_UDINT(0),//|EtherCAT_Network.GL_9086_11.SlaveIndex;
-TO_UDINT(24), "Required", TO_UDINT(1),//|EtherCAT_Network.GL_9086_11.Required;
-TO_UDINT(24), "NoSDOBuffer", TO_UDINT(0),//|EtherCAT_Network.GL_9086_11.NoSDOBuffer;
-TO_UDINT(24), "NoAsyncBuffer", TO_UDINT(0),//|EtherCAT_Network.GL_9086_11.NoAsyncBuffer;
-TO_UDINT(24), "NoSSCBuffer", TO_UDINT(0),//|EtherCAT_Network.GL_9086_11.NoSSCBuffer;
-TO_UDINT(25), "Slot", TO_UDINT(0),//|EtherCAT_Network.GL_9086_1_Slot001.Slot;
-TO_UDINT(25), "SlotIndexInc", TO_UDINT(0),//|EtherCAT_Network.GL_9086_1_Slot001.SlotIndexInc;
-TO_UDINT(25), "UseSlotIndexInc", TO_UDINT(0),//|EtherCAT_Network.GL_9086_1_Slot001.UseSlotIndexInc;
-TO_UDINT(25), "Required", TO_UDINT(1),//|EtherCAT_Network.GL_9086_1_Slot001.Required;
-TO_UDINT(26), "Slot", TO_UDINT(1),//|EtherCAT_Network.GL_9086_1_Slot011.Slot;
-TO_UDINT(26), "SlotIndexInc", TO_UDINT(0),//|EtherCAT_Network.GL_9086_1_Slot011.SlotIndexInc;
-TO_UDINT(26), "UseSlotIndexInc", TO_UDINT(0),//|EtherCAT_Network.GL_9086_1_Slot011.UseSlotIndexInc;
-TO_UDINT(26), "Required", TO_UDINT(1),//|EtherCAT_Network.GL_9086_1_Slot011.Required;
-TO_UDINT(27), "CompleteAccess", TO_UDINT(0),//|EtherCAT_Network.LMCSdoExecutor1.CompleteAccess;
-TO_UDINT(27), "Timeout", TO_UDINT(100),//|EtherCAT_Network.LMCSdoExecutor1.Timeout;
-TO_UDINT(28), "CompleteAccess", TO_UDINT(0),//|EtherCAT_Network.LMCSdoExecutor2.CompleteAccess;
-TO_UDINT(28), "Timeout", TO_UDINT(100),//|EtherCAT_Network.LMCSdoExecutor2.Timeout;
-TO_UDINT(29), "CompleteAccess", TO_UDINT(0),//|EtherCAT_Network.LMCSdoExecutor3.CompleteAccess;
-TO_UDINT(29), "Timeout", TO_UDINT(100),//|EtherCAT_Network.LMCSdoExecutor3.Timeout;
-TO_UDINT(30), "CompleteAccess", TO_UDINT(0),//|EtherCAT_Network.LMCSdoExecutor4.CompleteAccess;
-TO_UDINT(30), "Timeout", TO_UDINT(100),//|EtherCAT_Network.LMCSdoExecutor4.Timeout;
-TO_UDINT(31), "CompleteAccess", TO_UDINT(0),//|EtherCAT_Network.LMCSdoExecutor5.CompleteAccess;
-TO_UDINT(31), "Timeout", TO_UDINT(100),//|EtherCAT_Network.LMCSdoExecutor5.Timeout;
-TO_UDINT(32), "CompleteAccess", TO_UDINT(0),//|EtherCAT_Network.LMCSdoExecutor6.CompleteAccess;
-TO_UDINT(32), "Timeout", TO_UDINT(100),//|EtherCAT_Network.LMCSdoExecutor6.Timeout;
-TO_UDINT(33), "ThreadSafe", TO_UDINT(0),//|EtherCAT_Network.DeviceNameStr\_base\_base\Elmo_11\MerkerEx0.ThreadSafe;
-TO_UDINT(34), "ThreadSafe", TO_UDINT(0),//|EtherCAT_Network.ProductRevStr\_base\_base\Elmo_11\MerkerEx0.ThreadSafe;
-TO_UDINT(35), "ThreadSafe", TO_UDINT(0),//|EtherCAT_Network.DeviceNameStr\_base\_base\Elmo_21\MerkerEx0.ThreadSafe;
-TO_UDINT(36), "ThreadSafe", TO_UDINT(0),//|EtherCAT_Network.ProductRevStr\_base\_base\Elmo_21\MerkerEx0.ThreadSafe;
-TO_UDINT(37), "ThreadSafe", TO_UDINT(0),//|EtherCAT_Network.DeviceNameStr\_base\_base\Elmo_31\MerkerEx0.ThreadSafe;
-TO_UDINT(38), "ThreadSafe", TO_UDINT(0),//|EtherCAT_Network.ProductRevStr\_base\_base\Elmo_31\MerkerEx0.ThreadSafe;
-TO_UDINT(39), "ThreadSafe", TO_UDINT(0),//|EtherCAT_Network.DeviceNameStr\_base\_base\Elmo_41\MerkerEx0.ThreadSafe;
-TO_UDINT(40), "ThreadSafe", TO_UDINT(0),//|EtherCAT_Network.ProductRevStr\_base\_base\Elmo_41\MerkerEx0.ThreadSafe;
-TO_UDINT(41), "ThreadSafe", TO_UDINT(0),//|EtherCAT_Network.strSoftwareVersion\_base\EtherCAT_PLC1\MerkerEx0.ThreadSafe;
-TO_UDINT(42), "ThreadSafe", TO_UDINT(0),//|EtherCAT_Network.DeviceNameStr\_base\_base\GL_9086_11\MerkerEx0.ThreadSafe;
-TO_UDINT(43), "ThreadSafe", TO_UDINT(0),//|EtherCAT_Network.ProductRevStr\_base\_base\GL_9086_11\MerkerEx0.ThreadSafe;
-TO_UDINT(44), "ThreadSafe", TO_UDINT(0),//|EtherCAT_Network.strSDOParaString\_base\LMCSdoExecutor1\MerkerEx0.ThreadSafe;
-TO_UDINT(45), "ThreadSafe", TO_UDINT(0),//|EtherCAT_Network.strSDOParaString\_base\LMCSdoExecutor2\MerkerEx0.ThreadSafe;
-TO_UDINT(46), "ThreadSafe", TO_UDINT(0),//|EtherCAT_Network.strSDOParaString\_base\LMCSdoExecutor3\MerkerEx0.ThreadSafe;
-TO_UDINT(47), "ThreadSafe", TO_UDINT(0),//|EtherCAT_Network.strSDOParaString\_base\LMCSdoExecutor4\MerkerEx0.ThreadSafe;
-TO_UDINT(48), "ThreadSafe", TO_UDINT(0),//|EtherCAT_Network.strSDOParaString\_base\LMCSdoExecutor5\MerkerEx0.ThreadSafe;
-TO_UDINT(49), "ThreadSafe", TO_UDINT(0),//|EtherCAT_Network.strSDOParaString\_base\LMCSdoExecutor6\MerkerEx0.ThreadSafe;
-TO_UDINT(50), "ThreadSafe", TO_UDINT(0),//|EtherCAT_Network.DeviceNameStr\_base\_base\WELCON_11\MerkerEx0.ThreadSafe;
-TO_UDINT(51), "ThreadSafe", TO_UDINT(0),//|EtherCAT_Network.ProductRevStr\_base\_base\WELCON_11\MerkerEx0.ThreadSafe;
-TO_UDINT(52), "SingleRealloc", TO_UDINT(1),//|EtherCAT_Network._base\_base\Elmo_11\DeviceNameStr.SingleRealloc;
-TO_UDINT(53), "SingleRealloc", TO_UDINT(1),//|EtherCAT_Network._base\_base\Elmo_11\ProductRevStr.SingleRealloc;
-TO_UDINT(54), "SingleRealloc", TO_UDINT(1),//|EtherCAT_Network._base\_base\Elmo_21\DeviceNameStr.SingleRealloc;
-TO_UDINT(55), "SingleRealloc", TO_UDINT(1),//|EtherCAT_Network._base\_base\Elmo_21\ProductRevStr.SingleRealloc;
-TO_UDINT(56), "SingleRealloc", TO_UDINT(1),//|EtherCAT_Network._base\_base\Elmo_31\DeviceNameStr.SingleRealloc;
-TO_UDINT(57), "SingleRealloc", TO_UDINT(1),//|EtherCAT_Network._base\_base\Elmo_31\ProductRevStr.SingleRealloc;
-TO_UDINT(58), "SingleRealloc", TO_UDINT(1),//|EtherCAT_Network._base\_base\Elmo_41\DeviceNameStr.SingleRealloc;
-TO_UDINT(59), "SingleRealloc", TO_UDINT(1),//|EtherCAT_Network._base\_base\Elmo_41\ProductRevStr.SingleRealloc;
-TO_UDINT(60), "SingleRealloc", TO_UDINT(1),//|EtherCAT_Network._base\EtherCAT_PLC1\strSoftwareVersion.SingleRealloc;
-TO_UDINT(61), "SingleRealloc", TO_UDINT(1),//|EtherCAT_Network._base\_base\GL_9086_11\DeviceNameStr.SingleRealloc;
-TO_UDINT(62), "SingleRealloc", TO_UDINT(1),//|EtherCAT_Network._base\_base\GL_9086_11\ProductRevStr.SingleRealloc;
-TO_UDINT(63), "SingleRealloc", TO_UDINT(1),//|EtherCAT_Network._base\LMCSdoExecutor1\strSDOParaString.SingleRealloc;
-TO_UDINT(64), "SingleRealloc", TO_UDINT(1),//|EtherCAT_Network._base\LMCSdoExecutor2\strSDOParaString.SingleRealloc;
-TO_UDINT(65), "SingleRealloc", TO_UDINT(1),//|EtherCAT_Network._base\LMCSdoExecutor3\strSDOParaString.SingleRealloc;
-TO_UDINT(66), "SingleRealloc", TO_UDINT(1),//|EtherCAT_Network._base\LMCSdoExecutor4\strSDOParaString.SingleRealloc;
-TO_UDINT(67), "SingleRealloc", TO_UDINT(1),//|EtherCAT_Network._base\LMCSdoExecutor5\strSDOParaString.SingleRealloc;
-TO_UDINT(68), "SingleRealloc", TO_UDINT(1),//|EtherCAT_Network._base\LMCSdoExecutor6\strSDOParaString.SingleRealloc;
-TO_UDINT(69), "SingleRealloc", TO_UDINT(1),//|EtherCAT_Network._base\_base\WELCON_11\DeviceNameStr.SingleRealloc;
-TO_UDINT(70), "SingleRealloc", TO_UDINT(1),//|EtherCAT_Network._base\_base\WELCON_11\ProductRevStr.SingleRealloc;
-TO_UDINT(71), "SlaveIndex", TO_UDINT(DEACTIVATED_LSL),//|EtherCAT_Network.WELCON_11.SlaveIndex;
-TO_UDINT(71), "Required", TO_UDINT(1),//|EtherCAT_Network.WELCON_11.Required;
-TO_UDINT(71), "NoSDOBuffer", TO_UDINT(0),//|EtherCAT_Network.WELCON_11.NoSDOBuffer;
-TO_UDINT(71), "NoAsyncBuffer", TO_UDINT(0),//|EtherCAT_Network.WELCON_11.NoAsyncBuffer;
-TO_UDINT(71), "NoSSCBuffer", TO_UDINT(0),//|EtherCAT_Network.WELCON_11.NoSSCBuffer;
-TO_UDINT(71), "UseDefaultEnableSequence", TO_UDINT(1),//|EtherCAT_Network.WELCON_11.UseDefaultEnableSequence;
+TO_UDINT(2), "SlaveIndex", TO_UDINT(1),//|EtherCAT_Network.Elmo_11.SlaveIndex;
+TO_UDINT(2), "Required", TO_UDINT(1),//|EtherCAT_Network.Elmo_11.Required;
+TO_UDINT(2), "NoSDOBuffer", TO_UDINT(0),//|EtherCAT_Network.Elmo_11.NoSDOBuffer;
+TO_UDINT(2), "NoAsyncBuffer", TO_UDINT(0),//|EtherCAT_Network.Elmo_11.NoAsyncBuffer;
+TO_UDINT(2), "NoSSCBuffer", TO_UDINT(0),//|EtherCAT_Network.Elmo_11.NoSSCBuffer;
+TO_UDINT(2), "UseDefaultEnableSequence", TO_UDINT(1),//|EtherCAT_Network.Elmo_11.UseDefaultEnableSequence;
+TO_UDINT(3), "SlaveIndex", TO_UDINT(DEACTIVATED_LSL),//|EtherCAT_Network.Elmo_21.SlaveIndex;
+TO_UDINT(3), "Required", TO_UDINT(1),//|EtherCAT_Network.Elmo_21.Required;
+TO_UDINT(3), "NoSDOBuffer", TO_UDINT(0),//|EtherCAT_Network.Elmo_21.NoSDOBuffer;
+TO_UDINT(3), "NoAsyncBuffer", TO_UDINT(0),//|EtherCAT_Network.Elmo_21.NoAsyncBuffer;
+TO_UDINT(3), "NoSSCBuffer", TO_UDINT(0),//|EtherCAT_Network.Elmo_21.NoSSCBuffer;
+TO_UDINT(3), "UseDefaultEnableSequence", TO_UDINT(1),//|EtherCAT_Network.Elmo_21.UseDefaultEnableSequence;
+TO_UDINT(4), "SlaveIndex", TO_UDINT(DEACTIVATED_LSL),//|EtherCAT_Network.Elmo_31.SlaveIndex;
+TO_UDINT(4), "Required", TO_UDINT(1),//|EtherCAT_Network.Elmo_31.Required;
+TO_UDINT(4), "NoSDOBuffer", TO_UDINT(0),//|EtherCAT_Network.Elmo_31.NoSDOBuffer;
+TO_UDINT(4), "NoAsyncBuffer", TO_UDINT(0),//|EtherCAT_Network.Elmo_31.NoAsyncBuffer;
+TO_UDINT(4), "NoSSCBuffer", TO_UDINT(0),//|EtherCAT_Network.Elmo_31.NoSSCBuffer;
+TO_UDINT(4), "UseDefaultEnableSequence", TO_UDINT(1),//|EtherCAT_Network.Elmo_31.UseDefaultEnableSequence;
+TO_UDINT(5), "SlaveIndex", TO_UDINT(DEACTIVATED_LSL),//|EtherCAT_Network.Elmo_41.SlaveIndex;
+TO_UDINT(5), "Required", TO_UDINT(1),//|EtherCAT_Network.Elmo_41.Required;
+TO_UDINT(5), "NoSDOBuffer", TO_UDINT(0),//|EtherCAT_Network.Elmo_41.NoSDOBuffer;
+TO_UDINT(5), "NoAsyncBuffer", TO_UDINT(0),//|EtherCAT_Network.Elmo_41.NoAsyncBuffer;
+TO_UDINT(5), "NoSSCBuffer", TO_UDINT(0),//|EtherCAT_Network.Elmo_41.NoSSCBuffer;
+TO_UDINT(5), "UseDefaultEnableSequence", TO_UDINT(1),//|EtherCAT_Network.Elmo_41.UseDefaultEnableSequence;
+TO_UDINT(6), "SplitterPlace", TO_UDINT(0),//|EtherCAT_Network.Elmo_11\EtherCAT_Hub_Base_1.SplitterPlace;
+TO_UDINT(6), "BusType", TO_UDINT(0),//|EtherCAT_Network.Elmo_11\EtherCAT_Hub_Base_1.BusType;
+TO_UDINT(7), "SplitterPlace", TO_UDINT(0),//|EtherCAT_Network.Elmo_21\EtherCAT_Hub_Base_1.SplitterPlace;
+TO_UDINT(7), "BusType", TO_UDINT(0),//|EtherCAT_Network.Elmo_21\EtherCAT_Hub_Base_1.BusType;
+TO_UDINT(8), "SplitterPlace", TO_UDINT(0),//|EtherCAT_Network.Elmo_31\EtherCAT_Hub_Base_1.SplitterPlace;
+TO_UDINT(8), "BusType", TO_UDINT(0),//|EtherCAT_Network.Elmo_31\EtherCAT_Hub_Base_1.BusType;
+TO_UDINT(9), "SplitterPlace", TO_UDINT(0),//|EtherCAT_Network.Elmo_41\EtherCAT_Hub_Base_1.SplitterPlace;
+TO_UDINT(9), "BusType", TO_UDINT(0),//|EtherCAT_Network.Elmo_41\EtherCAT_Hub_Base_1.BusType;
+TO_UDINT(10), "SplitterPlace", TO_UDINT(0),//|EtherCAT_Network.EtherCAT_PLC1\EtherCAT_Hub_Base1.SplitterPlace;
+TO_UDINT(10), "BusType", TO_UDINT(0),//|EtherCAT_Network.EtherCAT_PLC1\EtherCAT_Hub_Base1.BusType;
+TO_UDINT(11), "SplitterPlace", TO_UDINT(0),//|EtherCAT_Network.GL_9086_11\EtherCAT_Hub_Base_1.SplitterPlace;
+TO_UDINT(11), "BusType", TO_UDINT(0),//|EtherCAT_Network.GL_9086_11\EtherCAT_Hub_Base_1.BusType;
+TO_UDINT(12), "SplitterPlace", TO_UDINT(0),//|EtherCAT_Network.WELCON_11\EtherCAT_Hub_Base_1.SplitterPlace;
+TO_UDINT(12), "BusType", TO_UDINT(0),//|EtherCAT_Network.WELCON_11\EtherCAT_Hub_Base_1.BusType;
+TO_UDINT(13), "IsoStartPoint", TO_UDINT(80),//|EtherCAT_Network.EtherCAT_PLC1.IsoStartPoint;
+TO_UDINT(13), "CoreSelect", TO_UDINT(0),//|EtherCAT_Network.EtherCAT_PLC1.CoreSelect;
+TO_UDINT(13), "MasterID", TO_UDINT(1),//|EtherCAT_Network.EtherCAT_PLC1.MasterID;
+TO_UDINT(13), "StateTransitionBehaviour", TO_UDINT(2#110),//|EtherCAT_Network.EtherCAT_PLC1.StateTransitionBehaviour;
+TO_UDINT(13), "StateTransitionTimeout", TO_UDINT(20000),//|EtherCAT_Network.EtherCAT_PLC1.StateTransitionTimeout;
+TO_UDINT(13), "SynchronizationMode", TO_UDINT(0),//|EtherCAT_Network.EtherCAT_PLC1.SynchronizationMode;
+TO_UDINT(13), "PhaseRegDamping", TO_UDINT(0),//|EtherCAT_Network.EtherCAT_PLC1.PhaseRegDamping;
+TO_UDINT(13), "MissingFrameBehaviour", TO_UDINT(3),//|EtherCAT_Network.EtherCAT_PLC1.MissingFrameBehaviour;
+TO_UDINT(14), "SplitterPlace", TO_UDINT(0),//|EtherCAT_Network._base\GL_9086_11\EtherCATSlot_Hub_Base1.SplitterPlace;
+TO_UDINT(25), "SlaveIndex", TO_UDINT(0),//|EtherCAT_Network.GL_9086_11.SlaveIndex;
+TO_UDINT(25), "Required", TO_UDINT(1),//|EtherCAT_Network.GL_9086_11.Required;
+TO_UDINT(25), "NoSDOBuffer", TO_UDINT(0),//|EtherCAT_Network.GL_9086_11.NoSDOBuffer;
+TO_UDINT(25), "NoAsyncBuffer", TO_UDINT(0),//|EtherCAT_Network.GL_9086_11.NoAsyncBuffer;
+TO_UDINT(25), "NoSSCBuffer", TO_UDINT(0),//|EtherCAT_Network.GL_9086_11.NoSSCBuffer;
+TO_UDINT(26), "Slot", TO_UDINT(0),//|EtherCAT_Network.GL_9086_1_Slot001.Slot;
+TO_UDINT(26), "SlotIndexInc", TO_UDINT(0),//|EtherCAT_Network.GL_9086_1_Slot001.SlotIndexInc;
+TO_UDINT(26), "UseSlotIndexInc", TO_UDINT(0),//|EtherCAT_Network.GL_9086_1_Slot001.UseSlotIndexInc;
+TO_UDINT(26), "Required", TO_UDINT(1),//|EtherCAT_Network.GL_9086_1_Slot001.Required;
+TO_UDINT(27), "Slot", TO_UDINT(1),//|EtherCAT_Network.GL_9086_1_Slot011.Slot;
+TO_UDINT(27), "SlotIndexInc", TO_UDINT(0),//|EtherCAT_Network.GL_9086_1_Slot011.SlotIndexInc;
+TO_UDINT(27), "UseSlotIndexInc", TO_UDINT(0),//|EtherCAT_Network.GL_9086_1_Slot011.UseSlotIndexInc;
+TO_UDINT(27), "Required", TO_UDINT(1),//|EtherCAT_Network.GL_9086_1_Slot011.Required;
+TO_UDINT(28), "CompleteAccess", TO_UDINT(0),//|EtherCAT_Network.LMCSdoExecutor1.CompleteAccess;
+TO_UDINT(28), "Timeout", TO_UDINT(100),//|EtherCAT_Network.LMCSdoExecutor1.Timeout;
+TO_UDINT(29), "CompleteAccess", TO_UDINT(0),//|EtherCAT_Network.LMCSdoExecutor2.CompleteAccess;
+TO_UDINT(29), "Timeout", TO_UDINT(100),//|EtherCAT_Network.LMCSdoExecutor2.Timeout;
+TO_UDINT(30), "CompleteAccess", TO_UDINT(0),//|EtherCAT_Network.LMCSdoExecutor3.CompleteAccess;
+TO_UDINT(30), "Timeout", TO_UDINT(100),//|EtherCAT_Network.LMCSdoExecutor3.Timeout;
+TO_UDINT(31), "CompleteAccess", TO_UDINT(0),//|EtherCAT_Network.LMCSdoExecutor4.CompleteAccess;
+TO_UDINT(31), "Timeout", TO_UDINT(100),//|EtherCAT_Network.LMCSdoExecutor4.Timeout;
+TO_UDINT(32), "CompleteAccess", TO_UDINT(0),//|EtherCAT_Network.LMCSdoExecutor5.CompleteAccess;
+TO_UDINT(32), "Timeout", TO_UDINT(100),//|EtherCAT_Network.LMCSdoExecutor5.Timeout;
+TO_UDINT(33), "CompleteAccess", TO_UDINT(0),//|EtherCAT_Network.LMCSdoExecutor6.CompleteAccess;
+TO_UDINT(33), "Timeout", TO_UDINT(100),//|EtherCAT_Network.LMCSdoExecutor6.Timeout;
+TO_UDINT(34), "ThreadSafe", TO_UDINT(0),//|EtherCAT_Network.DeviceNameStr\_base\_base\Elmo_11\MerkerEx0.ThreadSafe;
+TO_UDINT(35), "ThreadSafe", TO_UDINT(0),//|EtherCAT_Network.ProductRevStr\_base\_base\Elmo_11\MerkerEx0.ThreadSafe;
+TO_UDINT(36), "ThreadSafe", TO_UDINT(0),//|EtherCAT_Network.DeviceNameStr\_base\_base\Elmo_21\MerkerEx0.ThreadSafe;
+TO_UDINT(37), "ThreadSafe", TO_UDINT(0),//|EtherCAT_Network.ProductRevStr\_base\_base\Elmo_21\MerkerEx0.ThreadSafe;
+TO_UDINT(38), "ThreadSafe", TO_UDINT(0),//|EtherCAT_Network.DeviceNameStr\_base\_base\Elmo_31\MerkerEx0.ThreadSafe;
+TO_UDINT(39), "ThreadSafe", TO_UDINT(0),//|EtherCAT_Network.ProductRevStr\_base\_base\Elmo_31\MerkerEx0.ThreadSafe;
+TO_UDINT(40), "ThreadSafe", TO_UDINT(0),//|EtherCAT_Network.DeviceNameStr\_base\_base\Elmo_41\MerkerEx0.ThreadSafe;
+TO_UDINT(41), "ThreadSafe", TO_UDINT(0),//|EtherCAT_Network.ProductRevStr\_base\_base\Elmo_41\MerkerEx0.ThreadSafe;
+TO_UDINT(42), "ThreadSafe", TO_UDINT(0),//|EtherCAT_Network.strSoftwareVersion\_base\EtherCAT_PLC1\MerkerEx0.ThreadSafe;
+TO_UDINT(43), "ThreadSafe", TO_UDINT(0),//|EtherCAT_Network.DeviceNameStr\_base\_base\GL_9086_11\MerkerEx0.ThreadSafe;
+TO_UDINT(44), "ThreadSafe", TO_UDINT(0),//|EtherCAT_Network.ProductRevStr\_base\_base\GL_9086_11\MerkerEx0.ThreadSafe;
+TO_UDINT(45), "ThreadSafe", TO_UDINT(0),//|EtherCAT_Network.strSDOParaString\_base\LMCSdoExecutor1\MerkerEx0.ThreadSafe;
+TO_UDINT(46), "ThreadSafe", TO_UDINT(0),//|EtherCAT_Network.strSDOParaString\_base\LMCSdoExecutor2\MerkerEx0.ThreadSafe;
+TO_UDINT(47), "ThreadSafe", TO_UDINT(0),//|EtherCAT_Network.strSDOParaString\_base\LMCSdoExecutor3\MerkerEx0.ThreadSafe;
+TO_UDINT(48), "ThreadSafe", TO_UDINT(0),//|EtherCAT_Network.strSDOParaString\_base\LMCSdoExecutor4\MerkerEx0.ThreadSafe;
+TO_UDINT(49), "ThreadSafe", TO_UDINT(0),//|EtherCAT_Network.strSDOParaString\_base\LMCSdoExecutor5\MerkerEx0.ThreadSafe;
+TO_UDINT(50), "ThreadSafe", TO_UDINT(0),//|EtherCAT_Network.strSDOParaString\_base\LMCSdoExecutor6\MerkerEx0.ThreadSafe;
+TO_UDINT(51), "ThreadSafe", TO_UDINT(0),//|EtherCAT_Network.DeviceNameStr\_base\_base\WELCON_11\MerkerEx0.ThreadSafe;
+TO_UDINT(52), "ThreadSafe", TO_UDINT(0),//|EtherCAT_Network.ProductRevStr\_base\_base\WELCON_11\MerkerEx0.ThreadSafe;
+TO_UDINT(53), "SingleRealloc", TO_UDINT(1),//|EtherCAT_Network._base\_base\Elmo_11\DeviceNameStr.SingleRealloc;
+TO_UDINT(54), "SingleRealloc", TO_UDINT(1),//|EtherCAT_Network._base\_base\Elmo_11\ProductRevStr.SingleRealloc;
+TO_UDINT(55), "SingleRealloc", TO_UDINT(1),//|EtherCAT_Network._base\_base\Elmo_21\DeviceNameStr.SingleRealloc;
+TO_UDINT(56), "SingleRealloc", TO_UDINT(1),//|EtherCAT_Network._base\_base\Elmo_21\ProductRevStr.SingleRealloc;
+TO_UDINT(57), "SingleRealloc", TO_UDINT(1),//|EtherCAT_Network._base\_base\Elmo_31\DeviceNameStr.SingleRealloc;
+TO_UDINT(58), "SingleRealloc", TO_UDINT(1),//|EtherCAT_Network._base\_base\Elmo_31\ProductRevStr.SingleRealloc;
+TO_UDINT(59), "SingleRealloc", TO_UDINT(1),//|EtherCAT_Network._base\_base\Elmo_41\DeviceNameStr.SingleRealloc;
+TO_UDINT(60), "SingleRealloc", TO_UDINT(1),//|EtherCAT_Network._base\_base\Elmo_41\ProductRevStr.SingleRealloc;
+TO_UDINT(61), "SingleRealloc", TO_UDINT(1),//|EtherCAT_Network._base\EtherCAT_PLC1\strSoftwareVersion.SingleRealloc;
+TO_UDINT(62), "SingleRealloc", TO_UDINT(1),//|EtherCAT_Network._base\_base\GL_9086_11\DeviceNameStr.SingleRealloc;
+TO_UDINT(63), "SingleRealloc", TO_UDINT(1),//|EtherCAT_Network._base\_base\GL_9086_11\ProductRevStr.SingleRealloc;
+TO_UDINT(64), "SingleRealloc", TO_UDINT(1),//|EtherCAT_Network._base\LMCSdoExecutor1\strSDOParaString.SingleRealloc;
+TO_UDINT(65), "SingleRealloc", TO_UDINT(1),//|EtherCAT_Network._base\LMCSdoExecutor2\strSDOParaString.SingleRealloc;
+TO_UDINT(66), "SingleRealloc", TO_UDINT(1),//|EtherCAT_Network._base\LMCSdoExecutor3\strSDOParaString.SingleRealloc;
+TO_UDINT(67), "SingleRealloc", TO_UDINT(1),//|EtherCAT_Network._base\LMCSdoExecutor4\strSDOParaString.SingleRealloc;
+TO_UDINT(68), "SingleRealloc", TO_UDINT(1),//|EtherCAT_Network._base\LMCSdoExecutor5\strSDOParaString.SingleRealloc;
+TO_UDINT(69), "SingleRealloc", TO_UDINT(1),//|EtherCAT_Network._base\LMCSdoExecutor6\strSDOParaString.SingleRealloc;
+TO_UDINT(70), "SingleRealloc", TO_UDINT(1),//|EtherCAT_Network._base\_base\WELCON_11\DeviceNameStr.SingleRealloc;
+TO_UDINT(71), "SingleRealloc", TO_UDINT(1),//|EtherCAT_Network._base\_base\WELCON_11\ProductRevStr.SingleRealloc;
+TO_UDINT(72), "SlaveIndex", TO_UDINT(DEACTIVATED_LSL),//|EtherCAT_Network.WELCON_11.SlaveIndex;
+TO_UDINT(72), "Required", TO_UDINT(1),//|EtherCAT_Network.WELCON_11.Required;
+TO_UDINT(72), "NoSDOBuffer", TO_UDINT(0),//|EtherCAT_Network.WELCON_11.NoSDOBuffer;
+TO_UDINT(72), "NoAsyncBuffer", TO_UDINT(0),//|EtherCAT_Network.WELCON_11.NoAsyncBuffer;
+TO_UDINT(72), "NoSSCBuffer", TO_UDINT(0),//|EtherCAT_Network.WELCON_11.NoSSCBuffer;
+TO_UDINT(72), "UseDefaultEnableSequence", TO_UDINT(1),//|EtherCAT_Network.WELCON_11.UseDefaultEnableSequence;
 
 //Symbolic initialization values
 0$UDINT,
@@ -655,12 +659,12 @@ TO_UDINT(71), "UseDefaultEnableSequence", TO_UDINT(1),//|EtherCAT_Network.WELCON
 //External connections
 0$UDINT,
 1$UDINT,
-TO_UDINT(12), "ToHwControl", C_DIR, TO_UDINT(2190789875), "HwControl1","Control",
+TO_UDINT(13), "ToHwControl", C_DIR, TO_UDINT(2190789875), "HwControl1","Control",
 
 //Magic internal connections
 0$UDINT,
 1$UDINT,
-TO_UDINT(0), "PhaseRegDamping", TO_UDINT(12), "PhaseRegDamping",
+TO_UDINT(0), "PhaseRegDamping", TO_UDINT(13), "PhaseRegDamping",
 
 //Configuration of timeslots of tasks (RealTime, Cyclic)
 #ifdef __LSLLDR_TIMESLOTS__

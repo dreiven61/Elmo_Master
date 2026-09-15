@@ -1976,11 +1976,19 @@ readback hardware matrix는 아직 완료되지 않았다. 따라서 production 
 
 ## 6.12 LMC Home, DS402 Home과 Encoder Maintenance
 
-### LMC Home CurrentPositionZero
+### LMC Home v2 Generic
 
-`LMCSingleAxis`의 current `LMC_Home`은 switch-search reference가 아니다. 실행 전에 읽은
-actual position을 `ExpectedActualPosition` stale-read guard로 사용하고 target position은 0으로
-고정한다. axis motion을 enable하거나 Home/limit switch를 찾지 않는다.
+`LMCSingleAxis`의 `LMC_Home`은 v1 CurrentPositionZero 호환 계약과 v2 typed 계약을 함께 제공한다.
+`Direct`는 축을 이동시키지 않고 입력한 application-unit `Position`으로 좌표를 맞춘다. v2 Direct에는
+legacy `ExpectedActualPosition` stale-read guard를 적용하지 않는다. `AbsoluteSwitch`, `LimitSwitch`,
+`ReferencePulse`는 LASAL `_LMCAxis.MoveReference`를 호출한다. `Block`은 torque/block detection 입력이
+없으므로 fail-closed한다. source 구현과 실제 배선·극성·방향·실축 qualification은 별도다.
+
+moving mode 입력은 WPF의 `Reference Velocity 1`, `Reference Velocity 2`,
+`Reference Acceleration`, `Reference Position Window`다. v2 wire 호환성을 위해 public 저장소 이름은
+각각 `Velocity`, `TorqueLimit`, `Acceleration`, `DistanceLimit`을 유지하고 alias property를 제공한다.
+따라서 moving LMC Home에서 `TorqueLimit`은 torque가 아니라 `VRef2`, `DistanceLimit`은
+`PositionWindow` 의미다. `RefJerk`는 입력 slot이 없어 0으로 고정한다.
 
 | 단계 | Public API | Command |
 |---|---|---:|
@@ -1991,8 +1999,17 @@ actual position을 `ExpectedActualPosition` stale-read guard로 사용하고 tar
 
 ```csharp
 LMCPreparedHome prepared = axis.PrepareLMC_Home(
-    expectedActualPosition,
-    timeoutMilliseconds,
+    new LMCHomeParameters(
+        position: 25000,
+        velocity: 0,
+        acceleration: 0,
+        distanceLimit: 0,
+        torqueLimit: 0,
+        homingMode: LMCHomeMode.Direct,
+        bufferMode: LMCHomeBufferMode.Buffered,
+        direction: LMCHomeDirection.NotApplicable,
+        switchMode: LMCHomeSwitchMode.NotApplicable,
+        timeoutMilliseconds: 5000),
     adminCapabilities,
     diagnosticCapabilities,
     LMCHomeExecuteToken.Create());
@@ -2012,15 +2029,48 @@ if (outcome.IsTerminal)
 }
 ```
 
-Start ACK는 완료 증거가 아니며 `0x7D13`을 replay하지 않는다. terminal outcome과 matching
-retirement가 필요하다. Admin feature bit 4는 current source에서 ON이고 WPF는
+v2 request payload는 Start/Query/Retire가 각각 76/80/84 bytes이고 성공 outcome은 164 bytes다.
+기존 v1 56/56/60-byte request와 144-byte outcome은 호환용으로 유지한다. Start ACK는 완료 증거가
+아니며 `0x7D13`을 replay하지 않는다. terminal outcome과 matching retirement가 필요하다.
+Admin feature bit 4는 current source에서 ON이고 WPF는
 `LMC Home outcome:` 로그에 record state, success, original status/error/detail, axis
 status/error, raw/application/internal position set, native/evidence/stop/runtime/generation을
 기록한다. 성공 raw feedback은 wrap-safe `-2/-1/0/+1/+2 count` 창으로 제한하고 `+/-3 count` 이상은
 fail-closed한다. raw before/after는 물리 feedback 증거이지 bit-identical sample 계약이 아니다.
 Axis2의 `8382700 -> 8382701`과 Axis1의 `8027834 -> 8027836`을 이전 raw gate가 `-7`로 오판한 뒤 이 창을
 PLC/SDK에 동기화했다. current image의 build/download와 별개로 새 BootId에 묶인 한 축 단독
-terminal/physical proof는 기능 적격성 증거로 별도 확보해야 한다.
+terminal/physical proof는 기능 적격성 증거로 별도 확보해야 한다. v2 Direct도 IDE build/download와
+새 BootId의 exact outcome 및 실제 좌표 효과 확인 전에는 production PASS가 아니다.
+
+반복 호출은 직전 terminal outcome을 exact retirement한 뒤 새 execute token과 새 recovery key로
+수행한다. 2026-09-15 사용자 시험에서 v2 Direct 1회 동작은 확인됐지만 두 번째 호출이 detail 42,
+41로 거절됐다. 추가 Watch는 첫 실행이 `FINALIZE`와 receipt `PREPARED`까지 도달한 뒤
+`PublishAxisOwnership=-3`으로 멈춘 것을 보여줬다. 원인은 76-byte v2 identity header/tail을
+허용한 뒤에도 receipt의 owner-record prefix를 56-byte v1 필드 배치로 검사한 PLC source 결함이다.
+current source는 v1/v2 owner-record 검증을 분리하고, v2 Direct 및 moving parameter를 실제 저장
+layout과 대조한 뒤 exact `PREPARED` receipt cleanup을 재개한다. WPF는 이전 exact outcome이
+terminal이면 retire한 뒤 같은 버튼에서 새 request를 만들며, recovery journal은 mode 2..4와 네
+moving parameter를 exact identity로 인정한다. 수정 image의 IDE build/download 및 2회 연속 실기
+재확인은 대기 상태다.
+
+BootId 변경 뒤 이전 BootId의 완전한 terminal Home outcome이 남으면 Start는 detail 40으로
+거절되지만 현재 BootId의 recovery key로는 그 결과를 조회할 수 없다. startup reconciliation은
+current-boot owner table이 정상 초기화됐고 대상 축이 IDLE인 경우, 이전 BootId의 완전한
+SUCCEEDED/FAILED/ABORTED terminal record만 정리한다. generation counter는 보존하며 Running,
+Quarantined, partial receipt 또는 같은 BootId outcome은 자동 정리하지 않는다.
+
+`0x7D19` 성공은 terminal snapshot을 반환한 뒤 retained `ZeroHomeState`를 실제로 비우고 generation
+counter만 보존한다. 이전 구현은 snapshot만 반환하고 record를 남겨 두어 같은 BootId에서 두 번째
+Home이 detail 40으로 거절되는 결함이 있었다. 기존 잘못된 `0x7D19`의 exact observation marker와
+record generation이 일치하는 same-boot terminal 결과도 target axis IDLE 조건에서 정리된다.
+Moving Home의 PLC timeout은 탐색 도중에도 적용되며
+초과 시 `StopMove`가 실행된다. WPF 기본 timeout은 60000 ms이고 현장 이동 범위에 맞게 조정해야 한다.
+
+현재 WPF 실행 버튼은 Start ACK 이후 200 ms 간격으로 `0x7D18`을 조회하고 terminal exact outcome을
+받으면 `0x7D19` retirement까지 완료한다. Running 또는 monitor deadline 만료 시에는 recovery를
+유지하며 Start를 재전송하지 않는다. 또한 PLC TCP facade는 service가 `0x7D13`을 physical/mailbox
+dispatch 전에 exact rejection한 경우 그 요청이 만든 reservation만 rollback한다. 2026-09-15 14:25
+로그의 `detail 42 -> 이후 detail 41 반복`은 이 rejected-Start reservation 누수와 일치한다.
 
 ### DS402 Home parameters
 
